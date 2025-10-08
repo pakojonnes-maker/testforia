@@ -1,0 +1,103 @@
+
+VISUALTASTE/
+├── apps/
+│   ├── admin/
+│   │   └── src/
+│   │       ├── components/
+│   │       │   ├── layout/
+│   │       │   │   └── DashboardLayout.tsx
+│   │       │   └── media/
+│   │       │       └── VideoThumbnailPlaceholder.tsx
+│   │       ├── contexts/
+│   │       │   └── AuthContext.tsx
+│   │       ├── lib/
+│   │       │   └── apiClient.ts
+│   │       ├── pages/
+│   │       │   ├── AnalyticsPage.tsx
+│   │       │   ├── ConfigurationPage.tsx
+│   │       │   ├── DashboardPage.tsx
+│   │       │   ├── DishesPage.tsx
+│   │       │   ├── DishFormPage.tsx
+│   │       │   ├── LoginPage.tsx
+│   │       │   ├── MarketingPage.tsx
+│   │       │   ├── MediaPage.tsx
+│   │       │   ├── NotFoundPage.tsx
+│   │       │   ├── ReviewsPage.tsx
+│   │       │   └── SectionsPage.tsx
+│   │       ├── App.css
+│   │       ├── App.tsx
+│   │       ├── index.css
+│   │       ├── main.tsx
+│   │       ├── vite-env.d.ts
+│   │       ├── .env
+│   │       ├── .gitignore
+│   │       └── eslint.config.js
+│   ├── client/
+│   │   └── src/
+│   │       ├── components/
+│   │       │   ├── reels/
+│   │       │   │   └── layout/
+│   │       │   │       └── ClientLayout.tsx
+│   │       │   ├── DishInfo.tsx
+│   │       │   ├── DishInfoDrawer.tsx
+│   │       │   ├── DishReel.css
+│   │       │   ├── DishReel.tsx
+│   │       │   ├── LanguageSwitcher.tsx
+│   │       │   ├── ReelsView.tsx
+│   │       │   ├── ReelsViewer.css
+│   │       │   ├── ReelsViewer.tsx
+│   │       │   └── SectionsNav.tsx
+│   │       ├── hooks/
+│   │       │   ├── useDishViewTracking.ts
+│   │       │   └── useRestaurantData.ts
+│   │       ├── lib/
+│   │       │   └── apiClient.ts
+│   │       ├── pages/
+│   │       │   ├── HomePage.tsx
+│   │       │   ├── NotFoundPage.tsx
+│   │       │   ├── ReelsView.tsx
+│   │       │   └── RestaurantLanding.tsx
+│   │       ├── providers/
+│   │       │   └── TrackingAndPushProvider.tsx
+│   │       ├── utils/
+│   │       │   └── analytics.ts
+│   │       ├── .env
+│   │       ├── App.css
+│   │       ├── App.tsx
+│   │       ├── index.css
+│   │       └── main.tsx
+│   ├── node_modules/
+│   ├── estructura.txt
+│   ├── package-lock.json
+│   └── package.json
+├── packages/
+│   ├── api/
+│   │   ├── dist/
+│   │   │   ├── index.d.mts
+│   │   │   ├── index.d.ts
+│   │   │   ├── index.js
+│   │   │   └── index.mjs
+│   │   ├── node_modules/
+│   │   ├── src/
+│   │   │   ├── constants.ts
+│   │   │   ├── index.ts
+│   │   │   ├── tracking.ts
+│   │   │   └── types.ts
+│   │   ├── package-lock.json
+│   │   ├── package.json
+│   │   └── tsconfig.json
+│   └── ui/
+│       └── src/
+│           └── reels/
+│               ├── BadgeOverlay.jsx
+│               ├── index.js
+│               └── LanguageSelector.jsx
+│       ├── index.ts
+│       ├── package.json
+│       ├── tsconfig.json
+│       ├── estructura.txt
+│       ├── package-lock.json
+│       └── package.json
+├── estructura.txt
+├── package-lock.json
+└── package.json
