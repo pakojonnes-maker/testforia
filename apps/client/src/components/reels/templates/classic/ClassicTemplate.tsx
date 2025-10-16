@@ -3,7 +3,7 @@ import React from 'react';
 import { Box } from '@mui/material';
 import { motion, AnimatePresence } from 'framer-motion';
 import type { ReelConfig } from '../../../../hooks/useReelsConfig';
-import ClassicHeader from './ClassicHeader';
+import ClassicHeader from './Header';
 
 interface ClassicTemplateProps {
   config: ReelConfig;
