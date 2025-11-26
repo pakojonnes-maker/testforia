@@ -5,6 +5,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { apiClient } from '../lib/apiClient'; // import nombrado para evitar error de default export
 import { useTheme } from '@mui/material/styles';
 import useMediaQuery from '@mui/material/useMediaQuery';
+import MultimediaTab from '../components/media/MultimediaTab';
 
 // dnd-kit
 import {
@@ -26,7 +27,7 @@ import {
   IconButton, Chip, TextField, InputAdornment, Grid, Card, CardMedia, CardContent, CardActions,
   Alert, AlertTitle, Menu, MenuItem, ListItemIcon, ListItemText, Tooltip, Dialog, DialogTitle, DialogContent,
   DialogContentText, DialogActions, Snackbar, CircularProgress, Skeleton, Fab, SwipeableDrawer, Divider, Avatar,
-  useScrollTrigger, Zoom, ToggleButtonGroup, ToggleButton, alpha,
+  useScrollTrigger, Zoom, ToggleButtonGroup, ToggleButton, alpha, Tabs, Tab,
 } from '@mui/material';
 
 // Icons
@@ -55,6 +56,7 @@ import {
   AttachMoney as PriceIcon,
   ViewModule as SectionOrderIcon,
   InfoOutlined as InfoIcon,
+  PhotoLibrary as PhotoLibraryIcon,
 } from '@mui/icons-material';
 
 // ===== QuickHelpMenu =====
@@ -98,6 +100,25 @@ const QuickHelpMenu: React.FC<{ open: boolean; onClose: () => void }> = ({ open,
   </Dialog>
 );
 
+// ===== Helper para imagen de plato =====
+const getDishDisplayImage = (dish: any) => {
+  if (!dish) return 'placeholder-dish.jpg';
+  const media = dish.media || [];
+
+  // 1. Primary Image
+  const primary = media.find((m: any) => m.role === 'PRIMARY_IMAGE' || m.isprimary);
+  if (primary?.url) return primary.url;
+
+  // 2. Gallery Image
+  const gallery = media.find((m: any) => m.role === 'GALLERY_IMAGE' || m.type === 'image');
+  if (gallery?.url) return gallery.url;
+
+  // 3. Thumbnail
+  if (dish.thumbnailurl) return dish.thumbnailurl;
+
+  return 'placeholder-dish.jpg';
+};
+
 // ===== Tarjeta ordenable con badge de orden =====
 const SortableDishCard: React.FC<{
   dish: any;
@@ -111,7 +132,7 @@ const SortableDishCard: React.FC<{
   transition?: string;
   isDragging?: boolean;
 }> = React.memo(({ dish, index, onEdit, onDelete, listeners, attributes, setNodeRef, transform, transition, isDragging }) => {
-  const imageUrl = dish?.media?.find((m: any) => m.isprimary)?.url || dish?.thumbnailurl || 'placeholder-dish.jpg';
+  const imageUrl = getDishDisplayImage(dish);
   const style = {
     transform: CSS.Transform.toString(transform),
     transition,
@@ -295,9 +316,8 @@ const DroppableSection: React.FC<{
           borderRadius: 2,
           p: 2,
           transition: 'background-color 0.2s ease',
-          border: `2px ${isOver ? 'dashed' : 'solid'} ${
-            isOver ? 'primary.main' : 'transparent'
-          }`,
+          border: `2px ${isOver ? 'dashed' : 'solid'} ${isOver ? 'primary.main' : 'transparent'
+            }`,
           minHeight: dishes.length === 0 ? 120 : 'auto',
         }}
       >
@@ -342,12 +362,12 @@ const DroppableSection: React.FC<{
 // ===== Principal =====
 export default function DishesPage() {
   const navigate = useNavigate();
-const { user } = useAuth();
+  const { user } = useAuth();
   const queryClient = useQueryClient();
-const restaurantId =
-  user?.currentRestaurant?.id ??
-  JSON.parse(localStorage.getItem('currentrestaurant') || 'null')?.id ??
-  undefined;
+  const restaurantId =
+    user?.currentRestaurant?.id ??
+    JSON.parse(localStorage.getItem('currentrestaurant') || 'null')?.id ??
+    undefined;
 
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
@@ -360,6 +380,9 @@ const restaurantId =
   const [filterAnchorEl, setFilterAnchorEl] = useState<null | HTMLElement>(null);
   const [sortAnchorEl, setSortAnchorEl] = useState<null | HTMLElement>(null);
   const [sortBy, setSortBy] = useState<'order_index' | 'name_asc' | 'name_desc' | 'price_asc' | 'price_desc' | 'views'>('order_index');
+
+  // Tab state
+  const [currentTab, setCurrentTab] = useState(0);
 
   // Orden por sección
   const [sectionOrderMode, setSectionOrderMode] = useState(false);
@@ -651,56 +674,90 @@ const restaurantId =
 
   return (
     <Container maxWidth="lg" sx={{ py: { xs: 2, md: 4 }, pb: sectionOrderMode ? 10 : 2 }}>
-      {/* Header */}
-      <Box sx={{
-        display: 'flex', flexDirection: { xs: 'column', sm: 'row' },
-        justifyContent: 'space-between', alignItems: { xs: 'stretch', sm: 'center' }, mb: 3, gap: 2,
-      }}>
-        <Typography variant="h5" component="h1" sx={{ fontWeight: 600 }}>
-          {sectionOrderMode ? 'Gestión de menú' : 'Platos'}
-        </Typography>
-        <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
-          {sectionOrderMode ? (
-            <>
-              <Button
-                variant="outlined"
-                color="inherit"
-                startIcon={<CloseIcon />}
-                onClick={() => { setSectionOrderMode(false); setHasSectionOrderChanges(false); }}
-              >
-                Cancelar
-              </Button>
-              <Button
-                variant="contained"
-                color="primary"
-                startIcon={saveSectionOrderMutation.isPending ? <CircularProgress size={18} color="inherit" /> : <SaveIcon />}
-                onClick={handleSaveSectionOrder}
-                disabled={!hasSectionOrderChanges || saveSectionOrderMutation.isPending}
-              >
-                {saveSectionOrderMutation.isPending ? 'Guardando...' : 'Guardar orden'}
-              </Button>
-            </>
-          ) : (
-            <>
-              <Button
-                variant={isMobile ? 'outlined' : 'contained'}
-                color="secondary"
-                startIcon={<SectionOrderIcon />}
-                onClick={() => setSectionOrderMode(true)}
-                sx={{ display: { xs: 'none', sm: 'flex' } }}
-              >
-                Gestionar menú
-              </Button>
-              <Button variant="contained" color="primary" startIcon={<AddIcon />} onClick={() => navigate('/dishes/new')}>
-                {isMobile ? 'Nuevo' : 'Nuevo plato'}
-              </Button>
-            </>
-          )}
+      {/* Sistema de Tabs */}
+      <Paper sx={{ mb: 3 }}>
+        <Tabs
+          value={currentTab}
+          onChange={(_, newValue) => {
+            setCurrentTab(newValue);
+            setSectionOrderMode(newValue === 1);
+          }}
+          variant="scrollable"
+          scrollButtons="auto"
+          sx={{ borderBottom: 1, borderColor: 'divider' }}
+        >
+          <Tab label="Platos" icon={<RestaurantIcon />} iconPosition="start" />
+          <Tab label="Gestionar Menú" icon={<SectionOrderIcon />} iconPosition="start" />
+          <Tab label="Multimedia" icon={<PhotoLibraryIcon />} iconPosition="start" />
+        </Tabs>
+      </Paper>
+
+      {/* Tab 0: Header Platos */}
+      {currentTab === 0 && (
+        <Box sx={{
+          display: 'flex', flexDirection: { xs: 'column', sm: 'row' },
+          justifyContent: 'space-between', alignItems: { xs: 'stretch', sm: 'center' }, mb: 3, gap: 2,
+        }}>
+          <Typography variant="h5" component="h1" sx={{ fontWeight: 600 }}>
+            Platos
+          </Typography>
+          <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
+            <Button variant="contained" color="primary" startIcon={<AddIcon />} onClick={() => navigate('/dishes/new')}>
+              {isMobile ? 'Nuevo' : 'Nuevo plato'}
+            </Button>
+          </Box>
         </Box>
-      </Box>
+      )}
+
+      {/* Tab 1: Header Gestionar Menú */}
+      {currentTab === 1 && (
+        <Box sx={{
+          display: 'flex', flexDirection: { xs: 'column', sm: 'row' },
+          justifyContent: 'space-between', alignItems: { xs: 'stretch', sm: 'center' }, mb: 3, gap: 2,
+        }}>
+          <Typography variant="h5" component="h1" sx={{ fontWeight: 600 }}>
+            Gestión de menú
+          </Typography>
+          <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
+            <Button
+              variant="outlined"
+              color="inherit"
+              startIcon={<CloseIcon />}
+              onClick={() => {
+                setSectionOrderMode(false);
+                setHasSectionOrderChanges(false);
+                setCurrentTab(0);
+              }}
+            >
+              Cancelar
+            </Button>
+            <Button
+              variant="contained"
+              color="primary"
+              startIcon={saveSectionOrderMutation.isPending ? <CircularProgress size={18} color="inherit" /> : <SaveIcon />}
+              onClick={handleSaveSectionOrder}
+              disabled={!hasSectionOrderChanges || saveSectionOrderMutation.isPending}
+            >
+              {saveSectionOrderMutation.isPending ? 'Guardando...' : 'Guardar orden'}
+            </Button>
+          </Box>
+        </Box>
+      )}
+
+      {/* Tab 2: Header Multimedia */}
+      {currentTab === 2 && (
+        <Box sx={{ mb: 3 }}>
+          <Typography variant="h5" component="h1" sx={{ fontWeight: 600, mb: 1 }}>
+            Multimedia
+          </Typography>
+          <Typography variant="body2" color="text.secondary">
+            Gestiona imágenes y videos de tus platos
+          </Typography>
+        </Box>
+      )}
 
       {/* Barra de búsqueda y filtros (solo fuera de modo ordenar) */}
-      {!sectionOrderMode && (
+      {currentTab === 0 && (
         <Paper sx={{ p: { xs: 2, md: 3 }, mb: 3, borderRadius: 2 }} elevation={1}>
           <Grid container spacing={2} alignItems="center">
             <Grid item xs={12} sm={6} md={5}>
@@ -768,7 +825,7 @@ const restaurantId =
       )}
 
       {/* Contenido principal */}
-      {sectionOrderMode ? (
+      {currentTab === 1 && (
         <>
           <Alert severity="info" sx={{ mb: 3 }}>
             <AlertTitle>Gestión de menú</AlertTitle>
@@ -805,7 +862,9 @@ const restaurantId =
             </DragOverlay>
           </DndContext>
         </>
-      ) : (
+      )}
+
+      {currentTab === 0 && (
         <Box sx={{ mb: 4 }}>
           {viewMode === 'grid' ? (
             <Grid container spacing={3}>
@@ -814,8 +873,8 @@ const restaurantId =
                   {/* Card de vista normal simple */}
                   <Card sx={{ height: '100%', display: 'flex', flexDirection: 'column', borderRadius: 2, overflow: 'hidden' }}>
                     <CardMedia component="div" sx={{
-                      height: 180, backgroundImage: `url(${dish?.media?.find((m: any) => m.isprimary)?.url || dish?.thumbnailurl || 'placeholder-dish.jpg'})`,
-                      backgroundSize: 'cover', backgroundPosition: 'center'
+                      height: 180, backgroundImage: `url(${getDishDisplayImage(dish)})`,
+                      backgroundSize: 'contain', backgroundPosition: 'center', backgroundRepeat: 'no-repeat', backgroundColor: '#f5f5f5'
                     }} />
                     <CardContent sx={{ flexGrow: 1, pt: 2 }}>
                       <Typography variant="h6" sx={{ mb: 1, fontWeight: 600 }} noWrap>
@@ -863,7 +922,7 @@ const restaurantId =
                       <TableCell component="th" scope="row">
                         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
                           <Avatar
-                            src={dish?.media?.find((m: any) => m.isprimary)?.url || dish?.thumbnailurl}
+                            src={getDishDisplayImage(dish)}
                             alt={dish?.translations?.name?.es}
                             variant="rounded" sx={{ width: 40, height: 40 }}
                           >
@@ -875,6 +934,7 @@ const restaurantId =
                         </Box>
                       </TableCell>
                       <TableCell>
+
                         <Typography variant="body2" sx={{
                           overflow: 'hidden', textOverflow: 'ellipsis', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', lineHeight: '1.3em', maxHeight: '2.6em',
                         }}>
@@ -898,20 +958,30 @@ const restaurantId =
                         <IconButton size="small" color="error" onClick={() => handleOpenDeleteDialog(dish)}><DeleteIcon /></IconButton>
                       </TableCell>
                     </TableRow>
-                  ))}
-                  {filteredCount === 0 && (
-                    <TableRow>
-                      <TableCell colSpan={6} align="center" sx={{ py: 3 }}>
-                        No se encontraron platos.
-                      </TableCell>
-                    </TableRow>
-                  )}
-                </TableBody>
-              </Table>
-            </TableContainer>
+                  ))
+                  }
+                  {
+                    filteredCount === 0 && (
+                      <TableRow>
+                        <TableCell colSpan={6} align="center" sx={{ py: 3 }}>
+                          No se encontraron platos.
+                        </TableCell>
+                      </TableRow>
+                    )
+                  }
+                </TableBody >
+              </Table >
+            </TableContainer >
           )}
-        </Box>
+        </Box >
       )}
+
+      {
+        currentTab === 2 && (
+          <MultimediaTab restaurantId={restaurantId!} dishes={dishes} />
+        )
+      }
+
 
       {/* FABs móviles (UNO solo, sin duplicado) */}
       <Zoom in={!sectionOrderMode}>
@@ -954,8 +1024,8 @@ const restaurantId =
       <SwipeableDrawer
         anchor="bottom"
         open={false}
-        onClose={() => {}}
-        onOpen={() => {}}
+        onClose={() => { }}
+        onOpen={() => { }}
         disableSwipeToOpen={false}
         swipeAreaWidth={56}
         ModalProps={{ keepMounted: true }}
@@ -1084,77 +1154,79 @@ const restaurantId =
         </MenuItem>
       </Menu>
 
-{/* Diálogo eliminar */}
-<Dialog
-  open={deleteDialogOpen}
-  onClose={handleCloseDeleteDialog}
-  PaperProps={{ sx: { borderRadius: 2, boxShadow: '0 8px 24px rgba(0,0,0,0.15)' } }}
->
-  <DialogTitle sx={{ pb: 1 }}>
-    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-      <DeleteIcon color="error" />
-      <Typography variant="h6">Confirmar eliminación</Typography>
-    </Box>
-  </DialogTitle>
+      {/* Diálogo eliminar */}
+      <Dialog
+        open={deleteDialogOpen}
+        onClose={handleCloseDeleteDialog}
+        PaperProps={{ sx: { borderRadius: 2, boxShadow: '0 8px 24px rgba(0,0,0,0.15)' } }}
+      >
+        <DialogTitle sx={{ pb: 1 }}>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+            <DeleteIcon color="error" />
+            <Typography variant="h6">Confirmar eliminación</Typography>
+          </Box>
+        </DialogTitle>
 
-  <DialogContent>
-    <DialogContentText>
-      ¿Estás seguro de que deseas eliminar el plato <b>{dishToDelete?.translations?.name?.es}</b>?
-    </DialogContentText>
-    <DialogContentText sx={{ mt: 2, color: 'error.main' }}>
-      Esta acción no se puede deshacer y eliminará todas las imágenes y videos asociados.
-    </DialogContentText>
-  </DialogContent>
+        <DialogContent>
+          <DialogContentText>
+            ¿Estás seguro de que deseas eliminar el plato <b>{dishToDelete?.translations?.name?.es}</b>?
+          </DialogContentText>
+          <DialogContentText sx={{ mt: 2, color: 'error.main' }}>
+            Esta acción no se puede deshacer y eliminará todas las imágenes y videos asociados.
+          </DialogContentText>
+        </DialogContent>
 
-  <DialogActions sx={{ px: 3, pb: 3 }}>
-    <Button onClick={handleCloseDeleteDialog} variant="outlined">Cancelar</Button>
-    <Button
-      onClick={handleDeleteDish}
-      color="error"
-      variant="contained"
-      disabled={deleteDishMutation.isPending}
-      startIcon={deleteDishMutation.isPending ? <CircularProgress size={20} color="inherit" /> : null}
-    >
-      {deleteDishMutation.isPending ? 'Eliminando...' : 'Eliminar'}
-    </Button>
-  </DialogActions>
-</Dialog>
+        <DialogActions sx={{ px: 3, pb: 3 }}>
+          <Button onClick={handleCloseDeleteDialog} variant="outlined">Cancelar</Button>
+          <Button
+            onClick={handleDeleteDish}
+            color="error"
+            variant="contained"
+            disabled={deleteDishMutation.isPending}
+            startIcon={deleteDishMutation.isPending ? <CircularProgress size={20} color="inherit" /> : null}
+          >
+            {deleteDishMutation.isPending ? 'Eliminando...' : 'Eliminar'}
+          </Button>
+        </DialogActions>
+      </Dialog>
 
-<QuickHelpMenu open={showQuickHelp} onClose={() => setShowQuickHelp(false)} />
+      <QuickHelpMenu open={showQuickHelp} onClose={() => setShowQuickHelp(false)} />
 
-{/* Snackbar */}
-<Snackbar
-  open={snackbar.open}
-  autoHideDuration={6000}
-  onClose={(_, r) => {
-    if (r === 'clickaway') return;
-    setSnackbar((s) => ({ ...s, open: false }));
-  }}
-  anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
->
-  <Alert onClose={() => setSnackbar((s) => ({ ...s, open: false }))} severity={snackbar.severity} variant="filled" sx={{ width: '100%' }}>
-    {snackbar.message}
-  </Alert>
-</Snackbar>
-{/* Overlay de refetch */}
-{isRefetching && (
-  <Box
-    sx={{
-      position: 'fixed',
-      top: 0,
-      left: 0,
-      right: 0,
-      bottom: 0,
-      backgroundColor: 'rgba(0,0,0,0.5)',
-      display: 'flex',
-      alignItems: 'center',
-      justifyContent: 'center',
-      zIndex: (t) => t.zIndex.drawer + 1,
-    }}
-  >
-    <CircularProgress sx={{ color: '#fff' }} />
-  </Box>
-)}
-</Container>
-);
+      {/* Snackbar */}
+      <Snackbar
+        open={snackbar.open}
+        autoHideDuration={6000}
+        onClose={(_, r) => {
+          if (r === 'clickaway') return;
+          setSnackbar((s) => ({ ...s, open: false }));
+        }}
+        anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
+      >
+        <Alert onClose={() => setSnackbar((s) => ({ ...s, open: false }))} severity={snackbar.severity} variant="filled" sx={{ width: '100%' }}>
+          {snackbar.message}
+        </Alert>
+      </Snackbar>
+      {/* Overlay de refetch */}
+      {
+        isRefetching && (
+          <Box
+            sx={{
+              position: 'fixed',
+              top: 0,
+              left: 0,
+              right: 0,
+              bottom: 0,
+              backgroundColor: 'rgba(0,0,0,0.5)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              zIndex: (t) => t.zIndex.drawer + 1,
+            }}
+          >
+            <CircularProgress sx={{ color: '#fff' }} />
+          </Box>
+        )
+      }
+    </Container >
+  );
 }

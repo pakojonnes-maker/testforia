@@ -1,9 +1,9 @@
 // apps/client/src/components/reels/templates/classic/Header.tsx
 
 import React, { useState } from 'react';
-import { Box, Typography, Menu, MenuItem } from '@mui/material';
+import { Box, Typography, Menu, MenuItem, IconButton } from '@mui/material';
 import { motion } from 'framer-motion';
-import { ExpandMore } from '@mui/icons-material';
+import { ExpandMore, Home } from '@mui/icons-material';
 import type { RestaurantConfig } from '../../../../hooks/useReelsConfig';
 
 interface Language {
@@ -35,16 +35,16 @@ const ClassicHeader: React.FC<HeaderProps> = ({
 }) => {
   const [languageMenuAnchor, setLanguageMenuAnchor] = useState<null | HTMLElement>(null);
 
+  // ✅ COLORES CON SNAKE_CASE (con guion bajo) - Coincidir con workerReels
   const colors = {
-    primary: config.restaurant?.branding?.primaryColor || '#FF6B6B',
-    secondary: config.restaurant?.branding?.secondaryColor || '#4ECDC4',
-    text: '#FFFFFF'
+    primary: config.restaurant?.branding?.primary_color || '#FF6B6B',     // ✅ Con guion bajo
+    secondary: config.restaurant?.branding?.secondary_color || '#4ECDC4', // ✅ Con guion bajo
+    text: config.restaurant?.branding?.text_color || '#FFFFFF'            // ✅ Con guion bajo
   };
 
-  // ✅ NUEVA: Función para obtener URL de bandera desde R2
+  // ✅ Función para obtener URL de bandera desde R2
   const getFlagUrl = (languageCode: string) => {
     const API_URL = import.meta.env.VITE_API_URL || "https://visualtasteworker.franciscotortosaestudios.workers.dev";
-    // ✅ MATCH DIRECTO: usar el code tal como está en la BD
     return `${API_URL}/media/System/flags/${languageCode.toLowerCase()}.svg`;
   };
 
@@ -56,7 +56,23 @@ const ClassicHeader: React.FC<HeaderProps> = ({
     return restaurant?.translations?.name?.[currentLanguage] || restaurant?.name || 'Restaurante';
   };
 
-  const handleLanguageClick = (event: React.MouseEvent<HTMLButtonElement>) => {
+  // ✅ Obtener URL del sitio web del restaurante
+  const getRestaurantWebsite = () => {
+    return restaurant?.website || restaurant?.website_url || config.restaurant?.website || null;
+  };
+
+  // ✅ Handler para el botón Home
+  const handleHomeClick = () => {
+    const websiteUrl = getRestaurantWebsite();
+    if (websiteUrl) {
+      const url = websiteUrl.startsWith('http') ? websiteUrl : `https://${websiteUrl}`;
+      window.open(url, '_blank', 'noopener,noreferrer');
+    } else {
+      console.warn('⚠️ [Header] No website URL found for restaurant');
+    }
+  };
+
+  const handleLanguageClick = (event: React.MouseEvent<HTMLElement>) => {
     setLanguageMenuAnchor(event.currentTarget);
   };
 
@@ -81,83 +97,80 @@ const ClassicHeader: React.FC<HeaderProps> = ({
     'it': '🇮🇹',
     'pt': '🇵🇹',
     'ca': '🏴󠁥󠁳󠁣󠁴󠁿',
-    'kr': '🇰🇷' // Para Korea si lo tienes
+    'kr': '🇰🇷'
   };
 
   // ✅ COMPONENTE: Bandera desde R2 con fallback robusto
-  const FlagIcon: React.FC<{ 
-    languageCode: string; 
-    size?: number; 
+  const FlagIcon: React.FC<{
+    languageCode: string;
+    size?: number;
     showFallback?: boolean;
-  }> = ({ 
-    languageCode, 
-    size = 20, 
-    showFallback = true 
+  }> = ({
+    languageCode,
+    size = 20,
+    showFallback = true
   }) => {
-    const [imageError, setImageError] = useState(false);
-    const [imageLoaded, setImageLoaded] = useState(false);
-    
-    const flagUrl = getFlagUrl(languageCode);
-    const fallbackEmoji = flagEmojiMap[languageCode] || '🌍';
+      const [imageError, setImageError] = useState(false);
+      const [imageLoaded, setImageLoaded] = useState(false);
 
-    // ✅ Si hay error o no queremos fallback, mostrar emoji
-    if (imageError || !showFallback) {
-      return (
-        <Typography sx={{ fontSize: `${size}px` }}>
-          {fallbackEmoji}
-        </Typography>
-      );
-    }
+      const flagUrl = getFlagUrl(languageCode);
+      const fallbackEmoji = flagEmojiMap[languageCode] || '🌍';
 
-    return (
-      <Box
-        sx={{
-          width: size,
-          height: size,
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          position: 'relative',
-          borderRadius: '2px',
-          overflow: 'hidden'
-        }}
-      >
-        {/* ✅ Emoji mientras carga */}
-        {!imageLoaded && (
-          <Typography sx={{ 
-            fontSize: `${Math.floor(size * 0.8)}px`,
-            position: 'absolute',
-            zIndex: 1
-          }}>
+      if (imageError || !showFallback) {
+        return (
+          <Typography sx={{ fontSize: `${size}px` }}>
             {fallbackEmoji}
           </Typography>
-        )}
-        
-        {/* ✅ Bandera SVG desde R2 */}
-        <img
-          src={flagUrl}
-          alt={`${languageCode} flag`}
-          style={{
+        );
+      }
+
+      return (
+        <Box
+          sx={{
             width: size,
             height: size,
-            objectFit: 'cover',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            position: 'relative',
             borderRadius: '2px',
-            display: imageLoaded ? 'block' : 'none',
-            position: imageLoaded ? 'static' : 'absolute',
-            zIndex: imageLoaded ? 2 : 0
+            overflow: 'hidden'
           }}
-          onLoad={() => {
-            console.log(`✅ [FlagIcon] Loaded: ${languageCode} from ${flagUrl}`);
-            setImageLoaded(true);
-          }}
-          onError={() => {
-            console.warn(`❌ [FlagIcon] Failed: ${languageCode} from ${flagUrl}`);
-            setImageError(true);
-          }}
-        />
-      </Box>
-    );
-  };
+        >
+          {!imageLoaded && (
+            <Typography sx={{
+              fontSize: `${Math.floor(size * 0.8)}px`,
+              position: 'absolute',
+              zIndex: 1
+            }}>
+              {fallbackEmoji}
+            </Typography>
+          )}
+
+          <img
+            src={flagUrl}
+            alt={`${languageCode} flag`}
+            style={{
+              width: size,
+              height: size,
+              objectFit: 'cover',
+              borderRadius: '2px',
+              display: imageLoaded ? 'block' : 'none',
+              position: imageLoaded ? 'static' : 'absolute',
+              zIndex: imageLoaded ? 2 : 0
+            }}
+            onLoad={() => {
+              console.log(`✅ [FlagIcon] Loaded: ${languageCode} from ${flagUrl}`);
+              setImageLoaded(true);
+            }}
+            onError={() => {
+              console.warn(`❌ [FlagIcon] Failed: ${languageCode} from ${flagUrl}`);
+              setImageError(true);
+            }}
+          />
+        </Box>
+      );
+    };
 
   return (
     <>
@@ -172,7 +185,7 @@ const ClassicHeader: React.FC<HeaderProps> = ({
           background: 'linear-gradient(180deg, rgba(0,0,0,0.8) 0%, rgba(0,0,0,0.6) 70%, transparent 100%)',
           backdropFilter: 'blur(20px)',
           WebkitBackdropFilter: 'blur(20px)',
-          pt: { xs: 6, sm: 3 },
+          pt: { xs: 3, sm: 3 },
           pb: 3,
           px: 3,
           transform: 'translateZ(0)',
@@ -193,8 +206,37 @@ const ClassicHeader: React.FC<HeaderProps> = ({
             position: 'relative'
           }}
         >
-          {/* ✅ COLUMNA IZQUIERDA - Vacía (para balance) */}
-          <Box sx={{ width: '80px', flexShrink: 0 }} />
+          {/* ✅ COLUMNA IZQUIERDA - Icono Home (Color Secundario) */}
+          <Box sx={{ width: '80px', flexShrink: 0, display: 'flex', justifyContent: 'flex-start' }}>
+            <motion.div
+              initial={{ x: -20, opacity: 0 }}
+              animate={{ x: 0, opacity: 1 }}
+              transition={{ delay: 0.3, type: 'spring', stiffness: 200 }}
+            >
+              <IconButton
+                onClick={handleHomeClick}
+                sx={{
+                  width: { xs: 44, sm: 48 },
+                  height: { xs: 44, sm: 48 },
+                  bgcolor: 'rgba(255,255,255,0.1)',
+                  backdropFilter: 'blur(10px)',
+                  border: '1px solid rgba(255,255,255,0.2)',
+                  transition: 'all 0.3s ease',
+                  '&:hover': {
+                    bgcolor: 'rgba(255,255,255,0.2)',
+                    transform: 'scale(1.05)'
+                  }
+                }}
+              >
+                <Home
+                  sx={{
+                    fontSize: { xs: 22, sm: 24 },
+                    color: colors.secondary // ✅ Color secundario del reel
+                  }}
+                />
+              </IconButton>
+            </motion.div>
+          </Box>
 
           {/* ✅ COLUMNA CENTRAL - Texto centrado */}
           <Box
@@ -233,19 +275,21 @@ const ClassicHeader: React.FC<HeaderProps> = ({
               >
                 {getRestaurantName(restaurant)}
               </Typography>
-              
+
+              {/* ✅ NOMBRE DE SECCIÓN - Color Secundario */}
               <Typography
                 sx={{
-                  color: 'rgba(255,255,255,0.8)',
+                  color: colors.secondary, // ✅ Color secundario del reel
                   fontSize: { xs: '0.85rem', sm: '0.95rem' },
-                  fontWeight: 300,
+                  fontWeight: 600,
                   fontFamily: '"Inter", sans-serif',
                   letterSpacing: 1,
                   textTransform: 'uppercase',
                   textAlign: 'center',
                   overflow: 'hidden',
                   textOverflow: 'ellipsis',
-                  whiteSpace: 'nowrap'
+                  whiteSpace: 'nowrap',
+                  textShadow: '0 2px 8px rgba(0,0,0,0.4)' // Sombra para mejor legibilidad
                 }}
               >
                 {getSectionName(currentSection)}
@@ -290,10 +334,9 @@ const ClassicHeader: React.FC<HeaderProps> = ({
                     }
                   }}
                 >
-                  {/* ✅ BANDERA DESDE R2 */}
-                  <FlagIcon 
-                    languageCode={currentLanguage} 
-                    size={18} 
+                  <FlagIcon
+                    languageCode={currentLanguage}
+                    size={18}
                     showFallback={true}
                   />
                   <Typography
@@ -318,36 +361,38 @@ const ClassicHeader: React.FC<HeaderProps> = ({
         </Box>
       </Box>
 
-      {/* ✅ MENÚ DE IDIOMAS - Con banderas R2 */}
+      {/* ✅ MENÚ DE IDIOMAS - SIN PaperProps deprecated, usando slotProps */}
       <Menu
         anchorEl={languageMenuAnchor}
         open={Boolean(languageMenuAnchor)}
         onClose={handleLanguageClose}
         anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}
         transformOrigin={{ vertical: 'top', horizontal: 'right' }}
-        PaperProps={{
-          sx: {
-            bgcolor: 'rgba(0,0,0,0.95)',
-            backdropFilter: 'blur(20px)',
-            WebkitBackdropFilter: 'blur(20px)',
-            border: '1px solid rgba(255,255,255,0.1)',
-            borderRadius: 3,
-            mt: 1,
-            minWidth: 180,
-            maxHeight: 300,
-            overflowY: 'auto',
-            boxShadow: '0 8px 32px rgba(0,0,0,0.3)',
-            '&::-webkit-scrollbar': { width: 6 },
-            '&::-webkit-scrollbar-thumb': {
-              bgcolor: 'rgba(255,255,255,0.3)',
+        slotProps={{
+          paper: {
+            sx: {
+              bgcolor: 'rgba(0,0,0,0.95)',
+              backdropFilter: 'blur(20px)',
+              WebkitBackdropFilter: 'blur(20px)',
+              border: '1px solid rgba(255,255,255,0.1)',
               borderRadius: 3,
+              mt: 1,
+              minWidth: 180,
+              maxHeight: 300,
+              overflowY: 'auto',
+              boxShadow: '0 8px 32px rgba(0,0,0,0.3)',
+              '&::-webkit-scrollbar': { width: 6 },
+              '&::-webkit-scrollbar-thumb': {
+                bgcolor: 'rgba(255,255,255,0.3)',
+                borderRadius: 3,
+              }
             }
           }
         }}
       >
         {languages.map((language) => {
           const isSelected = currentLanguage === language.code;
-          
+
           return (
             <MenuItem
               key={language.code}
@@ -359,25 +404,24 @@ const ClassicHeader: React.FC<HeaderProps> = ({
                 px: 2,
                 py: 1.5,
                 '&.Mui-selected': {
-                  bgcolor: 'rgba(255,107,107,0.2)',
-                  color: colors.primary,
-                  '&:hover': { bgcolor: 'rgba(255,107,107,0.3)' }
+                  bgcolor: `${colors.secondary}40`, // ✅ Color secundario con transparencia
+                  color: colors.secondary,
+                  '&:hover': { bgcolor: `${colors.secondary}60` }
                 },
                 '&:hover': { bgcolor: 'rgba(255,255,255,0.1)' }
               }}
             >
-              <Box sx={{ 
-                display: 'flex', 
-                alignItems: 'center', 
-                gap: 1.5, 
+              <Box sx={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 1.5,
                 width: '100%',
                 justifyContent: 'space-between'
               }}>
                 <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
-                  {/* ✅ BANDERA DESDE R2 */}
-                  <FlagIcon 
-                    languageCode={language.code} 
-                    size={22} 
+                  <FlagIcon
+                    languageCode={language.code}
+                    size={22}
                     showFallback={true}
                   />
                   <Box>
@@ -389,7 +433,7 @@ const ClassicHeader: React.FC<HeaderProps> = ({
                     </Typography>
                   </Box>
                 </Box>
-                
+
                 {isSelected && (
                   <motion.div
                     initial={{ scale: 0 }}
@@ -401,7 +445,7 @@ const ClassicHeader: React.FC<HeaderProps> = ({
                         width: 8,
                         height: 8,
                         borderRadius: '50%',
-                        bgcolor: colors.primary
+                        bgcolor: colors.secondary // ✅ Color secundario
                       }}
                     />
                   </motion.div>

@@ -12,6 +12,7 @@ interface AuthContextType {
   logout: () => void;
   currentRestaurant?: any;
   setCurrentRestaurant: (restaurant: any) => void;
+  switchRestaurant: (restaurantId: string) => void;
 }
 
 // Crea el contexto con un valor inicial seguro
@@ -38,27 +39,35 @@ export function AuthProvider({ children }: AuthProviderProps) {
         try {
           // Configurar token en apiClient
           apiClient.setAuthToken(authToken);
-          
+
           // Validar autenticación
           // Nota: Como getCurrentUser no está disponible, usamos isAuthenticated o alguna otra verificación
           if (!apiClient.isAuthenticated()) {
             throw new Error("Token inválido");
           }
-          
+
           // En ausencia de getCurrentUser, podríamos recuperar datos del usuario
           // desde localStorage o usar un token decodificado
           const storedUserData = localStorage.getItem('user_data');
           if (storedUserData) {
-            setUser(JSON.parse(storedUserData));
+            const userData = JSON.parse(storedUserData);
+            setUser(userData);
+
+            // Auto-seleccionar el primer restaurante si currentRestaurant no existe
+            if (!currentRestaurant && userData.restaurants && userData.restaurants.length > 0) {
+              setCurrentRestaurant(userData.restaurants[0]);
+            }
           }
-          
+
         } catch (error) {
           // Token inválido o expirado
           console.error("Error de autenticación:", error);
           localStorage.removeItem('auth_token');
           localStorage.removeItem('user_data');
+          localStorage.removeItem('current_restaurant');
           setAuthToken(null);
           setUser(null);
+          setCurrentRestaurant(null);
         } finally {
           setIsLoading(false);
         }
@@ -66,7 +75,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
         setIsLoading(false);
       }
     };
-    
+
     checkAuth();
   }, [authToken]);
 
@@ -83,24 +92,39 @@ export function AuthProvider({ children }: AuthProviderProps) {
   const login = async (email: string, password: string) => {
     try {
       const response = await apiClient.login(email, password);
-      
+
       if (response.token) {
         localStorage.setItem('auth_token', response.token);
         setAuthToken(response.token);
-        
+
         // Guardar datos del usuario en localStorage
         if (response.user) {
           localStorage.setItem('user_data', JSON.stringify(response.user));
           setUser(response.user);
+
+          // Auto-seleccionar el primer restaurante al hacer login
+          if (response.user.restaurants && response.user.restaurants.length > 0) {
+            setCurrentRestaurant(response.user.restaurants[0]);
+          }
         }
-        
+
         return response;
       }
-      
-      throw new Error('No se recibió token de autenticación');
+
+      throw new Error('No se recib ió token de autenticación');
     } catch (error) {
       console.error("Error de inicio de sesión:", error);
       throw error;
+    }
+  };
+
+  // Función de cambio de restaurante
+  const switchRestaurant = (restaurantId: string) => {
+    if (user?.restaurants) {
+      const restaurant = user.restaurants.find((r: any) => r.id === restaurantId);
+      if (restaurant) {
+        setCurrentRestaurant(restaurant);
+      }
     }
   };
 
@@ -124,7 +148,8 @@ export function AuthProvider({ children }: AuthProviderProps) {
     login,
     logout,
     currentRestaurant,
-    setCurrentRestaurant
+    setCurrentRestaurant,
+    switchRestaurant
   };
 
   return (

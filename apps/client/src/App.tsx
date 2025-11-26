@@ -8,11 +8,11 @@ import HomePage from './pages/HomePage';
 import ReelsView from './pages/ReelsView';
 import RestaurantLanding from './pages/RestaurantLanding';
 import NotFoundPage from './pages/NotFoundPage';
-
+import '@fontsource-variable/fraunces/index.css'
 // ✅ Tema personalizado adaptable
 const createCustomTheme = (primaryColor?: string, secondaryColor?: string) => createTheme({
   palette: {
-    mode: 'dark', // Cambiar a dark para reels
+    mode: 'dark',
     primary: { main: primaryColor || '#9c27b0' },
     secondary: { main: secondaryColor || '#2196f3' },
   },
@@ -28,7 +28,7 @@ interface RestaurantData {
   sections: any[];
   dishesBySection: any;
   languages: any[];
-  reelsConfig?: any; // ⭐ NUEVO: configuración de reels
+  reelsConfig?: any;
 }
 
 const RestaurantContext = React.createContext<RestaurantData | null>(null);
@@ -86,14 +86,16 @@ function App() {
     return 'landing';
   }, [location.pathname, slug]);
 
-  // ⭐ Cargar datos del restaurante + config de reels
+  // ⭐ Cargar datos del restaurante SOLO para REELS
   useEffect(() => {
-    if (!slug) {
+    // ✅ Si no hay slug O si es landing, NO cargar datos aquí
+    if (!slug || currentPage === 'landing') {
       setRestaurantData(null);
       setLoading(false);
       return;
     }
 
+    // ✅ Solo cargar para REELS
     let isMounted = true;
 
     async function loadRestaurant() {
@@ -101,9 +103,8 @@ function App() {
         setLoading(true);
         setError(null);
         
-        console.log('🚀 [App] Cargando restaurante:', slug);
+        console.log('🚀 [App] Cargando restaurante para REELS:', slug);
         
-        // ⭐ Cargar datos del restaurante (incluye reelsConfig si está en el endpoint)
         const result = await apiClient.getRestaurantReelsData(slug);
         
         if (!isMounted) return;
@@ -111,8 +112,6 @@ function App() {
         if (result?.restaurant) {
           console.log('✅ [App] Restaurante cargado:', result.restaurant.name);
           
-          // ⭐ Si el endpoint /reels ya incluye reelsConfig, usarlo
-          // Si no, se cargará en ReelsContainer
           setRestaurantData({
             ...result,
             reelsConfig: result.reelsConfig || null
@@ -140,7 +139,7 @@ function App() {
     return () => {
       isMounted = false;
     };
-  }, [slug]);
+  }, [slug, currentPage]); // ← Añadido currentPage como dependencia
 
   // ✅ Tema dinámico basado en config de reels
   const theme = useMemo(() => {
@@ -151,7 +150,7 @@ function App() {
 
   // ✅ RENDERIZADO OPTIMIZADO
   const renderContent = () => {
-    // Página de inicio - no necesita restaurante
+    // Página de inicio
     if (currentPage === 'home') {
       return <HomePage />;
     }
@@ -161,7 +160,12 @@ function App() {
       return <NotFoundPage />;
     }
 
-    // Loading state
+
+if (currentPage === 'landing') {
+  console.log('🏠 [App] Renderizando LANDING para:', slug);
+  return <RestaurantLanding slugProp={slug} />; // ← AÑADIR slugProp
+}
+    // ✅ REELS - Necesita loading y context
     if (loading) {
       return (
         <Box 
@@ -179,7 +183,6 @@ function App() {
       );
     }
 
-    // Error state
     if (error || !restaurantData?.restaurant) {
       return (
         <Box 
@@ -218,9 +221,8 @@ function App() {
       );
     }
 
-    // ✅ Renderizar página con tracking y context
-    const PageComponent = currentPage === 'reels' ? ReelsView : RestaurantLanding;
-    
+    // ✅ REELS con tracking y context
+    console.log('🎬 [App] Renderizando REELS con tracking para:', slug);
     console.log('🔍 [App] Datos para tracking:', {
       restaurantId: restaurantData.restaurant.id,
       restaurantName: restaurantData.restaurant.name,
@@ -235,7 +237,7 @@ function App() {
           restaurantName={restaurantData.restaurant.name}
           restaurantSlug={restaurantData.restaurant.slug}
         >
-          <PageComponent />
+          <ReelsView />
         </TrackingAndPushProvider>
       </RestaurantContext.Provider>
     );

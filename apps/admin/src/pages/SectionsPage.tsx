@@ -169,9 +169,9 @@ function SortableItem({section, index, onEdit, onDelete, isMobile}) {
 
 export default function SectionsPage() {
   const navigate = useNavigate();
-  const { user } = useAuth();
+  const { currentRestaurant } = useAuth();
   const queryClient = useQueryClient();
-  const restaurantId = user?.currentRestaurant?.id;
+  const restaurantId = currentRestaurant?.id;
   
   // Detectar si es móvil
   const theme = useTheme();

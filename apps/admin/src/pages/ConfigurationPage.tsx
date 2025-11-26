@@ -1,1313 +1,594 @@
-import { useState } from 'react';
-import { useAuth } from '../contexts/AuthContext';
+// pages/Settings.jsx
+import { useState, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useAuth } from '../contexts/AuthContext';
 import { apiClient } from '../lib/apiClient';
-import {
-  Container,
-  Paper,
-  Typography,
-  Box,
-  Tabs,
-  Tab,
-  Grid,
-  TextField,
-  Button,
-  FormControlLabel,
-  Switch,
-  Divider,
-  Card,
-  CardContent,
-  CardActions,
-  InputAdornment,
-  Select,
-  MenuItem,
-  FormControl,
-  InputLabel,
-  Alert,
-  Snackbar,
-  IconButton,
-  Tooltip,
-  CircularProgress,
-  Chip,
-} from '@mui/material';
-import type { SelectChangeEvent } from '@mui/material';
-import {
-  Restaurant as RestaurantIcon,
-  Language as LanguageIcon,
-  Palette as PaletteIcon,
-  QrCode as QrCodeIcon,
-  Save as SaveIcon,
-  ContentCopy as CopyIcon,
-  Download as DownloadIcon,
-  Link as LinkIcon,
-  Schedule as ScheduleIcon,
-  Slideshow as ReelsIcon,
-  Preview as PreviewIcon,
-  MobileFriendly as MobileIcon,
-  PhoneIphone as PhoneIcon,
-} from '@mui/icons-material';
 
-// Interfaces para tipar datos
-interface RestaurantDetails {
-  id: string;
-  name: string;
-  slug: string;
-  address: string;
-  city: string;
-  country: string;
-  phone: string;
-  email: string;
-  website?: string;
-  instagram?: string;
-  facebook?: string;
-  tiktok?: string;
-  logo_url?: string;
-  google_maps_url?: string;
-  active_languages?: string[];
-  language_completion?: Record<string, number>;
-  opening_hours?: {
-    [key: string]: {
-      open?: string;
-      close?: string;
+export default function Settings() {
+  const [activeTab, setActiveTab] = useState('restaurant');
+  const { user } = useAuth();
+  const queryClient = useQueryClient();
+  const restaurantId = user?.currentRestaurant?.id;
+
+  const [restaurantData, setRestaurantData] = useState(null);
+  const [stylingData, setStylingData] = useState(null);
+  const [reelsColorsData, setReelsColorsData] = useState(null);
+
+  // Query: Obtener datos del restaurante
+  const { data: restaurantResponse, isLoading: loadingRestaurant, error: restaurantError } = useQuery({
+    queryKey: ['restaurant-settings', restaurantId],
+    queryFn: () => apiClient.getRestaurant(restaurantId),
+    enabled: !!restaurantId,
+  });
+
+  // Query: Obtener configuración de styling (themes)
+  const { data: stylingResponse, isLoading: loadingStyling, error: stylingError } = useQuery({
+    queryKey: ['restaurant-styling', restaurantId],
+    queryFn: () => apiClient.getRestaurantConfig(restaurantId),
+    enabled: !!restaurantId,
+  });
+
+  // Query: Obtener colores de reels (config_overrides)
+  const { data: reelsColorsResponse, isLoading: loadingReelsColors, error: reelsColorsError } = useQuery({
+    queryKey: ['restaurant-reels-colors', restaurantId],
+    queryFn: () => apiClient.getRestaurantStyling(restaurantId),
+    enabled: !!restaurantId,
+  });
+
+  // Efecto para cargar datos del restaurante
+  useEffect(() => {
+    if (restaurantResponse?.restaurant) {
+      const r = restaurantResponse.restaurant;
+      setRestaurantData({
+        name: r.name || '',
+        description: r.description || '',
+        email: r.email || '',
+        phone: r.phone || '',
+        website: r.website || '',
+        city: r.city || '',
+        country: r.country || '',
+        timezone: r.timezone || 'Europe/Madrid',
+        accepts_reservations: !!r.accepts_reservations,
+        reservation_url: r.reservation_url || '',
+        reservation_phone: r.reservation_phone || '',
+        reservation_email: r.reservation_email || '',
+        has_wifi: !!r.has_wifi,
+        has_delivery: !!r.has_delivery,
+        has_outdoor_seating: !!r.has_outdoor_seating,
+        capacity: r.capacity || 50,
+        google_maps_url: r.google_maps_url || '',
+        facebook_url: r.facebook_url || '',
+        instagram_handle: r.instagram_url || '',
+        tiktok_handle: r.tiktok_url || '',
+        youtube_url: r.youtube_url || '',
+        tripadvisor_url: r.tripadvisor_url || ''
+      });
     }
-  };
-  theme?: {
-    primary_color?: string;
-    secondary_color?: string;
-    text_color?: string;
-    background_color?: string;
-  };
-}
+  }, [restaurantResponse]);
 
-interface LandingConfig {
-  template_id: string;
-  primary_color: string;
-  secondary_color: string;
-  background_color: string;
-  font_heading: string;
-  font_body: string;
-  show_reservation: boolean;
-  show_social_links: boolean;
-  show_menu_preview: boolean;
-  seo: {
-    [key: string]: {
-      title?: string;
-      description?: string;
-      keywords?: string;
+  // Efecto para cargar configuración de styling (themes)
+  useEffect(() => {
+    if (stylingResponse?.config) {
+      const cfg = stylingResponse.config;
+      setStylingData({
+        override_colors: {
+          primary_color: cfg.branding?.primaryColor || '#FF6B35',
+          secondary_color: cfg.branding?.secondaryColor || '#004E89',
+          accent_color: cfg.branding?.accentColor || cfg.theme?.accentColor || '#F7B32B',
+          text_color: cfg.theme?.textColor || '#2B2D42',
+          background_color: cfg.theme?.backgroundColor || '#FFFFFF'
+        },
+        override_fonts: {
+          heading_font: cfg.theme?.fontFamily || 'Inter',
+          body_font: cfg.theme?.fontFamily || 'Inter',
+          font_accent: cfg.theme?.fontAccent || 'serif'
+        },
+        layout_style: cfg.template?.id || 'modern'
+      });
     }
+  }, [stylingResponse]);
+
+  // Efecto para cargar colores de reels
+  useEffect(() => {
+    if (reelsColorsResponse?.success) {
+      const styling = reelsColorsResponse.styling;
+      if (styling?.customColors) {
+        setReelsColorsData({
+          primary: styling.customColors.primary || '#FF6B6B',
+          secondary: styling.customColors.secondary || '#4ECDC4',
+          text: styling.customColors.text || '#2C3E50',
+          background: styling.customColors.background || '#FFFFFF'
+        });
+      } else {
+        setReelsColorsData({
+          primary: '#FF6B6B',
+          secondary: '#4ECDC4',
+          text: '#2C3E50',
+          background: '#FFFFFF'
+        });
+      }
+    }
+  }, [reelsColorsResponse]);
+
+  // Mutation: Actualizar restaurante
+  const restaurantMutation = useMutation({
+    mutationFn: (data) => apiClient.updateRestaurant(restaurantId, data),
+    onSuccess: () => {
+      queryClient.invalidateQueries(['restaurant-settings', restaurantId]);
+      alert('✅ Datos guardados correctamente');
+    },
+    onError: (error) => {
+      alert(`❌ Error: ${error.message}`);
+    }
+  });
+
+  // Mutation para actualizar THEME (tabla themes)
+  const themeMutation = useMutation({
+    mutationFn: (data) => apiClient.updateRestaurantTheme(restaurantId, data),
+    onSuccess: () => {
+      queryClient.invalidateQueries(['restaurant-styling', restaurantId]);
+      alert('✅ Tema guardado correctamente');
+    },
+    onError: (error) => {
+      alert(`❌ Error al guardar tema: ${error.message}`);
+    }
+  });
+
+  // Mutation para colores de reels
+  const reelsColorsMutation = useMutation({
+    mutationFn: (colors) => apiClient.updateRestaurantStyling(restaurantId, colors),
+    onSuccess: () => {
+      queryClient.invalidateQueries(['restaurant-reels-colors', restaurantId]);
+      alert('✅ Colores de reels guardados correctamente');
+    },
+    onError: (error) => {
+      alert(`❌ Error al guardar colores de reels: ${error.message}`);
+    }
+  });
+
+  // ✅ Handlers separados por sección
+  const handleSaveRestaurant = async () => {
+    await restaurantMutation.mutateAsync(restaurantData);
   };
-}
 
-interface ReelsConfig {
-  enabled: boolean;
-  primary_color: string;
-  secondary_color: string;
-  show_badge_icons: boolean;
-  autoplay_videos: boolean;
-  show_price: boolean;
-  transition_effect: string;
-}
+  const handleSaveTheme = async () => {
+    await themeMutation.mutateAsync(stylingData);
+  };
 
-interface Language {
-  code: string;
-  name: string;
-  native_name: string;
-  flag_emoji: string;
-}
+  const handleSaveReelsColors = async () => {
+    await reelsColorsMutation.mutateAsync(reelsColorsData);
+  };
 
-interface TabPanelProps {
-  children?: React.ReactNode;
-  value: number;
-  index: number;
-}
+  const updateRestaurantData = (field, value) => {
+    setRestaurantData(prev => prev ? { ...prev, [field]: value } : null);
+  };
 
-interface SnackbarState {
-  open: boolean;
-  message: string;
-  severity: 'success' | 'error' | 'info' | 'warning';
-}
+  const updateStylingColors = (colorField, value) => {
+    setStylingData(prev => prev ? ({
+      ...prev,
+      override_colors: { ...prev.override_colors, [colorField]: value }
+    }) : null);
+  };
 
-const TabPanel: React.FC<TabPanelProps> = (props) => {
-  const { children, value, index, ...other } = props;
+  const updateStylingFonts = (fontField, value) => {
+    setStylingData(prev => prev ? ({
+      ...prev,
+      override_fonts: { ...prev.override_fonts, [fontField]: value }
+    }) : null);
+  };
+
+  const updateStylingData = (field, value) => {
+    setStylingData(prev => prev ? ({ ...prev, [field]: value }) : null);
+  };
+
+  const updateReelsColor = (colorField, value) => {
+    setReelsColorsData(prev => prev ? ({ ...prev, [colorField]: value }) : null);
+  };
+
+  if (!restaurantId) {
+    return <div style={styles.errorContainer}><h1>⚠️ No hay restaurante seleccionado</h1></div>;
+  }
+
+  if (restaurantError || stylingError || reelsColorsError) {
+    return (
+      <div style={styles.errorContainer}>
+        <h1>❌ Error al cargar datos</h1>
+        <p>{restaurantError?.message || stylingError?.message || reelsColorsError?.message}</p>
+      </div>
+    );
+  }
+
+  const isLoading = loadingRestaurant || loadingStyling || loadingReelsColors;
+
+  if (isLoading || !restaurantData || !stylingData || !reelsColorsData) {
+    return (
+      <div style={styles.loadingContainer}>
+        <div style={styles.spinner}></div>
+        <p>Cargando configuración...</p>
+      </div>
+    );
+  }
 
   return (
-    <div
-      role="tabpanel"
-      hidden={value !== index}
-      id={`configuration-tabpanel-${index}`}
-      aria-labelledby={`configuration-tab-${index}`}
-      {...other}
-    >
-      {value === index && (
-        <Box sx={{ p: 3 }}>
-          {children}
-        </Box>
-      )}
+    <div style={styles.container}>
+      {/* ❌ HEADER SIN BOTÓN GLOBAL */}
+      <div style={styles.header}>
+        <div>
+          <h1 style={styles.title}>Configuración</h1>
+          <p style={styles.subtitle}>Personaliza tu restaurante y diseño</p>
+        </div>
+      </div>
+
+      <div style={styles.tabsContainer}>
+        <button onClick={() => setActiveTab('restaurant')} style={{...styles.tab, ...(activeTab === 'restaurant' ? styles.tabActive : {})}}>
+          <span style={styles.tabIcon}>🏪</span><span>Restaurante</span>
+        </button>
+        <button onClick={() => setActiveTab('styling')} style={{...styles.tab, ...(activeTab === 'styling' ? styles.tabActive : {})}}>
+          <span style={styles.tabIcon}>🎨</span><span>Diseño</span>
+        </button>
+        <button onClick={() => setActiveTab('reels')} style={{...styles.tab, ...(activeTab === 'reels' ? styles.tabActive : {})}}>
+          <span style={styles.tabIcon}>🎬</span><span>Colores Reels</span>
+        </button>
+      </div>
+
+      <div style={styles.content}>
+        {activeTab === 'restaurant' && (
+          <div style={styles.tabContent}>
+            <Section title="Información básica">
+              <div style={styles.grid}>
+                <FormField label="Nombre del restaurante" required>
+                  <input type="text" value={restaurantData.name} onChange={(e) => updateRestaurantData('name', e.target.value)} style={styles.input} />
+                </FormField>
+                <FormField label="Email">
+                  <input type="email" value={restaurantData.email} onChange={(e) => updateRestaurantData('email', e.target.value)} style={styles.input} />
+                </FormField>
+                <FormField label="Teléfono">
+                  <input type="tel" value={restaurantData.phone} onChange={(e) => updateRestaurantData('phone', e.target.value)} style={styles.input} />
+                </FormField>
+                <FormField label="Sitio web">
+                  <input type="url" value={restaurantData.website} onChange={(e) => updateRestaurantData('website', e.target.value)} style={styles.input} />
+                </FormField>
+              </div>
+              <FormField label="Descripción">
+                <textarea value={restaurantData.description} onChange={(e) => updateRestaurantData('description', e.target.value)} style={{...styles.input, ...styles.textarea}} rows={4} />
+              </FormField>
+            </Section>
+
+            <Section title="Localización">
+              <div style={styles.grid}>
+                <FormField label="Ciudad">
+                  <input type="text" value={restaurantData.city} onChange={(e) => updateRestaurantData('city', e.target.value)} style={styles.input} />
+                </FormField>
+                <FormField label="País">
+                  <input type="text" value={restaurantData.country} onChange={(e) => updateRestaurantData('country', e.target.value)} style={styles.input} />
+                </FormField>
+                <FormField label="Zona horaria">
+                  <select value={restaurantData.timezone} onChange={(e) => updateRestaurantData('timezone', e.target.value)} style={styles.input}>
+                    <option value="Europe/Madrid">Europe/Madrid (CET)</option>
+                    <option value="Europe/London">Europe/London (GMT)</option>
+                    <option value="America/New_York">America/New_York (EST)</option>
+                    <option value="America/Los_Angeles">America/Los_Angeles (PST)</option>
+                  </select>
+                </FormField>
+                <FormField label="Google Maps URL">
+                  <input type="url" value={restaurantData.google_maps_url} onChange={(e) => updateRestaurantData('google_maps_url', e.target.value)} style={styles.input} />
+                </FormField>
+              </div>
+            </Section>
+
+            <Section title="Reservas">
+              <div style={styles.checkboxGroup}>
+                <label style={styles.checkbox}>
+                  <input type="checkbox" checked={restaurantData.accepts_reservations} onChange={(e) => updateRestaurantData('accepts_reservations', e.target.checked)} />
+                  <span>Acepta reservas</span>
+                </label>
+              </div>
+              {restaurantData.accepts_reservations && (
+                <div style={styles.grid}>
+                  <FormField label="URL de reservas">
+                    <input type="url" value={restaurantData.reservation_url} onChange={(e) => updateRestaurantData('reservation_url', e.target.value)} style={styles.input} />
+                  </FormField>
+                  <FormField label="Teléfono de reservas">
+                    <input type="tel" value={restaurantData.reservation_phone} onChange={(e) => updateRestaurantData('reservation_phone', e.target.value)} style={styles.input} />
+                  </FormField>
+                  <FormField label="Email de reservas">
+                    <input type="email" value={restaurantData.reservation_email} onChange={(e) => updateRestaurantData('reservation_email', e.target.value)} style={styles.input} />
+                  </FormField>
+                </div>
+              )}
+            </Section>
+
+            <Section title="Servicios">
+              <div style={styles.checkboxGroup}>
+                <label style={styles.checkbox}><input type="checkbox" checked={restaurantData.has_wifi} onChange={(e) => updateRestaurantData('has_wifi', e.target.checked)} /><span>WiFi disponible</span></label>
+                <label style={styles.checkbox}><input type="checkbox" checked={restaurantData.has_delivery} onChange={(e) => updateRestaurantData('has_delivery', e.target.checked)} /><span>Servicio de delivery</span></label>
+                <label style={styles.checkbox}><input type="checkbox" checked={restaurantData.has_outdoor_seating} onChange={(e) => updateRestaurantData('has_outdoor_seating', e.target.checked)} /><span>Terraza exterior</span></label>
+              </div>
+              <FormField label="Capacidad (personas)">
+                <input type="number" value={restaurantData.capacity} onChange={(e) => updateRestaurantData('capacity', parseInt(e.target.value))} style={styles.input} min="0" />
+              </FormField>
+            </Section>
+
+            <Section title="Redes sociales">
+              <div style={styles.grid}>
+                <FormField label="Facebook"><input type="url" value={restaurantData.facebook_url} onChange={(e) => updateRestaurantData('facebook_url', e.target.value)} style={styles.input} /></FormField>
+                <FormField label="Instagram"><input type="text" value={restaurantData.instagram_handle} onChange={(e) => updateRestaurantData('instagram_handle', e.target.value)} style={styles.input} placeholder="@usuario" /></FormField>
+                <FormField label="TikTok"><input type="text" value={restaurantData.tiktok_handle} onChange={(e) => updateRestaurantData('tiktok_handle', e.target.value)} style={styles.input} placeholder="@usuario" /></FormField>
+                <FormField label="YouTube"><input type="url" value={restaurantData.youtube_url} onChange={(e) => updateRestaurantData('youtube_url', e.target.value)} style={styles.input} /></FormField>
+                <FormField label="Tripadvisor"><input type="url" value={restaurantData.tripadvisor_url} onChange={(e) => updateRestaurantData('tripadvisor_url', e.target.value)} style={styles.input} /></FormField>
+              </div>
+            </Section>
+
+            {/* ✅ BOTÓN AL FINAL DE LA TAB */}
+            <div style={styles.saveButtonContainer}>
+              <button 
+                onClick={handleSaveRestaurant} 
+                disabled={restaurantMutation.isPending} 
+                style={{...styles.saveButton, ...(restaurantMutation.isPending ? styles.saveButtonDisabled : {})}}
+              >
+                {restaurantMutation.isPending ? 'Guardando...' : 'Guardar información del restaurante'}
+              </button>
+            </div>
+          </div>
+        )}
+
+        {activeTab === 'styling' && stylingData && (
+          <div style={styles.tabContent}>
+            <Section title="Colores de marca">
+              <p style={{color: '#6B7280', marginBottom: '1.5rem', fontSize: '0.9rem'}}>
+                Estos colores se aplicarán al tema global del restaurante (landing y reels por defecto).
+              </p>
+              {/* ✅ GRID MÁS ANCHO PARA COLORPICKERS */}
+              <div style={styles.colorGridWide}>
+                <ColorPicker label="Color primario" value={stylingData.override_colors.primary_color} onChange={(v) => updateStylingColors('primary_color', v)} />
+                <ColorPicker label="Color secundario" value={stylingData.override_colors.secondary_color} onChange={(v) => updateStylingColors('secondary_color', v)} />
+                <ColorPicker label="Color de acento" value={stylingData.override_colors.accent_color} onChange={(v) => updateStylingColors('accent_color', v)} />
+                <ColorPicker label="Color de texto" value={stylingData.override_colors.text_color} onChange={(v) => updateStylingColors('text_color', v)} />
+                <ColorPicker label="Color de fondo" value={stylingData.override_colors.background_color} onChange={(v) => updateStylingColors('background_color', v)} />
+              </div>
+            </Section>
+
+            <Section title="Tipografías">
+              <div style={styles.grid}>
+                <FormField label="Fuente para títulos">
+                  <select value={stylingData.override_fonts.heading_font} onChange={(e) => updateStylingFonts('heading_font', e.target.value)} style={styles.input}>
+                    {['Inter', 'Roboto', 'Playfair Display', 'Montserrat', 'Poppins', 'Lora'].map(f => <option key={f} value={f}>{f}</option>)}
+                  </select>
+                </FormField>
+                <FormField label="Fuente para cuerpo">
+                  <select value={stylingData.override_fonts.body_font} onChange={(e) => updateStylingFonts('body_font', e.target.value)} style={styles.input}>
+                    {['Inter', 'Roboto', 'Open Sans', 'Lato', 'Source Sans Pro'].map(f => <option key={f} value={f}>{f}</option>)}
+                  </select>
+                </FormField>
+              </div>
+            </Section>
+
+            <Section title="Vista previa">
+              <div style={{...styles.preview, backgroundColor: stylingData.override_colors.background_color, color: stylingData.override_colors.text_color}}>
+                <h2 style={{fontFamily: stylingData.override_fonts.heading_font, color: stylingData.override_colors.primary_color, margin: '0 0 1rem 0'}}>Restaurante Ejemplo</h2>
+                <p style={{fontFamily: stylingData.override_fonts.body_font, margin: '0 0 1rem 0'}}>Vista previa de tu carta</p>
+                <button style={{backgroundColor: stylingData.override_colors.accent_color, color: '#FFF', border: 'none', padding: '0.75rem 1.5rem', borderRadius: '8px', cursor: 'pointer'}}>Ver Carta</button>
+              </div>
+            </Section>
+
+            <Section title="Estilo de layout">
+              <div style={styles.layoutGrid}>
+                {['modern', 'classic', 'minimal', 'elegant'].map(layout => (
+                  <button key={layout} onClick={() => updateStylingData('layout_style', layout)} style={{...styles.layoutCard, ...(stylingData.layout_style === layout ? styles.layoutCardActive : {})}}>
+                    <span style={{fontSize: '2rem'}}>{{'modern': '📱', 'classic': '📰', 'minimal': '⬜', 'elegant': '✨'}[layout]}</span>
+                    <span style={styles.layoutName}>{layout.charAt(0).toUpperCase() + layout.slice(1)}</span>
+                    {stylingData.layout_style === layout && <span style={styles.layoutCheck}>✓</span>}
+                  </button>
+                ))}
+              </div>
+            </Section>
+
+            {/* ✅ BOTÓN ESPECÍFICO PARA THEME */}
+            <div style={styles.saveButtonContainer}>
+              <button 
+                onClick={handleSaveTheme} 
+                disabled={themeMutation.isPending} 
+                style={{...styles.saveButton, ...(themeMutation.isPending ? styles.saveButtonDisabled : {})}}
+              >
+                {themeMutation.isPending ? 'Guardando...' : 'Guardar diseño global'}
+              </button>
+            </div>
+          </div>
+        )}
+
+        {activeTab === 'reels' && reelsColorsData && (
+          <div style={styles.tabContent}>
+            <Section title="Colores personalizados de reels">
+              <p style={{color: '#6B7280', marginBottom: '1.5rem'}}>
+                Estos colores sobrescribirán el tema global <strong>solo para los reels</strong> de productos que se muestran en tu menú digital.
+              </p>
+              {/* ✅ GRID MÁS ANCHO PARA COLORPICKERS */}
+              <div style={styles.colorGridWide}>
+                <ColorPicker 
+                  label="Color primario" 
+                  value={reelsColorsData.primary} 
+                  onChange={(v) => updateReelsColor('primary', v)} 
+                  description="Para títulos y elementos destacados"
+                />
+                <ColorPicker 
+                  label="Color secundario" 
+                  value={reelsColorsData.secondary} 
+                  onChange={(v) => updateReelsColor('secondary', v)} 
+                  description="Para botones y precios"
+                />
+                <ColorPicker 
+                  label="Color de texto" 
+                  value={reelsColorsData.text} 
+                  onChange={(v) => updateReelsColor('text', v)} 
+                  description="Para descripciones"
+                />
+                <ColorPicker 
+                  label="Color de fondo" 
+                  value={reelsColorsData.background} 
+                  onChange={(v) => updateReelsColor('background', v)} 
+                  description="Fondo de las tarjetas"
+                />
+              </div>
+            </Section>
+
+            <Section title="Vista previa de Reel">
+              <div style={{
+                ...styles.reelPreview,
+                backgroundColor: reelsColorsData.background,
+                color: reelsColorsData.text
+              }}>
+                <div style={{
+                  backgroundColor: reelsColorsData.primary,
+                  color: '#FFF',
+                  padding: '1rem',
+                  borderRadius: '8px',
+                  marginBottom: '1rem'
+                }}>
+                  <h3 style={{margin: '0', fontWeight: '700'}}>Paella Valenciana</h3>
+                  <p style={{margin: '0.5rem 0 0 0', fontSize: '0.9rem', opacity: 0.9}}>Plato tradicional</p>
+                </div>
+                
+                <div style={{
+                  flex: 1,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  border: '2px dashed rgba(0,0,0,0.1)',
+                  borderRadius: '8px',
+                  marginBottom: '1rem'
+                }}>
+                  <span style={{fontSize: '3rem'}}>📷</span>
+                </div>
+                
+                <div style={{
+                  backgroundColor: reelsColorsData.secondary,
+                  color: '#FFF',
+                  padding: '0.75rem',
+                  borderRadius: '8px',
+                  textAlign: 'center',
+                  fontWeight: '700',
+                  fontSize: '1.25rem'
+                }}>
+                  15,99 €
+                </div>
+              </div>
+            </Section>
+
+            {/* ✅ BOTÓN ESPECÍFICO PARA REELS */}
+            <div style={styles.saveButtonContainer}>
+              <button 
+                onClick={handleSaveReelsColors} 
+                disabled={reelsColorsMutation.isPending} 
+                style={{...styles.saveButton, ...(reelsColorsMutation.isPending ? styles.saveButtonDisabled : {})}}
+              >
+                {reelsColorsMutation.isPending ? 'Guardando...' : 'Guardar colores de reels'}
+              </button>
+            </div>
+          </div>
+        )}
+      </div>
     </div>
   );
-};
+}
 
-const ConfigurationPage: React.FC = () => {
-  const { user } = useAuth();
-  const restaurantId = user?.currentRestaurant?.id;
-  const queryClient = useQueryClient();
-  const [activeTab, setActiveTab] = useState<number>(0);
-  const [snackbar, setSnackbar] = useState<SnackbarState>({ 
-    open: false, 
-    message: '', 
-    severity: 'success' 
-  });
+function Section({ title, children }) {
+  return <div style={styles.section}>{title && <h2 style={styles.sectionTitle}>{title}</h2>}{children}</div>;
+}
 
-  // Nuevos estados para la configuración de reels
-  const [reelsConfig, setReelsConfig] = useState<ReelsConfig>({
-    enabled: true,
-    primary_color: '#9c27b0',
-    secondary_color: '#2196f3',
-    show_badge_icons: true,
-    autoplay_videos: true,
-    show_price: true,
-    transition_effect: 'slide'
-  });
+function FormField({ label, required, children }) {
+  return <div style={styles.formField}>{label && <label style={styles.label}>{label}{required && <span style={styles.required}> *</span>}</label>}{children}</div>;
+}
 
-  // Consultas para cargar datos
-  const {
-    data: restaurantDetails,
-    isLoading: isLoadingRestaurant,
-  } = useQuery<RestaurantDetails>({
-    queryKey: ['restaurant-details', restaurantId],
-    queryFn: () => apiClient.getRestaurantDetails(restaurantId as string),
-    enabled: !!restaurantId,
-    onSuccess: (data) => {
-      // Si el restaurante ya tiene colores definidos para reels, usarlos
-      if (data.theme?.primary_color) {
-        setReelsConfig(prev => ({
-          ...prev,
-          primary_color: data.theme.primary_color || prev.primary_color,
-          secondary_color: data.theme.secondary_color || prev.secondary_color
-        }));
-      }
-    }
-  });
-
-  const {
-    data: landingConfig,
-    isLoading: isLoadingLanding,
-  } = useQuery<LandingConfig>({
-    queryKey: ['landing-config', restaurantId],
-    queryFn: () => apiClient.getLandingConfig(restaurantId as string),
-    enabled: !!restaurantId,
-  });
-
-  const {
-    data: availableLanguages,
-    isLoading: isLoadingLanguages,
-  } = useQuery<Language[]>({
-    queryKey: ['available-languages'],
-    queryFn: () => apiClient.getLanguages(),
-  });
-
-  // Mutaciones
-  const saveRestaurantMutation = useMutation({
-    mutationFn: (data: Partial<RestaurantDetails>) => 
-      apiClient.updateRestaurantDetails(restaurantId as string, data),
-    onSuccess: () => {
-      queryClient.invalidateQueries(['restaurant-details', restaurantId]);
-      setSnackbar({
-        open: true,
-        message: 'Configuración de restaurante guardada correctamente',
-        severity: 'success',
-      });
-    },
-    onError: (error: any) => {
-      setSnackbar({
-        open: true,
-        message: `Error: ${error?.response?.data?.message || 'No se pudo guardar la configuración'}`,
-        severity: 'error',
-      });
-    },
-  });
-
-  const saveLandingMutation = useMutation({
-    mutationFn: (data: Partial<LandingConfig>) => 
-      apiClient.updateLandingConfig(restaurantId as string, data),
-    onSuccess: () => {
-      queryClient.invalidateQueries(['landing-config', restaurantId]);
-      setSnackbar({
-        open: true,
-        message: 'Configuración de la landing page guardada correctamente',
-        severity: 'success',
-      });
-    },
-    onError: (error: any) => {
-      setSnackbar({
-        open: true,
-        message: `Error: ${error?.response?.data?.message || 'No se pudo guardar la configuración'}`,
-        severity: 'error',
-      });
-    },
-  });
-
-  // Nueva mutación para guardar la configuración de reels
-  const saveReelsConfigMutation = useMutation({
-    mutationFn: (data: Partial<ReelsConfig>) => {
-      // Actualizar el tema del restaurante con los colores de reels
-      return apiClient.updateRestaurant(restaurantId as string, {
-        theme: {
-          primary_color: data.primary_color,
-          secondary_color: data.secondary_color,
-        }
-      });
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries(['restaurant-details', restaurantId]);
-      setSnackbar({
-        open: true,
-        message: 'Configuración de experiencia de cliente guardada correctamente',
-        severity: 'success',
-      });
-    },
-    onError: (error: any) => {
-      setSnackbar({
-        open: true,
-        message: `Error: ${error?.response?.data?.message || 'No se pudo guardar la configuración'}`,
-        severity: 'error',
-      });
-    },
-  });
-
-  const isLoading = isLoadingRestaurant || isLoadingLanding || isLoadingLanguages;
-
-  // Funciones auxiliares
-  const handleCopyUrl = (): void => {
-    const url = `https://visualtaste.com/${user?.currentRestaurant?.slug || ''}`;
-    navigator.clipboard.writeText(url);
-    setSnackbar({
-      open: true,
-      message: 'URL copiada al portapapeles',
-      severity: 'success',
-    });
-  };
-
-  const downloadQrCode = (format: 'png' | 'svg' | 'pdf'): void => {
-    // Implementación futura: Descargar QR en diferentes formatos
-    setSnackbar({
-      open: true,
-      message: `Descargando código QR en formato ${format}`,
-      severity: 'success',
-    });
-  };
-
-  const handleTabChange = (_event: React.SyntheticEvent, newValue: number): void => {
-    setActiveTab(newValue);
-  };
-
-  const handleToggleLanguage = (langCode: string, isActive: boolean): void => {
-    if (langCode === 'es') return; // No permitir desactivar español
-    
-    // Lógica para activar/desactivar idioma
-    console.log(`${isActive ? 'Activando' : 'Desactivando'} idioma: ${langCode}`);
-    
-    // Aquí iría la mutación para actualizar idiomas
-  };
-
-  const handleChangeRestaurantField = (
-    e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>,
-    field: keyof RestaurantDetails
-  ): void => {
-    if (!restaurantDetails) return;
-    
-    const updatedDetails = {
-      ...restaurantDetails,
-      [field]: e.target.value
-    };
-    
-    // No guardar automáticamente, solo actualizar la vista
-    console.log(`Campo actualizado: ${field} = ${e.target.value}`);
-  };
-
-  const handleSaveRestaurantDetails = (): void => {
-    if (!restaurantDetails) return;
-    
-    // Aquí se recopilan todos los valores actualizados desde los inputs
-    const formData: Partial<RestaurantDetails> = {
-      name: (document.querySelector('[name="restaurant-name"]') as HTMLInputElement)?.value || restaurantDetails.name,
-      slug: (document.querySelector('[name="restaurant-slug"]') as HTMLInputElement)?.value || restaurantDetails.slug,
-      phone: (document.querySelector('[name="restaurant-phone"]') as HTMLInputElement)?.value || restaurantDetails.phone,
-      email: (document.querySelector('[name="restaurant-email"]') as HTMLInputElement)?.value || restaurantDetails.email,
-      address: (document.querySelector('[name="restaurant-address"]') as HTMLTextAreaElement)?.value || restaurantDetails.address,
-      city: (document.querySelector('[name="restaurant-city"]') as HTMLInputElement)?.value || restaurantDetails.city,
-      country: (document.querySelector('[name="restaurant-country"]') as HTMLInputElement)?.value || restaurantDetails.country,
-      instagram: (document.querySelector('[name="restaurant-instagram"]') as HTMLInputElement)?.value || restaurantDetails.instagram,
-      facebook: (document.querySelector('[name="restaurant-facebook"]') as HTMLInputElement)?.value || restaurantDetails.facebook,
-      tiktok: (document.querySelector('[name="restaurant-tiktok"]') as HTMLInputElement)?.value || restaurantDetails.tiktok,
-      google_maps_url: (document.querySelector('[name="restaurant-maps"]') as HTMLInputElement)?.value || restaurantDetails.google_maps_url,
-    };
-    
-    saveRestaurantMutation.mutate(formData);
-  };
-
-  const handleSaveLanding = (): void => {
-    if (!landingConfig) return;
-    
-    // Aquí se recopilan los datos de la configuración de la landing
-    const formData: Partial<LandingConfig> = {
-      template_id: (document.querySelector('[name="landing-template"]') as HTMLSelectElement)?.value || landingConfig.template_id,
-      primary_color: (document.querySelector('[name="landing-primary-color"]') as HTMLInputElement)?.value || landingConfig.primary_color,
-      secondary_color: (document.querySelector('[name="landing-secondary-color"]') as HTMLInputElement)?.value || landingConfig.secondary_color,
-      background_color: (document.querySelector('[name="landing-background-color"]') as HTMLInputElement)?.value || landingConfig.background_color,
-      font_heading: (document.querySelector('[name="landing-font-heading"]') as HTMLSelectElement)?.value || landingConfig.font_heading,
-      show_reservation: (document.querySelector('[name="landing-show-reservation"]') as HTMLInputElement)?.checked ?? landingConfig.show_reservation,
-      show_social_links: (document.querySelector('[name="landing-show-social"]') as HTMLInputElement)?.checked ?? landingConfig.show_social_links,
-      seo: {
-        ...landingConfig.seo,
-        es: {
-          title: (document.querySelector('[name="landing-seo-title"]') as HTMLInputElement)?.value || landingConfig.seo?.es?.title || '',
-          description: (document.querySelector('[name="landing-seo-description"]') as HTMLInputElement)?.value || landingConfig.seo?.es?.description || '',
-        }
-      }
-    };
-    
-    saveLandingMutation.mutate(formData);
-  };
-
-  const handleChangeSchedule = (
-    day: string,
-    field: 'open' | 'close',
-    value: string
-  ): void => {
-    if (!restaurantDetails?.opening_hours) return;
-    
-    const updatedHours = {
-      ...restaurantDetails.opening_hours,
-      [day]: {
-        ...restaurantDetails.opening_hours[day],
-        [field]: value
-      }
-    };
-    
-    // Actualizar el campo opening_hours
-    console.log(`Horario actualizado: ${day} ${field} = ${value}`);
-  };
-
-  // Nueva función para manejar los cambios en la configuración de reels
-  const handleChangeReelsConfig = (field: keyof ReelsConfig, value: any): void => {
-    setReelsConfig(prev => ({
-      ...prev,
-      [field]: value
-    }));
-  };
-
-  // Nueva función para guardar la configuración de reels
-  const handleSaveReelsConfig = (): void => {
-    saveReelsConfigMutation.mutate(reelsConfig);
-  };
-
+function ColorPicker({ label, value, onChange, description }) {
   return (
-    <Container maxWidth="lg">
-      <Typography variant="h4" gutterBottom component="h1">
-        Configuración
-      </Typography>
-
-      <Paper sx={{ mb: 4 }}>
-        <Tabs
-          value={activeTab}
-          onChange={handleTabChange}
-          variant="scrollable"
-          scrollButtons="auto"
-          sx={{ borderBottom: 1, borderColor: 'divider' }}
-        >
-          <Tab icon={<RestaurantIcon />} iconPosition="start" label="General" />
-          <Tab icon={<LanguageIcon />} iconPosition="start" label="Idiomas" />
-          <Tab icon={<PaletteIcon />} iconPosition="start" label="Apariencia" />
-          <Tab icon={<ReelsIcon />} iconPosition="start" label="Experiencia cliente" />
-          <Tab icon={<QrCodeIcon />} iconPosition="start" label="Código QR" />
-          <Tab icon={<ScheduleIcon />} iconPosition="start" label="Horarios" />
-        </Tabs>
-
-        {isLoading ? (
-          <Box sx={{ p: 4, textAlign: 'center' }}>
-            <CircularProgress />
-          </Box>
-        ) : (
-          <>
-            {/* Pestaña General */}
-            <TabPanel value={activeTab} index={0}>
-              <Box component="form" noValidate>
-                <Grid container spacing={3}>
-                  <Grid item xs={12}>
-                    <Typography variant="h6" gutterBottom>
-                      Información del restaurante
-                    </Typography>
-                  </Grid>
-                  
-                  <Grid item xs={12} md={6}>
-                    <TextField
-                      fullWidth
-                      label="Nombre del restaurante"
-                      variant="outlined"
-                      name="restaurant-name"
-                      defaultValue={restaurantDetails?.name}
-                      onChange={(e) => handleChangeRestaurantField(e, 'name')}
-                    />
-                  </Grid>
-
-                  <Grid item xs={12} md={6}>
-                    <TextField
-                      fullWidth
-                      label="Slug (URL amigable)"
-                      variant="outlined"
-                      name="restaurant-slug"
-                      defaultValue={restaurantDetails?.slug}
-                      onChange={(e) => handleChangeRestaurantField(e, 'slug')}
-                      InputProps={{
-                        startAdornment: (
-                          <InputAdornment position="start">visualtaste.com/</InputAdornment>
-                        ),
-                      }}
-                    />
-                  </Grid>
-
-                  <Grid item xs={12} md={6}>
-                    <TextField
-                      fullWidth
-                      label="Teléfono"
-                      variant="outlined"
-                      name="restaurant-phone"
-                      defaultValue={restaurantDetails?.phone}
-                      onChange={(e) => handleChangeRestaurantField(e, 'phone')}
-                    />
-                  </Grid>
-
-                  <Grid item xs={12} md={6}>
-                    <TextField
-                      fullWidth
-                      label="Email"
-                      variant="outlined"
-                      name="restaurant-email"
-                      defaultValue={restaurantDetails?.email}
-                      onChange={(e) => handleChangeRestaurantField(e, 'email')}
-                    />
-                  </Grid>
-
-                  <Grid item xs={12}>
-                    <TextField
-                      fullWidth
-                      label="Dirección completa"
-                      variant="outlined"
-                      name="restaurant-address"
-                      defaultValue={restaurantDetails?.address}
-                      onChange={(e) => handleChangeRestaurantField(e, 'address')}
-                      multiline
-                      rows={2}
-                    />
-                  </Grid>
-
-                  <Grid item xs={12} md={4}>
-                    <TextField
-                      fullWidth
-                      label="Ciudad"
-                      variant="outlined"
-                      name="restaurant-city"
-                      defaultValue={restaurantDetails?.city}
-                      onChange={(e) => handleChangeRestaurantField(e, 'city')}
-                    />
-                  </Grid>
-
-                  <Grid item xs={12} md={4}>
-                    <TextField
-                      fullWidth
-                      label="País"
-                      variant="outlined"
-                      name="restaurant-country"
-                      defaultValue={restaurantDetails?.country}
-                      onChange={(e) => handleChangeRestaurantField(e, 'country')}
-                    />
-                  </Grid>
-
-                  <Grid item xs={12} md={4}>
-                    <TextField
-                      fullWidth
-                      label="Google Maps URL"
-                      variant="outlined"
-                      name="restaurant-maps"
-                      defaultValue={restaurantDetails?.google_maps_url}
-                      onChange={(e) => handleChangeRestaurantField(e, 'google_maps_url')}
-                      InputProps={{
-                        endAdornment: (
-                          <InputAdornment position="end">
-                            <IconButton
-                              size="small"
-                              component="a"
-                              href={restaurantDetails?.google_maps_url}
-                              target="_blank"
-                              disabled={!restaurantDetails?.google_maps_url}
-                            >
-                              <LinkIcon />
-                            </IconButton>
-                          </InputAdornment>
-                        ),
-                      }}
-                    />
-                  </Grid>
-
-                  <Grid item xs={12}>
-                    <Typography variant="h6" gutterBottom sx={{ mt: 2 }}>
-                      Redes Sociales
-                    </Typography>
-                  </Grid>
-
-                  <Grid item xs={12} md={4}>
-                    <TextField
-                      fullWidth
-                      label="Instagram"
-                      variant="outlined"
-                      name="restaurant-instagram"
-                      defaultValue={restaurantDetails?.instagram}
-                      onChange={(e) => handleChangeRestaurantField(e, 'instagram')}
-                      placeholder="@usuarioInstagram"
-                    />
-                  </Grid>
-
-                  <Grid item xs={12} md={4}>
-                    <TextField
-                      fullWidth
-                      label="Facebook"
-                      variant="outlined"
-                      name="restaurant-facebook"
-                      defaultValue={restaurantDetails?.facebook}
-                      onChange={(e) => handleChangeRestaurantField(e, 'facebook')}
-                    />
-                  </Grid>
-
-                  <Grid item xs={12} md={4}>
-                    <TextField
-                      fullWidth
-                      label="TikTok"
-                      variant="outlined"
-                      name="restaurant-tiktok"
-                      defaultValue={restaurantDetails?.tiktok}
-                      onChange={(e) => handleChangeRestaurantField(e, 'tiktok')}
-                    />
-                  </Grid>
-
-                  <Grid item xs={12} md={6}>
-                    <Box sx={{ mt: 2 }}>
-                      <Button
-                        fullWidth
-                        variant="contained"
-                        startIcon={<SaveIcon />}
-                        onClick={handleSaveRestaurantDetails}
-                        disabled={saveRestaurantMutation.isPending}
-                      >
-                        {saveRestaurantMutation.isPending ? 'Guardando...' : 'Guardar cambios'}
-                      </Button>
-                    </Box>
-                  </Grid>
-                </Grid>
-              </Box>
-            </TabPanel>
-
-            {/* Pestaña de Idiomas */}
-            <TabPanel value={activeTab} index={1}>
-              <Box>
-                <Typography variant="h6" gutterBottom>
-                  Idiomas activos
-                </Typography>
-                <Typography variant="body2" paragraph>
-                  Los idiomas activos estarán disponibles para los clientes en la visualización del menú.
-                </Typography>
-
-                <Grid container spacing={2}>
-                  {availableLanguages?.map((language) => (
-                    <Grid item xs={12} sm={6} md={4} key={language.code}>
-                      <Card variant="outlined">
-                        <CardContent>
-                          <Box sx={{ display: 'flex', alignItems: 'center', mb: 1 }}>
-                            <Typography variant="h6" sx={{ mr: 1 }}>
-                              {language.flag_emoji}
-                            </Typography>
-                            <Typography variant="h6">
-                              {language.native_name}
-                            </Typography>
-                          </Box>
-                          <Typography color="text.secondary">
-                            {language.name}
-                          </Typography>
-                          <Box sx={{ mt: 2, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                            <FormControlLabel
-                              control={
-                                <Switch
-                                  checked={restaurantDetails?.active_languages?.includes(language.code) || language.code === 'es'}
-                                  onChange={(e) => handleToggleLanguage(language.code, e.target.checked)}
-                                  disabled={language.code === 'es'} // El español no se puede desactivar
-                                />
-                              }
-                              label={
-                                language.code === 'es' 
-                                  ? "Idioma principal" 
-                                  : restaurantDetails?.active_languages?.includes(language.code) 
-                                    ? "Activo" 
-                                    : "Inactivo"
-                              }
-                            />
-                            {restaurantDetails?.active_languages?.includes(language.code) && (
-                              <Chip 
-                                label={`${restaurantDetails?.language_completion?.[language.code] || 0}% completo`}
-                                color={
-                                  (restaurantDetails?.language_completion?.[language.code] || 0) > 80
-                                    ? "success"
-                                    : (restaurantDetails?.language_completion?.[language.code] || 0) > 40
-                                    ? "warning"
-                                    : "error"
-                                }
-                                size="small"
-                              />
-                            )}
-                          </Box>
-                        </CardContent>
-                      </Card>
-                    </Grid>
-                  ))}
-                </Grid>
-
-                <Box sx={{ mt: 3 }}>
-                  <Button
-                    variant="contained"
-                    startIcon={<SaveIcon />}
-                    onClick={() => {
-                      // Guardar configuración de idiomas
-                    }}
-                  >
-                    Guardar configuración de idiomas
-                  </Button>
-                </Box>
-              </Box>
-            </TabPanel>
-
-            {/* Pestaña de Apariencia */}
-            <TabPanel value={activeTab} index={2}>
-              <Box>
-                <Typography variant="h6" gutterBottom>
-                  Apariencia de la landing page
-                </Typography>
-                
-                <Grid container spacing={3}>
-                  <Grid item xs={12} md={6}>
-                    <FormControl fullWidth>
-                      <InputLabel id="template-label">Plantilla</InputLabel>
-                      <Select
-                        labelId="template-label"
-                        name="landing-template"
-                        value={landingConfig?.template_id || ''}
-                        label="Plantilla"
-                      >
-                        <MenuItem value="template_1">Moderna</MenuItem>
-                        <MenuItem value="template_2">Clásica</MenuItem>
-                        <MenuItem value="template_3">Gourmet (Premium)</MenuItem>
-                      </Select>
-                    </FormControl>
-                  </Grid>
-
-                  <Grid item xs={12} md={6}>
-                    <FormControl fullWidth>
-                      <InputLabel id="font-heading-label">Fuente de títulos</InputLabel>
-                      <Select
-                        labelId="font-heading-label"
-                        name="landing-font-heading"
-                        value={landingConfig?.font_heading || ''}
-                        label="Fuente de títulos"
-                      >
-                        <MenuItem value="Poppins, sans-serif">Poppins</MenuItem>
-                        <MenuItem value="Playfair Display, serif">Playfair Display</MenuItem>
-                        <MenuItem value="Montserrat, sans-serif">Montserrat</MenuItem>
-                        <MenuItem value="Roboto, sans-serif">Roboto</MenuItem>
-                      </Select>
-                    </FormControl>
-                  </Grid>
-
-                  <Grid item xs={12} md={4}>
-                    <TextField
-                      fullWidth
-                      label="Color primario"
-                      type="color"
-                      name="landing-primary-color"
-                      value={landingConfig?.primary_color || '#942c2c'}
-                      InputProps={{
-                        startAdornment: (
-                          <InputAdornment position="start">
-                            <Box sx={{ 
-                              width: 24, 
-                              height: 24, 
-                              bgcolor: landingConfig?.primary_color || '#942c2c',
-                              borderRadius: '4px'
-                            }} />
-                          </InputAdornment>
-                        ),
-                      }}
-                    />
-                  </Grid>
-
-                  <Grid item xs={12} md={4}>
-                    <TextField
-                      fullWidth
-                      label="Color secundario"
-                      type="color"
-                      name="landing-secondary-color"
-                      value={landingConfig?.secondary_color || '#2c6e49'}
-                    />
-                  </Grid>
-
-                  <Grid item xs={12} md={4}>
-                    <TextField
-                      fullWidth
-                      label="Color de fondo"
-                      type="color"
-                      name="landing-background-color"
-                      value={landingConfig?.background_color || '#f8f8f8'}
-                    />
-                  </Grid>
-
-                  <Grid item xs={12}>
-                    <Typography variant="h6" gutterBottom sx={{ mt: 2 }}>
-                      SEO y Metadatos
-                    </Typography>
-                  </Grid>
-
-                  <Grid item xs={12}>
-                    <TextField
-                      fullWidth
-                      label="Título SEO (Español)"
-                      variant="outlined"
-                      name="landing-seo-title"
-                      defaultValue={landingConfig?.seo?.es?.title}
-                      placeholder="Ej: Restaurante Bottega - Auténtica cocina italiana en Madrid"
-                    />
-                  </Grid>
-
-                  <Grid item xs={12}>
-                    <TextField
-                      fullWidth
-                      label="Descripción SEO (Español)"
-                      variant="outlined"
-                      name="landing-seo-description"
-                      multiline
-                      rows={2}
-                      defaultValue={landingConfig?.seo?.es?.description}
-                      placeholder="Descripción breve del restaurante para motores de búsqueda (max. 160 caracteres)"
-                    />
-                  </Grid>
-
-                  <Grid item xs={12}>
-                    <FormControlLabel
-                      control={
-                        <Switch
-                          name="landing-show-reservation"
-                          checked={landingConfig?.show_reservation || false}
-                        />
-                      }
-                      label="Mostrar botón de reservas"
-                    />
-                  </Grid>
-
-                  <Grid item xs={12}>
-                    <FormControlLabel
-                      control={
-                        <Switch
-                          name="landing-show-social"
-                          checked={landingConfig?.show_social_links || true}
-                        />
-                      }
-                      label="Mostrar redes sociales"
-                    />
-                  </Grid>
-
-                  <Grid item xs={12} md={6}>
-                    <Box sx={{ mt: 2 }}>
-                      <Button
-                        fullWidth
-                        variant="contained"
-                        startIcon={<SaveIcon />}
-                        onClick={handleSaveLanding}
-                        disabled={saveLandingMutation.isPending}
-                      >
-                        {saveLandingMutation.isPending ? 'Guardando...' : 'Guardar apariencia'}
-                      </Button>
-                    </Box>
-                  </Grid>
-
-                  <Grid item xs={12} md={6}>
-                    <Box sx={{ mt: 2 }}>
-                      <Button
-                        fullWidth
-                        variant="outlined"
-                        component="a"
-                        href={`https://visualtaste.com/${user?.currentRestaurant?.slug || ''}`}
-                        target="_blank"
-                        startIcon={<LinkIcon />}
-                      >
-                        Vista previa
-                      </Button>
-                    </Box>
-                  </Grid>
-                </Grid>
-              </Box>
-            </TabPanel>
-            {/* Nueva pestaña de Experiencia Cliente (Reels) */}
-            <TabPanel value={activeTab} index={3}>
-              <Box>
-                <Typography variant="h6" gutterBottom>
-                  Experiencia de visualización de menú
-                </Typography>
-                <Typography variant="body2" paragraph>
-                  Personaliza cómo los clientes verán tus platos en el formato interactivo tipo "reels".
-                </Typography>
-
-                <Paper elevation={1} sx={{ p: 2, mb: 3, bgcolor: 'background.default' }}>
-                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                    <PhoneIcon color="primary" />
-                    <Typography variant="body2">
-                      La experiencia "reels" permite a los clientes navegar entre tus platos deslizando vertical y horizontalmente, 
-                      similar a las historias de Instagram o videos de TikTok.
-                    </Typography>
-                  </Box>
-                </Paper>
-
-                <Grid container spacing={3}>
-                  {/* Colores */}
-                  <Grid item xs={12}>
-                    <Typography variant="subtitle1" fontWeight="medium" gutterBottom>
-                      Colores y apariencia
-                    </Typography>
-                    <Divider sx={{ mb: 2 }} />
-                  </Grid>
-
-                  <Grid item xs={12} md={6}>
-                    <TextField
-                      fullWidth
-                      label="Color primario"
-                      type="color"
-                      value={reelsConfig.primary_color}
-                      onChange={(e) => handleChangeReelsConfig('primary_color', e.target.value)}
-                      InputProps={{
-                        startAdornment: (
-                          <InputAdornment position="start">
-                            <Box sx={{ 
-                              width: 24, 
-                              height: 24, 
-                              bgcolor: reelsConfig.primary_color,
-                              borderRadius: '4px'
-                            }} />
-                          </InputAdornment>
-                        ),
-                      }}
-                      helperText="Color principal para botones y elementos destacados"
-                    />
-                  </Grid>
-
-                  <Grid item xs={12} md={6}>
-                    <TextField
-                      fullWidth
-                      label="Color secundario"
-                      type="color"
-                      value={reelsConfig.secondary_color}
-                      onChange={(e) => handleChangeReelsConfig('secondary_color', e.target.value)}
-                      InputProps={{
-                        startAdornment: (
-                          <InputAdornment position="start">
-                            <Box sx={{ 
-                              width: 24, 
-                              height: 24, 
-                              bgcolor: reelsConfig.secondary_color,
-                              borderRadius: '4px'
-                            }} />
-                          </InputAdornment>
-                        ),
-                      }}
-                      helperText="Color para acentos y elementos secundarios"
-                    />
-                  </Grid>
-
-                  <Grid item xs={12}>
-                    <Box sx={{ 
-                      p: 2, 
-                      borderRadius: 2, 
-                      border: '1px dashed',
-                      borderColor: 'divider',
-                      bgcolor: 'background.paper',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'space-between'
-                    }}>
-                      <Typography variant="subtitle1">Vista previa de colores</Typography>
-                      <Box sx={{ display: 'flex', gap: 2 }}>
-                        <Box sx={{ 
-                          height: 40, 
-                          width: 100, 
-                          bgcolor: reelsConfig.primary_color, 
-                          borderRadius: 1, 
-                          display: 'flex', 
-                          alignItems: 'center', 
-                          justifyContent: 'center',
-                          color: '#fff',
-                          fontWeight: 'bold'
-                        }}>
-                          Primario
-                        </Box>
-                        <Box sx={{ 
-                          height: 40, 
-                          width: 100, 
-                          bgcolor: reelsConfig.secondary_color, 
-                          borderRadius: 1, 
-                          display: 'flex', 
-                          alignItems: 'center', 
-                          justifyContent: 'center',
-                          color: '#fff',
-                          fontWeight: 'bold'
-                        }}>
-                          Secundario
-                        </Box>
-                      </Box>
-                    </Box>
-                  </Grid>
-
-                  {/* Opciones de visualización */}
-                  <Grid item xs={12} sx={{ mt: 2 }}>
-                    <Typography variant="subtitle1" fontWeight="medium" gutterBottom>
-                      Opciones de visualización
-                    </Typography>
-                    <Divider sx={{ mb: 2 }} />
-                  </Grid>
-
-                  <Grid item xs={12} sm={6}>
-                    <FormControl fullWidth>
-                      <InputLabel id="transition-effect-label">Efecto de transición</InputLabel>
-                      <Select
-                        labelId="transition-effect-label"
-                        value={reelsConfig.transition_effect}
-                        label="Efecto de transición"
-                        onChange={(e) => handleChangeReelsConfig('transition_effect', e.target.value)}
-                      >
-                        <MenuItem value="slide">Deslizar</MenuItem>
-                        <MenuItem value="fade">Desvanecer</MenuItem>
-                        <MenuItem value="cube">Cubo</MenuItem>
-                        <MenuItem value="flip">Voltear</MenuItem>
-                      </Select>
-                    </FormControl>
-                  </Grid>
-
-                  <Grid item xs={12} sm={6}>
-                    <FormControlLabel
-                      control={
-                        <Switch
-                          checked={reelsConfig.autoplay_videos}
-                          onChange={(e) => handleChangeReelsConfig('autoplay_videos', e.target.checked)}
-                        />
-                      }
-                      label="Reproducir videos automáticamente"
-                    />
-                  </Grid>
-
-                  <Grid item xs={12} sm={6}>
-                    <FormControlLabel
-                      control={
-                        <Switch
-                          checked={reelsConfig.show_badge_icons}
-                          onChange={(e) => handleChangeReelsConfig('show_badge_icons', e.target.checked)}
-                        />
-                      }
-                      label="Mostrar iconos de características (vegano, sin gluten, etc.)"
-                    />
-                  </Grid>
-
-                  <Grid item xs={12} sm={6}>
-                    <FormControlLabel
-                      control={
-                        <Switch
-                          checked={reelsConfig.show_price}
-                          onChange={(e) => handleChangeReelsConfig('show_price', e.target.checked)}
-                        />
-                      }
-                      label="Mostrar precio de los platos"
-                    />
-                  </Grid>
-
-                  {/* Vista previa y acciones */}
-                  <Grid item xs={12} sx={{ mt: 2 }}>
-                    <Typography variant="subtitle1" fontWeight="medium" gutterBottom>
-                      Vista previa y acciones
-                    </Typography>
-                    <Divider sx={{ mb: 2 }} />
-                  </Grid>
-
-                  <Grid item xs={12} sm={6}>
-                    <Button
-                      fullWidth
-                      variant="outlined"
-                      startIcon={<PreviewIcon />}
-                      component="a"
-                      href={`/r/${user?.currentRestaurant?.slug || ''}`}
-                      target="_blank"
-                    >
-                      Vista previa en nueva pestaña
-                    </Button>
-                  </Grid>
-
-                  <Grid item xs={12} sm={6}>
-                    <Button
-                      fullWidth
-                      variant="contained"
-                      color="primary"
-                      onClick={handleSaveReelsConfig}
-                      startIcon={<SaveIcon />}
-                      disabled={saveReelsConfigMutation.isPending}
-                    >
-                      {saveReelsConfigMutation.isPending ? 'Guardando...' : 'Guardar configuración'}
-                    </Button>
-                  </Grid>
-                </Grid>
-              </Box>
-            </TabPanel>
-
-            {/* Pestaña de Código QR */}
-            <TabPanel value={activeTab} index={3}>
-              <Grid container spacing={4}>
-                <Grid item xs={12} md={6}>
-                  <Typography variant="h6" gutterBottom>
-                    Código QR del menú
-                  </Typography>
-                  <Typography variant="body2" paragraph>
-                    Este código QR dirige directamente a tu menú digital interactivo. Puedes imprimirlo para mesas, mostrador, o añadirlo a tus materiales promocionales.
-                  </Typography>
-
-                  <Box sx={{ textAlign: 'center', my: 3 }}>
-                    <img 
-                      src={`https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=https://visualtaste.com/${user?.currentRestaurant?.slug || ''}`} 
-                      alt="QR Code" 
-                      style={{ width: 200, height: 200 }} 
-                    />
-                  </Box>
-
-                  <Typography variant="body2" gutterBottom>
-                    URL del menú:
-                  </Typography>
-                  <Box sx={{ display: 'flex', alignItems: 'center', mb: 3 }}>
-                    <TextField
-                      fullWidth
-                      variant="outlined"
-                      value={`https://visualtaste.com/${user?.currentRestaurant?.slug || ''}`}
-                      InputProps={{
-                        readOnly: true,
-                      }}
-                      size="small"
-                    />
-                    <IconButton color="primary" onClick={handleCopyUrl}>
-                      <CopyIcon />
-                    </IconButton>
-                  </Box>
-
-                  <Typography variant="h6" gutterBottom>
-                    Descargar QR
-                  </Typography>
-
-                  <Grid container spacing={2}>
-                    <Grid item xs={4}>
-                      <Button 
-                        fullWidth 
-                        variant="outlined" 
-                        onClick={() => downloadQrCode('png')}
-                      >
-                        PNG
-                      </Button>
-                    </Grid>
-                    <Grid item xs={4}>
-                      <Button 
-                        fullWidth 
-                        variant="outlined"
-                        onClick={() => downloadQrCode('svg')}
-                      >
-                        SVG
-                      </Button>
-                    </Grid>
-                    <Grid item xs={4}>
-                      <Button 
-                        fullWidth 
-                        variant="outlined"
-                        onClick={() => downloadQrCode('pdf')}
-                      >
-                        PDF
-                      </Button>
-                    </Grid>
-                  </Grid>
-                </Grid>
-
-                <Grid item xs={12} md={6}>
-                  <Typography variant="h6" gutterBottom>
-                    Personalización del código QR
-                  </Typography>
-                  
-                  <Alert severity="info" sx={{ mb: 2 }}>
-                    La personalización avanzada de QR está disponible en planes Profesional o superior.
-                  </Alert>
-
-<Box sx={{ opacity: user?.plan === 'professional' ? 1 : 0.6, pointerEvents: user?.plan === 'professional' ? 'auto' : 'none' }}>
-                    <Grid container spacing={2}>
-                      <Grid item xs={12} md={6}>
-                        <TextField
-                          fullWidth
-                          label="Color principal"
-                          type="color"
-                          defaultValue="#000000"
-                        />
-                      </Grid>
-                      <Grid item xs={12} md={6}>
-                        <TextField
-                          fullWidth
-                          label="Color de fondo"
-                          type="color"
-                          defaultValue="#FFFFFF"
-                        />
-                      </Grid>
-                      <Grid item xs={12}>
-                        <FormControl fullWidth>
-                          <InputLabel id="qr-style-label">Estilo</InputLabel>
-                          <Select
-                            labelId="qr-style-label"
-                            defaultValue="square"
-                          >
-                            <MenuItem value="square">Cuadrado</MenuItem>
-                            <MenuItem value="rounded">Redondeado</MenuItem>
-                            <MenuItem value="dot">Puntos</MenuItem>
-                          </Select>
-                        </FormControl>
-                      </Grid>
-                      <Grid item xs={12}>
-                        <FormControlLabel
-                          control={<Switch />}
-                          label="Incluir logo en el centro"
-                        />
-                      </Grid>
-                    </Grid>
-                  </Box>
-                </Grid>
-              </Grid>
-            </TabPanel>
-
-            {/* Pestaña de Horarios */}
-            <TabPanel value={activeTab} index={4}>
-              <Typography variant="h6" gutterBottom>
-                Horarios de apertura
-              </Typography>
-              <Typography variant="body2" paragraph>
-                Configura los horarios de apertura de tu restaurante para mostrarlos en tu landing page y menú digital.
-              </Typography>
-
-              {['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'].map((day) => {
-                const dayNames: Record<string, string> = {
-                  monday: 'Lunes',
-                  tuesday: 'Martes',
-                  wednesday: 'Miércoles',
-                  thursday: 'Jueves',
-                  friday: 'Viernes',
-                  saturday: 'Sábado',
-                  sunday: 'Domingo'
-                };
-                
-                const isDayOpen = restaurantDetails?.opening_hours?.[day]?.open !== undefined;
-                
-                return (
-                  <Grid container spacing={2} key={day} sx={{ mb: 2, alignItems: 'center' }}>
-                    <Grid item xs={12} sm={3}>
-                      <Typography variant="body1">
-                        {dayNames[day]}
-                      </Typography>
-                    </Grid>
-                    
-                    <Grid item xs={12} sm={3}>
-                      <FormControlLabel
-                        control={
-                          <Switch
-                            checked={isDayOpen}
-                            onChange={(e) => {
-                              // Lógica para abrir/cerrar el día
-                              if (!e.target.checked) {
-                                // Si se desmarca, eliminar horas
-                                handleChangeSchedule(day, 'open', '');
-                                handleChangeSchedule(day, 'close', '');
-                              } else {
-                                // Si se marca, poner horas por defecto
-                                handleChangeSchedule(day, 'open', '12:00');
-                                handleChangeSchedule(day, 'close', '23:00');
-                              }
-                            }}
-                          />
-                        }
-                        label="Abierto"
-                      />
-                    </Grid>
-                    
-                    {isDayOpen && (
-                      <>
-                        <Grid item xs={6} sm={3}>
-                          <TextField
-                            fullWidth
-                            label="Apertura"
-                            type="time"
-                            defaultValue={restaurantDetails?.opening_hours?.[day]?.open || "12:00"}
-                            InputLabelProps={{ shrink: true }}
-                            onChange={(e) => handleChangeSchedule(day, 'open', e.target.value)}
-                          />
-                        </Grid>
-                        <Grid item xs={6} sm={3}>
-                          <TextField
-                            fullWidth
-                            label="Cierre"
-                            type="time"
-                            defaultValue={restaurantDetails?.opening_hours?.[day]?.close || "23:00"}
-                            InputLabelProps={{ shrink: true }}
-                            onChange={(e) => handleChangeSchedule(day, 'close', e.target.value)}
-                          />
-                        </Grid>
-                      </>
-                    )}
-                  </Grid>
-                );
-              })}
-
-              <Box sx={{ mt: 3 }}>
-                <Button
-                  variant="contained"
-                  startIcon={<SaveIcon />}
-                  onClick={() => {
-                    // Guardar horarios
-                    const updatedHours = {
-                      opening_hours: restaurantDetails?.opening_hours
-                    };
-                    saveRestaurantMutation.mutate(updatedHours);
-                  }}
-                >
-                  Guardar horarios
-                </Button>
-              </Box>
-            </TabPanel>
-          </>
-        )}
-      </Paper>
-
-      <Snackbar
-        open={snackbar.open}
-        autoHideDuration={6000}
-        onClose={() => setSnackbar({ ...snackbar, open: false })}
-      >
-        <Alert 
-          onClose={() => setSnackbar({ ...snackbar, open: false })} 
-          severity={snackbar.severity}
-          sx={{ width: '100%' }}
-        >
-          {snackbar.message}
-        </Alert>
-      </Snackbar>
-    </Container>
+    <div style={styles.colorPickerContainer}>
+      <label style={styles.colorPickerLabel}>{label}</label>
+      {description && <p style={styles.colorDescription}>{description}</p>}
+      <div style={styles.colorPickerWrapper}>
+        <input type="color" value={value} onChange={(e) => onChange(e.target.value)} style={styles.colorInput} />
+        <input type="text" value={value} onChange={(e) => onChange(e.target.value)} style={styles.colorTextInput} />
+      </div>
+    </div>
   );
-};
+}
 
-export default ConfigurationPage;
+const styles = {
+  errorContainer: {display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', minHeight: '100vh', padding: '2rem'},
+  loadingContainer: {display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', minHeight: '100vh'},
+  spinner: {width: '40px', height: '40px', border: '4px solid #E5E7EB', borderTop: '4px solid #3B82F6', borderRadius: '50%', animation: 'spin 1s linear infinite'},
+  container: {maxWidth: '1200px', margin: '0 auto', padding: '2rem', fontFamily: '-apple-system, sans-serif', backgroundColor: '#F8F9FA', minHeight: '100vh'},
+  header: {display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '2rem', flexWrap: 'wrap', gap: '1rem'},
+  title: {fontSize: '2rem', fontWeight: '700', color: '#1A1A1A', margin: '0 0 0.5rem 0'},
+  subtitle: {fontSize: '1rem', color: '#6B7280', margin: 0},
+  tabsContainer: {display: 'flex', gap: '0.5rem', marginBottom: '2rem', borderBottom: '2px solid #E5E7EB'},
+  tab: {padding: '1rem 1.5rem', background: 'transparent', border: 'none', borderBottom: '2px solid transparent', fontSize: '1rem', fontWeight: '500', color: '#6B7280', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '-2px'},
+  tabActive: {color: '#3B82F6', borderBottom: '2px solid #3B82F6'},
+  tabIcon: {fontSize: '1.25rem'},
+  content: {backgroundColor: 'white', borderRadius: '12px', padding: '2rem', boxShadow: '0 1px 3px rgba(0, 0, 0, 0.1)'},
+  tabContent: {animation: 'fadeIn 0.3s ease-in-out'},
+  section: {marginBottom: '2.5rem'},
+  sectionTitle: {fontSize: '1.5rem', fontWeight: '600', color: '#1A1A1A', margin: '0 0 1.5rem 0'},
+  grid: {display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))', gap: '1.5rem', marginBottom: '1.5rem'},
+  formField: {display: 'flex', flexDirection: 'column'},
+  label: {fontSize: '0.9rem', fontWeight: '600', color: '#374151', marginBottom: '0.5rem'},
+  required: {color: '#EF4444'},
+  input: {padding: '0.75rem', fontSize: '1rem', border: '1px solid #D1D5DB', borderRadius: '8px', outline: 'none', fontFamily: 'inherit', backgroundColor: 'white'},
+  textarea: {resize: 'vertical', minHeight: '100px'},
+  checkboxGroup: {display: 'flex', flexDirection: 'column', gap: '1rem', marginBottom: '1.5rem'},
+  checkbox: {display: 'flex', alignItems: 'center', gap: '0.75rem', cursor: 'pointer'},
+  
+  // ✅ NUEVO: Grid más ancho para colorpickers
+  colorGridWide: {display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '2rem', marginBottom: '2rem'},
+  
+  colorPickerContainer: {display: 'flex', flexDirection: 'column'},
+  colorPickerLabel: {fontSize: '0.9rem', fontWeight: '600', color: '#374151', marginBottom: '0.5rem'},
+  colorDescription: {fontSize: '0.8rem', color: '#6B7280', margin: '0 0 0.5rem 0'},
+  colorPickerWrapper: {display: 'flex', gap: '0.75rem', alignItems: 'center'},
+  
+  // ✅ CORREGIDO: Color input más grande
+  colorInput: {width: '80px', height: '80px', border: '2px solid #D1D5DB', borderRadius: '8px', cursor: 'pointer'},
+  colorTextInput: {flex: 1, padding: '0.75rem', fontSize: '1rem', border: '1px solid #D1D5DB', borderRadius: '8px', fontFamily: 'monospace'},
+  
+  preview: {padding: '2rem', borderRadius: '12px', border: '2px dashed #D1D5DB'},
+  reelPreview: {
+    padding: '1.5rem',
+    borderRadius: '12px',
+    border: '2px solid #E5E7EB',
+    maxWidth: '300px',
+    aspectRatio: '9/16',
+    display: 'flex',
+    flexDirection: 'column',
+    margin: '0 auto'
+  },
+  layoutGrid: {display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: '1rem'},
+  layoutCard: {display: 'flex', flexDirection: 'column', alignItems: 'center', padding: '1.5rem', border: '2px solid #E5E7EB', borderRadius: '12px', backgroundColor: 'white', cursor: 'pointer', position: 'relative'},
+  layoutCardActive: {borderColor: '#3B82F6', backgroundColor: '#EFF6FF'},
+  layoutName: {fontSize: '0.95rem', fontWeight: '600', color: '#374151', marginTop: '0.5rem'},
+  layoutCheck: {position: 'absolute', top: '0.5rem', right: '0.5rem', color: '#3B82F6', fontSize: '1.25rem'},
+  
+  // ✅ NUEVO: Contenedor para botones de guardar
+  saveButtonContainer: {
+    marginTop: '2rem',
+    paddingTop: '2rem',
+    borderTop: '2px solid #E5E7EB',
+    display: 'flex',
+    justifyContent: 'flex-end'
+  },
+  
+  saveButton: {
+    padding: '0.75rem 2rem', 
+    backgroundColor: '#3B82F6', 
+    color: 'white', 
+    border: 'none', 
+    borderRadius: '8px', 
+    fontSize: '1rem', 
+    fontWeight: '600', 
+    cursor: 'pointer',
+    transition: 'all 0.2s'
+  },
+  
+  saveButtonDisabled: {
+    opacity: 0.6, 
+    cursor: 'not-allowed'
+  },
+};

@@ -15,24 +15,24 @@ const baseApiClient = createApiClient(API_URL);
 class AdminApiClient {
   // Propiedades de estado
   public authToken: string | null = localStorage.getItem('auth_token') || null;
-  
+
   // Referencia al cliente base para acceso directo
   private baseClient: ApiClient;
-  
+
   constructor(baseClient: ApiClient) {
     this.baseClient = baseClient;
-    
+
     // Si hay token guardado, inicializarlo en el cliente base
     if (this.authToken) {
       this.baseClient.setAuthToken(this.authToken);
     }
   }
-  
+
   // Acceso directo al cliente HTTP
   public get client() {
     return this.baseClient.client;
   }
-  
+
   /**
    * Método para interceptar cualquier llamada al apiClient y redirigirla al cliente base
    * Esto garantiza que cualquier método del baseClient esté disponible automáticamente
@@ -43,24 +43,24 @@ class AdminApiClient {
       console.log(`[apiClient] Invocando método del cliente base: ${methodName}`);
       return (this.baseClient as any)[methodName](...args);
     }
-    
+
     console.error(`[apiClient] Método no encontrado en el cliente base: ${methodName}`);
     throw new Error(`El método "${methodName}" no está implementado`);
   }
-  
+
   // Métodos de gestión de token
   public setAuthToken(token: string): void {
     this.authToken = token;
     localStorage.setItem('auth_token', token);
     this.baseClient.setAuthToken(token);
   }
-  
+
   public clearAuthToken(): void {
     this.authToken = null;
     localStorage.removeItem('auth_token');
     this.baseClient.clearAuthToken();
   }
-  
+
   // Método para verificar autenticación
   public isAuthenticated(): boolean {
     return !!this.authToken;
@@ -74,17 +74,19 @@ class AdminApiClient {
     }
     return response;
   }
-  // Añadir este método a la clase AdminApiClient en apiClient.ts
-public async getDishSectionRelations(restaurantId: string): Promise<any[]> {
-  try {
-    console.log(`[apiClient] Obteniendo relaciones plato-sección para restaurante ${restaurantId}`);
-    const response = await this.client.get(`/restaurants/${restaurantId}/dish-section-relations`);
-    return response.data.relations || [];
-  } catch (error) {
-    console.error('[apiClient] Error al obtener relaciones plato-sección:', error);
-    return [];
+
+  // Relaciones plato-sección
+  public async getDishSectionRelations(restaurantId: string): Promise<any[]> {
+    try {
+      console.log(`[apiClient] Obteniendo relaciones plato-sección para restaurante ${restaurantId}`);
+      const response = await this.client.get(`/restaurants/${restaurantId}/dish-section-relations`);
+      return response.data.relations || [];
+    } catch (error) {
+      console.error('[apiClient] Error al obtener relaciones plato-sección:', error);
+      return [];
+    }
   }
-}
+
   // Métodos específicamente optimizados para el admin
   public async getDishes(restaurantId: string): Promise<Dish[]> {
     const dishes = await this.baseClient.getDishes(restaurantId);
@@ -95,7 +97,7 @@ public async getDishSectionRelations(restaurantId: string): Promise<any[]> {
       return nameA.localeCompare(nameB);
     }) : dishes;
   }
-  
+
   public async getDish(dishId: string): Promise<Dish> {
     console.log(`[apiClient] Obteniendo plato con ID: ${dishId}`);
     try {
@@ -103,7 +105,7 @@ public async getDishSectionRelations(restaurantId: string): Promise<any[]> {
       if (typeof this.baseClient.getDish === 'function') {
         return await this.baseClient.getDish(dishId);
       }
-      
+
       // Implementación alternativa usando client.get directamente
       const response = await this.baseClient.client.get(`/dishes/${dishId}`);
       // Verificar estructura de respuesta
@@ -113,7 +115,7 @@ public async getDishSectionRelations(restaurantId: string): Promise<any[]> {
       throw new Error(`Error al cargar el plato: ${error?.message || 'Error desconocido'}`);
     }
   }
-  
+
   // Métodos para la gestión de medios
   public async getRestaurantMedia(restaurantId: string): Promise<DishMedia[]> {
     try {
@@ -124,7 +126,7 @@ public async getDishSectionRelations(restaurantId: string): Promise<any[]> {
       throw error;
     }
   }
-  
+
   public async getDishMedia(dishId: string): Promise<DishMedia[]> {
     try {
       const data = await this.baseClient.getDishMedia(dishId);
@@ -134,106 +136,322 @@ public async getDishSectionRelations(restaurantId: string): Promise<any[]> {
       throw error;
     }
   }
-  
-  // Reemplaza el método uploadMedia actual
-public async uploadMedia(dishId: string, file: File, role: string = 'GALLERY_IMAGE', orderIndex: number = 0): Promise<DishMedia> {
-  const formData = new FormData();
-  formData.append('file', file);
-  formData.append('dish_id', dishId);
-  formData.append('role', role);
-  formData.append('order_index', String(orderIndex));
-  formData.append('display_name', file.name || '');
-  
-  // Error: this.baseClient.uploadMediaWithRole is not a function
-  // return await this.baseClient.uploadMediaWithRole(formData);
-  
-  // Solución: Usar directamente el método uploadMedia del cliente base
-  const response = await this.baseClient.uploadMedia(formData);
-  
-  // Verificar y formatear la respuesta según se necesite
-  return response.media || response;
-}
-  
+
+  public async uploadMedia(dishId: string, file: File, role: string = 'GALLERY_IMAGE', orderIndex: number = 0): Promise<DishMedia> {
+    const formData = new FormData();
+    formData.append('file', file);
+    formData.append('dish_id', dishId);
+    formData.append('role', role);
+    formData.append('order_index', String(orderIndex));
+    formData.append('display_name', file.name || '');
+
+    const response = await this.baseClient.uploadMedia(formData);
+    return response.media || response;
+  }
+
   public async updateMediaRole(mediaId: string, dishId: string, role: string): Promise<DishMedia> {
     const response = await this.baseClient.updateMediaRole(mediaId, dishId, role);
     return response.media;
   }
 
-  
-  // Método para obtener medios por rol
-  public async getMediaByRole(dishId: string, role: string): Promise<DishMedia[]> {
+  /**
+   * Obtener datos de analytics con transformación de snake_case a camelCase
+   */
+  public async getAnalytics(restaurantId: string, params: any): Promise<any> {
     try {
-      return await this.baseClient.getMediaByRole(dishId, role);
+      console.log(`[apiClient] Obteniendo analytics para restaurante ${restaurantId}`, params);
+
+      const queryParams = new URLSearchParams({
+        restaurant_id: restaurantId,
+        time_range: params.timeRange || params.time_range,
+        lang: params.lang || 'es',
+        top: String(params.top || 20),
+      }).toString();
+
+      const response = await this.client.get(`/analytics?${queryParams}`);
+      const rawData = response.data;
+
+      console.log('[apiClient] Raw analytics data:', rawData);
+
+      // Transform snake_case API response to camelCase frontend format
+      return {
+        summary: {
+          totalViews: rawData.summary?.total_views || 0,
+          uniqueVisitors: rawData.summary?.unique_visitors || 0,
+          totalSessions: rawData.summary?.total_sessions || 0,
+          avgSessionDuration: rawData.summary?.avg_session_duration || 0,
+          dishViews: rawData.summary?.dish_views || 0,
+          favorites: rawData.summary?.favorites_added || rawData.summary?.favorites || 0,
+          ratings: rawData.summary?.ratings_submitted || rawData.summary?.ratings || 0,
+          shares: rawData.summary?.shares || 0,
+        },
+        timeseries: (rawData.timeseries || []).map((item: any) => ({
+          date: item.date,
+          totalViews: item.total_views || 0,
+          uniqueVisitors: item.unique_visitors || 0,
+          totalSessions: item.total_sessions || 0,
+        })),
+        topDishes: rawData.topDishes || [],
+        topSections: rawData.topSections || [],
+        breakdowns: rawData.breakdowns || {},
+        trafficByHour: rawData.trafficByHour || [],
+        flows: rawData.flows || [],
+        qrAttribution: rawData.qrAttribution || [],
+      };
     } catch (error) {
-      console.error(`[apiClient] Error al obtener medios con rol ${role}:`, error);
-      return [];
+      console.error('[apiClient] Error al obtener analytics:', error);
+      throw error;
     }
   }
-  
+
   // Normalización de datos de medios para consistencia
   private normalizeMediaItems(items: DishMedia[]): DishMedia[] {
     if (!Array.isArray(items)) return [];
-    
+
     return items.map(item => ({
       ...item,
-      role: item.role || (item.is_primary ? 
-        (item.media_type === 'video' ? 'PRIMARY_VIDEO' : 'PRIMARY_IMAGE') : 
+      role: item.role || (item.is_primary ?
+        (item.media_type === 'video' ? 'PRIMARY_VIDEO' : 'PRIMARY_IMAGE') :
         'GALLERY_IMAGE'),
       order_index: item.order_index || 0
     }));
   }
-// En apiClient.ts, añade o actualiza este método
-public async getMenus(restaurantId: string): Promise<any[]> {
-  try {
-    console.log(`[apiClient] Obteniendo menús para restaurante ${restaurantId}`);
-    
-    // Usar la nueva ruta RESTful
-    const response = await this.client.get(`/restaurants/${restaurantId}/menus`);
-    
-    // Verificar respuesta y devolver menús
-    if (response.data.success && Array.isArray(response.data.menus)) {
-      return response.data.menus;
+
+  public async getMenus(restaurantId: string): Promise<any[]> {
+    try {
+      console.log(`[apiClient] Obteniendo menús para restaurante ${restaurantId}`);
+
+      const response = await this.client.get(`/restaurants/${restaurantId}/menus`);
+
+      if (response.data.success && Array.isArray(response.data.menus)) {
+        return response.data.menus;
+      }
+
+      console.warn('[apiClient] Formato inesperado en respuesta de menús:', response.data);
+      return [];
+    } catch (error) {
+      console.error('[apiClient] Error al obtener menús:', error);
+      return [{
+        id: `default_menu_${restaurantId}`,
+        name: "Menú Predeterminado",
+        is_default: true
+      }];
     }
-    
-    // Si hay algún problema con el formato, devolver array vacío
-    console.warn('[apiClient] Formato inesperado en respuesta de menús:', response.data);
-    return [];
-  } catch (error) {
-    console.error('[apiClient] Error al obtener menús:', error);
-    // Crear un menú por defecto si hay error
-    return [{
-      id: `default_menu_${restaurantId}`,
-      name: "Menú Predeterminado",
-      is_default: true
-    }];
   }
-}
+
+  // ============================================
+  // 🆕 MÉTODOS PARA RESTAURANT & STYLING - CORREGIDOS
+  // ============================================
+
+  /**
+   * Obtener datos básicos del restaurante
+   */
+  public async getRestaurant(restaurantId: string): Promise<any> {
+    try {
+      console.log(`[apiClient] Obteniendo datos del restaurante ${restaurantId}`);
+      const response = await this.baseClient.client.get(`/restaurants/${restaurantId}`);
+      return response.data;
+    } catch (error) {
+      console.error('[apiClient] Error al obtener restaurante:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Obtener configuración completa del restaurante (themes, branding, features)
+   */
+  public async getRestaurantConfig(restaurantId: string): Promise<any> {
+    try {
+      console.log(`[apiClient] Obteniendo configuración del restaurante ${restaurantId}`);
+      const response = await this.baseClient.client.get(`/restaurants/${restaurantId}/config`);
+      return response.data;
+    } catch (error) {
+      console.error('[apiClient] Error al obtener configuración:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Actualizar datos básicos del restaurante (name, description, contact, etc.)
+   */
+  public async updateRestaurant(restaurantId: string, data: any): Promise<any> {
+    try {
+      console.log(`[apiClient] Actualizando datos del restaurante ${restaurantId}`);
+      const response = await this.baseClient.client.put(`/restaurants/${restaurantId}`, data);
+      return response.data;
+    } catch (error) {
+      console.error('[apiClient] Error al actualizar restaurante:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * ✅ NUEVO: Actualizar THEME (tabla themes) - Para pestaña "Diseño"
+   */
+  public async updateRestaurantTheme(restaurantId: string, data: any): Promise<any> {
+    try {
+      console.log(`[apiClient] Actualizando theme del restaurante ${restaurantId}`);
+      const response = await this.baseClient.client.put(`/restaurants/${restaurantId}/theme`, data);
+      return response.data;
+    } catch (error) {
+      console.error('[apiClient] Error al actualizar theme:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * ✅ NUEVO: Obtener colores de reels (config_overrides)
+   */
+  public async getRestaurantStyling(restaurantId: string): Promise<any> {
+    try {
+      console.log(`[apiClient] Obteniendo styling para restaurante ${restaurantId}`);
+      const response = await this.baseClient.client.get(`/restaurants/${restaurantId}/styling`);
+      return response.data;
+    } catch (error) {
+      console.error('[apiClient] Error al obtener styling:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * ✅ CORREGIDO: Actualizar colores de reels (config_overrides)
+   * Para pestaña "Colores Reels"
+   */
+  public async updateRestaurantStyling(restaurantId: string, data: any): Promise<any> {
+    try {
+      console.log(`[apiClient] Actualizando styling del restaurante ${restaurantId}`, data);
+
+      // ✅ Transformar estructura para el worker
+      const payload = {
+        primary_color: data.primary || data.primary_color,
+        secondary_color: data.secondary || data.secondary_color,
+        accent_color: data.accent || data.accent_color,
+        text_color: data.text || data.text_color,
+        background_color: data.background || data.background_color
+      };
+
+      const response = await this.baseClient.client.put(`/restaurants/${restaurantId}/styling`, payload);
+      return response.data;
+    } catch (error) {
+      console.error('[apiClient] Error al actualizar styling:', error);
+      throw error;
+    }
+  }
+
+  // ============================================
+  // 🆕 DASHBOARD API METHODS
+  // ============================================
+
+  /**
+   * Get dashboard summary with today vs yesterday comparison
+   */
+  public async getDashboardSummary(
+    restaurantId: string,
+    period: '1d' | '7d' | '30d' = '7d'
+  ): Promise<any> {
+    try {
+      const response = await this.client.get(
+        `/restaurants/${restaurantId}/analytics/summary?period=${period}`
+      );
+      return response.data;
+    } catch (error) {
+      console.warn('[apiClient] Dashboard summary endpoint failed:', error);
+      return null; // Return null instead of mock data
+    }
+  }
+
+  /**
+   * Get top performing dishes
+   */
+  public async getTopDishes(
+    restaurantId: string,
+    period: '7d' | '30d' = '7d',
+    limit: number = 10
+  ): Promise<any> {
+    try {
+      const response = await this.client.get(
+        `/restaurants/${restaurantId}/analytics/dishes/top?period=${period}&limit=${limit}`
+      );
+      return response.data;
+    } catch (error) {
+      console.warn('[apiClient] Top dishes endpoint failed:', error);
+      return null; // Return null instead of mock data
+    }
+  }
+
+  /**
+   * Get QR code breakdown
+   */
+  public async getQRBreakdown(restaurantId: string): Promise<any> {
+    try {
+      const response = await this.client.get(
+        `/restaurants/${restaurantId}/analytics/qr-breakdown`
+      );
+      return response.data;
+    } catch (error) {
+      console.warn('[apiClient] QR breakdown endpoint failed:', error);
+      return null; // Return null instead of mock data
+    }
+  }
+
+  /**
+   * Get content health metrics
+   */
+  public async getContentHealth(restaurantId: string): Promise<any> {
+    try {
+      const response = await this.client.get(
+        `/restaurants/${restaurantId}/content/health`
+      );
+      return response.data;
+    } catch (error) {
+      console.warn('[apiClient] Content health endpoint failed:', error);
+      return null; // Return null instead of mock data
+    }
+  }
+
+  /**
+   * Get stagnant dishes (low views)
+   */
+  public async getStagnantDishes(
+    restaurantId: string,
+    days: number = 7
+  ): Promise<any> {
+    try {
+      const response = await this.client.get(
+        `/restaurants/${restaurantId}/dishes/stagnant?days=${days}`
+      );
+      return response.data;
+    } catch (error) {
+      console.warn('[apiClient] Stagnant dishes endpoint failed:', error);
+      return null; // Return null instead of mock data
+    }
+  }
+
   // Método para actualizar el orden de los platos por sección
-public async updateDishesOrderBySection(restaurantId: string, orderData: Array<{
-  section_id: string;
-  dish_orders: Array<{
-    dish_id: string;
-    order_index: number;
-  }>;
-}>): Promise<any> {
-  try {
-    console.log(`[apiClient] Actualizando orden de platos por sección para restaurante ${restaurantId}`);
-    const response = await this.client.post(
-      `/restaurants/${restaurantId}/dishes/order-by-section`,
-      { dishOrders: orderData }
-    );
-    return response.data;
-  } catch (error) {
-    console.error('[apiClient] Error al actualizar orden de platos por sección:', error);
-    throw error;
+  public async updateDishesOrderBySection(restaurantId: string, orderData: Array<{
+    section_id: string;
+    dish_orders: Array<{
+      dish_id: string;
+      order_index: number;
+    }>;
+  }>): Promise<any> {
+    try {
+      console.log(`[apiClient] Actualizando orden de platos por sección para restaurante ${restaurantId}`);
+      const response = await this.client.post(
+        `/restaurants/${restaurantId}/dishes/order-by-section`,
+        { dishOrders: orderData }
+      );
+      return response.data;
+    } catch (error) {
+      console.error('[apiClient] Error al actualizar orden de platos por sección:', error);
+      throw error;
+    }
   }
-}
-  
+
   // Configuración de React Query
   public get queryDefaults() {
     return getQueryDefaults();
   }
-
 }
 
 // Crear el proxy que interceptará todas las llamadas a métodos no definidos
@@ -246,12 +464,12 @@ export const apiClient = new Proxy(adminApiClient, {
     if (prop in target) {
       return Reflect.get(target, prop, receiver);
     }
-    
+
     // Si la propiedad es una función en baseApiClient, devolvemos una función que la invoca
     if (typeof prop === 'string' && typeof (baseApiClient as any)[prop] === 'function') {
       return (...args: any[]) => target.invokeBaseMethod(prop, ...args);
     }
-    
+
     // Para cualquier otra propiedad, intentamos accederla en baseApiClient
     return Reflect.get(baseApiClient as any, prop, receiver);
   }

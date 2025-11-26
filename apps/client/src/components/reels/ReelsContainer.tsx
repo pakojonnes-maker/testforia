@@ -36,7 +36,7 @@ interface ReelsContainerProps {
 }
 
 const UI_CONFIG = {
-  SWIPER_SPEED: 250,
+  SWIPER_SPEED: 300,
   SWIPER_RESISTANCE_RATIO: 0.65,
   TOUCH_RATIO: 1,
   THRESHOLD: 5,
@@ -82,10 +82,8 @@ const ReelsContainer: React.FC<ReelsContainerProps> = React.memo(({
   
   const restaurantSlug = restaurantData.restaurant?.slug;
   
-  // ✅ CRÍTICO: Language state ANTES del hook
   const [currentLanguage, setCurrentLanguage] = useState('es');
   
-  // ✅ CORREGIDO: Pasar currentLanguage al hook
   const { config: reelConfig, loading: configLoading, error: configError } = useReelsConfig(restaurantSlug, currentLanguage);
 
   const templateComponents = useMemo(() => {
@@ -96,7 +94,6 @@ const ReelsContainer: React.FC<ReelsContainerProps> = React.memo(({
   const [currentSectionIndex, setCurrentSectionIndex] = useState(initialSectionIndex);
   const [currentDishIndex, setCurrentDishIndex] = useState(initialDishIndex);
   const [muted, setMuted] = useState(true);
-  const [isTransitioning, setIsTransitioning] = useState(false);
 
   // ======================================================================
   // REFS
@@ -106,6 +103,8 @@ const ReelsContainer: React.FC<ReelsContainerProps> = React.memo(({
   const horizontalSwiperRef = useRef<SwiperType | null>(null);
   const verticalSwiperRefs = useRef<{ [key: number]: SwiperType | null }>({});
   const lastUpdateRef = useRef<number>(0);
+  const isClickNavigationRef = useRef<boolean>(false);
+  const currentSectionIndexRef = useRef<number>(initialSectionIndex);
 
   // ======================================================================
   // TRACKING
@@ -114,18 +113,17 @@ const ReelsContainer: React.FC<ReelsContainerProps> = React.memo(({
   const { setCurrentSection } = useDishTracking();
 
   // ======================================================================
-  // COMPUTED VALUES - USAR REELCONFIG EN VEZ DE RESTAURANTDATA
+  // COMPUTED VALUES
   // ======================================================================
   
-  // ✅ CORREGIDO: Usar reelConfig como fuente de verdad
   const currentSection = useMemo(() => 
     reelConfig?.sections?.[currentSectionIndex],
     [reelConfig?.sections, currentSectionIndex]
   );
   
   const currentDishes = useMemo(() => 
-    reelConfig?.dishesBySection?.[currentSectionIndex]?.dishes || [],
-    [reelConfig?.dishesBySection, currentSectionIndex]
+    reelConfig?.sections?.[currentSectionIndex]?.dishes || [],
+    [reelConfig?.sections, currentSectionIndex]
   );
 
   const availableLanguages = useMemo(() => 
@@ -134,50 +132,72 @@ const ReelsContainer: React.FC<ReelsContainerProps> = React.memo(({
   );
 
   // ======================================================================
-  // EVENT HANDLERS - CORREGIDOS ✅
+  // EFFECTS
+  // ======================================================================
+  
+  useEffect(() => {
+    currentSectionIndexRef.current = currentSectionIndex;
+  }, [currentSectionIndex]);
+
+  useEffect(() => {
+    if (currentSection?.id) {
+      setCurrentSection(currentSection.id);
+    }
+  }, [currentSection?.id, setCurrentSection]);
+
+  useEffect(() => {
+    console.log(`🎯 [ReelsContainer] State - Section: ${currentSectionIndex}, Dish: ${currentDishIndex}, Language: ${currentLanguage}`);
+  }, [currentSectionIndex, currentDishIndex, currentLanguage]);
+
+  // ======================================================================
+  // EVENT HANDLERS
   // ======================================================================
 
-  // ✅ CORREGIDO: Handler que fuerza la navegación
   const handleSectionChange = useCallback((newIndex: number) => {
     const now = Date.now();
-    if (now - lastUpdateRef.current < 150) return;
-    lastUpdateRef.current = now;
-
-    if (newIndex === currentSectionIndex || 
-        newIndex < 0 || 
-        newIndex >= (reelConfig?.sections?.length || 0) ||
-        isTransitioning) {
+    
+    if (now - lastUpdateRef.current < 300) {
+      console.log(`⏱️ [ReelsContainer] Debounce activo, ignorando click`);
       return;
     }
 
-    console.log(`📂 [ReelsContainer] 🔥 FORCING Section change: ${currentSectionIndex} → ${newIndex}`);
+    const current = currentSectionIndexRef.current;
+
+    if (newIndex === current || 
+        newIndex < 0 || 
+        newIndex >= (reelConfig?.sections?.length || 0)) {
+      console.log(`⚠️ [ReelsContainer] Invalid index or same section: ${newIndex} (current: ${current})`);
+      return;
+    }
+
+    console.log(`📂 [ReelsContainer] 🔥 Section change via CLICK: ${current} → ${newIndex}`);
     
-    setIsTransitioning(true);
-    
-    // 🔥 CRÍTICO: Update state ANTES de mover swiper
+    lastUpdateRef.current = now;
+    isClickNavigationRef.current = true;
+
     setCurrentSectionIndex(newIndex);
     setCurrentDishIndex(0);
 
-    // Update tracking
     const section = reelConfig?.sections?.[newIndex];
     if (section) {
       setCurrentSection(section.id);
     }
 
-    // 🔥 CRÍTICO: Forzar navegación del horizontal swiper
     if (horizontalSwiperRef.current) {
       console.log(`🎯 [ReelsContainer] Moving horizontal swiper to slide: ${newIndex}`);
-      horizontalSwiperRef.current.slideTo(newIndex, UI_CONFIG.SWIPER_SPEED);
+      horizontalSwiperRef.current.slideTo(newIndex, UI_CONFIG.SWIPER_SPEED, false);
+    } else {
+      console.error(`❌ [ReelsContainer] horizontalSwiperRef.current is NULL!`);
     }
 
-    // Clear transition flag
     setTimeout(() => {
-      setIsTransitioning(false);
+      isClickNavigationRef.current = false;
+      console.log(`✅ [ReelsContainer] Navigation completed`);
     }, UI_CONFIG.SWIPER_SPEED + 100);
-  }, [currentSectionIndex, reelConfig?.sections, setCurrentSection, isTransitioning]);
+  }, [reelConfig?.sections, setCurrentSection]);
 
   const handleDishChange = useCallback((newIndex: number, sectionIndex: number) => {
-    if (sectionIndex !== currentSectionIndex || isTransitioning) return;
+    if (sectionIndex !== currentSectionIndex) return;
     
     const now = Date.now();
     if (now - lastUpdateRef.current < 50) return;
@@ -191,33 +211,16 @@ const ReelsContainer: React.FC<ReelsContainerProps> = React.memo(({
 
     console.log(`🍽️ [ReelsContainer] Dish change: ${currentDishIndex} → ${newIndex}`);
     setCurrentDishIndex(newIndex);
-  }, [currentDishIndex, currentDishes.length, currentSectionIndex, isTransitioning]);
+  }, [currentDishIndex, currentDishes.length, currentSectionIndex]);
 
   const toggleMuted = useCallback(() => {
     setMuted(prev => !prev);
   }, []);
 
-  // ✅ CORREGIDO: Language change handler
   const handleLanguageChange = useCallback((languageCode: string) => {
     console.log(`🌍 [ReelsContainer] Language change: ${currentLanguage} → ${languageCode}`);
     setCurrentLanguage(languageCode);
-    // ✅ El hook se ejecutará automáticamente por la dependencia
   }, [currentLanguage]);
-
-  // ======================================================================
-  // EFFECTS
-  // ======================================================================
-  
-  useEffect(() => {
-    if (currentSection?.id) {
-      setCurrentSection(currentSection.id);
-    }
-  }, [currentSection?.id, setCurrentSection]);
-
-  // ✅ Debug log
-  useEffect(() => {
-    console.log(`🎯 [ReelsContainer] State - Section: ${currentSectionIndex}, Dish: ${currentDishIndex}, Language: ${currentLanguage}`);
-  }, [currentSectionIndex, currentDishIndex, currentLanguage]);
 
   // ======================================================================
   // SWIPER CONFIG
@@ -248,11 +251,11 @@ const ReelsContainer: React.FC<ReelsContainerProps> = React.memo(({
       cssMode: false,
       freeMode: false,
       centeredSlides: true,
-      preloadImages: false,
       lazy: {
         enabled: true,
         loadPrevNext: true,
-        loadPrevNextAmount: 1
+        loadPrevNextAmount: 1,
+        loadOnTransitionStart: true
       }
     },
     horizontal: {
@@ -276,11 +279,11 @@ const ReelsContainer: React.FC<ReelsContainerProps> = React.memo(({
       resistanceRatio: UI_CONFIG.SWIPER_RESISTANCE_RATIO,
       cssMode: false,
       centeredSlides: true,
-      preloadImages: false,
       lazy: {
         enabled: true,
         loadPrevNext: true,
-        loadPrevNextAmount: 1
+        loadPrevNextAmount: 1,
+        loadOnTransitionStart: true
       }
     }
   }), []);
@@ -369,20 +372,18 @@ const ReelsContainer: React.FC<ReelsContainerProps> = React.memo(({
         WebkitOverflowScrolling: 'touch'
       }}
     >
-      {/* Modern Header */}
       <Header
-        restaurant={reelConfig.restaurant} // ✅ Usar reelConfig
+        restaurant={reelConfig.restaurant}
         currentSection={currentSection}
         currentDishIndex={currentDishIndex}
         totalDishesInSection={currentDishes.length}
         config={reelConfig}
-        languages={availableLanguages} // ✅ Usar availableLanguages
+        languages={availableLanguages}
         currentLanguage={currentLanguage}
         onLanguageChange={handleLanguageChange}
         onClose={onClose}
       />
 
-      {/* ✅ Vertical Progress Indicator */}
       <Box
         sx={{
           position: 'fixed',
@@ -403,11 +404,11 @@ const ReelsContainer: React.FC<ReelsContainerProps> = React.memo(({
               height: index === currentDishIndex ? { xs: 24, sm: 28 } : { xs: 8, sm: 10 },
               borderRadius: 2,
               bgcolor: index === currentDishIndex 
-                ? reelConfig.restaurant?.branding?.primaryColor || '#FF6B6B'
+                ? reelConfig.restaurant?.branding?.primary_color || '#FF6B6B'
                 : 'rgba(255,255,255,0.4)',
               transition: 'all 0.4s cubic-bezier(0.4, 0, 0.2, 1)',
               boxShadow: index === currentDishIndex 
-                ? `0 0 8px ${reelConfig.restaurant?.branding?.primaryColor || '#FF6B6B'}40`
+                ? `0 0 8px ${reelConfig.restaurant?.branding?.primary_color || '#FF6B6B'}40`
                 : 'none'
             }}
           />
@@ -427,7 +428,6 @@ const ReelsContainer: React.FC<ReelsContainerProps> = React.memo(({
         )}
       </Box>
 
-      {/* Main Content Area */}
       <Box
         sx={{
           position: 'relative',
@@ -437,23 +437,28 @@ const ReelsContainer: React.FC<ReelsContainerProps> = React.memo(({
           pb: '90px'
         }}
       >
-        {/* Horizontal Swiper */}
+        {/* ✅ HORIZONTAL SWIPER CON onSwiper */}
         <Swiper
           {...swiperConfigs.horizontal}
-          ref={(swiper) => {
-            if (swiper?.swiper) horizontalSwiperRef.current = swiper.swiper;
+          onSwiper={(swiper) => {
+            horizontalSwiperRef.current = swiper;
+            console.log('🎯 [Horizontal Swiper] onSwiper executed, ref assigned:', !!swiper);
           }}
           initialSlide={initialSectionIndex}
           onSlideChange={(swiper) => {
-            const newIndex = swiper.activeIndex;
-            console.log(`🎯 [Horizontal Swiper] Slide changed to: ${newIndex}`);
-            if (newIndex !== currentSectionIndex) {
-              setCurrentSectionIndex(newIndex);
-              setCurrentDishIndex(0);
-              const section = reelConfig?.sections?.[newIndex]; // ✅ Usar reelConfig
-              if (section) {
-                setCurrentSection(section.id);
+            if (!isClickNavigationRef.current) {
+              const newIndex = swiper.activeIndex;
+              console.log(`🎯 [Horizontal Swiper] Slide changed via SWIPE to: ${newIndex}`);
+              if (newIndex !== currentSectionIndex) {
+                setCurrentSectionIndex(newIndex);
+                setCurrentDishIndex(0);
+                const section = reelConfig?.sections?.[newIndex];
+                if (section) {
+                  setCurrentSection(section.id);
+                }
               }
+            } else {
+              console.log(`🎯 [Horizontal Swiper] Slide changed via CLICK (ignoring onSlideChange)`);
             }
           }}
           style={{ 
@@ -462,18 +467,17 @@ const ReelsContainer: React.FC<ReelsContainerProps> = React.memo(({
             transform: 'translateZ(0)'
           }}
         >
-          {/* ✅ CORREGIDO: Usar reelConfig sections */}
           {reelConfig?.sections?.map((section, sectionIdx) => (
             <SwiperSlide key={section.id} virtualIndex={sectionIdx}>
+              {/* ✅ VERTICAL SWIPER CON onSwiper */}
               <Swiper
                 {...swiperConfigs.vertical}
-                ref={(swiper) => {
-                  if (swiper?.swiper) {
-                    verticalSwiperRefs.current[sectionIdx] = swiper.swiper;
-                    if (sectionIdx === currentSectionIndex) {
-                      verticalSwiperRef.current = swiper.swiper;
-                    }
+                onSwiper={(swiper) => {
+                  verticalSwiperRefs.current[sectionIdx] = swiper;
+                  if (sectionIdx === currentSectionIndex) {
+                    verticalSwiperRef.current = swiper;
                   }
+                  console.log(`🎯 [Vertical Swiper ${sectionIdx}] onSwiper executed`);
                 }}
                 initialSlide={sectionIdx === initialSectionIndex ? initialDishIndex : 0}
                 onSlideChange={(swiper) => {
@@ -485,19 +489,18 @@ const ReelsContainer: React.FC<ReelsContainerProps> = React.memo(({
                   transform: 'translateZ(0)'
                 }}
               >
-                {/* ✅ CORREGIDO: Usar reelConfig dishesBySection */}
-                {reelConfig?.dishesBySection?.[sectionIdx]?.dishes?.map((dish: any, dishIdx: number) => (
+                {section?.dishes?.map((dish: any, dishIdx: number) => (
                   <SwiperSlide key={dish.id} virtualIndex={dishIdx}>
                     <DishCard
                       dish={dish}
-                      restaurant={reelConfig.restaurant} // ✅ Usar reelConfig
+                      restaurant={reelConfig.restaurant}
                       section={section}
                       isActive={sectionIdx === currentSectionIndex && dishIdx === currentDishIndex}
                       config={reelConfig}
                       muted={muted}
                       onMuteToggle={toggleMuted}
                       currentDishIndex={dishIdx}
-                      totalDishes={reelConfig?.dishesBySection?.[sectionIdx]?.dishes?.length || 0}
+                      totalDishes={section?.dishes?.length || 0}
                       currentLanguage={currentLanguage}
                     />
                   </SwiperSlide>
@@ -508,9 +511,8 @@ const ReelsContainer: React.FC<ReelsContainerProps> = React.memo(({
         </Swiper>
       </Box>
 
-      {/* Section Bar */}
       <SectionBar
-        sections={reelConfig?.sections || []} // ✅ Usar reelConfig
+        sections={reelConfig?.sections || []}
         currentSectionIndex={currentSectionIndex}
         currentDishIndex={currentDishIndex}
         totalDishesInSection={currentDishes.length}
