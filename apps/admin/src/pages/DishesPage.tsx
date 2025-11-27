@@ -7,19 +7,7 @@ import { useTheme } from '@mui/material/styles';
 import useMediaQuery from '@mui/material/useMediaQuery';
 import MultimediaTab from '../components/media/MultimediaTab';
 
-// dnd-kit
-import {
-  DndContext,
-  DragOverlay,
-  useDroppable,
-} from '@dnd-kit/core';
-import {
-  arrayMove,
-  SortableContext,
-  useSortable,
-  verticalListSortingStrategy,
-} from '@dnd-kit/sortable';
-import { CSS } from '@dnd-kit/utilities';
+
 
 // MUI
 import {
@@ -119,239 +107,154 @@ const getDishDisplayImage = (dish: any) => {
   return 'placeholder-dish.jpg';
 };
 
-// ===== Tarjeta ordenable con badge de orden =====
-const SortableDishCard: React.FC<{
+// ===== Item de plato para ordenar (Manual) =====
+const DishOrderItem: React.FC<{
   dish: any;
   index: number;
+  total: number;
+  onMoveUp: () => void;
+  onMoveDown: () => void;
   onEdit: () => void;
   onDelete: () => void;
-  listeners?: any;
-  attributes?: any;
-  setNodeRef?: any;
-  transform?: any;
-  transition?: string;
-  isDragging?: boolean;
-}> = React.memo(({ dish, index, onEdit, onDelete, listeners, attributes, setNodeRef, transform, transition, isDragging }) => {
+  isMobile: boolean;
+  isUpdating: boolean;
+}> = ({ dish, index, total, onMoveUp, onMoveDown, onEdit, onDelete, isMobile, isUpdating }) => {
   const imageUrl = getDishDisplayImage(dish);
-  const style = {
-    transform: CSS.Transform.toString(transform),
-    transition,
-  } as React.CSSProperties;
 
   return (
     <Card
-      ref={setNodeRef}
-      style={style}
       sx={{
-        height: '100%',
         display: 'flex',
-        flexDirection: 'column',
-        position: 'relative',
-        borderRadius: 3,
-        overflow: 'hidden',
-        border: (t) => `1px solid ${alpha(t.palette.primary.main, 0.12)}`,
-        boxShadow: isDragging ? '0 16px 32px rgba(0,0,0,0.25)' : '0 8px 24px rgba(0,0,0,0.08)',
-        transition: 'transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease',
-        '&:hover': { transform: 'translateY(-4px)', boxShadow: '0 10px 28px rgba(0,0,0,0.12)' },
-        cursor: 'grab',
-        touchAction: 'none',
+        flexDirection: 'row',
+        alignItems: 'center',
+        p: 1,
+        mb: 1,
+        borderRadius: 2,
+        border: (t) => `1px solid ${alpha(t.palette.divider, 0.1)}`,
+        boxShadow: 'none',
+        '&:hover': { bgcolor: 'action.hover' },
       }}
     >
-      {/* Drag handle */}
-      <Box
-        {...attributes}
-        {...listeners}
-        sx={{
-          position: 'absolute', top: 10, left: 10, zIndex: 12,
-          bgcolor: 'rgba(0,0,0,0.55)', color: 'white', p: 0.5, borderRadius: '50%',
-          display: 'flex', alignItems: 'center', justifyContent: 'center',
-          '&:hover': { bgcolor: 'rgba(0,0,0,0.75)', transform: 'scale(1.06)' }, transition: 'all 0.2s'
-        }}
-      >
-        <DragIcon fontSize="small" />
-      </Box>
-
-      {/* Badge de orden */}
-      <Box sx={{
-        position: 'absolute', top: 10, left: 44, zIndex: 12,
-        bgcolor: 'rgba(25,118,210,0.92)', color: '#fff',
-        borderRadius: 1.5, px: 1, py: 0.25, fontSize: 12, fontWeight: 800,
-        boxShadow: '0 2px 8px rgba(0,0,0,0.25)'
-      }}>
-        {index + 1}
-      </Box>
-
-      <CardMedia
-        component="div"
-        sx={{
-          height: 170,
-          position: 'relative',
-          backgroundImage: `linear-gradient(180deg, rgba(0,0,0,0.15), rgba(0,0,0,0)), url(${imageUrl})`,
-          backgroundSize: 'cover',
-          backgroundPosition: 'center',
-        }}
-      >
-        {/* Estado y etiquetas */}
-        {dish?.status !== 'active' && (
-          <Chip
-            label={dish?.status === 'outofstock' ? 'Agotado' : dish?.status === 'hidden' ? 'Oculto' : 'Inactivo'}
-            size="small" color="error"
-            sx={{ position: 'absolute', top: 8, right: 8, fontWeight: 'bold', backdropFilter: 'blur(4px)', background: 'rgba(211,47,47,0.8)' }}
-          />
-        )}
-        {dish?.isnew && (
-          <Chip
-            label="Nuevo"
-            size="small" color="secondary" icon={<NewIcon />}
-            sx={{ position: 'absolute', top: 36, right: 8, fontWeight: 'bold', backdropFilter: 'blur(4px)', background: 'rgba(156,39,176,0.8)' }}
-          />
-        )}
-        {/* Precio */}
-        <Chip
-          label={Number(dish?.price || 0).toFixed(2)}
+      {/* Controles de orden */}
+      <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', mr: 1.5, gap: 0.5 }}>
+        <IconButton
+          size="small"
+          onClick={onMoveUp}
+          disabled={index === 0 || isUpdating}
           color="primary"
-          sx={{ position: 'absolute', bottom: 8, right: 8, fontWeight: 'bold', backdropFilter: 'blur(4px)', background: 'rgba(25,118,210,0.85)', fontSize: '0.9rem' }}
+          sx={{ p: 0.5, bgcolor: (t) => alpha(t.palette.primary.main, 0.05) }}
+        >
+          <ArrowUpIcon fontSize="small" />
+        </IconButton>
+        <Chip
+          label={`#${index + 1}`}
+          size="small"
+          variant="outlined"
+          sx={{ height: 20, fontSize: '0.7rem', fontWeight: 'bold', minWidth: 24, px: 0 }}
         />
-        {/* Dietas */}
-        <Box sx={{ position: 'absolute', bottom: 8, left: 8, display: 'flex', gap: 0.5 }}>
-          {dish?.isvegetarian && <Chip size="small" label="Veg" color="success" variant="outlined" />}
-          {dish?.isvegan && <Chip size="small" label="Vegan" color="success" variant="outlined" />}
-          {dish?.isglutenfree && <Chip size="small" label="SG" color="info" variant="outlined" />}
-        </Box>
-      </CardMedia>
+        <IconButton
+          size="small"
+          onClick={onMoveDown}
+          disabled={index === total - 1 || isUpdating}
+          color="primary"
+          sx={{ p: 0.5, bgcolor: (t) => alpha(t.palette.primary.main, 0.05) }}
+        >
+          <ArrowDownIcon fontSize="small" />
+        </IconButton>
+      </Box>
 
-      <CardContent sx={{ pt: 2, pb: 1 }}>
-        <Typography variant="subtitle1" fontWeight={800} noWrap>
+      {/* Imagen */}
+      <Avatar
+        src={imageUrl}
+        variant="rounded"
+        sx={{ width: 60, height: 60, mr: 2, borderRadius: 2 }}
+      />
+
+      {/* Info */}
+      <Box sx={{ flexGrow: 1, minWidth: 0 }}>
+        <Typography variant="subtitle2" fontWeight={700} noWrap>
           {dish?.translations?.name?.es || 'Sin nombre'}
         </Typography>
-      </CardContent>
+        <Typography variant="caption" color="text.secondary" noWrap display="block">
+          {Number(dish?.price || 0).toFixed(2)} € • {dish?.status === 'active' ? 'Activo' : 'Inactivo'}
+        </Typography>
+      </Box>
 
-      <CardActions sx={{ justifyContent: 'space-between', px: 2, pb: 2, pt: 0 }}>
-        <Button variant="outlined" size="small" startIcon={<EditIcon />} onClick={onEdit}>Editar</Button>
-        <IconButton size="small" color="error" onClick={onDelete}><DeleteIcon /></IconButton>
-      </CardActions>
+      {/* Acciones */}
+      <Box sx={{ display: 'flex', flexDirection: isMobile ? 'column' : 'row' }}>
+        <IconButton size="small" onClick={onEdit} sx={{ color: 'text.secondary' }}>
+          <EditIcon fontSize="small" />
+        </IconButton>
+        <IconButton size="small" color="error" onClick={onDelete}>
+          <DeleteIcon fontSize="small" />
+        </IconButton>
+      </Box>
     </Card>
-  );
-});
-// ===== Item ordenable que encapsula useSortable =====
-const SortableDishItem: React.FC<{
-  dish: any;
-  index: number;
-  sectionId: string;
-  onEdit: () => void;
-  onDelete: () => void;
-}> = ({ dish, index, sectionId, onEdit, onDelete }) => {
-  const {
-    attributes,
-    listeners,
-    setNodeRef,
-    transform,
-    transition,
-    isDragging,
-  } = useSortable({
-    id: dish.id,
-    data: { currentSectionId: sectionId },
-  });
-
-  return (
-    <SortableDishCard
-      dish={dish}
-      index={index}
-      onEdit={onEdit}
-      onDelete={onDelete}
-      attributes={attributes}
-      listeners={listeners}
-      setNodeRef={setNodeRef}
-      transform={transform}
-      transition={transition}
-      isDragging={isDragging}
-    />
   );
 };
 
-// ===== Sección droppable con lista de platos ordenables =====
-const DroppableSection: React.FC<{
+// ===== Sección con lista de platos (Manual) =====
+const DishOrderSection: React.FC<{
   section: any;
   dishes: any[];
+  onMoveDish: (index: number, direction: 'up' | 'down') => void;
   onEditDish: (id: string) => void;
   onDeleteDish: (dish: any) => void;
   isMobile: boolean;
-}> = ({ section, dishes, onEditDish, onDeleteDish, isMobile }) => {
-  const { setNodeRef, isOver } = useDroppable({
-    id: `section-${section.id}`,
-    data: { type: 'section', sectionId: section.id },
-  });
-
+  isUpdating: boolean;
+}> = ({ section, dishes, onMoveDish, onEditDish, onDeleteDish, isMobile, isUpdating }) => {
   return (
     <Box sx={{ mb: 4 }}>
       <Paper
-        elevation={2}
+        elevation={0}
+        variant="outlined"
         sx={{
           p: 2,
-          backgroundColor: (t) =>
-            t.palette.mode === 'dark'
-              ? 'rgba(255,255,255,0.05)'
-              : 'rgba(0,0,0,0.02)',
-          borderRadius: '8px 8px 0 0',
-          borderBottom: '2px solid',
-          borderColor: 'primary.main',
+          mb: 2,
+          backgroundColor: (t) => alpha(t.palette.primary.main, 0.03),
+          borderRadius: 2,
+          borderColor: (t) => alpha(t.palette.primary.main, 0.2),
           display: 'flex',
           justifyContent: 'space-between',
           alignItems: 'center',
-          position: 'sticky',
-          top: isMobile ? 0 : 64,
-          zIndex: 5,
         }}
       >
-        <Typography variant="h6" fontWeight={600}>
+        <Typography variant="h6" fontWeight={700} color="primary.main">
           {section?.translations?.name?.es || 'Sin nombre'}
         </Typography>
-        <Chip label={`${dishes.length} platos`} size="small" color="primary" />
+        <Chip label={`${dishes.length} platos`} size="small" color="primary" variant="outlined" />
       </Paper>
 
-      <Box
-        ref={setNodeRef}
-        sx={{
-          backgroundColor: isOver ? alpha('#1976d2', 0.08) : undefined,
-          borderRadius: 2,
-          p: 2,
-          transition: 'background-color 0.2s ease',
-          border: `2px ${isOver ? 'dashed' : 'solid'} ${isOver ? 'primary.main' : 'transparent'
-            }`,
-          minHeight: dishes.length === 0 ? 120 : 'auto',
-        }}
-      >
+      <Box sx={{ pl: { xs: 0, md: 2 } }}>
         {dishes.length > 0 ? (
-          <SortableContext
-            items={dishes.map((d) => d.id)}
-            strategy={verticalListSortingStrategy}
-          >
-            <Grid container spacing={2}>
-              {dishes.map((dish, idx) => (
-                <Grid item xs={12} sm={6} md={4} key={dish.id}>
-                  <SortableDishItem
-                    dish={dish}
-                    index={idx}
-                    sectionId={section.id}
-                    onEdit={() => onEditDish(dish.id)}
-                    onDelete={() => onDeleteDish(dish)}
-                  />
-                </Grid>
-              ))}
-            </Grid>
-          </SortableContext>
+          dishes.map((dish, idx) => (
+            <DishOrderItem
+              key={dish.id}
+              dish={dish}
+              index={idx}
+              total={dishes.length}
+              onMoveUp={() => onMoveDish(idx, 'up')}
+              onMoveDown={() => onMoveDish(idx, 'down')}
+              onEdit={() => onEditDish(dish.id)}
+              onDelete={() => onDeleteDish(dish)}
+              isMobile={isMobile}
+              isUpdating={isUpdating}
+            />
+          ))
         ) : (
           <Box
             sx={{
-              p: 4,
+              p: 3,
               textAlign: 'center',
-              border: '2px dashed',
+              border: '1px dashed',
               borderColor: 'divider',
               borderRadius: 2,
-              backgroundColor: isOver ? alpha('#1976d2', 0.12) : undefined,
+              bgcolor: 'background.paper',
             }}
           >
-            <Typography color="text.secondary">Arrastra platos aquí</Typography>
+            <Typography variant="body2" color="text.secondary">
+              Esta sección no tiene platos asignados.
+            </Typography>
           </Box>
         )}
       </Box>
@@ -359,13 +262,12 @@ const DroppableSection: React.FC<{
   );
 };
 
-// ===== Principal =====
 export default function DishesPage() {
   const navigate = useNavigate();
-  const { user } = useAuth();
+  const { currentRestaurant } = useAuth();
   const queryClient = useQueryClient();
   const restaurantId =
-    user?.currentRestaurant?.id ??
+    currentRestaurant?.id ??
     JSON.parse(localStorage.getItem('currentrestaurant') || 'null')?.id ??
     undefined;
 
@@ -498,75 +400,24 @@ export default function DishesPage() {
     },
   });
 
-  // DnD handlers
-  const handleDragStart = (event: any) => {
-    setActiveId(event?.active?.id ?? null);
-    const currentSectionId = event?.active?.data?.current?.currentSectionId;
-    if (currentSectionId) setActiveSectionId(currentSectionId);
-  };
+  // Lógica de reordenamiento manual
+  const moveDish = (sectionId: string, index: number, direction: 'up' | 'down') => {
+    if (saveSectionOrderMutation.isPending) return;
 
-  const handleDragEnd = (event: any) => {
-    const { active, over } = event || {};
-    if (!over) { setActiveId(null); setActiveSectionId(null); return; }
+    const currentIds = dishOrdersBySection[sectionId] || [];
+    const newIds = [...currentIds];
+    const targetIndex = direction === 'up' ? index - 1 : index + 1;
 
-    const dishId = active?.id;
-    const overId = over?.id;
-    if (!dishId || !overId) { setActiveId(null); setActiveSectionId(null); return; }
+    if (targetIndex < 0 || targetIndex >= newIds.length) return;
 
-    const isOverSection = overId.toString().startsWith('section-');
-    let targetSectionId: string | undefined;
+    // Intercambiar
+    [newIds[index], newIds[targetIndex]] = [newIds[targetIndex], newIds[index]];
 
-    if (isOverSection) {
-      targetSectionId = overId.toString().replace('section-', '');
-    } else {
-      // buscar a qué sección pertenece el plato destino
-      for (const [sid, ids] of Object.entries(dishOrdersBySection)) {
-        if ((ids as string[]).includes(overId)) { targetSectionId = sid; break; }
-      }
-    }
-    if (!targetSectionId) { setActiveId(null); setActiveSectionId(null); return; }
-
-    const sourceSectionId = activeSectionId || targetSectionId;
-    const isChangingSection = targetSectionId !== sourceSectionId;
-
-    if (isChangingSection) {
-      setDishOrdersBySection((prev) => {
-        const next = { ...prev };
-        // quitar del origen
-        if (sourceSectionId) next[sourceSectionId] = (next[sourceSectionId] || []).filter((id) => id !== dishId);
-        // insertar en destino
-        next[targetSectionId!] = next[targetSectionId!] || [];
-        if (isOverSection) {
-          next[targetSectionId!].push(dishId);
-        } else {
-          const idx = next[targetSectionId!].indexOf(overId);
-          if (idx >= 0) {
-            const arr = [...next[targetSectionId!]];
-            arr.splice(idx, 0, dishId);
-            next[targetSectionId!] = arr;
-          } else {
-            next[targetSectionId!].push(dishId);
-          }
-        }
-        return next;
-      });
-      setHasSectionOrderChanges(true);
-    } else {
-      // reorden dentro de la misma sección
-      const ids = dishOrdersBySection[targetSectionId] || [];
-      const oldIndex = ids.indexOf(dishId);
-      const newIndex = ids.indexOf(isOverSection ? dishId : overId);
-      if (oldIndex !== -1 && newIndex !== -1 && oldIndex !== newIndex) {
-        setDishOrdersBySection((prev) => ({
-          ...prev,
-          [targetSectionId!]: arrayMove(ids, oldIndex, newIndex),
-        }));
-        setHasSectionOrderChanges(true);
-      }
-    }
-
-    setActiveId(null);
-    setActiveSectionId(null);
+    setDishOrdersBySection((prev) => ({
+      ...prev,
+      [sectionId]: newIds,
+    }));
+    setHasSectionOrderChanges(true);
   };
 
   // Handlers UI
@@ -835,32 +686,20 @@ export default function DishesPage() {
             </Button>
           </Alert>
 
-          <DndContext onDragStart={handleDragStart} onDragEnd={handleDragEnd}>
-            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-              {sections.map((section: any) => (
-                <DroppableSection
-                  key={section.id}
-                  section={section}
-                  dishes={sectionDishes[section.id] || []}
-                  onEditDish={handleEditDish}
-                  onDeleteDish={handleOpenDeleteDialog}
-                  isMobile={isMobile}
-                />
-              ))}
-            </Box>
-
-            <DragOverlay adjustScale>
-              {activeId ? (
-                <Box sx={{ width: { xs: 280, sm: 300, md: 320 }, opacity: 0.85 }}>
-                  <Card sx={{ height: '100%', display: 'flex', flexDirection: 'column', borderRadius: 2, overflow: 'hidden', boxShadow: '0 5px 15px rgba(0,0,0,0.3)' }}>
-                    <CardContent sx={{ pt: 2, pb: 1 }}>
-                      <Typography variant="subtitle1" fontWeight={600}>Moviendo...</Typography>
-                    </CardContent>
-                  </Card>
-                </Box>
-              ) : null}
-            </DragOverlay>
-          </DndContext>
+          <Box sx={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+            {sections.map((section: any) => (
+              <DishOrderSection
+                key={section.id}
+                section={section}
+                dishes={sectionDishes[section.id] || []}
+                onMoveDish={(index, direction) => moveDish(section.id, index, direction)}
+                onEditDish={handleEditDish}
+                onDeleteDish={handleOpenDeleteDialog}
+                isMobile={isMobile}
+                isUpdating={saveSectionOrderMutation.isPending}
+              />
+            ))}
+          </Box>
         </>
       )}
 

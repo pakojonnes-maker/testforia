@@ -139,8 +139,8 @@ const TabPanel: React.FC<TabPanelProps> = (props) => {
 };
 
 const MarketingPage: React.FC = () => {
-  const { user } = useAuth();
-  const restaurantId = user?.currentRestaurant?.id;
+  const { currentRestaurant } = useAuth();
+  const restaurantId = currentRestaurant?.id;
   const queryClient = useQueryClient();
   
   // Estados

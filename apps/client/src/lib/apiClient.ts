@@ -34,6 +34,16 @@ export interface RestaurantConfig {
   };
 }
 
+export interface Allergen {
+  id: string;
+  name?: string;
+  translations?: {
+    name?: Record<string, string>;
+  };
+  iconurl?: string;
+  icon_url?: string;
+}
+
 // ======================================================================
 // CLIENTE API EXTENDIDO
 // ======================================================================
@@ -41,7 +51,7 @@ export interface RestaurantConfig {
 export const apiClient = {
   // Incluir todos los métodos del cliente base
   ...baseApiClient,
-  
+
   // Acceso directo al cliente HTTP
   client: baseApiClient.client,
 
@@ -70,7 +80,7 @@ export const apiClient = {
       timezone?: string;
     }) {
       console.log('🚀 [apiClient.tracking] Iniciando sesión:', sessionData);
-      
+
       try {
         const response = await baseApiClient.client.post('/track/session/start', sessionData);
         console.log('✅ [apiClient.tracking] Sesión iniciada:', response.data);
@@ -90,7 +100,7 @@ export const apiClient = {
       endedAt: string;
     }) {
       console.log('🔚 [apiClient.tracking] Finalizando sesión:', sessionData.sessionId);
-      
+
       try {
         // Intentar sendBeacon primero (más confiable para cierre de página)
         if (typeof navigator !== 'undefined' && navigator.sendBeacon) {
@@ -101,7 +111,7 @@ export const apiClient = {
             return { success: true };
           }
         }
-        
+
         // Fallback a fetch normal
         const response = await baseApiClient.client.post('/track/session/end', sessionData);
         console.log('✅ [apiClient.tracking] Sesión finalizada con fetch:', response.data);
@@ -128,7 +138,7 @@ export const apiClient = {
       }>;
     }) {
       console.log('📊 [apiClient.tracking] Enviando eventos:', eventsData.events.length, 'eventos');
-      
+
       try {
         const response = await baseApiClient.client.post('/track/events', eventsData);
         console.log('✅ [apiClient.tracking] Eventos enviados:', response.data);
@@ -157,13 +167,13 @@ export const apiClient = {
       if (typeof navigator !== 'undefined' && navigator.sendBeacon) {
         const blob = new Blob([JSON.stringify(eventsData)], { type: 'application/json' });
         const sent = navigator.sendBeacon(`${API_URL}/track/events`, blob);
-        
+
         if (sent) {
           console.log('✅ [apiClient.tracking] Eventos enviados con sendBeacon');
           return { success: true };
         }
       }
-      
+
       // Fallback a método normal
       return this.sendEvents(eventsData);
     }
@@ -176,28 +186,28 @@ export const apiClient = {
   /**
    * Obtiene la configuración del restaurante para el sistema de reels
    */
-// En apiClient.ts - CORREGIR el método getRestaurantConfig
+  // En apiClient.ts - CORREGIR el método getRestaurantConfig
 
-async getRestaurantConfig(slug: string): Promise<RestaurantConfig> {
-  console.log(`🎨 [apiClient] Obteniendo configuración para: ${slug}`);
-  
-  try {
-    // Intentar obtener configuración específica del restaurante
-    const response = await baseApiClient.client.get(`/restaurants/${slug}/config`);
-    
-    if (response?.data?.success && response.data.config) {
-      console.log('✅ [apiClient] Configuración específica obtenida:', response.data.config);
-      return response.data.config; // ✅ CORREGIDO: extraer config del wrapper
+  async getRestaurantConfig(slug: string): Promise<RestaurantConfig> {
+    console.log(`🎨 [apiClient] Obteniendo configuración para: ${slug}`);
+
+    try {
+      // Intentar obtener configuración específica del restaurante
+      const response = await baseApiClient.client.get(`/restaurants/${slug}/config`);
+
+      if (response?.data?.success && response.data.config) {
+        console.log('✅ [apiClient] Configuración específica obtenida:', response.data.config);
+        return response.data.config; // ✅ CORREGIDO: extraer config del wrapper
+      }
+
+      throw new Error('No hay configuración específica');
+
+    } catch (error) {
+      console.warn(`⚠️ [apiClient] Configuración específica no disponible, usando configuración por defecto`);
+      console.warn(`⚠️ [apiClient] Error:`, error instanceof Error ? error.message : error);
+      return this.getDefaultConfig();
     }
-    
-    throw new Error('No hay configuración específica');
-    
-  } catch (error) {
-    console.warn(`⚠️ [apiClient] Configuración específica no disponible, usando configuración por defecto`);
-    console.warn(`⚠️ [apiClient] Error:`, error instanceof Error ? error.message : error);
-    return this.getDefaultConfig();
-  }
-},
+  },
 
 
   /**
@@ -219,7 +229,7 @@ async getRestaurantConfig(slug: string): Promise<RestaurantConfig> {
         enableReviews: false
       }
     };
-    
+
     console.log('🎨 [apiClient] Usando configuración por defecto:', config);
     return config;
   },
@@ -260,11 +270,11 @@ async getRestaurantConfig(slug: string): Promise<RestaurantConfig> {
   async getMediaWithPlaceholders(dishId: string) {
     try {
       const allMedia = await baseApiClient.getDishMedia(dishId);
-      
+
       const primaryVideo = allMedia.find((m: DishMedia) => m.role === 'PRIMARY_VIDEO');
       const primaryImage = allMedia.find((m: DishMedia) => m.role === 'PRIMARY_IMAGE');
       const galleryImages = allMedia.filter((m: DishMedia) => m.role === 'GALLERY_IMAGE');
-      
+
       return {
         primaryVideo,
         primaryImage,
@@ -296,14 +306,14 @@ async getRestaurantConfig(slug: string): Promise<RestaurantConfig> {
   // ======================================================================
   // CONFIGURACIÓN DE REACT QUERY
   // ======================================================================
-  
+
   queryDefaults: getQueryDefaults()
 };
 
 // ======================================================================
 // EXPORTAR TIPOS
 // ======================================================================
-export type { RestaurantConfig, DishMedia, RestaurantReelsData };
+export type { DishMedia, RestaurantReelsData };
 
 // Exportar cliente por defecto
 export default apiClient;

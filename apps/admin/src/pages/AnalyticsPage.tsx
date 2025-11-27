@@ -67,8 +67,8 @@ type TimeRange = 'today' | 'week' | 'month' | 'quarter';
 type TabValue = 'overview' | 'dishes' | 'users' | 'conversion' | 'technical';
 
 export default function AnalyticsPage() {
-  const { user } = useAuth();
-  const restaurantId = user?.currentRestaurant?.id;
+  const { currentRestaurant } = useAuth();
+  const restaurantId = currentRestaurant?.id;
 
   const [timeRange, setTimeRange] = useState<TimeRange>('week');
   const [activeTab, setActiveTab] = useState<TabValue>('overview');

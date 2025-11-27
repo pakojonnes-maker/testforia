@@ -18,8 +18,7 @@ const ConfigurationPage = lazy(() => import('./pages/ConfigurationPage'));
 const StylingPage = lazy(() => import('./pages/StylingPage'));
 const MarketingPage = lazy(() => import('./pages/MarketingPage'));
 const AnalyticsPage = lazy(() => import('./pages/AnalyticsPage'));
-const ReviewsPage = lazy(() => import('./pages/ReviewsPage'));
-const MediaPage = lazy(() => import('./pages/MediaPage'));
+
 
 // Componente para proteger rutas
 const ProtectedRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
@@ -90,22 +89,7 @@ function App() {
               </Suspense>
             }
           />
-          <Route
-            path="reviews"
-            element={
-              <Suspense fallback={<LinearProgress />}>
-                <ReviewsPage />
-              </Suspense>
-            }
-          />
-          <Route
-            path="media"
-            element={
-              <Suspense fallback={<LinearProgress />}>
-                <MediaPage />
-              </Suspense>
-            }
-          />
+
         </Route>
       </Routes>
     </ThemeProvider>

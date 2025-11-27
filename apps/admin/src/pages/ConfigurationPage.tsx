@@ -6,9 +6,9 @@ import { apiClient } from '../lib/apiClient';
 
 export default function Settings() {
   const [activeTab, setActiveTab] = useState('restaurant');
-  const { user } = useAuth();
+  const { currentRestaurant } = useAuth();
   const queryClient = useQueryClient();
-  const restaurantId = user?.currentRestaurant?.id;
+  const restaurantId = currentRestaurant?.id;
 
   const [restaurantData, setRestaurantData] = useState(null);
   const [stylingData, setStylingData] = useState(null);

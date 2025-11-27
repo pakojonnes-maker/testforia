@@ -33,8 +33,8 @@ import SectionConfigDialog from './SectionConfigDialog';
 import SectionCard from './SectionCard';
 
 export default function LandingBuilder() {
-  const { user, authToken } = useAuth();
-  const restaurantId = user?.currentRestaurant?.id;
+  const { authToken, currentRestaurant } = useAuth();
+  const restaurantId = currentRestaurant?.id;
   const queryClient = useQueryClient();
   const [addDialogOpen, setAddDialogOpen] = useState(false);
   const [configDialogOpen, setConfigDialogOpen] = useState(false);
@@ -218,7 +218,7 @@ export default function LandingBuilder() {
   };
 
   const handlePreview = () => {
-    window.open(`/${user?.currentRestaurant?.slug}`, '_blank');
+    window.open(`/${currentRestaurant?.slug}`, '_blank');
   };
 
   if (isLoading) {

@@ -37,8 +37,7 @@ import {
   Logout as LogoutIcon,
   BarChart as StatsIcon,
   Campaign as CampaignIcon,
-  Star as StarIcon,
-  Photo as ImageIcon,
+  Web as WebIcon,
   Person as PersonIcon,
   Notifications as NotificationsIcon,
 } from '@mui/icons-material';
@@ -51,7 +50,7 @@ export default function DashboardLayout() {
   const location = useLocation();
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('md'));
-  
+
   const [mobileOpen, setMobileOpen] = useState(false);
   const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null);
 
@@ -83,53 +82,48 @@ export default function DashboardLayout() {
 
   // Actualización de items del menú lateral
   const menuItems = [
-    { 
-      text: 'Dashboard', 
-      icon: <DashboardIcon />, 
-      path: '/' 
+    {
+      text: 'Dashboard',
+      icon: <DashboardIcon />,
+      path: '/'
     },
-    { 
-      text: 'Platos', 
-      icon: <DishesIcon />, 
-      path: '/dishes' 
+    {
+      text: 'Platos',
+      icon: <DishesIcon />,
+      path: '/dishes'
     },
-    { 
-      text: 'Secciones', 
-      icon: <SectionsIcon />, 
-      path: '/sections' 
+    {
+      text: 'Secciones',
+      icon: <SectionsIcon />,
+      path: '/sections'
     },
-    { 
-      text: 'Estadísticas', 
-      icon: <StatsIcon />, 
-      path: '/analytics' 
+    {
+      text: 'Estadísticas',
+      icon: <StatsIcon />,
+      path: '/analytics'
     },
-    { 
-      text: 'Marketing', 
-      icon: <CampaignIcon />, 
-      path: '/marketing' 
+    {
+      text: 'Marketing',
+      icon: <CampaignIcon />,
+      path: '/marketing'
     },
-    { 
-      text: 'Reseñas', 
-      icon: <StarIcon />, 
-      path: '/reviews' 
+    {
+      text: 'Web',
+      icon: <WebIcon />,
+      path: '/admin/landing'
     },
-    { 
-      text: 'Medios', 
-      icon: <ImageIcon />, 
-      path: '/media' 
-    },
-    { 
-      text: 'Configuración', 
-      icon: <SettingsIcon />, 
-      path: '/settings' 
+    {
+      text: 'Configuración',
+      icon: <SettingsIcon />,
+      path: '/settings'
     },
   ];
 
   const drawer = (
     <div>
-      <Toolbar sx={{ 
-        display: 'flex', 
-        flexDirection: 'column', 
+      <Toolbar sx={{
+        display: 'flex',
+        flexDirection: 'column',
         alignItems: 'flex-start',
         py: 1.5
       }}>
@@ -138,8 +132,8 @@ export default function DashboardLayout() {
           VisualTaste
         </Typography>
         {hasMultipleRestaurants && (
-          <FormControl 
-            size="small" 
+          <FormControl
+            size="small"
             sx={{ mt: 1, minWidth: '100%' }}
             fullWidth
           >
@@ -152,18 +146,18 @@ export default function DashboardLayout() {
               onChange={handleRestaurantChange}
             >
               {user?.restaurants.map((restaurant) => (
-                <MenuItem 
-                  key={restaurant.id} 
+                <MenuItem
+                  key={restaurant.id}
                   value={restaurant.id}
-                  sx={{ 
-                    display: 'flex', 
-                    alignItems: 'center', 
-                    gap: 1.5 
+                  sx={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 1.5
                   }}
                 >
                   {restaurant.logo_url && (
-                    <Avatar 
-                      src={restaurant.logo_url} 
+                    <Avatar
+                      src={restaurant.logo_url}
                       alt={restaurant.name}
                       sx={{ width: 24, height: 24 }}
                     />
@@ -173,8 +167,8 @@ export default function DashboardLayout() {
                       {restaurant.name}
                     </Typography>
                     <Typography variant="caption" color="text.secondary">
-                      {restaurant.role === 'owner' ? 'Propietario' : 
-                       restaurant.role === 'manager' ? 'Gerente' : 'Staff'}
+                      {restaurant.role === 'owner' ? 'Propietario' :
+                        restaurant.role === 'manager' ? 'Gerente' : 'Staff'}
                     </Typography>
                   </Box>
                 </MenuItem>
@@ -187,11 +181,11 @@ export default function DashboardLayout() {
       <List>
         {menuItems.map((item) => {
           const isActive = location.pathname === item.path;
-          
+
           return (
-            <ListItem 
-              disablePadding 
-              key={item.text} 
+            <ListItem
+              disablePadding
+              key={item.text}
               onClick={isMobile ? handleDrawerToggle : undefined}
             >
               <ListItemButton
@@ -210,8 +204,8 @@ export default function DashboardLayout() {
                 <ListItemIcon sx={{ color: isActive ? 'primary.main' : 'inherit' }}>
                   {item.icon}
                 </ListItemIcon>
-                <ListItemText 
-                  primary={item.text} 
+                <ListItemText
+                  primary={item.text}
                   primaryTypographyProps={{
                     color: isActive ? 'primary' : 'inherit',
                     fontWeight: isActive ? 500 : 400
@@ -244,13 +238,13 @@ export default function DashboardLayout() {
           >
             <MenuIcon />
           </IconButton>
-          
+
           <Box sx={{ flexGrow: 1, display: 'flex', alignItems: 'center' }}>
             {!hasMultipleRestaurants && user?.currentRestaurant && (
               <>
                 {user.currentRestaurant.logo_url && (
-                  <Avatar 
-                    src={user.currentRestaurant.logo_url} 
+                  <Avatar
+                    src={user.currentRestaurant.logo_url}
                     alt={user.currentRestaurant.name}
                     sx={{ width: 32, height: 32, mr: 1 }}
                   />
@@ -261,7 +255,7 @@ export default function DashboardLayout() {
               </>
             )}
           </Box>
-          
+
           <Box sx={{ display: 'flex', alignItems: 'center' }}>
             <Tooltip title="Notificaciones">
               <IconButton color="inherit" sx={{ mr: 1 }}>
@@ -270,7 +264,7 @@ export default function DashboardLayout() {
                 </Badge>
               </IconButton>
             </Tooltip>
-            
+
             <IconButton
               size="large"
               edge="end"
@@ -280,8 +274,8 @@ export default function DashboardLayout() {
               color="inherit"
             >
               {user?.photo_url ? (
-                <Avatar 
-                  src={user.photo_url} 
+                <Avatar
+                  src={user.photo_url}
                   alt={user?.name || "Usuario"}
                   sx={{ width: 32, height: 32 }}
                 />
@@ -292,7 +286,7 @@ export default function DashboardLayout() {
               )}
             </IconButton>
           </Box>
-          
+
           <Menu
             anchorEl={anchorEl}
             open={Boolean(anchorEl)}
@@ -324,7 +318,7 @@ export default function DashboardLayout() {
           </Menu>
         </Toolbar>
       </AppBar>
-      
+
       <Box
         component="nav"
         sx={{ width: { md: drawerWidth }, flexShrink: { md: 0 } }}
@@ -345,7 +339,7 @@ export default function DashboardLayout() {
         >
           {drawer}
         </Drawer>
-        
+
         {/* Drawer permanente para desktop */}
         <Drawer
           variant="permanent"
@@ -358,12 +352,12 @@ export default function DashboardLayout() {
           {drawer}
         </Drawer>
       </Box>
-      
+
       <Box
         component="main"
-        sx={{ 
-          flexGrow: 1, 
-          p: 3, 
+        sx={{
+          flexGrow: 1,
+          p: 3,
           width: { xs: '100%', md: `calc(100% - ${drawerWidth}px)` },
           mt: { xs: 7, sm: 8 },
           overflow: 'auto',

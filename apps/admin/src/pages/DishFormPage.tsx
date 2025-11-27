@@ -75,9 +75,9 @@ type DishFormData = z.infer<typeof dishSchema>;
 export default function DishFormPage() {
   const { id } = useParams();
   const navigate = useNavigate();
-  const { user } = useAuth();
+  const { currentRestaurant } = useAuth();
   const queryClient = useQueryClient();
-  const restaurantId = user?.currentRestaurant?.id;
+  const restaurantId = currentRestaurant?.id;
   const isEditMode = Boolean(id);
 
   // Theme y responsive
