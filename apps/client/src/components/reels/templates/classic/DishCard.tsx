@@ -76,7 +76,7 @@ const ClassicDishCard: React.FC<DishCardProps> = ({
   onOpenCart,
   totalCartItems = 0
 }) => {
-  const { viewDish, favoriteDish } = useDishTracking();
+  const { viewDish, favoriteDish, trackDishViewDuration, trackMediaError } = useDishTracking();
 
   const [isFavorite, setIsFavorite] = useState(false);
   const [showDetails, setShowDetails] = useState(false);
@@ -148,14 +148,16 @@ const ClassicDishCard: React.FC<DishCardProps> = ({
       video.muted = true;
       video.play().then(() => {
         setIsPlaying(true);
-      }).catch(() => {
+      }).catch((error) => {
+        console.error('❌ [DishCard] Error reproduciendo video:', error);
         setVideoError(true);
+        trackMediaError(dish.id, 'video_play_failed', media?.url);
       });
     } else {
       video.pause();
       setIsPlaying(false);
     }
-  }, [isActive, inView, isVideo, videoError]);
+  }, [isActive, inView, isVideo, videoError, trackMediaError, dish.id, media?.url]);
 
   // Tracking de vista de plato
   useEffect(() => {
@@ -163,6 +165,22 @@ const ClassicDishCard: React.FC<DishCardProps> = ({
       viewDish(dish.id, section?.id);
     }
   }, [isActive, inView, dish?.id, section?.id, viewDish]);
+
+  // ✅ NUEVO: Tracking de duración de visualización
+  useEffect(() => {
+    if (!isActive || !inView || !dish?.id) return;
+
+    const startTime = Date.now();
+    console.log('⏱️ [DishCard] Iniciando timer de visualización:', dish.id);
+
+    return () => {
+      const duration = Math.floor((Date.now() - startTime) / 1000);
+      if (duration >= 1) {
+        console.log('⏱️ [DishCard] Enviando duración:', { dishId: dish.id, duration });
+        trackDishViewDuration(dish.id, duration, section?.id);
+      }
+    };
+  }, [isActive, inView, dish?.id, section?.id, trackDishViewDuration]);
 
   const handleFavorite = useCallback((e: React.MouseEvent) => {
     e.stopPropagation();

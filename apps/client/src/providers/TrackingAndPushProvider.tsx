@@ -23,6 +23,11 @@ interface TrackerApi {
   isReady(): boolean;
   setCurrentSection(sectionId: string | null): void;  // ✅ NUEVO: método para establecer sección actual
   viewSection(sectionId: string): void;  // ✅ NUEVO: método para trackear vista de sección
+  // ✅ NUEVOS MÉTODOS DE ENGAGEMENT
+  trackDishViewDuration(dishId: string, duration: number, sectionId?: string): void;
+  trackSectionTime(sectionId: string, duration: number, dishesViewed: number): void;
+  trackScrollDepth(sectionId: string, dishIndex: number, totalDishes: number): void;
+  trackMediaError(dishId: string, errorType: string, mediaUrl?: string): void;
 }
 
 interface TrackingContext {
@@ -60,6 +65,8 @@ class OptimizedTracker implements TrackerApi {
   private isProcessing = false;
   private retryCount = 0;
   private isDestroyed = false;
+  // ✅ TRACKING DE ENGAGEMENT
+  private sectionScrollDepth = new Map<string, number>();  // sectionId -> max dish index viewed
 
   constructor(restaurantId: string) {
     this.restaurantId = restaurantId;
@@ -68,10 +75,10 @@ class OptimizedTracker implements TrackerApi {
 
   setSession(sessionId: string | null) {
     if (this.isDestroyed) return;
-    
+
     this.sessionId = sessionId;
     console.log('🔄 [Tracker] Session:', sessionId);
-    
+
     if (sessionId) {
       this.scheduleFlush();
     }
@@ -80,12 +87,12 @@ class OptimizedTracker implements TrackerApi {
   // ✅ NUEVO: Establecer sección actual y trackear automáticamente
   setCurrentSection(sectionId: string | null) {
     if (this.isDestroyed) return;
-    
+
     // Si es una nueva sección, trackear la vista
     if (sectionId && sectionId !== this.currentSectionId && !this.viewedSections.has(sectionId)) {
       this.viewSection(sectionId);
     }
-    
+
     this.currentSectionId = sectionId;
     console.log('📂 [Tracker] Sección actual:', sectionId);
   }
@@ -93,10 +100,10 @@ class OptimizedTracker implements TrackerApi {
   // ✅ NUEVO: Trackear vista de sección
   viewSection(sectionId: string): void {
     if (!this.isReady() || this.viewedSections.has(sectionId)) return;
-    
+
     this.viewedSections.add(sectionId);
     console.log('👁️ [Tracker] Vista de sección registrada:', sectionId);
-    
+
     this.track({
       type: 'view_section',
       entityId: sectionId,
@@ -110,7 +117,7 @@ class OptimizedTracker implements TrackerApi {
 
   private scheduleFlush() {
     if (this.isDestroyed || this.timer) return;
-    
+
     this.timer = window.setTimeout(() => {
       if (!this.isDestroyed) {
         this.flush().catch(error => {
@@ -123,15 +130,15 @@ class OptimizedTracker implements TrackerApi {
   // ✅ MODIFICADO: viewDish con sectionId opcional
   viewDish(dishId: string, sectionId?: string): void {
     if (!this.isReady() || this.viewedDishes.has(dishId)) return;
-    
+
     this.viewedDishes.add(dishId);
     const finalSectionId = sectionId || this.currentSectionId;
-    
-    console.log('👁️ [Tracker] Vista registrada:', { 
-      dishId, 
-      sectionId: finalSectionId 
+
+    console.log('👁️ [Tracker] Vista registrada:', {
+      dishId,
+      sectionId: finalSectionId
     });
-    
+
     this.track({
       type: 'viewdish',
       entityId: dishId,
@@ -142,16 +149,16 @@ class OptimizedTracker implements TrackerApi {
 
   favoriteDish(dishId: string, set: boolean = true): void {
     if (!this.isReady()) return;
-    
+
     const currentState = this.favorites.get(dishId);
     if (currentState === set) {
       console.debug('❤️ [Tracker] Estado favorito sin cambios:', { dishId, set });
       return;
     }
-    
+
     this.favorites.set(dishId, set);
     console.log('❤️ [Tracker] Favorito actualizado:', { dishId, set });
-    
+
     this.track({
       type: 'favorite',
       entityId: dishId,
@@ -163,16 +170,16 @@ class OptimizedTracker implements TrackerApi {
 
   rateDish(dishId: string, rating: number, comment?: string): void {
     if (!this.isReady() || rating < 1 || rating > 5) return;
-    
+
     const ratingKey = `${dishId}_${rating}`;
     if (this.ratings.has(ratingKey)) {
       console.debug('⭐ [Tracker] Rating ya enviado:', { dishId, rating });
       return;
     }
-    
+
     this.ratings.add(ratingKey);
     console.log('⭐ [Tracker] Rating registrado:', { dishId, rating, comment });
-    
+
     this.track({
       type: 'rating',
       entityId: dishId,
@@ -184,15 +191,114 @@ class OptimizedTracker implements TrackerApi {
 
   shareDish(dishId: string, where: string): void {
     if (!this.isReady()) return;
-    
+
     console.log('📤 [Tracker] Compartir registrado:', { dishId, where });
-    
+
     this.track({
       type: 'share',
       entityId: dishId,
       entityType: 'dish',
       value: where,
       sectionId: this.currentSectionId || undefined  // ✅ INCLUIR sectionId
+    });
+  }
+
+  // ✅ NUEVO: Trackear duración de visualización de plato
+  trackDishViewDuration(dishId: string, duration: number, sectionId?: string): void {
+    if (!this.isReady() || duration < 1) return;
+
+    const finalSectionId = sectionId || this.currentSectionId;
+
+    console.log('⏱️ [Tracker] Duración de vista:', {
+      dishId,
+      duration: `${duration}s`,
+      sectionId: finalSectionId
+    });
+
+    this.track({
+      type: 'dish_view_duration',
+      entityId: dishId,
+      entityType: 'dish',
+      value: duration,
+      sectionId: finalSectionId || undefined,
+      props: { duration_seconds: duration }
+    });
+  }
+
+  // ✅ NUEVO: Trackear tiempo en sección
+  trackSectionTime(sectionId: string, duration: number, dishesViewed: number): void {
+    if (!this.isReady() || duration < 1) return;
+
+    console.log('⏱️ [Tracker] Tiempo en sección:', {
+      sectionId,
+      duration: `${duration}s`,
+      dishesViewed
+    });
+
+    this.track({
+      type: 'section_time',
+      entityId: sectionId,
+      entityType: 'section',
+      value: duration,
+      props: {
+        duration_seconds: duration,
+        dishes_viewed: dishesViewed
+      }
+    });
+  }
+
+  // ✅ NUEVO: Trackear scroll depth (profundidad de scroll en sección)
+  trackScrollDepth(sectionId: string, dishIndex: number, totalDishes: number): void {
+    if (!this.isReady()) return;
+
+    const currentMax = this.sectionScrollDepth.get(sectionId) || 0;
+
+    // Solo trackear si llegó más lejos que antes
+    if (dishIndex <= currentMax) return;
+
+    this.sectionScrollDepth.set(sectionId, dishIndex);
+    const depthPercent = Math.round((dishIndex / totalDishes) * 100);
+
+    console.log('📊 [Tracker] Scroll depth:', {
+      sectionId,
+      dishIndex,
+      totalDishes,
+      depth: `${depthPercent}%`
+    });
+
+    this.track({
+      type: 'scroll_depth',
+      entityId: sectionId,
+      entityType: 'section',
+      value: depthPercent,
+      props: {
+        dish_index: dishIndex,
+        total_dishes: totalDishes,
+        depth_percent: depthPercent
+      }
+    });
+  }
+
+  // ✅ NUEVO: Trackear errores de carga de media
+  trackMediaError(dishId: string, errorType: string, mediaUrl?: string): void {
+    if (!this.isReady()) return;
+
+    console.log('❌ [Tracker] Error de media:', {
+      dishId,
+      errorType,
+      mediaUrl
+    });
+
+    this.track({
+      type: 'media_error',
+      entityId: dishId,
+      entityType: 'dish',
+      value: errorType,
+      props: {
+        error_type: errorType,
+        media_url: mediaUrl || null,
+        section_id: this.currentSectionId
+      }
     });
   }
 
@@ -206,7 +312,7 @@ class OptimizedTracker implements TrackerApi {
     };
 
     this.queue.push(event);
-    
+
     console.debug('📝 [Tracker] Evento encolado:', {
       type: event.type,
       entityId: event.entityId,
@@ -259,17 +365,17 @@ class OptimizedTracker implements TrackerApi {
 
     } catch (error) {
       console.error('❌ [Tracker] Error enviando eventos:', error);
-      
+
       if (this.retryCount < MAX_RETRIES && !this.isDestroyed) {
         this.queue.unshift(...events);
         this.retryCount++;
-        
+
         setTimeout(() => {
           if (!this.isDestroyed) {
             this.flush().catch(console.error);
           }
         }, RETRY_DELAY * Math.pow(2, this.retryCount - 1));
-        
+
         console.log(`🔄 [Tracker] Reintento ${this.retryCount}/${MAX_RETRIES}`);
       }
     }
@@ -284,29 +390,29 @@ class OptimizedTracker implements TrackerApi {
   cleanup(): void {
     console.log('🧹 [Tracker] Iniciando cleanup');
     this.isDestroyed = true;
-    
+
     if (this.timer) {
       clearTimeout(this.timer);
       this.timer = null;
     }
-    
+
     // 🚨 FLUSH FINAL CRÍTICO
     if (this.queue.length > 0 && this.sessionId) {
       console.log('🚨 [Tracker] Flush final crítico con', this.queue.length, 'eventos');
-      
+
       // Envío síncrono con sendBeacon
       const payload = {
         sessionId: this.sessionId,
         restaurantId: this.restaurantId,
         events: [...this.queue]
       };
-      
+
       if (navigator.sendBeacon) {
         const success = navigator.sendBeacon(
           `${import.meta.env.VITE_API_URL || 'https://visualtasteworker.franciscotortosaestudios.workers.dev'}/track/events`,
           new Blob([JSON.stringify(payload)], { type: 'application/json' })
         );
-        
+
         if (success) {
           console.log('📡 [Tracker] Eventos finales enviados con sendBeacon');
         } else {
@@ -314,13 +420,14 @@ class OptimizedTracker implements TrackerApi {
         }
       }
     }
-    
+
     this.viewedDishes.clear();
     this.viewedSections.clear();  // ✅ LIMPIAR secciones vistas
     this.favorites.clear();
     this.ratings.clear();
     this.queue = [];
     this.currentSectionId = null;  // ✅ LIMPIAR sección actual
+    this.sectionScrollDepth.clear();  // ✅ LIMPIAR scroll depth
   }
 }
 
@@ -329,18 +436,18 @@ function detectEnvironment() {
   if (typeof navigator === 'undefined') return {};
 
   const ua = navigator.userAgent;
-  
+
   let devicetype = 'desktop';
   if (/Mobile|Android|iPhone/i.test(ua)) devicetype = 'mobile';
   else if (/iPad|Tablet/i.test(ua)) devicetype = 'tablet';
-  
+
   let osname = 'Unknown';
   if (/Windows/i.test(ua)) osname = 'Windows';
   else if (/Mac OS X/i.test(ua)) osname = 'macOS';
   else if (/Linux/i.test(ua)) osname = 'Linux';
   else if (/Android/i.test(ua)) osname = 'Android';
   else if (/iPhone|iPad|iPod/i.test(ua)) osname = 'iOS';
-  
+
   let browser = 'Unknown';
   if (ua.includes('Edg/')) browser = 'Edge';
   else if (ua.includes('Chrome/') && !ua.includes('Edg/')) browser = 'Chrome';
@@ -349,7 +456,7 @@ function detectEnvironment() {
 
   const connection = (navigator as any).connection;
   const networktype = connection?.effectiveType ?? '4g';
-  
+
   const ispwa = (
     (window.matchMedia && window.matchMedia('(display-mode: standalone)').matches) ||
     (navigator as any).standalone === true ||
@@ -379,7 +486,7 @@ function detectEnvironment() {
 // Iniciar sesión
 async function startTrackingSession(restaurantId: string): Promise<string | null> {
   const env = detectEnvironment();
-  
+
   console.log('🚀 [Session] Iniciando sesión para:', restaurantId);
 
   try {
@@ -414,7 +521,7 @@ async function endTrackingSession(sessionId: string, startedAt: number) {
       startedAt: new Date(startedAt).toISOString(),
       endedAt: new Date().toISOString()
     });
-    
+
     console.log('✅ [Session] Sesión finalizada correctamente');
   } catch (error) {
     console.error('❌ [Session] Error finalizando sesión:', error);
@@ -442,24 +549,24 @@ export function TrackingAndPushProvider({ restaurantId, children }: Props) {
   // 🚨 INICIALIZACIÓN MEJORADA: Sin posibilidad de desmontaje prematuro
   useEffect(() => {
     if (initializingRef.current || !restaurantId) return;
-    
+
     let isMounted = true;
     initializingRef.current = true;
 
     const initialize = async () => {
       console.log('🎬 [Provider] Inicializando tracking...');
-      
+
       try {
         // ⏳ Pequeño delay para asegurar que el componente esté montado
         await new Promise(resolve => setTimeout(resolve, 100));
-        
+
         if (!isMounted) {
           console.log('⚠️ [Provider] Componente desmontado durante delay');
           return;
         }
 
         const sid = await startTrackingSession(restaurantId);
-        
+
         if (!isMounted) {
           console.log('⚠️ [Provider] Componente desmontado durante inicialización');
           return;
@@ -484,7 +591,7 @@ export function TrackingAndPushProvider({ restaurantId, children }: Props) {
         } else {
           console.error('❌ [Provider] No se pudo inicializar el tracking');
         }
-        
+
       } catch (error) {
         console.error('❌ [Provider] Error en inicialización:', error);
       } finally {
@@ -507,7 +614,7 @@ export function TrackingAndPushProvider({ restaurantId, children }: Props) {
       console.log('🚨 [Provider] beforeunload - cleanup crítico');
       if (tracker && sessionId && startedAtRef.current) {
         tracker.cleanup();
-        
+
         // Finalizar sesión con sendBeacon
         if (navigator.sendBeacon) {
           const payload = {
@@ -515,7 +622,7 @@ export function TrackingAndPushProvider({ restaurantId, children }: Props) {
             startedAt: new Date(startedAtRef.current).toISOString(),
             endedAt: new Date().toISOString()
           };
-          
+
           navigator.sendBeacon(
             `${import.meta.env.VITE_API_URL || 'https://visualtasteworker.franciscotortosaestudios.workers.dev'}/track/session/end`,
             new Blob([JSON.stringify(payload)], { type: 'application/json' })
@@ -576,32 +683,49 @@ export function TrackingAndPushProvider({ restaurantId, children }: Props) {
 // ✅ HOOK CORREGIDO con soporte completo para sectionId
 export function useDishTracking() {
   const { tracker } = useTracking();
-  
+
   return {
     viewDish: useCallback((dishId: string, sectionId?: string) => {
       tracker?.viewDish(dishId, sectionId);
     }, [tracker]),
-    
+
     favoriteDish: useCallback((dishId: string, set: boolean = true) => {
       tracker?.favoriteDish(dishId, set);
     }, [tracker]),
-    
+
     rateDish: useCallback((dishId: string, rating: number, comment?: string) => {
       tracker?.rateDish(dishId, rating, comment);
     }, [tracker]),
-    
+
     shareDish: useCallback((dishId: string, platform: string) => {
       tracker?.shareDish(dishId, platform);
     }, [tracker]),
-    
+
     setCurrentSection: useCallback((sectionId: string | null) => {
       tracker?.setCurrentSection(sectionId);
     }, [tracker]),  // ✅ MÉTODO para establecer sección
-    
+
     viewSection: useCallback((sectionId: string) => {
       tracker?.viewSection(sectionId);
     }, [tracker]),  // ✅ NUEVO: método para trackear vista de sección manualmente
-    
+
+    // ✅ NUEVOS MÉTODOS DE ENGAGEMENT
+    trackDishViewDuration: useCallback((dishId: string, duration: number, sectionId?: string) => {
+      tracker?.trackDishViewDuration(dishId, duration, sectionId);
+    }, [tracker]),
+
+    trackSectionTime: useCallback((sectionId: string, duration: number, dishesViewed: number) => {
+      tracker?.trackSectionTime(sectionId, duration, dishesViewed);
+    }, [tracker]),
+
+    trackScrollDepth: useCallback((sectionId: string, dishIndex: number, totalDishes: number) => {
+      tracker?.trackScrollDepth(sectionId, dishIndex, totalDishes);
+    }, [tracker]),
+
+    trackMediaError: useCallback((dishId: string, errorType: string, mediaUrl?: string) => {
+      tracker?.trackMediaError(dishId, errorType, mediaUrl);
+    }, [tracker]),
+
     isReady: useCallback(() => {
       return tracker?.isReady() ?? false;
     }, [tracker])

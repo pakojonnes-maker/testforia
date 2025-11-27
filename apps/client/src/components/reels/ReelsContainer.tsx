@@ -135,6 +135,9 @@ const ReelsContainer: React.FC<ReelsContainerProps> = React.memo(({
   const lastUpdateRef = useRef<number>(0);
   const isClickNavigationRef = useRef<boolean>(false);
   const currentSectionIndexRef = useRef<number>(initialSectionIndex);
+  // ✅ NUEVO: Refs para tracking de tiempo en sección
+  const sectionStartTimeRef = useRef<number | null>(null);
+  const sectionDishesViewedRef = useRef<Set<string>>(new Set());
 
   // ======================================================================
   // CART STATE & LOGIC
@@ -346,7 +349,11 @@ const ReelsContainer: React.FC<ReelsContainerProps> = React.memo(({
   // TRACKING
   // ======================================================================
 
-  const { setCurrentSection } = useDishTracking();
+  const {
+    setCurrentSection,
+    trackSectionTime,
+    trackScrollDepth
+  } = useDishTracking();
 
   // ======================================================================
   // COMPUTED VALUES
@@ -384,6 +391,49 @@ const ReelsContainer: React.FC<ReelsContainerProps> = React.memo(({
   useEffect(() => {
     console.log(`🎯 [ReelsContainer] State - Section: ${currentSectionIndex}, Dish: ${currentDishIndex}, Language: ${currentLanguage}`);
   }, [currentSectionIndex, currentDishIndex, currentLanguage]);
+
+  // ✅ NUEVO: Tracking de tiempo en sección
+  useEffect(() => {
+    if (!currentSection?.id) return;
+
+    // Iniciar timer para la nueva sección
+    sectionStartTimeRef.current = Date.now();
+    sectionDishesViewedRef.current = new Set();
+    console.log('⏱️ [ReelsContainer] Iniciando timer de sección:', currentSection.id);
+
+    return () => {
+      // Al salir de la sección, enviar el tiempo
+      if (sectionStartTimeRef.current && currentSection.id) {
+        const duration = Math.floor((Date.now() - sectionStartTimeRef.current) / 1000);
+        const dishesViewed = sectionDishesViewedRef.current.size;
+
+        if (duration >= 1) {
+          console.log('⏱️ [ReelsContainer] Enviando tiempo de sección:', {
+            sectionId: currentSection.id,
+            duration,
+            dishesViewed
+          });
+          trackSectionTime(currentSection.id, duration, dishesViewed);
+        }
+      }
+    };
+  }, [currentSection?.id, trackSectionTime]);
+
+  // ✅ NUEVO: Tracking de scroll depth (profundidad de visualización)
+  useEffect(() => {
+    if (!currentSection?.id) return;
+
+    // Agregar el plato actual a los vistos en esta sección
+    const dishId = currentDishes[currentDishIndex]?.id;
+    if (dishId) {
+      sectionDishesViewedRef.current.add(dishId);
+    }
+
+    // Trackear profundidad de scroll
+    if (currentDishes.length > 0) {
+      trackScrollDepth(currentSection.id, currentDishIndex, currentDishes.length);
+    }
+  }, [currentSection?.id, currentDishIndex, currentDishes, trackScrollDepth]);
 
   // ======================================================================
   // EVENT HANDLERS
