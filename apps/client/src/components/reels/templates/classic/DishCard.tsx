@@ -21,6 +21,7 @@ import {
   Add,
   Remove,
   Close,
+  ShoppingCart,
 } from '@mui/icons-material';
 import { useDishTracking } from '../../../../providers/TrackingAndPushProvider';
 import type { RestaurantConfig, Allergen } from '../../../../lib/apiClient';
@@ -419,7 +420,8 @@ const ClassicDishCard: React.FC<DishCardProps> = ({
         sx={{
           position: 'absolute',
           right: { xs: 12, sm: 16 },
-          bottom: { xs: 220, sm: 140 },
+          top: '50%',
+          transform: 'translateY(-50%)',
           display: 'flex',
           flexDirection: 'column',
           gap: { xs: 2, sm: 2.5 },
@@ -541,7 +543,7 @@ const ClassicDishCard: React.FC<DishCardProps> = ({
                   transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)'
                 }}
               >
-                <LocalDining sx={{ fontSize: { xs: 24, sm: 28 } }} />
+                <ShoppingCart sx={{ fontSize: { xs: 24, sm: 28 } }} />
               </IconButton>
             </Badge>
           </motion.div>
@@ -735,6 +737,7 @@ const ClassicDishCard: React.FC<DishCardProps> = ({
           bottom: { xs: 0, sm: 90 },
           left: 0,
           right: { xs: 75, sm: 90 },
+          width: '90%',
           zIndex: 5,
           p: { xs: 2, sm: 3 },
           maxHeight: showDetails ? '60vh' : 'auto',

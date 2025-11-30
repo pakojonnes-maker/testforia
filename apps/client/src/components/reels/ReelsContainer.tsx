@@ -8,7 +8,7 @@ import type { Swiper as SwiperType } from 'swiper';
 
 // Hooks y contextos
 import { useReelsConfig } from '../../hooks/useReelsConfig';
-import { useDishTracking } from '../../providers/TrackingAndPushProvider';
+import { useDishTracking, useTracking } from '../../providers/TrackingAndPushProvider';
 
 // Template components
 import ClassicDishCard from './templates/classic/DishCard';
@@ -146,20 +146,12 @@ const ReelsContainer: React.FC<ReelsContainerProps> = React.memo(({
   const [cartId, setCartId] = useState<string | null>(null);
   const [cartCreatedAt, setCartCreatedAt] = useState<string | null>(null);
   const [openCartDrawer, setOpenCartDrawer] = useState(false);
-  const [sessionId, setSessionId] = useState<string | undefined>(undefined);
 
-  // Initialize session ID
-  useEffect(() => {
-    // Simple session ID generation if not provided via props/context
-    const storedSession = localStorage.getItem('vt_session_id');
-    if (storedSession) {
-      setSessionId(storedSession);
-    } else {
-      const newSession = 'sess_' + Math.random().toString(36).substring(2, 15) + Date.now().toString(36);
-      localStorage.setItem('vt_session_id', newSession);
-      setSessionId(newSession);
-    }
-  }, []);
+  // ✅ FIX: Usar sessionId del TrackingProvider en lugar de crear uno propio
+  const { sessionId: trackingSessionId } = useTracking();
+
+  // Sincronizar con el sessionId del TrackingProvider
+  const sessionId = trackingSessionId || undefined;
 
   // Generar UUID para carrito
   const generateCartId = useCallback(() => {
@@ -183,8 +175,14 @@ const ReelsContainer: React.FC<ReelsContainerProps> = React.memo(({
     } catch (error) { console.error('❌ [Tracking] Error creating cart:', error); }
   }, [sessionId, restaurantData.restaurant]);
 
-  const trackItemAdded = useCallback(async (dishId: string, quantity: number, price: number, sequence: number) => {
+  const trackItemAdded = useCallback(async (dishId: string, quantity: number, price: number, sequence: number, updatedCart: CartItem[]) => {
     if (!sessionId || !restaurantData.restaurant?.id || !cartId) return;
+
+    const totalItems = updatedCart.reduce((acc, item) => acc + item.quantity, 0);
+    const totalValue = updatedCart.reduce((acc, item) => acc + (item.price * item.quantity), 0);
+    const uniqueDishes = updatedCart.length;
+    const itemsSnapshot = updatedCart.map(item => ({ dishId: item.dishId, name: item.name, quantity: item.quantity, price: item.price }));
+
     try {
       await apiClient.tracking.sendEvents({
         sessionId: sessionId,
@@ -193,15 +191,30 @@ const ReelsContainer: React.FC<ReelsContainerProps> = React.memo(({
           type: 'cart_item_added',
           entityId: dishId,
           entityType: 'dish',
-          value: JSON.stringify({ cartId, quantity, price, sequence, totalItems: cart.length + 1 }),
+          value: JSON.stringify({
+            cartId,
+            quantity,
+            price,
+            sequence,
+            totalItems,
+            totalValue,
+            uniqueDishes,
+            items: itemsSnapshot
+          }),
           ts: new Date().toISOString()
         }]
       });
     } catch (error) { console.error('❌ [Tracking] Error adding item:', error); }
-  }, [sessionId, restaurantData.restaurant, cartId, cart]);
+  }, [sessionId, restaurantData.restaurant, cartId]);
 
-  const trackItemRemoved = useCallback(async (dishId: string) => {
+  const trackItemRemoved = useCallback(async (dishId: string, updatedCart: CartItem[]) => {
     if (!sessionId || !restaurantData.restaurant?.id || !cartId) return;
+
+    const totalItems = updatedCart.reduce((acc, item) => acc + item.quantity, 0);
+    const totalValue = updatedCart.reduce((acc, item) => acc + (item.price * item.quantity), 0);
+    const uniqueDishes = updatedCart.length;
+    const itemsSnapshot = updatedCart.map(item => ({ dishId: item.dishId, name: item.name, quantity: item.quantity, price: item.price }));
+
     try {
       await apiClient.tracking.sendEvents({
         sessionId: sessionId,
@@ -210,15 +223,27 @@ const ReelsContainer: React.FC<ReelsContainerProps> = React.memo(({
           type: 'cart_item_removed',
           entityId: dishId,
           entityType: 'dish',
-          value: JSON.stringify({ cartId, totalItems: cart.length - 1 }),
+          value: JSON.stringify({
+            cartId,
+            totalItems,
+            totalValue,
+            uniqueDishes,
+            items: itemsSnapshot
+          }),
           ts: new Date().toISOString()
         }]
       });
     } catch (error) { console.error('❌ [Tracking] Error removing item:', error); }
-  }, [sessionId, restaurantData.restaurant, cartId, cart]);
+  }, [sessionId, restaurantData.restaurant, cartId]);
 
-  const trackItemQuantityUpdated = useCallback(async (dishId: string, newQuantity: number, oldQuantity: number) => {
+  const trackItemQuantityUpdated = useCallback(async (dishId: string, newQuantity: number, oldQuantity: number, updatedCart: CartItem[]) => {
     if (!sessionId || !restaurantData.restaurant?.id || !cartId) return;
+
+    const totalItems = updatedCart.reduce((acc, item) => acc + item.quantity, 0);
+    const totalValue = updatedCart.reduce((acc, item) => acc + (item.price * item.quantity), 0);
+    const uniqueDishes = updatedCart.length;
+    const itemsSnapshot = updatedCart.map(item => ({ dishId: item.dishId, name: item.name, quantity: item.quantity, price: item.price }));
+
     try {
       await apiClient.tracking.sendEvents({
         sessionId: sessionId,
@@ -227,12 +252,20 @@ const ReelsContainer: React.FC<ReelsContainerProps> = React.memo(({
           type: 'cart_item_quantity',
           entityId: dishId,
           entityType: 'dish',
-          value: JSON.stringify({ cartId, newQuantity, oldQuantity, totalItems: cart.reduce((acc, item) => acc + item.quantity, 0) }),
+          value: JSON.stringify({
+            cartId,
+            newQuantity,
+            oldQuantity,
+            totalItems,
+            totalValue,
+            uniqueDishes,
+            items: itemsSnapshot
+          }),
           ts: new Date().toISOString()
         }]
       });
     } catch (error) { console.error('❌ [Tracking] Error updating quantity:', error); }
-  }, [sessionId, restaurantData.restaurant, cartId, cart]);
+  }, [sessionId, restaurantData.restaurant, cartId]);
 
   const trackCartOpened = useCallback(async () => {
     if (!sessionId || !restaurantData.restaurant?.id || !cartId) return;
@@ -294,12 +327,15 @@ const ReelsContainer: React.FC<ReelsContainerProps> = React.memo(({
     const media = dish?.media?.[0];
     const image = media?.thumbnail_url || media?.url;
 
+    let updatedCart: CartItem[];
+
     if (existingItem) {
       const oldQuantity = existingItem.quantity;
-      setCart(prev => prev.map(item =>
+      updatedCart = cart.map(item =>
         item.dishId === dish.id ? { ...item, quantity: item.quantity + quantity } : item
-      ));
-      await trackItemQuantityUpdated(dish.id, existingItem.quantity + quantity, oldQuantity);
+      );
+      setCart(updatedCart);
+      await trackItemQuantityUpdated(dish.id, existingItem.quantity + quantity, oldQuantity, updatedCart);
     } else {
       const newItem: CartItem = {
         dishId: dish.id,
@@ -309,15 +345,17 @@ const ReelsContainer: React.FC<ReelsContainerProps> = React.memo(({
         image,
         addedAt: new Date().toISOString()
       };
-      setCart(prev => [...prev, newItem]);
-      await trackItemAdded(dish.id, quantity, dish.price || 0, cart.length + 1);
+      updatedCart = [...cart, newItem];
+      setCart(updatedCart);
+      await trackItemAdded(dish.id, quantity, dish.price || 0, cart.length + 1, updatedCart);
     }
   }, [cart, cartId, currentLanguage, generateCartId, trackCartCreated, trackItemAdded, trackItemQuantityUpdated]);
 
   const removeFromCart = useCallback(async (dishId: string) => {
-    await trackItemRemoved(dishId);
-    setCart(prev => prev.filter(item => item.dishId !== dishId));
-  }, [trackItemRemoved]);
+    const updatedCart = cart.filter(item => item.dishId !== dishId);
+    setCart(updatedCart);
+    await trackItemRemoved(dishId, updatedCart);
+  }, [cart, trackItemRemoved]);
 
   const updateCartItemQuantity = useCallback(async (dishId: string, newQuantity: number) => {
     const item = cart.find(i => i.dishId === dishId);
@@ -326,8 +364,9 @@ const ReelsContainer: React.FC<ReelsContainerProps> = React.memo(({
     if (newQuantity <= 0) {
       await removeFromCart(dishId);
     } else {
-      setCart(prev => prev.map(i => i.dishId === dishId ? { ...i, quantity: newQuantity } : i));
-      await trackItemQuantityUpdated(dishId, newQuantity, item.quantity);
+      const updatedCart = cart.map(i => i.dishId === dishId ? { ...i, quantity: newQuantity } : i);
+      setCart(updatedCart);
+      await trackItemQuantityUpdated(dishId, newQuantity, item.quantity, updatedCart);
     }
   }, [cart, removeFromCart, trackItemQuantityUpdated]);
 

@@ -126,6 +126,7 @@ export interface DashboardData {
     alerts: Alert[];
     recommendations: Recommendation[];
     isLoading: boolean;
+    isIdle?: boolean; // Indicador de inactividad del usuario
 }
 
 // ==================== HELPERS ====================

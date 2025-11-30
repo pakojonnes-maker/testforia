@@ -1,6 +1,7 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Outlet, useNavigate, Link, useLocation } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
+import { useIdleDetection } from '../../hooks/useIdleDetection';
 import {
   AppBar,
   Box,
@@ -24,6 +25,8 @@ import {
   ListItemButton,
   Tooltip,
   Badge,
+  Snackbar,
+  Alert as MuiAlert,
 } from '@mui/material';
 import type { SelectChangeEvent } from '@mui/material';
 
@@ -53,6 +56,33 @@ export default function DashboardLayout() {
 
   const [mobileOpen, setMobileOpen] = useState(false);
   const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null);
+  const [showIdleWarning, setShowIdleWarning] = useState(false);
+
+  // ✅ Detección de inactividad global - Aplicable a todo el admin
+  const { isIdle, timeUntilLogout } = useIdleDetection({
+    idleTimeout: 5 * 60 * 1000,        // 5 minutos → marcar como inactivo
+    logoutTimeout: 15 * 60 * 1000,     // 15 minutos → cerrar sesión automática
+    onIdle: () => {
+      console.log('[Admin] Usuario inactivo - pausando consultas automáticas');
+    },
+    onActive: () => {
+      console.log('[Admin] Usuario activo - reanudando actividad');
+      setShowIdleWarning(false);
+    },
+    onLogout: () => {
+      console.log('[Admin] Cerrando sesión por inactividad');
+      logout();
+      navigate('/login');
+    },
+    enabled: true
+  });
+
+  // ✅ Mostrar advertencia 60 segundos antes del logout
+  useEffect(() => {
+    if (timeUntilLogout <= 60 && timeUntilLogout > 0 && !showIdleWarning) {
+      setShowIdleWarning(true);
+    }
+  }, [timeUntilLogout, showIdleWarning]);
 
   const handleDrawerToggle = () => {
     setMobileOpen(!mobileOpen);
@@ -366,6 +396,22 @@ export default function DashboardLayout() {
         <Toolbar /> {/* Espaciador para que el contenido no quede bajo el AppBar */}
         <Outlet />
       </Box>
+
+      {/* ✅ Advertencia de inactividad */}
+      <Snackbar
+        open={showIdleWarning}
+        anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
+        sx={{ bottom: { xs: 90, sm: 24 } }}
+      >
+        <MuiAlert
+          severity="warning"
+          variant="filled"
+          sx={{ width: '100%' }}
+          onClose={() => setShowIdleWarning(false)}
+        >
+          ⚠️ Sesión inactiva. Se cerrará en {timeUntilLogout} segundos. Mueve el ratón para continuar.
+        </MuiAlert>
+      </Snackbar>
     </Box>
   );
 }

@@ -465,9 +465,9 @@ function detectEnvironment() {
 
   const urlParams = new URLSearchParams(window.location.search);
   const utm = {
-    source: urlParams.get('utm_source'),
-    medium: urlParams.get('utm_medium'),
-    campaign: urlParams.get('utm_campaign')
+    source: urlParams.get('utm_source') || undefined,
+    medium: urlParams.get('utm_medium') || undefined,
+    campaign: urlParams.get('utm_campaign') || undefined
   };
 
   return {
@@ -478,8 +478,9 @@ function detectEnvironment() {
     ispwa,
     languages: navigator.language,
     timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
-    referrer: document?.referrer || null,
-    utm
+    referrer: document?.referrer || undefined,
+    utm,
+    qrcode: urlParams.get('qrcode') || urlParams.get('qr') || undefined
   };
 }
 

@@ -261,7 +261,7 @@ const ClassicHeader: React.FC<HeaderProps> = ({
                 variant="h5"
                 sx={{
                   color: colors.text,
-                  fontWeight: 400,
+                  fontWeight: 700,
                   fontSize: { xs: '1.3rem', sm: '1.5rem' },
                   lineHeight: 1.2,
                   mb: 0.5,
@@ -281,8 +281,8 @@ const ClassicHeader: React.FC<HeaderProps> = ({
                 sx={{
                   color: colors.secondary, // ✅ Color secundario del reel
                   fontSize: { xs: '0.85rem', sm: '0.95rem' },
-                  fontWeight: 600,
-                  fontFamily: '"Inter", sans-serif',
+                  fontWeight: 400,
+                  fontFamily: '"Fraunces", serif',
                   letterSpacing: 1,
                   textTransform: 'uppercase',
                   textAlign: 'center',

@@ -29,21 +29,87 @@ async function authenticateRequest(request) {
 
 export async function handleSectionRequests(request, env) {
     const url = new URL(request.url);
-    const method = request.method;
-    const path = url.pathname;
+    console.log(`[Sections] Procesando: ${request.method} ${url.pathname}`);
 
-    if (method === "OPTIONS") {
-        return new Response(null, { headers: corsHeaders });
+    // =============================================
+    // ICONOS DEL SISTEMA
+    // =============================================
+
+    // GET /system/icons - Listar iconos disponibles (público)
+    if (request.method === "GET" && url.pathname === "/system/icons") {
+        try {
+            console.log('[Sections] Listando iconos del sistema desde R2');
+
+            const iconsList = await env.R2_BUCKET.list({
+                prefix: 'System/icons/',
+                delimiter: ''
+            });
+
+            const icons = (iconsList.objects || []).map(obj => ({
+                filename: obj.key.replace('System/icons/', ''),
+                url: `${url.origin}/media/${obj.key}`,
+                size: obj.size
+            }));
+
+            console.log(`[Sections] Se encontraron ${icons.length} iconos`);
+
+            return createResponse({
+                success: true,
+                icons: icons
+            });
+        } catch (error) {
+            console.error("[Sections] Error al listar iconos:", error);
+            return createResponse({
+                success: false,
+                message: "Error al obtener iconos: " + error.message
+            }, 500);
+        }
     }
 
-    try {
-        // =============================================
-        // MENÚS (MENUS)
-        // =============================================
+    // =============================================
+    // MENÚS (MENUS)
+    // =============================================
 
-        // GET /restaurants/:id/menus
-        if (method === "GET" && path.match(/^\/restaurants\/[\w-]+\/menus$/)) {
-            const restaurantId = path.split('/')[2];
+    // Endpoint para obtener menús por restaurante (RESTful)
+    if (request.method === "GET" && url.pathname.match(/^\/restaurants\/[\w-]+\/menus$/)) {
+        const restaurantId = url.pathname.split('/')[2];
+
+        try {
+            console.log(`[Sections] Obteniendo menús para restaurante ${restaurantId}`);
+
+            const menusData = await env.DB.prepare(`
+        SELECT id, name, is_default, description
+        FROM menus
+        WHERE restaurant_id = ?
+        ORDER BY is_default DESC, id ASC
+      `).bind(restaurantId).all();
+
+            console.log(`[Sections] Se encontraron ${menusData.results?.length || 0} menús`);
+
+            return createResponse({
+                success: true,
+                menus: menusData.results || []
+            });
+        } catch (error) {
+            console.error("[Sections] Error al obtener menús:", error);
+            return createResponse({
+                success: false,
+                message: "Error al obtener menús: " + error.message
+            }, 500);
+        }
+    }
+
+    // Endpoint tradicional para obtener menús (compatibilidad)
+    if (request.method === "GET" && url.pathname === "/menus") {
+        const params = new URLSearchParams(url.search);
+        const restaurantId = params.get('restaurant_id');
+
+        if (!restaurantId) {
+            return createResponse({ success: false, message: "Restaurant ID requerido" }, 400);
+        }
+
+        try {
+            console.log(`[Sections] Obteniendo menús para restaurante ${restaurantId} (ruta legacy)`);
 
             const menusData = await env.DB.prepare(`
         SELECT id, name, is_default, description
@@ -56,198 +122,323 @@ export async function handleSectionRequests(request, env) {
                 success: true,
                 menus: menusData.results || []
             });
+        } catch (error) {
+            console.error("[Sections] Error al obtener menús:", error);
+            return createResponse({
+                success: false,
+                message: "Error al obtener menús: " + error.message
+            }, 500);
+        }
+    }
+
+    // =============================================
+    // SECCIONES (SECTIONS)
+    // =============================================
+
+    // Endpoint público RESTful para obtener secciones por restaurante
+    if (request.method === "GET" && url.pathname.match(/^\/restaurants\/[\w-]+\/sections$/)) {
+        const restaurantId = url.pathname.split('/')[2];
+        return await getSectionsForRestaurant(restaurantId, env);
+    }
+
+    // Endpoint original para obtener secciones (mantener por compatibilidad)
+    if (request.method === "GET" && url.pathname === "/sections") {
+        const params = new URLSearchParams(url.search);
+        const restaurantId = params.get('restaurant_id');
+
+        if (!restaurantId) {
+            return createResponse({ success: false, message: "Restaurant ID requerido" }, 400);
         }
 
-        // =============================================
-        // SECCIONES (SECTIONS)
-        // =============================================
+        return await getSectionsForRestaurant(restaurantId, env);
+    }
 
-        // GET /restaurants/:id/sections
-        if (method === "GET" && path.match(/^\/restaurants\/[\w-]+\/sections$/)) {
-            const restaurantId = path.split('/')[2];
-            return await getSectionsForRestaurant(restaurantId, env);
-        }
-
-        // GET /sections?restaurant_id=... (Legacy)
-        if (method === "GET" && path === "/sections") {
-            const params = new URLSearchParams(url.search);
-            const restaurantId = params.get('restaurant_id');
-            if (!restaurantId) return createResponse({ success: false, message: "Restaurant ID required" }, 400);
-            return await getSectionsForRestaurant(restaurantId, env);
-        }
-
-        // PROTECTED ROUTES
+    // Endpoint para manejar secciones (crear/actualizar) - REQUIERE AUTENTICACIÓN
+    if ((request.method === "POST" || request.method === "PUT") && url.pathname.match(/^\/sections(\/. +)?$/)) {
+        // ✅ Verificar autenticación
         const userData = await authenticateRequest(request);
         if (!userData) {
-            return createResponse({ success: false, message: "Unauthorized" }, 401);
+            return createResponse({ success: false, message: "No autorizado" }, 401);
         }
 
-        // POST /sections (Create)
-        if (method === "POST" && path === "/sections") {
+        try {
             const data = await request.json();
+            const isNew = request.method === "POST" || !url.pathname.includes('/');
+            const sectionId = isNew ? `sect_${Date.now()}_${Math.random().toString(36).substring(2, 7)}` : url.pathname.split('/').pop();
             const { restaurant_id, menu_id, translations, order_index, icon_url, bg_color } = data;
 
-            if (!restaurant_id || !menu_id) {
-                return createResponse({ success: false, message: "Missing required fields" }, 400);
+            if (!restaurant_id) {
+                return createResponse({ success: false, message: "Restaurant ID requerido" }, 400);
             }
 
-            const sectionId = `sect_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
-
-            // Get max order if not provided
-            let finalOrderIndex = order_index;
-            if (finalOrderIndex === undefined) {
-                const maxOrder = await env.DB.prepare(`
-          SELECT MAX(order_index) as max_order FROM sections WHERE menu_id = ?
-        `).bind(menu_id).first();
-                finalOrderIndex = (maxOrder?.max_order || 0) + 1;
+            if (!menu_id) {
+                return createResponse({ success: false, message: "Menu ID requerido" }, 400);
             }
 
-            await env.DB.prepare(`
-        INSERT INTO sections (id, restaurant_id, menu_id, order_index, icon_url, bg_color)
-        VALUES (?, ?, ?, ?, ?, ?)
-      `).bind(sectionId, restaurant_id, menu_id, finalOrderIndex, icon_url || null, bg_color || null).run();
+            // Verificar que el menú existe
+            const menuExists = await env.DB.prepare(`
+        SELECT id FROM menus WHERE id = ? AND restaurant_id = ?
+      `).bind(menu_id, restaurant_id).first();
 
-            // Handle translations
-            if (translations) {
-                const stmt = env.DB.prepare(`
-          INSERT INTO translations (entity_id, entity_type, language_code, field, value)
-          VALUES (?, 'section', ?, ?, ?)
-        `);
+            if (!menuExists) {
+                return createResponse({
+                    success: false,
+                    message: "El menú especificado no existe. Por favor, crea primero un menú."
+                }, 400);
+            }
 
-                const batch = [];
-                if (translations.name) {
-                    for (const [lang, val] of Object.entries(translations.name)) {
-                        if (val) batch.push(stmt.bind(sectionId, lang, 'name', val));
+            try {
+                // Obtener el orden máximo actual para insertar al final si es necesario
+                let maxOrder = 1;
+                if (isNew) {
+                    const orderResult = await env.DB.prepare(`
+            SELECT MAX(order_index) as max_order FROM sections WHERE menu_id = ?
+          `).bind(menu_id).first();
+                    maxOrder = (orderResult?.max_order || 0) + 1;
+                }
+
+                // Insertar o actualizar la sección
+                if (isNew) {
+                    await env.DB.prepare(`
+            INSERT INTO sections (
+              id, restaurant_id, menu_id, order_index, icon_url, bg_color
+            ) VALUES (?, ?, ?, ?, ?, ?)
+          `).bind(
+                        sectionId,
+                        restaurant_id,
+                        menu_id,
+                        order_index || maxOrder,
+                        icon_url || null,
+                        bg_color || null
+                    ).run();
+                } else {
+                    await env.DB.prepare(`
+            UPDATE sections SET
+              menu_id = ?,
+              order_index = ?,
+              icon_url = ?,
+              bg_color = ?,
+              modified_at = CURRENT_TIMESTAMP
+            WHERE id = ? AND restaurant_id = ?
+          `).bind(
+                        menu_id,
+                        order_index,
+                        icon_url || null,
+                        bg_color || null,
+                        sectionId,
+                        restaurant_id
+                    ).run();
+                }
+
+                // Guardar traducciones
+                if (translations) {
+                    // Eliminar traducciones anteriores
+                    await env.DB.prepare(`
+            DELETE FROM translations 
+            WHERE entity_id = ? AND entity_type = 'section'
+          `).bind(sectionId).run();
+
+                    const translationStatements = [];
+
+                    // Guardar nombres en todos los idiomas
+                    for (const [lang, value] of Object.entries(translations.name || {})) {
+                        if (value) {
+                            translationStatements.push(
+                                env.DB.prepare(`
+                  INSERT INTO translations (entity_id, entity_type, language_code, field, value)
+                  VALUES (?, 'section', ?, 'name', ?)
+                `).bind(sectionId, lang, value)
+                            );
+                        }
+                    }
+
+                    // Guardar descripciones si existen
+                    for (const [lang, value] of Object.entries(translations.description || {})) {
+                        if (value) {
+                            translationStatements.push(
+                                env.DB.prepare(`
+                  INSERT INTO translations (entity_id, entity_type, language_code, field, value)
+                  VALUES (?, 'section', ?, 'description', ?)
+                `).bind(sectionId, lang, value)
+                            );
+                        }
+                    }
+
+                    if (translationStatements.length > 0) {
+                        await env.DB.batch(translationStatements);
                     }
                 }
-                if (translations.description) {
-                    for (const [lang, val] of Object.entries(translations.description)) {
-                        if (val) batch.push(stmt.bind(sectionId, lang, 'description', val));
-                    }
-                }
-                if (batch.length > 0) await env.DB.batch(batch);
+
+                return createResponse({
+                    success: true,
+                    sectionId,
+                    message: isNew ? "Sección creada correctamente" : "Sección actualizada correctamente"
+                });
+
+            } catch (dbError) {
+                console.error("[Sections] Error en operaciones de base de datos:", dbError);
+                throw dbError;
             }
 
-            return createResponse({ success: true, sectionId, message: "Section created" });
+        } catch (error) {
+            console.error("[Sections] Error al guardar sección:", error);
+            return createResponse({
+                success: false,
+                message: "Error al guardar sección: " + error.message
+            }, 500);
+        }
+    }
+
+    // Endpoint para eliminar una sección - REQUIERE AUTENTICACIÓN
+    if (request.method === "DELETE" && url.pathname.match(/^\/sections\/[\w-]+$/)) {
+        // ✅ Verificar autenticación
+        const userData = await authenticateRequest(request);
+        if (!userData) {
+            return createResponse({ success: false, message: "No autorizado" }, 401);
         }
 
-        // PUT /sections/:id (Update)
-        if (method === "PUT" && path.match(/^\/sections\/[^/]+$/)) {
-            const sectionId = path.split('/')[2];
-            const data = await request.json();
-            const { menu_id, order_index, icon_url, bg_color, translations, restaurant_id } = data;
+        const sectionId = url.pathname.split('/').pop();
+        const params = new URLSearchParams(url.search);
+        const restaurantId = params.get('restaurant_id');
 
-            await env.DB.prepare(`
-        UPDATE sections SET menu_id = ?, order_index = ?, icon_url = ?, bg_color = ?, modified_at = CURRENT_TIMESTAMP
-        WHERE id = ?
-      `).bind(menu_id, order_index, icon_url, bg_color, sectionId).run();
+        if (!restaurantId) {
+            return createResponse({ success: false, message: "Restaurant ID requerido" }, 400);
+        }
 
-            // Update translations
-            if (translations) {
-                // Delete old
-                await env.DB.prepare("DELETE FROM translations WHERE entity_id = ? AND entity_type = 'section'").bind(sectionId).run();
+        try {
+            // Verificar que la sección pertenece al restaurante
+            const section = await env.DB.prepare(`
+        SELECT id FROM sections WHERE id = ? AND restaurant_id = ?
+      `).bind(sectionId, restaurantId).first();
 
-                const stmt = env.DB.prepare(`
-          INSERT INTO translations (entity_id, entity_type, language_code, field, value)
-          VALUES (?, 'section', ?, ?, ?)
-        `);
-
-                const batch = [];
-                if (translations.name) {
-                    for (const [lang, val] of Object.entries(translations.name)) {
-                        if (val) batch.push(stmt.bind(sectionId, lang, 'name', val));
-                    }
-                }
-                if (translations.description) {
-                    for (const [lang, val] of Object.entries(translations.description)) {
-                        if (val) batch.push(stmt.bind(sectionId, lang, 'description', val));
-                    }
-                }
-                if (batch.length > 0) await env.DB.batch(batch);
+            if (!section) {
+                return createResponse({ success: false, message: "Sección no encontrada o no pertenece a este restaurante" }, 404);
             }
 
-            return createResponse({ success: true, message: "Section updated" });
-        }
+            // Verificar si hay platos asociados
+            const dishCount = await env.DB.prepare(`
+        SELECT COUNT(*) as count FROM section_dishes WHERE section_id = ?
+      `).bind(sectionId).first();
 
-        // DELETE /sections/:id
-        if (method === "DELETE" && path.match(/^\/sections\/[^/]+$/)) {
-            const sectionId = path.split('/')[2];
-
-            // Check for dishes
-            const dishCount = await env.DB.prepare("SELECT COUNT(*) as count FROM section_dishes WHERE section_id = ?").bind(sectionId).first();
-            if (dishCount.count > 0) {
-                return createResponse({ success: false, message: "Cannot delete section with dishes" }, 400);
+            if (dishCount && dishCount.count > 0) {
+                return createResponse({
+                    success: false,
+                    message: "No se puede eliminar la sección porque tiene platos asociados. Mueva los platos a otra sección primero."
+                }, 400);
             }
 
-            await env.DB.prepare("DELETE FROM translations WHERE entity_id = ? AND entity_type = 'section'").bind(sectionId).run();
-            await env.DB.prepare("DELETE FROM sections WHERE id = ?").bind(sectionId).run();
+            try {
+                const deleteStatements = [
+                    env.DB.prepare(`DELETE FROM translations WHERE entity_id = ? AND entity_type = 'section'`).bind(sectionId),
+                    env.DB.prepare(`DELETE FROM sections WHERE id = ?`).bind(sectionId)
+                ];
 
-            return createResponse({ success: true, message: "Section deleted" });
-        }
+                await env.DB.batch(deleteStatements);
 
-        // PUT /restaurants/:id/sections/order (Update Order)
-        if (method === "PUT" && path.match(/^\/restaurants\/[^/]+\/sections\/order$/)) {
-            const data = await request.json();
-            const { section_ids } = data;
+                return createResponse({
+                    success: true,
+                    message: "Sección eliminada correctamente"
+                });
 
-            if (Array.isArray(section_ids)) {
-                const stmt = env.DB.prepare("UPDATE sections SET order_index = ? WHERE id = ?");
-                const batch = section_ids.map((id, index) => stmt.bind(index + 1, id));
-                await env.DB.batch(batch);
+            } catch (dbError) {
+                console.error("[Sections] Error en operaciones de base de datos:", dbError);
+                throw dbError;
             }
 
-            return createResponse({ success: true, message: "Order updated" });
+        } catch (error) {
+            console.error("[Sections] Error al eliminar sección:", error);
+            return createResponse({
+                success: false,
+                message: "Error al eliminar sección: " + error.message
+            }, 500);
         }
-
-    } catch (error) {
-        console.error('[Sections] Error:', error);
-        return createResponse({ success: false, message: error.message }, 500);
     }
 
     return null;
 }
 
-// Helper to get sections with full details
+// ===========================================================================
+// FUNCIONES AUXILIARES
+// ===========================================================================
+
 async function getSectionsForRestaurant(restaurantId, env) {
-    const sectionsData = await env.DB.prepare(`
-    SELECT s.id, s.menu_id, s.order_index, s.icon_url, s.bg_color
-    FROM sections s
-    WHERE s.restaurant_id = ?
-    ORDER BY s.order_index ASC
-  `).bind(restaurantId).all();
+    try {
+        const sectionsData = await env.DB.prepare(`
+      SELECT s.id, s.menu_id, s.order_index, s.icon_url, s.bg_color
+      FROM sections s
+      WHERE s.restaurant_id = ?
+      ORDER BY s.order_index ASC
+    `).bind(restaurantId).all();
 
-    const sections = sectionsData.results || [];
-
-    const sectionsWithDetails = await Promise.all(sections.map(async (section) => {
-        // Get Menu Name
-        const menu = await env.DB.prepare("SELECT name FROM menus WHERE id = ?").bind(section.menu_id).first();
-
-        // Get Translations
-        const translations = { name: {}, description: {} };
-        const transRows = await env.DB.prepare(`
-      SELECT language_code, field, value 
-      FROM translations 
-      WHERE entity_id = ? AND entity_type = 'section'
-    `).bind(section.id).all();
-
-        if (transRows.results) {
-            transRows.results.forEach(row => {
-                if (translations[row.field]) {
-                    translations[row.field][row.language_code] = row.value;
-                }
-            });
+        if (!sectionsData.results || sectionsData.results.length === 0) {
+            return createResponse({ success: true, sections: [] });
         }
 
-        // Get Dish Count
-        const dishCount = await env.DB.prepare("SELECT COUNT(*) as count FROM section_dishes WHERE section_id = ?").bind(section.id).first();
+        const sectionsWithDetails = await Promise.all(sectionsData.results.map(async (section) => {
+            const menuData = await env.DB.prepare(`
+        SELECT name FROM menus WHERE id = ?
+      `).bind(section.menu_id).first();
 
-        return {
-            ...section,
-            menu_name: menu?.name || "Unknown Menu",
-            translations,
-            dish_count: dishCount?.count || 0
-        };
-    }));
+            const translations = { name: {}, description: {} };
 
-    return createResponse({ success: true, sections: sectionsWithDetails });
+            const nameES = await env.DB.prepare(
+                `SELECT value FROM translations WHERE entity_id = ? AND entity_type = 'section' AND field = 'name' AND language_code = 'es'`
+            ).bind(section.id).first();
+
+            if (nameES) translations.name.es = nameES.value;
+
+            const nameEN = await env.DB.prepare(
+                `SELECT value FROM translations WHERE entity_id = ? AND entity_type = 'section' AND field = 'name' AND language_code = 'en'`
+            ).bind(section.id).first();
+
+            if (nameEN) translations.name.en = nameEN.value;
+
+            const descES = await env.DB.prepare(
+                `SELECT value FROM translations WHERE entity_id = ? AND entity_type = 'section' AND field = 'description' AND language_code = 'es'`
+            ).bind(section.id).first();
+
+            if (descES) translations.description.es = descES.value;
+
+            const descEN = await env.DB.prepare(
+                `SELECT value FROM translations WHERE entity_id = ? AND entity_type = 'section' AND field = 'description' AND language_code = 'en'`
+            ).bind(section.id).first();
+
+            if (descEN) translations.description.en = descEN.value;
+
+            const dishCount = await env.DB.prepare(`
+        SELECT COUNT(*) as count FROM section_dishes WHERE section_id = ?
+      `).bind(section.id).first();
+
+            return {
+                ...section,
+                translations,
+                menu_name: menuData?.name || "Menú sin nombre",
+                dish_count: dishCount?.count || 0
+            };
+        }));
+
+        return createResponse({
+            success: true,
+            sections: sectionsWithDetails
+        });
+
+    } catch (dbError) {
+        console.error("[Sections] Error de base de datos:", dbError);
+        return createResponse({
+            success: false,
+            message: "Error en el servidor: " + dbError.message
+        }, 500);
+    }
+}
+
+export function createResponse(data, status = 200) {
+    return new Response(JSON.stringify(data), {
+        status,
+        headers: {
+            "Content-Type": "application/json",
+            "Access-Control-Allow-Origin": "*",
+            "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS",
+            "Access-Control-Allow-Headers": "Content-Type, Authorization",
+        },
+    });
 }

@@ -3,6 +3,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { apiClient } from '../lib/apiClient';
+import IconPicker from '../components/IconPicker';
 
 import {
   Box,
@@ -182,6 +183,7 @@ export default function SectionsPage() {
   const [name, setName] = useState('');
   const [nameEn, setNameEn] = useState('');
   const [selectedMenuId, setSelectedMenuId] = useState('');
+  const [iconUrl, setIconUrl] = useState<string | null>(null);
   const [snackbar, setSnackbar] = useState({ open: false, message: '', severity: 'success' });
   const [sectionToDelete, setSectionToDelete] = useState(null);
   const [orderedSections, setOrderedSections] = useState([]);
@@ -269,7 +271,10 @@ export default function SectionsPage() {
           apiClient.updateSection(section.id, {
             restaurant_id: restaurantId,
             menu_id: section.menu_id,
-            order_index: index + 1
+            order_index: index + 1,
+            icon_url: section.icon_url,
+            bg_color: section.bg_color,
+            translations: section.translations
           })
         )
       );
@@ -318,11 +323,13 @@ export default function SectionsPage() {
       setName(section.translations?.name?.es || '');
       setNameEn(section.translations?.name?.en || '');
       setSelectedMenuId(section.menu_id);
+      setIconUrl(section.icon_url || null);
     } else {
       setEditSection(null);
       setName('');
       setNameEn('');
       setSelectedMenuId(menus?.[0]?.id || '');
+      setIconUrl(null);
     }
     setDialogOpen(true);
   };
@@ -355,6 +362,7 @@ export default function SectionsPage() {
     const sectionData = {
       restaurant_id: restaurantId,
       menu_id: selectedMenuId,
+      icon_url: iconUrl || null,
       translations: {
         name: {
           es: name.trim(),
@@ -581,6 +589,12 @@ export default function SectionsPage() {
             value={nameEn}
             onChange={(e) => setNameEn(e.target.value)}
             sx={{ mt: 2 }}
+          />
+
+          {/* Icon Picker */}
+          <IconPicker
+            value={iconUrl}
+            onChange={setIconUrl}
           />
         </DialogContent>
         <DialogActions sx={{ px: 3, pb: 3 }}>

@@ -184,6 +184,10 @@ class AdminApiClient {
           favorites: rawData.summary?.favorites_added || rawData.summary?.favorites || 0,
           ratings: rawData.summary?.ratings_submitted || rawData.summary?.ratings || 0,
           shares: rawData.summary?.shares || 0,
+          avgDishViewDuration: rawData.summary?.avg_dish_view_duration || 0,
+          avgSectionTime: rawData.summary?.avg_section_time || 0,
+          avgScrollDepth: rawData.summary?.avg_scroll_depth || 0,
+          mediaErrors: rawData.summary?.media_errors || 0,
         },
         timeseries: (rawData.timeseries || []).map((item: any) => ({
           date: item.date,
@@ -236,6 +240,26 @@ class AdminApiClient {
         name: "Menú Predeterminado",
         is_default: true
       }];
+    }
+  }
+
+  /**
+   * Obtener iconos del sistema disponibles desde R2
+   */
+  public async getSystemIcons(): Promise<any[]> {
+    try {
+      console.log('[apiClient] Obteniendo iconos del sistema');
+      const response = await this.client.get('/system/icons');
+
+      if (response.data.success && Array.isArray(response.data.icons)) {
+        return response.data.icons;
+      }
+
+      console.warn('[apiClient] Formato inesperado en respuesta de iconos:', response.data);
+      return [];
+    } catch (error) {
+      console.error('[apiClient] Error al obtener iconos del sistema:', error);
+      return [];
     }
   }
 

@@ -1,0 +1,217 @@
+### ============================================
+### TESTING WORKER TRACKING
+### ============================================
+### Usa la extensión "REST Client" de VS Code
+### o copia el contenido a Postman/Insomnia
+### ============================================
+
+@baseUrl = https://visualtasteworker.franciscotortosaestudios.workers.dev
+@restaurantId = rest_yucas_01
+
+### ============================================
+### 1. TEST: Session Start
+### ============================================
+POST {{baseUrl}}/track/session/start HTTP/1.1
+Content-Type: application/json
+
+{
+  "restaurantId": "{{restaurantId}}",
+  "userid": null,
+  "devicetype": "desktop",
+  "osname": "Windows",
+  "browser": "Chrome",
+  "referrer": "https://google.com",
+  "utm": {
+    "source": "google",
+    "medium": "organic",
+    "campaign": null
+  },
+  "networktype": "4g",
+  "ispwa": false,
+  "languages": "es",
+  "timezone": "-60"
+}
+
+### ============================================
+### 2. TEST: Track Events (CART CREATED)
+### ============================================
+### Reemplaza SESSION_ID con el ID que recibiste del paso anterior
+POST {{baseUrl}}/track/events HTTP/1.1
+Content-Type: application/json
+
+{
+  "sessionId": "REEMPLAZA_CON_SESSION_ID",
+  "restaurantId": "{{restaurantId}}",
+  "events": [
+    {
+      "type": "cart_created",
+      "entityId": "cart_test_123",
+      "entityType": "cart",
+      "ts": "2025-11-27T14:19:49.956Z"
+    }
+  ]
+}
+
+### ============================================
+### 3. TEST: Track Events (VIEW DISH)
+### ============================================
+POST {{baseUrl}}/track/events HTTP/1.1
+Content-Type: application/json
+
+{
+  "sessionId": "REEMPLAZA_CON_SESSION_ID",
+  "restaurantId": "{{restaurantId}}",
+  "events": [
+    {
+      "type": "viewdish",
+      "entityId": "dish_yucas_hamburguesa_01",
+      "entityType": "dish",
+      "sectionId": "section_yucas_principales_01",
+      "ts": "2025-11-27T14:20:00.000Z"
+    }
+  ]
+}
+
+### ============================================
+### 4. TEST: Track Events (DISH VIEW DURATION)
+### ============================================
+POST {{baseUrl}}/track/events HTTP/1.1
+Content-Type: application/json
+
+{
+  "sessionId": "REEMPLAZA_CON_SESSION_ID",
+  "restaurantId": "{{restaurantId}}",
+  "events": [
+    {
+      "type": "dish_view_duration",
+      "entityId": "dish_yucas_hamburguesa_01",
+      "entityType": "dish",
+      "value": 15,
+      "sectionId": "section_yucas_principales_01",
+      "props": {
+        "duration_seconds": 15
+      },
+      "ts": "2025-11-27T14:20:15.000Z"
+    }
+  ]
+}
+
+### ============================================
+### 5. TEST: Track Events (FAVORITE)
+### ============================================
+POST {{baseUrl}}/track/events HTTP/1.1
+Content-Type: application/json
+
+{
+  "sessionId": "REEMPLAZA_CON_SESSION_ID",
+  "restaurantId": "{{restaurantId}}",
+  "events": [
+    {
+      "type": "favorite",
+      "entityId": "dish_yucas_hamburguesa_01",
+      "entityType": "dish",
+      "value": true,
+      "ts": "2025-11-27T14:21:00.000Z"
+    }
+  ]
+}
+
+### ============================================
+### 6. TEST: Track Events (SECTION TIME)
+### ============================================
+POST {{baseUrl}}/track/events HTTP/1.1
+Content-Type: application/json
+
+{
+  "sessionId": "REEMPLAZA_CON_SESSION_ID",
+  "restaurantId": "{{restaurantId}}",
+  "events": [
+    {
+      "type": "section_time",
+      "entityId": "section_yucas_principales_01",
+      "entityType": "section",
+      "value": 45,
+      "props": {
+        "duration_seconds": 45,
+        "dishes_viewed": 3
+      },
+      "ts": "2025-11-27T14:22:00.000Z"
+    }
+  ]
+}
+
+### ============================================
+### 7. TEST: Track Events (SCROLL DEPTH)
+### ============================================
+POST {{baseUrl}}/track/events HTTP/1.1
+Content-Type: application/json
+
+{
+  "sessionId": "REEMPLAZA_CON_SESSION_ID",
+  "restaurantId": "{{restaurantId}}",
+  "events": [
+    {
+      "type": "scroll_depth",
+      "entityId": "section_yucas_principales_01",
+      "entityType": "section",
+      "value": 70,
+      "props": {
+        "dish_index": 6,
+        "total_dishes": 10,
+        "depth_percent": 70
+      },
+      "ts": "2025-11-27T14:23:00.000Z"
+    }
+  ]
+}
+
+### ============================================
+### 8. TEST: Track Events (MEDIA ERROR)
+### ============================================
+POST {{baseUrl}}/track/events HTTP/1.1
+Content-Type: application/json
+
+{
+  "sessionId": "REEMPLAZA_CON_SESSION_ID",
+  "restaurantId": "{{restaurantId}}",
+  "events": [
+    {
+      "type": "media_error",
+      "entityId": "dish_yucas_hamburguesa_01",
+      "entityType": "dish",
+      "value": "video_play_failed",
+      "props": {
+        "error_type": "video_play_failed",
+        "media_url": "https://example.com/video.mp4",
+        "section_id": "section_yucas_principales_01"
+      },
+      "ts": "2025-11-27T14:24:00.000Z"
+    }
+  ]
+}
+
+### ============================================
+### 9. TEST: Session End
+### ============================================
+POST {{baseUrl}}/track/session/end HTTP/1.1
+Content-Type: application/json
+
+{
+  "sessionId": "REEMPLAZA_CON_SESSION_ID",
+  "startedAt": "2025-11-27T14:19:00.000Z",
+  "endedAt": "2025-11-27T14:25:00.000Z"
+}
+
+### ============================================
+### ALTERNATIVA: Usar CURL desde terminal
+### ============================================
+
+# 1. Session Start
+# curl -X POST https://visualtasteworker.franciscotortosaestudios.workers.dev/track/session/start \
+#   -H "Content-Type: application/json" \
+#   -d '{"restaurantId":"rest_yucas_01","devicetype":"desktop","osname":"Windows","browser":"Chrome"}'
+
+# 2. Track Events
+# curl -X POST https://visualtasteworker.franciscotortosaestudios.workers.dev/track/events \
+#   -H "Content-Type: application/json" \
+#   -d '{"sessionId":"TU_SESSION_ID","restaurantId":"rest_yucas_01","events":[{"type":"cart_created","entityId":"cart_test","entityType":"cart"}]}'

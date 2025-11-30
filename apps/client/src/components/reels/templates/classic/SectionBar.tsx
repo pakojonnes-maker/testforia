@@ -1,5 +1,3 @@
-// apps/client/src/components/reels/templates/classic/SectionBar.tsx
-
 import React, { useCallback, useEffect, useRef, useMemo } from 'react';
 import { Box, Typography } from '@mui/material';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -42,28 +40,8 @@ const SectionBar: React.FC<SectionBarProps> = ({
     background: config?.restaurant?.branding?.background_color || '#000000'
   }), [config]);
 
-  const sectionSizing = useMemo(() => {
-    const sectionCount = sections.length;
-    const screenWidth = typeof window !== 'undefined' ? window.innerWidth : 390;
-    const availableWidth = screenWidth - 32;
-    const maxSectionWidth = Math.min(120, availableWidth / sectionCount - 8);
-
-    return {
-      minWidth: Math.max(85, maxSectionWidth),
-      iconSize: {
-        inactive: Math.min(44, maxSectionWidth * 0.45),
-        active: Math.min(52, maxSectionWidth * 0.55)
-      },
-      fontSize: {
-        xs: sectionCount > 5 ? '0.6rem' : '0.65rem',
-        sm: sectionCount > 5 ? '0.65rem' : '0.7rem'
-      }
-    };
-  }, [sections.length]);
-
   const getSectionIconUrl = useCallback((section: Section) => {
     const API_URL = import.meta.env.VITE_API_URL || "https://visualtasteworker.franciscotortosaestudios.workers.dev";
-
     const iconFile = section.icon_url || section.iconurl;
 
     if (iconFile) {
@@ -104,19 +82,19 @@ const SectionBar: React.FC<SectionBarProps> = ({
     }
   }, [currentSectionIndex, sections.length]);
 
-  const SectionIcon: React.FC<{ section: Section; size: number; isActive: boolean }> = ({
+  const SectionIcon: React.FC<{ section: Section; isActive: boolean }> = ({
     section,
-    size,
     isActive
   }) => {
     const iconUrl = getSectionIconUrl(section);
     const [imageError, setImageError] = React.useState(false);
+    const iconSize = 24;
 
     return (
       <Box
         sx={{
-          width: size,
-          height: size,
+          width: iconSize,
+          height: iconSize,
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',
@@ -126,9 +104,9 @@ const SectionBar: React.FC<SectionBarProps> = ({
         {iconUrl && !imageError ? (
           <Box
             sx={{
-              width: size * 0.6,
-              height: size * 0.6,
-              backgroundColor: themeColors.secondary,
+              width: iconSize,
+              height: iconSize,
+              backgroundColor: isActive ? themeColors.secondary : 'rgba(255, 255, 255, 0.7)',
               WebkitMaskImage: `url(${iconUrl})`,
               maskImage: `url(${iconUrl})`,
               WebkitMaskSize: 'contain',
@@ -137,8 +115,7 @@ const SectionBar: React.FC<SectionBarProps> = ({
               maskPosition: 'center',
               WebkitMaskRepeat: 'no-repeat',
               maskRepeat: 'no-repeat',
-              opacity: isActive ? 1 : 0.7,
-              transition: 'all 0.3s ease'
+              transition: 'all 0.25s ease-out'
             }}
           >
             <img
@@ -151,10 +128,9 @@ const SectionBar: React.FC<SectionBarProps> = ({
         ) : (
           <Restaurant
             sx={{
-              fontSize: size * 0.6,
-              color: themeColors.secondary,
-              opacity: isActive ? 1 : 0.7,
-              transition: 'all 0.3s ease'
+              fontSize: iconSize,
+              color: isActive ? themeColors.secondary : 'rgba(255, 255, 255, 0.7)',
+              transition: 'all 0.25s ease-out'
             }}
           />
         )}
@@ -173,27 +149,13 @@ const SectionBar: React.FC<SectionBarProps> = ({
         bottom: 0,
         left: 0,
         right: 0,
-        height: { xs: 110, sm: 100 },
-        background: 'rgba(0, 0, 0, 0.25)',
-        backdropFilter: 'blur(30px) saturate(180%)',
-        WebkitBackdropFilter: 'blur(30px) saturate(180%)',
-        maskImage: 'linear-gradient(0deg, black 60%, transparent 100%)',
-        WebkitMaskImage: 'linear-gradient(0deg, black 60%, transparent 100%)',
         zIndex: 1000,
-        display: 'flex',
-        alignItems: 'center',
-        px: { xs: 1, sm: 2 },
-        borderTop: '1px solid rgba(255, 255, 255, 0.15)',
-        '&::before': {
-          content: '""',
-          position: 'absolute',
-          top: '-20px',
-          left: 0,
-          right: 0,
-          height: '20px',
-          background: 'linear-gradient(0deg, rgba(0,0,0,0.15) 0%, transparent 100%)',
-          pointerEvents: 'none'
-        }
+        background: 'linear-gradient(180deg, transparent 0%, rgba(0, 0, 0, 0.3) 20%, rgba(0, 0, 0, 0.6) 100%)',
+        backdropFilter: 'blur(16px)',
+        WebkitBackdropFilter: 'blur(16px)',
+        borderTop: '1px solid rgba(255, 255, 255, 0.08)',
+        pb: { xs: 'env(safe-area-inset-bottom, 8px)', sm: 1 },
+        pt: { xs: 1.5, sm: 1.5 }
       }}
     >
       <Box
@@ -201,7 +163,6 @@ const SectionBar: React.FC<SectionBarProps> = ({
         sx={{
           display: 'flex',
           alignItems: 'center',
-          gap: sections.length > 4 ? { xs: 0.5, sm: 1 } : { xs: 1, sm: 1.5 },
           width: '100%',
           overflowX: 'auto',
           overflowY: 'hidden',
@@ -209,134 +170,229 @@ const SectionBar: React.FC<SectionBarProps> = ({
           '&::-webkit-scrollbar': {
             display: 'none'
           },
-          px: sections.length <= 4 ? 2 : 1,
+          px: { xs: 1, sm: 2 },
+          gap: { xs: 0, sm: 0 },
           justifyContent: sections.length <= 4 ? 'space-evenly' : 'flex-start'
         }}
       >
         {sections.map((section, index) => {
           const isActive = index === currentSectionIndex;
           const sectionName = getSectionName(section);
+          const shouldScroll = isActive && sectionName.length > 12;
 
           return (
-            <motion.div
-              key={`section-${section.id}-${index}`}
-              initial={{ scale: 0.8, opacity: 0, y: 20 }}
-              animate={{ scale: 1, opacity: 1, y: 0 }}
-              transition={{
-                delay: index * 0.08,
-                type: 'spring',
-                stiffness: 200,
-                damping: 20
-              }}
-              whileTap={{ scale: 0.95 }}
-              style={{ flexShrink: 0 }}
-            >
-              <Box
-                component="button"
-                onClick={() => handleSectionClick(index)}
-                sx={{
+            <React.Fragment key={`section-${section.id}-${index}`}>
+              <motion.div
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{
+                  delay: index * 0.04,
+                  type: 'spring',
+                  stiffness: 300,
+                  damping: 24
+                }}
+                style={{
+                  flex: sections.length <= 4 ? 1 : '0 0 auto',
                   display: 'flex',
-                  flexDirection: 'column',
-                  alignItems: 'center',
                   justifyContent: 'center',
-                  minWidth: sectionSizing.minWidth,
-                  maxWidth: sections.length > 4 ? sectionSizing.minWidth + 10 : 'none',
-                  height: { xs: 85, sm: 80 },
-                  cursor: 'pointer',
-                  position: 'relative',
-                  transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
-                  transform: isActive ? 'translateY(-8px)' : 'translateY(0)',
-                  border: 'none',
-                  background: 'transparent',
-                  padding: 0,
-                  outline: 'none',
-                  '&:hover': {
-                    transform: isActive
-                      ? 'translateY(-8px) scale(1.05)'
-                      : 'translateY(-4px) scale(1.02)',
-                  }
+                  transform: isActive ? 'scale(1.08)' : 'scale(1)',
+                  transition: 'transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1)'
                 }}
               >
-                <Box sx={{ mb: 0.5 }}>
-                  <Box
-                    sx={{
-                      width: isActive ? sectionSizing.iconSize.active : sectionSizing.iconSize.inactive,
-                      height: isActive ? sectionSizing.iconSize.active : sectionSizing.iconSize.inactive,
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      position: 'relative',
-                      borderRadius: '50%',
-                      bgcolor: isActive
-                        ? 'rgba(255, 255, 255, 0.25)'
-                        : 'rgba(255, 255, 255, 0.15)',
-                      backdropFilter: 'blur(20px)',
-                      border: `1px solid ${isActive ? 'rgba(255, 255, 255, 0.4)' : 'rgba(255, 255, 255, 0.25)'}`,
-                      transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
-                      boxShadow: isActive
-                        ? '0 4px 16px rgba(0, 0, 0, 0.2)'
-                        : '0 2px 8px rgba(0, 0, 0, 0.1)'
-                    }}
-                  >
-                    <SectionIcon
-                      section={section}
-                      size={isActive ? sectionSizing.iconSize.active : sectionSizing.iconSize.inactive}
-                      isActive={isActive}
-                    />
-                  </Box>
-                </Box>
-
-                <Typography
-                  variant="caption"
+                <Box
+                  component="button"
+                  onClick={() => handleSectionClick(index)}
                   sx={{
-                    color: isActive ? themeColors.secondary : 'rgba(255, 255, 255, 0.9)',
-                    fontWeight: isActive ? 700 : 500,
-                    fontSize: sectionSizing.fontSize,
-                    textAlign: 'center',
-                    lineHeight: 1.2,
-                    maxWidth: sectionSizing.minWidth - 8,
-                    overflow: 'hidden',
-                    textOverflow: 'ellipsis',
-                    whiteSpace: sectionName.length > 12 ? 'nowrap' : 'normal',
-                    transition: 'all 0.3s ease',
-                    textShadow: `
-                      0 2px 4px rgba(0, 0, 0, 0.4),
-                      0 4px 8px rgba(0, 0, 0, 0.3),
-                      0 1px 0 rgba(0, 0, 0, 0.6)
-                    `,
-                    letterSpacing: '0.2px',
-                    filter: 'drop-shadow(0 2px 4px rgba(0, 0, 0, 0.2))'
+                    display: 'flex',
+                    flexDirection: 'column',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: 0.75,
+                    minWidth: isActive ? { xs: 82, sm: 92 } : { xs: 72, sm: 80 },
+                    py: 1,
+                    cursor: 'pointer',
+                    position: 'relative',
+                    transition: 'all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1)',
+                    border: 'none',
+                    background: 'transparent',
+                    outline: 'none',
+                    '&:active': {
+                      transform: 'scale(0.96)'
+                    }
                   }}
                 >
-                  {sectionName}
-                </Typography>
-
-                <AnimatePresence>
-                  {isActive && (
-                    <motion.div
-                      initial={{ scale: 0, opacity: 0 }}
-                      animate={{ scale: 1, opacity: 1 }}
-                      exit={{ scale: 0, opacity: 0 }}
-                      transition={{ delay: 0.1, type: 'spring', stiffness: 300 }}
-                      style={{
-                        position: 'absolute',
-                        bottom: -4,
-                        left: '50%',
-                        transform: 'translateX(-50%)',
-                        width: 6,
-                        height: 6,
+                  {/* Icon Container */}
+                  <motion.div
+                    animate={isActive ? {
+                      scale: [1, 1.1, 1],
+                      rotate: [0, 5, -5, 0]
+                    } : {}}
+                    transition={{
+                      duration: 0.6,
+                      ease: "easeInOut",
+                      times: [0, 0.3, 0.6, 1]
+                    }}
+                  >
+                    <Box
+                      sx={{
+                        width: { xs: 48, sm: 52 },
+                        height: { xs: 48, sm: 52 },
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        position: 'relative',
                         borderRadius: '50%',
-                        backgroundColor: themeColors.secondary,
-                        boxShadow: `0 0 12px ${themeColors.secondary}cc, 0 0 4px ${themeColors.secondary}`
+                        border: `2px solid ${isActive ? themeColors.secondary : 'rgba(255, 255, 255, 0.15)'}`,
+                        background: isActive
+                          ? `linear-gradient(135deg, ${themeColors.secondary}20, transparent)`
+                          : 'transparent',
+                        transition: 'all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1)',
+                        boxShadow: isActive
+                          ? `0 0 0 4px ${themeColors.secondary}10, 0 4px 12px ${themeColors.secondary}30`
+                          : 'none',
+                        '&:hover': {
+                          transform: !isActive ? 'rotate(5deg)' : 'none',
+                          borderColor: !isActive ? 'rgba(255, 255, 255, 0.3)' : themeColors.secondary
+                        },
+                        '&::after': isActive ? {
+                          content: '""',
+                          position: 'absolute',
+                          inset: -8,
+                          borderRadius: '50%',
+                          background: `radial-gradient(circle, ${themeColors.secondary}25, transparent 70%)`,
+                          zIndex: -1,
+                          animation: 'pulse 2s ease-in-out infinite'
+                        } : {}
                       }}
-                    />
-                  )}
-                </AnimatePresence>
-              </Box>
-            </motion.div>
+                    >
+                      <motion.div
+                        animate={isActive ? {
+                          scale: [1, 1.15, 1]
+                        } : {}}
+                        transition={{
+                          duration: 0.5,
+                          repeat: Infinity,
+                          repeatDelay: 2,
+                          ease: "easeInOut"
+                        }}
+                      >
+                        <SectionIcon section={section} isActive={isActive} />
+                      </motion.div>
+                    </Box>
+                  </motion.div>
+
+                  {/* Section Name with Marquee Effect */}
+                  <Box
+                    sx={{
+                      maxWidth: isActive ? { xs: '100px', sm: '120px' } : { xs: '68px', sm: '76px' },
+                      overflow: 'hidden',
+                      position: 'relative',
+                      transition: 'all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1)'
+                    }}
+                  >
+                    <Typography
+                      component="div"
+                      sx={{
+                        color: isActive ? themeColors.text : 'rgba(255, 255, 255, 0.75)',
+                        fontWeight: isActive ? 600 : 400,
+                        fontSize: isActive
+                          ? { xs: '0.75rem', sm: '0.813rem' }
+                          : { xs: '0.688rem', sm: '0.75rem' },
+                        lineHeight: 1.2,
+                        textAlign: 'center',
+                        overflow: 'hidden',
+                        textOverflow: shouldScroll ? 'initial' : 'ellipsis',
+                        whiteSpace: 'nowrap',
+                        transition: 'all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1)',
+                        letterSpacing: '0.02em',
+                        textTransform: 'capitalize',
+                        textShadow: isActive
+                          ? `0 1px 3px rgba(0, 0, 0, 0.3), 0 0 8px ${themeColors.secondary}40`
+                          : 'none',
+                        ...(shouldScroll ? {
+                          animation: 'marquee 8s linear infinite',
+                          paddingRight: '20px',
+                          display: 'inline-block',
+                          '&::after': {
+                            content: `"  •  ${sectionName}"`,
+                            paddingLeft: '20px'
+                          }
+                        } : {})
+                      }}
+                    >
+                      {sectionName}
+                    </Typography>
+                  </Box>
+
+                  {/* Active Indicator Line */}
+                  <AnimatePresence>
+                    {isActive && (
+                      <motion.div
+                        layoutId="activeIndicator"
+                        initial={{ scaleX: 0, opacity: 0 }}
+                        animate={{ scaleX: 1, opacity: 1 }}
+                        exit={{ scaleX: 0, opacity: 0 }}
+                        transition={{
+                          type: 'spring',
+                          stiffness: 380,
+                          damping: 30
+                        }}
+                        style={{
+                          position: 'absolute',
+                          bottom: -8,
+                          left: '50%',
+                          transform: 'translateX(-50%)',
+                          width: '60%',
+                          height: 3,
+                          borderRadius: '2px',
+                          background: `linear-gradient(90deg, transparent, ${themeColors.secondary}, transparent)`,
+                          boxShadow: `0 0 8px ${themeColors.secondary}80`
+                        }}
+                      />
+                    )}
+                  </AnimatePresence>
+                </Box>
+              </motion.div>
+
+              {/* Divider between sections (except last) */}
+              {index < sections.length - 1 && sections.length > 4 && (
+                <Box
+                  sx={{
+                    width: '1px',
+                    height: 32,
+                    background: 'linear-gradient(180deg, transparent, rgba(255, 255, 255, 0.1), transparent)',
+                    margin: 'auto 0',
+                    flexShrink: 0
+                  }}
+                />
+              )}
+            </React.Fragment>
           );
         })}
       </Box>
+
+      {/* Global CSS animations */}
+      <style>
+        {`
+          @keyframes pulse {
+            0%, 100% {
+              opacity: 0.6;
+            }
+            50% {
+              opacity: 1;
+            }
+          }
+
+          @keyframes marquee {
+            0% {
+              transform: translateX(0);
+            }
+            100% {
+              transform: translateX(-50%);
+            }
+          }
+        `}
+      </style>
     </Box>
   );
 };

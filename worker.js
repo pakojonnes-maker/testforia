@@ -2,16 +2,16 @@
 
 import { handleDashboardRequests } from './workerDashboard.js';
 import { handleAuthRequests } from './workerAuthentication.js';
-// import { handleAnalyticsRequests } from './workerAnalytics.js';
-// import { handleAllergensRequests } from './workerAllergens.js';
-// import { handleMenuRequests } from './workerMenus.js';
+import { handleAnalyticsRequests } from './workerAnalytics.js';
+import { handleAllergensRequests } from './workerAllergens.js';
+import { handleMenuRequests } from './workerMenus.js';
 import { handleDishRequests } from './workerDishes.js';
 import { handleSectionRequests } from './workerSections.js';
 import { handleRestaurantRequests } from './workerRestaurants.js';
-// import { handleReelsRequests } from './workerReels.js';
+import { handleReelsRequests } from './workerReels.js';
 import { handleMediaRequests } from './workerMedia.optimized.js';
-// import { handleTracking } from './workerTracking.js'; 
-// import { handleLandingRequests } from './workerLanding.js';
+import { handleTracking } from './workerTracking.js';
+import { handleLandingRequests } from './workerLanding.js';
 import { handleLandingAdminRequests } from './workerLandingAdmin.js';
 
 const corsHeaders = {
@@ -43,40 +43,25 @@ export default {
             const url = new URL(request.url);
             console.log(`[Worker] ${request.method} ${url.pathname}`);
 
-            // AUTH
-            if (url.pathname.startsWith('/auth')) {
-                const authResponse = await handleAuthRequests(request, env);
-                if (authResponse) return authResponse;
+            // ALÉRGENOS
+            if (url.pathname === "/allergens") {
+                console.log("[Worker] → Allergens");
+                const allergensResponse = await handleAllergensRequests(request, env);
+                if (allergensResponse) return allergensResponse;
             }
 
-            // DASHBOARD
-            if (url.pathname.startsWith('/dashboard')) {
-                const dashboardResponse = await handleDashboardRequests(request, env);
-                if (dashboardResponse) return dashboardResponse;
+            // TRACKING
+            if (url.pathname.startsWith('/track/')) {
+                console.log('[Worker] → Tracking');
+                const trackingResponse = await handleTracking(request, env, ctx);
+                if (trackingResponse) return trackingResponse;
             }
 
-            // DISHES
-            if (url.pathname.startsWith('/dishes')) {
-                const dishesResponse = await handleDishRequests(request, env);
-                if (dishesResponse) return dishesResponse;
-            }
-
-            // SECTIONS
-            if (url.pathname.startsWith('/sections')) {
-                const sectionsResponse = await handleSectionRequests(request, env);
-                if (sectionsResponse) return sectionsResponse;
-            }
-
-            // RESTAURANTS
-            if (url.pathname.startsWith('/restaurants')) {
-                const restaurantsResponse = await handleRestaurantRequests(request, env);
-                if (restaurantsResponse) return restaurantsResponse;
-            }
-
-            // MEDIA
-            if (url.pathname.startsWith('/media')) {
-                const mediaResponse = await handleMediaRequests(request, env);
-                if (mediaResponse) return mediaResponse;
+            // ⭐ LANDING PÚBLICO (debe ir ANTES de restaurants y landing-sections)
+            if (url.pathname.match(/^\/restaurants\/[^/]+\/landing$/)) {
+                console.log('[Worker] → Landing (público)');
+                const landingResponse = await handleLandingRequests(request, env);
+                if (landingResponse) return landingResponse;
             }
 
             // LANDING ADMIN
@@ -86,7 +71,54 @@ export default {
                 if (adminLandingResponse) return adminLandingResponse;
             }
 
-            return createResponse({ success: false, message: "Ruta no encontrada" }, 404);
+            // LANDING SECTIONS (config)
+            if (url.pathname.includes('/landing-sections')) {
+                console.log('[Worker] → Landing Sections');
+                const landingResponse = await handleLandingRequests(request, env);
+                if (landingResponse) return landingResponse;
+            }
+
+            // MEDIA
+            const mediaResponse = await handleMediaRequests(request, env);
+            if (mediaResponse) return mediaResponse;
+
+            // REELS
+            const reelsResponse = await handleReelsRequests(request, env);
+            if (reelsResponse) return reelsResponse;
+
+            // RESTAURANTES (ahora va DESPUÉS de landing)
+            const restaurantResponse = await handleRestaurantRequests(request, env);
+            if (restaurantResponse) return restaurantResponse;
+
+            // AUTENTICACIÓN
+            const authResponse = await handleAuthRequests(request, env);
+            if (authResponse) return authResponse;
+
+            // ANALYTICS
+            const analyticsResponse = await handleAnalyticsRequests(request, env);
+            if (analyticsResponse) return analyticsResponse;
+
+            // DASHBOARD
+            const dashboardResponse = await handleDashboardRequests(request, env);
+            if (dashboardResponse) return dashboardResponse;
+
+            // DISHES
+            const dishesResponse = await handleDishRequests(request, env);
+            if (dishesResponse) return dishesResponse;
+
+            // SECTIONS
+            const sectionsResponse = await handleSectionRequests(request, env);
+            if (sectionsResponse) return sectionsResponse;
+
+            // MENUS
+            const menusResponse = await handleMenuRequests(request, env);
+            if (menusResponse) return menusResponse;
+
+            // NOT FOUND
+            return createResponse({
+                success: false,
+                message: "Endpoint no encontrado"
+            }, 404);
 
         } catch (error) {
             console.error("[Worker] Error general:", error);

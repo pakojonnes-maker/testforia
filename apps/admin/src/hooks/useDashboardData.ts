@@ -5,6 +5,7 @@ import { useMemo } from 'react';
 import { apiClient } from '../lib/apiClient';
 import { generateAlerts } from '../lib/utils/alertGenerator';
 import { generateRecommendations } from '../lib/utils/recommendationGenerator';
+import { useIdleDetection } from './useIdleDetection';
 import type { DashboardData, DashboardPeriod } from '../types/dashboard';
 
 /**
@@ -17,21 +18,40 @@ export function useDashboardData(
     restaurantId: string | undefined,
     period: DashboardPeriod = '7d'
 ): DashboardData {
+    // ✅ Detección de inactividad - Pausar queries cuando el usuario está inactivo
+    const { isIdle } = useIdleDetection({
+        idleTimeout: 5 * 60 * 1000, // 5 minutos sin actividad = inactivo
+        logoutTimeout: 30 * 60 * 1000, // 30 minutos sin actividad = auto-logout
+        onIdle: () => {
+            console.log('[Dashboard] Usuario inactivo - pausando auto-refresh');
+        },
+        onActive: () => {
+            console.log('[Dashboard] Usuario activo - reanudando auto-refresh');
+        },
+        enabled: true
+    });
+
     // Summary metrics (today vs yesterday)
+    // ✅ Solo auto-refresh si el usuario NO está inactivo
     const { data: summary, isLoading: loadingSummary } = useQuery({
         queryKey: ['dashboard-summary', restaurantId, period],
         queryFn: () => apiClient.getDashboardSummary(restaurantId!, period),
         enabled: !!restaurantId,
-        refetchInterval: 5 * 60 * 1000, // Auto-refresh every 5 minutes
-        staleTime: 2 * 60 * 1000 // Consider data fresh for 2 minutes
+        refetchInterval: isIdle ? false : 30 * 60 * 1000, // 30 min cuando activo, deshabilitado cuando inactivo
+        staleTime: 10 * 60 * 1000 // Datos frescos por 10 minutos
     });
 
     // Top performing dishes
     const { data: topDishes, isLoading: loadingDishes } = useQuery({
         queryKey: ['dashboard-top-dishes', restaurantId, period],
-        queryFn: () => apiClient.getTopDishes(restaurantId!, period),
+        queryFn: () => {
+            // getTopDishes solo acepta '7d' | '30d', si es '1d' usar '7d'
+            const validPeriod = period === '1d' ? '7d' : period;
+            return apiClient.getTopDishes(restaurantId!, validPeriod);
+        },
         enabled: !!restaurantId,
-        staleTime: 2 * 60 * 1000
+        refetchInterval: isIdle ? false : 30 * 60 * 1000,
+        staleTime: 10 * 60 * 1000
     });
 
     // Content health check
@@ -39,7 +59,8 @@ export function useDashboardData(
         queryKey: ['dashboard-content-health', restaurantId],
         queryFn: () => apiClient.getContentHealth(restaurantId!),
         enabled: !!restaurantId,
-        staleTime: 5 * 60 * 1000 // Less frequent updates needed
+        refetchInterval: isIdle ? false : 60 * 60 * 1000, // 1 hora
+        staleTime: 30 * 60 * 1000
     });
 
     // QR code statistics
@@ -47,7 +68,8 @@ export function useDashboardData(
         queryKey: ['dashboard-qr-stats', restaurantId],
         queryFn: () => apiClient.getQRBreakdown(restaurantId!),
         enabled: !!restaurantId,
-        staleTime: 5 * 60 * 1000
+        refetchInterval: isIdle ? false : 60 * 60 * 1000, // 1 hora
+        staleTime: 30 * 60 * 1000
     });
 
     // Stagnant dishes (low performance)
@@ -55,7 +77,8 @@ export function useDashboardData(
         queryKey: ['dashboard-stagnant', restaurantId],
         queryFn: () => apiClient.getStagnantDishes(restaurantId!, 7),
         enabled: !!restaurantId,
-        staleTime: 10 * 60 * 1000 // Even less frequent
+        refetchInterval: isIdle ? false : 60 * 60 * 1000, // 1 hora
+        staleTime: 30 * 60 * 1000
     });
 
     // Overall loading state
@@ -89,6 +112,7 @@ export function useDashboardData(
         stagnantDishes,
         alerts,
         recommendations,
-        isLoading
+        isLoading,
+        isIdle // ✅ Indicador de inactividad para la UI
     };
 }

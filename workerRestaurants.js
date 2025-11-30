@@ -70,13 +70,14 @@ export async function handleRestaurantRequests(request, env) {
         }
 
         // PROTECTED ROUTES
-        const userData = await authenticateRequest(request);
-        if (!userData) {
-            return createResponse({ success: false, message: "Unauthorized" }, 401);
-        }
 
         // PUT /restaurants/:id (Update basic info)
         if (method === "PUT" && path.match(/^\/restaurants\/[^/]+$/)) {
+            const userData = await authenticateRequest(request);
+            if (!userData) {
+                return createResponse({ success: false, message: "Unauthorized" }, 401);
+            }
+
             const restaurantId = path.split('/')[2];
             const data = await request.json();
 
@@ -91,6 +92,11 @@ export async function handleRestaurantRequests(request, env) {
 
         // PUT /restaurants/:id/styling (Update colors)
         if (method === "PUT" && path.match(/^\/restaurants\/[^/]+\/styling$/)) {
+            const userData = await authenticateRequest(request);
+            if (!userData) {
+                return createResponse({ success: false, message: "Unauthorized" }, 401);
+            }
+
             const restaurantId = path.split('/')[2];
             const data = await request.json(); // { primary_color, secondary_color, ... }
 
