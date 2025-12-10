@@ -20,11 +20,11 @@ const MinimalTemplate: React.FC<MinimalTemplateProps> = ({
         position: 'relative',
         width: '100%',
         height: '100%',
-        bgcolor: config.colors.background,
+        bgcolor: config.restaurant?.branding?.background_color || config.restaurant?.branding?.backgroundColor || '#000000',
         fontFamily: "'Inter', -apple-system, sans-serif"
       }}
     >
-      {children}
+      {(children as any)}
     </Box>
   );
 };

@@ -3,12 +3,15 @@ import React from 'react';
 import { Box, Typography, IconButton, alpha } from '@mui/material';
 import { motion } from 'framer-motion';
 import { ArrowBack } from '@mui/icons-material';
-import type { ReelColors } from '../../../../hooks/useReelsConfig';
-
 interface PremiumHeaderProps {
   restaurantName: string;
   onClose?: () => void;
-  colors: ReelColors;
+  colors: {
+    primary: string;
+    secondary: string;
+    text: string;
+    background: string;
+  };
   glassmorphism: boolean;
   blurIntensity: number;
 }
@@ -51,12 +54,12 @@ const PremiumHeader: React.FC<PremiumHeaderProps> = ({
               onClick={onClose}
               sx={{
                 color: colors.text,
-                bgcolor: glassmorphism 
-                  ? alpha(colors.text, 0.15) 
+                bgcolor: glassmorphism
+                  ? alpha(colors.text, 0.15)
                   : alpha(colors.text, 0.1),
                 backdropFilter: 'blur(10px)',
                 border: `1px solid ${alpha(colors.text, 0.2)}`,
-                '&:hover': { 
+                '&:hover': {
                   bgcolor: alpha(colors.text, 0.25),
                   transform: 'scale(1.05)'
                 },
@@ -66,7 +69,7 @@ const PremiumHeader: React.FC<PremiumHeaderProps> = ({
               <ArrowBack />
             </IconButton>
           )}
-          
+
           <Box sx={{ flex: 1, textAlign: 'center', px: 2 }}>
             <Typography
               variant="h5"
@@ -81,7 +84,7 @@ const PremiumHeader: React.FC<PremiumHeaderProps> = ({
               {restaurantName}
             </Typography>
           </Box>
-          
+
           <Box sx={{ width: 48 }} />
         </Box>
       </Box>

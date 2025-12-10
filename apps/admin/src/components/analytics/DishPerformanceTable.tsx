@@ -48,7 +48,7 @@ export default function DishPerformanceTable({ dishes, compact = false }: Props)
                                 <TableCell>Plato</TableCell>
                                 <TableCell align="right">Vistas</TableCell>
                                 <TableCell align="right">Favoritos</TableCell>
-                                <TableCell align="right">Rating</TableCell>
+                                {/* <TableCell align="right">Rating</TableCell> */}
                                 <TableCell align="right">Engagement</TableCell>
                             </TableRow>
                         </TableHead>
@@ -66,11 +66,11 @@ export default function DishPerformanceTable({ dishes, compact = false }: Props)
                                             <Chip label={(dish?.views || 0).toLocaleString()} size="small" color="primary" variant="outlined" />
                                         </TableCell>
                                         <TableCell align="right">{dish?.favorites || 0}</TableCell>
-                                        <TableCell align="right">
+                                        {/* <TableCell align="right">
                                             {dish.avg_rating > 0 ? (
                                                 <Chip label={dish.avg_rating.toFixed(1)} size="small" color="success" />
                                             ) : '-'}
-                                        </TableCell>
+                                        </TableCell> */}
                                         <TableCell align="right">
                                             <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 1 }}>
                                                 <LinearProgress

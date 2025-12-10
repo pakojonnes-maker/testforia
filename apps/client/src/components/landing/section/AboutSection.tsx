@@ -1,6 +1,6 @@
 // apps/client/src/components/landing/section/AboutSection.tsx
 import { Box, Typography, Container, Grid, Stack, Chip } from '@mui/material';
-import { CheckCircle, EmojiEvents, Favorite, LocalDining } from '@mui/icons-material';
+import { EmojiEvents, Favorite, LocalDining } from '@mui/icons-material';
 
 interface Props {
   restaurant: any;
@@ -10,7 +10,7 @@ interface Props {
   config: any;
 }
 
-export default function AboutSection({ restaurant, translations, theme, variant, config }: Props) {
+export default function AboutSection({ restaurant, translations, theme, variant: _variant, config }: Props) {
   const imagePosition = config.image_position || 'right';
 
   const features = [

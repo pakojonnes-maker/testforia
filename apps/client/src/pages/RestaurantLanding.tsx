@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useParams } from 'react-router-dom';
 import { Box, CircularProgress, Alert, Container } from '@mui/material';
+import { LanguageProvider, useLanguage } from '../contexts/LanguageContext';
 
 import HeroSection from '../components/landing/section/HeroSection';
 import HeroPremiumSection from '../components/landing/section/HeroPremiumSection';
@@ -28,11 +29,9 @@ const API_URL = import.meta.env.VITE_API_URL || 'https://visualtasteworker.franc
 
 type Props = { slugProp?: string };
 
-export default function RestaurantLanding({ slugProp }: Props) {
-  const { slug: slugParam } = useParams<{ slug: string }>();
-  const slug = slugProp || slugParam;
-
-  const [language, setLanguage] = useState('es');
+// ✅ Component interno que usa el Language Context
+function RestaurantLandingContent({ slug }: { slug: string }) {
+  const { currentLanguage } = useLanguage(); // ✅ NUEVO: Usar idioma del contexto
   const [data, setData] = useState<any>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -42,7 +41,7 @@ export default function RestaurantLanding({ slugProp }: Props) {
     const fetchLandingData = async () => {
       setIsLoading(true); setError(null);
       try {
-        const url = `${API_URL}/restaurants/${slug}/landing?lang=${language}`;
+        const url = `${API_URL}/restaurants/${slug}/landing?lang=${currentLanguage}`; // ✅ Usar currentLanguage del contexto
         const response = await fetch(url);
         if (!response.ok) throw new Error(`HTTP ${response.status}`);
         const json = await response.json();
@@ -55,24 +54,24 @@ export default function RestaurantLanding({ slugProp }: Props) {
       }
     };
     fetchLandingData();
-  }, [slug, language]);
+  }, [slug, currentLanguage]); // ✅ Dependencia actualizada
 
   useEffect(() => {
     if (!data?.data) return;
     const { restaurant, seo } = data.data;
     document.title = seo?.seo_title || restaurant?.name || 'Restaurant';
     let meta = document.querySelector('meta[name="description"]');
-    if (!meta) { 
-      meta = document.createElement('meta'); 
-      meta.setAttribute('name', 'description'); 
-      document.head.appendChild(meta); 
+    if (!meta) {
+      meta = document.createElement('meta');
+      meta.setAttribute('name', 'description');
+      document.head.appendChild(meta);
     }
     meta.setAttribute('content', seo?.seo_description || restaurant?.description || '');
   }, [data]);
 
   if (isLoading) {
     return (
-      <Box sx={{ display:'flex', justifyContent:'center', alignItems:'center', minHeight:'100vh', backgroundColor:'#f5f7fa' }}>
+      <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '100vh', backgroundColor: '#f5f7fa' }}>
         <CircularProgress size={60} />
       </Box>
     );
@@ -101,7 +100,12 @@ export default function RestaurantLanding({ slugProp }: Props) {
     restaurant_media = {}, // ✅ DEFAULT para evitar crash si el worker es viejo
     details,
     assets,
+    ui = {}, // ✅ NUEVO: UI strings traducidos
+    currentLanguage: dataLanguage, // ✅ NUEVO: Idioma del backend
   } = data.data;
+
+  // ✅ Usar el idioma del backend como fuente de verdad
+  const effectiveLanguage = dataLanguage || currentLanguage;
 
   const activeSections =
     (sections || [])
@@ -111,7 +115,14 @@ export default function RestaurantLanding({ slugProp }: Props) {
   const headerSection = activeSections.find((s: any) => s.section_key === 'header');
 
   return (
-    <Box sx={{ position:'relative', minHeight:'100vh', backgroundColor: theme?.background_color || '#fff' }}>
+    <Box sx={{ 
+      position: 'relative', 
+      minHeight: '100vh', 
+      backgroundColor: theme?.accent_color || theme?.background_color || '#fff',
+      backgroundImage: 'url(https://visualtasteworker.franciscotortosaestudios.workers.dev/media/System/landing/patron.png)',
+      backgroundRepeat: 'repeat',
+      backgroundSize: '300px' // Adjust size as needed
+    }}>
       {/* Header */}
       {headerSection && (
         <HeaderNav
@@ -121,8 +132,8 @@ export default function RestaurantLanding({ slugProp }: Props) {
           translations={translations}
           config={headerSection?.config_data}
           languages={languages}
-          currentLanguage={language}
-          onLanguageChange={setLanguage}
+          currentLanguage={effectiveLanguage}
+        // onLanguageChange ya no es necesario, HeaderNav usará setLanguage del context
         />
       )}
 
@@ -150,6 +161,8 @@ export default function RestaurantLanding({ slugProp }: Props) {
                   config={config}
                   restaurant_media={restaurant_media}
                   assets={assets}
+                  ui={ui}
+                  currentLanguage={effectiveLanguage}
                 />
               </div>
             );
@@ -182,6 +195,8 @@ export default function RestaurantLanding({ slugProp }: Props) {
                   content={content}
                   labels={labels}
                   restaurant_media={restaurant_media} // ✅ Pasa el objeto seguro
+                  ui={ui}
+                  currentLanguage={effectiveLanguage}
                 />
               </div>
             );
@@ -263,7 +278,7 @@ export default function RestaurantLanding({ slugProp }: Props) {
           // Fix de compatibilidad para Galería Estándar si el worker nuevo devuelve objetos
           let standardGallery = gallery;
           if (key === 'gallery' && Array.isArray(gallery) && gallery.length > 0 && typeof gallery[0] === 'object') {
-             standardGallery = gallery.map((item:any) => item.image_url);
+            standardGallery = gallery.map((item: any) => item.image_url);
           }
 
           return (
@@ -285,5 +300,26 @@ export default function RestaurantLanding({ slugProp }: Props) {
         })
       )}
     </Box>
+  );
+}
+
+// \u2705 Wrapper component que inicializa el LanguageProvider
+export default function RestaurantLanding({ slugProp }: Props) {
+  const { slug: slugParam } = useParams<{ slug: string }>();
+  const slug = slugProp || slugParam;
+
+  if (!slug) {
+    return (
+      <Container maxWidth="md" sx={{ py: 8 }}>
+        <Alert severity="error">No se proporcionó un slug de restaurante</Alert>
+      </Container>
+    );
+  }
+
+  // \u2705 Envolver con LanguageProvider pasando el slug como restaurantId
+  return (
+    <LanguageProvider restaurantId={slug}>
+      <RestaurantLandingContent slug={slug} />
+    </LanguageProvider>
   );
 }

@@ -8,7 +8,9 @@ import HomePage from './pages/HomePage';
 import ReelsView from './pages/ReelsView';
 import RestaurantLanding from './pages/RestaurantLanding';
 import NotFoundPage from './pages/NotFoundPage';
+import PrivacyPolicyPage from './pages/PrivacyPolicyPage'; // ✅ Import
 import '@fontsource-variable/fraunces/index.css'
+
 // ✅ Tema personalizado adaptable
 const createCustomTheme = (primaryColor?: string, secondaryColor?: string) => createTheme({
   palette: {
@@ -52,44 +54,46 @@ function App() {
   // Extraer slug de cualquier ruta
   const slug = useMemo(() => {
     const path = location.pathname;
-    
+
     if (path === '/') return null;
-    
+    if (path.startsWith('/legal/')) return null; // ✅ Ignorar slug para legal
+
     // Formato nuevo: /yucas, /yucas/r
     const newFormatMatch = path.match(/^\/([^\/]+)/);
     if (newFormatMatch && !path.startsWith('/r/')) {
       return newFormatMatch[1];
     }
-    
+
     // Formato viejo: /r/yucas
     const oldFormatMatch = path.match(/^\/r\/([^\/]+)/);
     if (oldFormatMatch) {
       return oldFormatMatch[1];
     }
-    
+
     return null;
   }, [location.pathname]);
 
   // Determinar qué página mostrar
   const currentPage = useMemo(() => {
     const path = location.pathname;
-    
+
     if (path === '/') return 'home';
+    if (path.startsWith('/legal/privacy')) return 'privacy'; // ✅ Detectar pagina legal
     if (!slug) return 'notfound';
-    
+
     // Si tiene /r al final o formato viejo con /r/
     if (path.endsWith('/r') || path.includes('/r/') || path.includes('/section/') || path.includes('/dish/')) {
       return 'reels';
     }
-    
+
     // Si solo es el slug, mostrar landing
     return 'landing';
   }, [location.pathname, slug]);
 
   // ⭐ Cargar datos del restaurante SOLO para REELS
   useEffect(() => {
-    // ✅ Si no hay slug O si es landing, NO cargar datos aquí
-    if (!slug || currentPage === 'landing') {
+    // ✅ Si no hay slug O si es landing O legal, NO cargar datos aquí
+    if (!slug || currentPage === 'landing' || currentPage === 'privacy') {
       setRestaurantData(null);
       setLoading(false);
       return;
@@ -102,19 +106,19 @@ function App() {
       try {
         setLoading(true);
         setError(null);
-        
+
         console.log('🚀 [App] Cargando restaurante para REELS:', slug);
-        
-        const result = await apiClient.getRestaurantReelsData(slug);
-        
+
+        const result = await apiClient.getRestaurantReelsData(slug!);
+
         if (!isMounted) return;
 
         if (result?.restaurant) {
           console.log('✅ [App] Restaurante cargado:', result.restaurant.name);
-          
+
           setRestaurantData({
             ...result,
-            reelsConfig: result.reelsConfig || null
+            reelsConfig: (result as any).reelsConfig || null
           });
         } else {
           throw new Error('No se encontraron datos del restaurante');
@@ -122,7 +126,7 @@ function App() {
 
       } catch (err) {
         if (!isMounted) return;
-        
+
         const message = err instanceof Error ? err.message : 'Error desconocido';
         console.error('❌ [App] Error:', message);
         setError(message);
@@ -155,24 +159,29 @@ function App() {
       return <HomePage />;
     }
 
+    // ✅ Página de Privacidad
+    if (currentPage === 'privacy') {
+      return <PrivacyPolicyPage />;
+    }
+
     // Not found
     if (currentPage === 'notfound') {
       return <NotFoundPage />;
     }
 
 
-if (currentPage === 'landing') {
-  console.log('🏠 [App] Renderizando LANDING para:', slug);
-  return <RestaurantLanding slugProp={slug} />; // ← AÑADIR slugProp
-}
+    if (currentPage === 'landing') {
+      console.log('🏠 [App] Renderizando LANDING para:', slug);
+      return <RestaurantLanding slugProp={slug || undefined} />;
+    }
     // ✅ REELS - Necesita loading y context
     if (loading) {
       return (
-        <Box 
-          display="flex" 
-          flexDirection="column" 
-          alignItems="center" 
-          justifyContent="center" 
+        <Box
+          display="flex"
+          flexDirection="column"
+          alignItems="center"
+          justifyContent="center"
           minHeight="100vh"
           bgcolor="#000"
           color="#fff"
@@ -185,11 +194,11 @@ if (currentPage === 'landing') {
 
     if (error || !restaurantData?.restaurant) {
       return (
-        <Box 
-          display="flex" 
-          flexDirection="column" 
-          alignItems="center" 
-          justifyContent="center" 
+        <Box
+          display="flex"
+          flexDirection="column"
+          alignItems="center"
+          justifyContent="center"
           minHeight="100vh"
           bgcolor="#000"
           color="#fff"
@@ -201,7 +210,7 @@ if (currentPage === 'landing') {
           <Typography variant="body1" color="textSecondary" gutterBottom align="center">
             {error || `Restaurante "${slug}" no encontrado`}
           </Typography>
-          <button 
+          <button
             onClick={() => window.location.reload()}
             style={{
               marginTop: '16px',
@@ -232,10 +241,8 @@ if (currentPage === 'landing') {
 
     return (
       <RestaurantContext.Provider value={restaurantData}>
-        <TrackingAndPushProvider 
+        <TrackingAndPushProvider
           restaurantId={restaurantData.restaurant.id}
-          restaurantName={restaurantData.restaurant.name}
-          restaurantSlug={restaurantData.restaurant.slug}
         >
           <ReelsView />
         </TrackingAndPushProvider>

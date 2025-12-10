@@ -1,5 +1,6 @@
 // apps/client/src/components/landing/section/GalleryPremiumSection.tsx
-import React, { useMemo, useState } from 'react';
+import { useMemo, useState } from 'react';
+import { getUIString } from '../../../utils/i18n';
 
 type Theme = {
   primary_color?: string;
@@ -36,6 +37,8 @@ type Props = {
   translations?: any;
   config?: GalleryConfig;
   items?: GalleryItem[];     // Imágenes ya resueltas desde BD (landing + media)
+  ui?: Record<string, string>; // ✅ NUEVO
+  currentLanguage?: string; // ✅ NUEVO
 };
 
 const hexToRgba = (hex: string, a = 1) => {
@@ -60,6 +63,8 @@ export default function GalleryPremiumSection({
   translations,
   config,
   items = [],
+  ui,
+  currentLanguage: _currentLanguage = 'es',
 }: Props) {
   const BRAND_BG = theme?.background_color || '#071412';
   const BRAND_SURFACE = theme?.primary_color || '#102622';
@@ -99,26 +104,26 @@ export default function GalleryPremiumSection({
     cfg.aspect_ratio === 'portrait'
       ? '3 / 4'
       : cfg.aspect_ratio === 'landscape'
-      ? '4 / 3'
-      : '1 / 1';
+        ? '4 / 3'
+        : '1 / 1';
 
   const gapValue =
     cfg.gap === 'none'
       ? '0px'
       : cfg.gap === 'medium'
-      ? '18px'
-      : cfg.gap === 'large'
-      ? '26px'
-      : '12px';
+        ? '18px'
+        : cfg.gap === 'large'
+          ? '26px'
+          : '12px';
 
   const styles = `
     .gallery-prem-root{
       position:relative;
       padding:clamp(56px, 7vw, 84px) clamp(18px, 4vw, 32px);
       background: radial-gradient(circle at top left, ${hexToRgba(
-        BRAND_ACCENT,
-        0.12,
-      )} 0, transparent 55%), ${BRAND_BG};
+    BRAND_ACCENT,
+    0.12,
+  )} 0, transparent 55%), ${BRAND_BG};
       color:${TEXT_COLOR};
       overflow:hidden;
     }
@@ -142,7 +147,7 @@ export default function GalleryPremiumSection({
       gap:10px;
       padding:4px 14px;
       border-radius:999px;
-      border:1px solid ${hexToRgba(BRAND_ACCENT,0.7)};
+      border:1px solid ${hexToRgba(BRAND_ACCENT, 0.7)};
       color:${BRAND_ACCENT};
       font-size:11px;
       letter-spacing:0.22em;
@@ -151,7 +156,7 @@ export default function GalleryPremiumSection({
     .gallery-prem-badge span:nth-of-type(2){
       width:16px;
       height:1px;
-      background:${hexToRgba(BRAND_ACCENT,0.65)};
+      background:${hexToRgba(BRAND_ACCENT, 0.65)};
     }
 
     .gallery-prem-title{
@@ -167,7 +172,7 @@ export default function GalleryPremiumSection({
       margin:0;
       font-size:14px;
       line-height:1.7;
-      color:${hexToRgba(TEXT_COLOR,0.82)};
+      color:${hexToRgba(TEXT_COLOR, 0.82)};
     }
 
     /* Grid / Masonry */
@@ -189,12 +194,12 @@ export default function GalleryPremiumSection({
       border-radius:18px;
       overflow:hidden;
       background:${BRAND_SURFACE};
-      box-shadow:0 14px 40px ${hexToRgba('#000',0.35)};
+      box-shadow:0 14px 40px ${hexToRgba('#000', 0.35)};
       cursor:pointer;
       isolation:isolate;
       transform:translateY(0);
       transition:transform 0.28s ease, box-shadow 0.28s ease, border 0.28s ease;
-      border:1px solid ${hexToRgba('#FFFFFF',0.04)};
+      border:1px solid ${hexToRgba('#FFFFFF', 0.04)};
     }
 
     .gallery-prem-item::before{
@@ -203,9 +208,9 @@ export default function GalleryPremiumSection({
       inset:1px;
       border-radius:16px;
       background:radial-gradient(circle at top, ${hexToRgba(
-        BRAND_ACCENT,
-        0.15,
-      )} 0, transparent 55%);
+    BRAND_ACCENT,
+    0.15,
+  )} 0, transparent 55%);
       mix-blend-mode:soft-light;
       opacity:0;
       transition:opacity 0.25s ease;
@@ -232,9 +237,9 @@ export default function GalleryPremiumSection({
       position:absolute;
       inset:0;
       background:linear-gradient(to top, ${hexToRgba(
-        '#000000',
-        0.78,
-      )} 0, ${hexToRgba('#000000', 0.2)} 40%, transparent 80%);
+    '#000000',
+    0.78,
+  )} 0, ${hexToRgba('#000000', 0.2)} 40%, transparent 80%);
       display:flex;
       flex-direction:column;
       justify-content:flex-end;
@@ -254,13 +259,13 @@ export default function GalleryPremiumSection({
       font-size:11px;
       text-transform:uppercase;
       letter-spacing:0.16em;
-      color:${hexToRgba('#FFFFFF',0.85)};
+      color:${hexToRgba('#FFFFFF', 0.85)};
     }
 
     .gallery-prem-chip{
       padding:3px 10px;
       border-radius:999px;
-      background:${hexToRgba(BRAND_ACCENT,0.85)};
+      background:${hexToRgba(BRAND_ACCENT, 0.85)};
       color:#111;
       font-weight:600;
     }
@@ -268,8 +273,8 @@ export default function GalleryPremiumSection({
     .gallery-prem-count{
       padding:3px 8px;
       border-radius:999px;
-      border:1px solid ${hexToRgba('#FFFFFF',0.35)};
-      color:${hexToRgba('#FFFFFF',0.9)};
+      border:1px solid ${hexToRgba('#FFFFFF', 0.35)};
+      color:${hexToRgba('#FFFFFF', 0.9)};
     }
 
     .gallery-prem-cap-title{
@@ -284,7 +289,7 @@ export default function GalleryPremiumSection({
     .gallery-prem-cap-desc{
       margin:0;
       font-size:12px;
-      color:${hexToRgba('#FFFFFF',0.8)};
+      color:${hexToRgba('#FFFFFF', 0.8)};
       max-height:2.6em;
       overflow:hidden;
       text-overflow:ellipsis;
@@ -292,8 +297,8 @@ export default function GalleryPremiumSection({
 
     .gallery-prem-item:hover{
       transform:translateY(-6px);
-      box-shadow:0 18px 54px ${hexToRgba('#000',0.5)};
-      border-color:${hexToRgba(BRAND_ACCENT,0.8)};
+      box-shadow:0 18px 54px ${hexToRgba('#000', 0.5)};
+      border-color:${hexToRgba(BRAND_ACCENT, 0.8)};
     }
     .gallery-prem-item:hover .gallery-prem-media img{
       transform:scale(1.08);
@@ -309,9 +314,9 @@ export default function GalleryPremiumSection({
     /* Fallback caption (grid sin overlay) */
     .gallery-prem-meta{
       padding:10px 12px 13px;
-      border-top:1px solid ${hexToRgba('#FFFFFF',0.08)};
+      border-top:1px solid ${hexToRgba('#FFFFFF', 0.08)};
       font-size:12px;
-      color:${hexToRgba(TEXT_COLOR,0.82)};
+      color:${hexToRgba(TEXT_COLOR, 0.82)};
       display:flex;
       flex-direction:column;
       gap:3px;
@@ -332,9 +337,9 @@ export default function GalleryPremiumSection({
       align-items:center;
       justify-content:center;
       background:radial-gradient(circle at top, ${hexToRgba(
-        BRAND_ACCENT,
-        0.3,
-      )} 0, ${hexToRgba('#000000',0.9)} 55%);
+    BRAND_ACCENT,
+    0.3,
+  )} 0, ${hexToRgba('#000000', 0.9)} 55%);
       padding:24px;
     }
 
@@ -345,7 +350,7 @@ export default function GalleryPremiumSection({
       border-radius:18px;
       overflow:hidden;
       background:${BRAND_SURFACE};
-      box-shadow:0 24px 80px ${hexToRgba('#000',0.7)};
+      box-shadow:0 24px 80px ${hexToRgba('#000', 0.7)};
       position:relative;
       display:flex;
       flex-direction:column;
@@ -372,7 +377,7 @@ export default function GalleryPremiumSection({
       justify-content:space-between;
       align-items:center;
       gap:16px;
-      color:${hexToRgba(TEXT_COLOR,0.92)};
+      color:${hexToRgba(TEXT_COLOR, 0.92)};
       font-size:13px;
     }
 
@@ -391,8 +396,8 @@ export default function GalleryPremiumSection({
       width:34px;
       height:34px;
       border-radius:999px;
-      border:1px solid ${hexToRgba('#FFFFFF',0.3)};
-      background:${hexToRgba('#000000',0.45)};
+      border:1px solid ${hexToRgba('#FFFFFF', 0.3)};
+      background:${hexToRgba('#000000', 0.45)};
       color:#FFF;
       display:flex;
       align-items:center;
@@ -406,7 +411,7 @@ export default function GalleryPremiumSection({
       background:${BRAND_ACCENT};
       color:#111;
       transform:translateY(-1px);
-      box-shadow:0 8px 24px ${hexToRgba('#000',0.7)};
+      box-shadow:0 8px 24px ${hexToRgba('#000', 0.7)};
     }
 
     @media(max-width:599px){
@@ -420,12 +425,8 @@ export default function GalleryPremiumSection({
     }
   `;
 
-  const title =
-    translations?.gallery_title ||
-    'Moments from our table';
-  const subtitle =
-    translations?.gallery_subtitle ||
-    'Discover the ambience, plating and little details that make every visit memorable.';
+  const title = translations?.gallery_title || getUIString(ui, 'gallery_fallback_title', 'Moments from our table');
+  const subtitle = translations?.gallery_subtitle || getUIString(ui, 'gallery_fallback_subtitle', 'Discover the ambience, plating and little details that make every visit memorable.');
 
   const handleClick = (item: GalleryItem) => {
     if (!cfg.lightbox_enabled) return;

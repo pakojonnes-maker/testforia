@@ -1,6 +1,6 @@
 // src/providers/TrackingAndPushProvider.tsx - VERSIÓN COMPLETA CON SECCIONES
 
-import React, { createContext, useContext, useEffect, useMemo, useRef, useState, useCallback } from 'react';
+import React, { createContext, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { apiClient } from '../lib/apiClient';
 
 interface TrackEvent {
@@ -28,6 +28,7 @@ interface TrackerApi {
   trackSectionTime(sectionId: string, duration: number, dishesViewed: number): void;
   trackScrollDepth(sectionId: string, dishIndex: number, totalDishes: number): void;
   trackMediaError(dishId: string, errorType: string, mediaUrl?: string): void;
+  isFavorited(dishId: string): boolean; // ✅ NUEVO
 }
 
 interface TrackingContext {
@@ -166,6 +167,11 @@ class OptimizedTracker implements TrackerApi {
       value: set,
       sectionId: this.currentSectionId || undefined  // ✅ INCLUIR sectionId
     });
+  }
+
+  // ✅ NUEVO: Implementación de isFavorited
+  isFavorited(dishId: string): boolean {
+    return this.favorites.get(dishId) === true;
   }
 
   rateDish(dishId: string, rating: number, comment?: string): void {
@@ -354,7 +360,7 @@ class OptimizedTracker implements TrackerApi {
     });
 
     try {
-      if (immediate && navigator.sendBeacon) {
+      if (immediate && typeof navigator.sendBeacon === 'function') {
         await apiClient.tracking.sendEventsBeacon(payload);
       } else {
         await apiClient.tracking.sendEvents(payload);
@@ -634,8 +640,8 @@ export function TrackingAndPushProvider({ restaurantId, children }: Props) {
 
     const handleVisibilityChange = () => {
       if (document.visibilityState === 'hidden' && tracker) {
-        console.log('👋 [Provider] Página oculta, flush final');
-        tracker.flush(true).catch(console.error);
+        console.log('👋 [Provider] Página oculta (Mobile/Tab switch) - Finalizando sesión');
+        handleBeforeUnload();
       }
     };
 
@@ -649,10 +655,38 @@ export function TrackingAndPushProvider({ restaurantId, children }: Props) {
     window.addEventListener('pagehide', handlePageHide);
     document.addEventListener('visibilitychange', handleVisibilityChange);
 
+    // ✅ TIMEOUT DE INACTIVIDAD (7 minutos)
+    const INACTIVITY_LIMIT = 7 * 60 * 1000;
+    let inactivityTimer: number;
+
+    const resetInactivityTimer = () => {
+      if (inactivityTimer) window.clearTimeout(inactivityTimer);
+      if (tracker && sessionId && tracker.isReady()) {
+        inactivityTimer = window.setTimeout(() => {
+          console.log('💤 [Provider] Timeout de inactividad (7 min) - Finalizando sesión');
+          handleBeforeUnload(); // Reutilizamos la lógica de cierre
+        }, INACTIVITY_LIMIT);
+      }
+    };
+
+    // Resetear timer en interacciones
+    const handleInteraction = () => resetInactivityTimer();
+    window.addEventListener('click', handleInteraction);
+    window.addEventListener('scroll', handleInteraction);
+    window.addEventListener('touchstart', handleInteraction);
+
+    // Iniciar timer
+    resetInactivityTimer();
+
     return () => {
       window.removeEventListener('beforeunload', handleBeforeUnload);
       window.removeEventListener('pagehide', handlePageHide);
       document.removeEventListener('visibilitychange', handleVisibilityChange);
+
+      window.removeEventListener('click', handleInteraction);
+      window.removeEventListener('scroll', handleInteraction);
+      window.removeEventListener('touchstart', handleInteraction);
+      if (inactivityTimer) window.clearTimeout(inactivityTimer);
     };
   }, [sessionId, tracker]);
 
@@ -685,50 +719,42 @@ export function TrackingAndPushProvider({ restaurantId, children }: Props) {
 export function useDishTracking() {
   const { tracker } = useTracking();
 
-  return {
-    viewDish: useCallback((dishId: string, sectionId?: string) => {
+  return useMemo(() => ({
+    viewDish: (dishId: string, sectionId?: string) => {
       tracker?.viewDish(dishId, sectionId);
-    }, [tracker]),
-
-    favoriteDish: useCallback((dishId: string, set: boolean = true) => {
+    },
+    favoriteDish: (dishId: string, set: boolean = true) => {
       tracker?.favoriteDish(dishId, set);
-    }, [tracker]),
-
-    rateDish: useCallback((dishId: string, rating: number, comment?: string) => {
+    },
+    isFavorited: (dishId: string) => { // ✅ NUEVO
+      return tracker?.isFavorited(dishId) ?? false;
+    },
+    rateDish: (dishId: string, rating: number, comment?: string) => {
       tracker?.rateDish(dishId, rating, comment);
-    }, [tracker]),
-
-    shareDish: useCallback((dishId: string, platform: string) => {
+    },
+    shareDish: (dishId: string, platform: string) => {
       tracker?.shareDish(dishId, platform);
-    }, [tracker]),
-
-    setCurrentSection: useCallback((sectionId: string | null) => {
+    },
+    setCurrentSection: (sectionId: string | null) => {
       tracker?.setCurrentSection(sectionId);
-    }, [tracker]),  // ✅ MÉTODO para establecer sección
-
-    viewSection: useCallback((sectionId: string) => {
+    },
+    viewSection: (sectionId: string) => {
       tracker?.viewSection(sectionId);
-    }, [tracker]),  // ✅ NUEVO: método para trackear vista de sección manualmente
-
-    // ✅ NUEVOS MÉTODOS DE ENGAGEMENT
-    trackDishViewDuration: useCallback((dishId: string, duration: number, sectionId?: string) => {
+    },
+    trackDishViewDuration: (dishId: string, duration: number, sectionId?: string) => {
       tracker?.trackDishViewDuration(dishId, duration, sectionId);
-    }, [tracker]),
-
-    trackSectionTime: useCallback((sectionId: string, duration: number, dishesViewed: number) => {
+    },
+    trackSectionTime: (sectionId: string, duration: number, dishesViewed: number) => {
       tracker?.trackSectionTime(sectionId, duration, dishesViewed);
-    }, [tracker]),
-
-    trackScrollDepth: useCallback((sectionId: string, dishIndex: number, totalDishes: number) => {
+    },
+    trackScrollDepth: (sectionId: string, dishIndex: number, totalDishes: number) => {
       tracker?.trackScrollDepth(sectionId, dishIndex, totalDishes);
-    }, [tracker]),
-
-    trackMediaError: useCallback((dishId: string, errorType: string, mediaUrl?: string) => {
+    },
+    trackMediaError: (dishId: string, errorType: string, mediaUrl?: string) => {
       tracker?.trackMediaError(dishId, errorType, mediaUrl);
-    }, [tracker]),
-
-    isReady: useCallback(() => {
+    },
+    isReady: () => {
       return tracker?.isReady() ?? false;
-    }, [tracker])
-  };
+    }
+  }), [tracker]);
 }

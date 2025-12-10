@@ -17,17 +17,17 @@ export function useAnalyticsData() {
 }
 
 // Funciones de conveniencia (mantener compatibilidad)
-export async function trackDishView(dishId: string) {
+export async function trackDishView(_dishId: string) {
   console.warn('⚠️ [analytics] trackDishView deprecated, use useDishTracking hook instead');
   // Esta función ahora es solo para compatibilidad
 }
 
-export async function toggleFavorite(dishId: string, set: boolean = true) {
+export async function toggleFavorite(_dishId: string, _set: boolean = true) {
   console.warn('⚠️ [analytics] toggleFavorite deprecated, use useDishTracking hook instead');
   // Esta función ahora es solo para compatibilidad
 }
 
-export async function shareDish(dishId: string, platform: string) {
+export async function shareDish(_dishId: string, _platform: string) {
   console.warn('⚠️ [analytics] shareDish deprecated, use useDishTracking hook instead');
   // Esta función ahora es solo para compatibilidad
 }
@@ -58,8 +58,8 @@ export async function getDishStatistics(restaurantId: string) {
 
 // Nueva función para obtener analytics diarios
 export async function getDailyStatistics(
-  restaurantId: string, 
-  startDate?: string, 
+  restaurantId: string,
+  startDate?: string,
   endDate?: string
 ) {
   try {

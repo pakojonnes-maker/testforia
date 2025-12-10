@@ -10,9 +10,8 @@ export default function Settings() {
   const queryClient = useQueryClient();
   const restaurantId = currentRestaurant?.id;
 
-  const [restaurantData, setRestaurantData] = useState(null);
-  const [stylingData, setStylingData] = useState(null);
-  const [reelsColorsData, setReelsColorsData] = useState(null);
+  // Estado de datos del restaurante
+  const [restaurantData, setRestaurantData] = useState<any>(null);
 
   // Query: Obtener datos del restaurante
   const { data: restaurantResponse, isLoading: loadingRestaurant, error: restaurantError } = useQuery({
@@ -21,19 +20,7 @@ export default function Settings() {
     enabled: !!restaurantId,
   });
 
-  // Query: Obtener configuración de styling (themes)
-  const { data: stylingResponse, isLoading: loadingStyling, error: stylingError } = useQuery({
-    queryKey: ['restaurant-styling', restaurantId],
-    queryFn: () => apiClient.getRestaurantConfig(restaurantId),
-    enabled: !!restaurantId,
-  });
 
-  // Query: Obtener colores de reels (config_overrides)
-  const { data: reelsColorsResponse, isLoading: loadingReelsColors, error: reelsColorsError } = useQuery({
-    queryKey: ['restaurant-reels-colors', restaurantId],
-    queryFn: () => apiClient.getRestaurantStyling(restaurantId),
-    enabled: !!restaurantId,
-  });
 
   // Efecto para cargar datos del restaurante
   useEffect(() => {
@@ -66,49 +53,7 @@ export default function Settings() {
     }
   }, [restaurantResponse]);
 
-  // Efecto para cargar configuración de styling (themes)
-  useEffect(() => {
-    if (stylingResponse?.config) {
-      const cfg = stylingResponse.config;
-      setStylingData({
-        override_colors: {
-          primary_color: cfg.branding?.primaryColor || '#FF6B35',
-          secondary_color: cfg.branding?.secondaryColor || '#004E89',
-          accent_color: cfg.branding?.accentColor || cfg.theme?.accentColor || '#F7B32B',
-          text_color: cfg.theme?.textColor || '#2B2D42',
-          background_color: cfg.theme?.backgroundColor || '#FFFFFF'
-        },
-        override_fonts: {
-          heading_font: cfg.theme?.fontFamily || 'Inter',
-          body_font: cfg.theme?.fontFamily || 'Inter',
-          font_accent: cfg.theme?.fontAccent || 'serif'
-        },
-        layout_style: cfg.template?.id || 'modern'
-      });
-    }
-  }, [stylingResponse]);
 
-  // Efecto para cargar colores de reels
-  useEffect(() => {
-    if (reelsColorsResponse?.success) {
-      const styling = reelsColorsResponse.styling;
-      if (styling?.customColors) {
-        setReelsColorsData({
-          primary: styling.customColors.primary || '#FF6B6B',
-          secondary: styling.customColors.secondary || '#4ECDC4',
-          text: styling.customColors.text || '#2C3E50',
-          background: styling.customColors.background || '#FFFFFF'
-        });
-      } else {
-        setReelsColorsData({
-          primary: '#FF6B6B',
-          secondary: '#4ECDC4',
-          text: '#2C3E50',
-          background: '#FFFFFF'
-        });
-      }
-    }
-  }, [reelsColorsResponse]);
 
   // Mutation: Actualizar restaurante
   const restaurantMutation = useMutation({
@@ -122,85 +67,37 @@ export default function Settings() {
     }
   });
 
-  // Mutation para actualizar THEME (tabla themes)
-  const themeMutation = useMutation({
-    mutationFn: (data) => apiClient.updateRestaurantTheme(restaurantId, data),
-    onSuccess: () => {
-      queryClient.invalidateQueries(['restaurant-styling', restaurantId]);
-      alert('✅ Tema guardado correctamente');
-    },
-    onError: (error) => {
-      alert(`❌ Error al guardar tema: ${error.message}`);
-    }
-  });
 
-  // Mutation para colores de reels
-  const reelsColorsMutation = useMutation({
-    mutationFn: (colors) => apiClient.updateRestaurantStyling(restaurantId, colors),
-    onSuccess: () => {
-      queryClient.invalidateQueries(['restaurant-reels-colors', restaurantId]);
-      alert('✅ Colores de reels guardados correctamente');
-    },
-    onError: (error) => {
-      alert(`❌ Error al guardar colores de reels: ${error.message}`);
-    }
-  });
 
   // ✅ Handlers separados por sección
   const handleSaveRestaurant = async () => {
     await restaurantMutation.mutateAsync(restaurantData);
   };
 
-  const handleSaveTheme = async () => {
-    await themeMutation.mutateAsync(stylingData);
-  };
 
-  const handleSaveReelsColors = async () => {
-    await reelsColorsMutation.mutateAsync(reelsColorsData);
-  };
 
   const updateRestaurantData = (field, value) => {
     setRestaurantData(prev => prev ? { ...prev, [field]: value } : null);
   };
 
-  const updateStylingColors = (colorField, value) => {
-    setStylingData(prev => prev ? ({
-      ...prev,
-      override_colors: { ...prev.override_colors, [colorField]: value }
-    }) : null);
-  };
 
-  const updateStylingFonts = (fontField, value) => {
-    setStylingData(prev => prev ? ({
-      ...prev,
-      override_fonts: { ...prev.override_fonts, [fontField]: value }
-    }) : null);
-  };
-
-  const updateStylingData = (field, value) => {
-    setStylingData(prev => prev ? ({ ...prev, [field]: value }) : null);
-  };
-
-  const updateReelsColor = (colorField, value) => {
-    setReelsColorsData(prev => prev ? ({ ...prev, [colorField]: value }) : null);
-  };
 
   if (!restaurantId) {
     return <div style={styles.errorContainer}><h1>⚠️ No hay restaurante seleccionado</h1></div>;
   }
 
-  if (restaurantError || stylingError || reelsColorsError) {
+  if (restaurantError) {
     return (
       <div style={styles.errorContainer}>
         <h1>❌ Error al cargar datos</h1>
-        <p>{restaurantError?.message || stylingError?.message || reelsColorsError?.message}</p>
+        <p>{restaurantError?.message}</p>
       </div>
     );
   }
 
-  const isLoading = loadingRestaurant || loadingStyling || loadingReelsColors;
+  const isLoading = loadingRestaurant;
 
-  if (isLoading || !restaurantData || !stylingData || !reelsColorsData) {
+  if (isLoading || !restaurantData) {
     return (
       <div style={styles.loadingContainer}>
         <div style={styles.spinner}></div>
@@ -220,14 +117,8 @@ export default function Settings() {
       </div>
 
       <div style={styles.tabsContainer}>
-        <button onClick={() => setActiveTab('restaurant')} style={{...styles.tab, ...(activeTab === 'restaurant' ? styles.tabActive : {})}}>
+        <button onClick={() => setActiveTab('restaurant')} style={{ ...styles.tab, ...(activeTab === 'restaurant' ? styles.tabActive : {}) }}>
           <span style={styles.tabIcon}>🏪</span><span>Restaurante</span>
-        </button>
-        <button onClick={() => setActiveTab('styling')} style={{...styles.tab, ...(activeTab === 'styling' ? styles.tabActive : {})}}>
-          <span style={styles.tabIcon}>🎨</span><span>Diseño</span>
-        </button>
-        <button onClick={() => setActiveTab('reels')} style={{...styles.tab, ...(activeTab === 'reels' ? styles.tabActive : {})}}>
-          <span style={styles.tabIcon}>🎬</span><span>Colores Reels</span>
         </button>
       </div>
 
@@ -250,7 +141,7 @@ export default function Settings() {
                 </FormField>
               </div>
               <FormField label="Descripción">
-                <textarea value={restaurantData.description} onChange={(e) => updateRestaurantData('description', e.target.value)} style={{...styles.input, ...styles.textarea}} rows={4} />
+                <textarea value={restaurantData.description} onChange={(e) => updateRestaurantData('description', e.target.value)} style={{ ...styles.input, ...styles.textarea }} rows={4} />
               </FormField>
             </Section>
 
@@ -321,10 +212,10 @@ export default function Settings() {
 
             {/* ✅ BOTÓN AL FINAL DE LA TAB */}
             <div style={styles.saveButtonContainer}>
-              <button 
-                onClick={handleSaveRestaurant} 
-                disabled={restaurantMutation.isPending} 
-                style={{...styles.saveButton, ...(restaurantMutation.isPending ? styles.saveButtonDisabled : {})}}
+              <button
+                onClick={handleSaveRestaurant}
+                disabled={restaurantMutation.isPending}
+                style={{ ...styles.saveButton, ...(restaurantMutation.isPending ? styles.saveButtonDisabled : {}) }}
               >
                 {restaurantMutation.isPending ? 'Guardando...' : 'Guardar información del restaurante'}
               </button>
@@ -332,160 +223,7 @@ export default function Settings() {
           </div>
         )}
 
-        {activeTab === 'styling' && stylingData && (
-          <div style={styles.tabContent}>
-            <Section title="Colores de marca">
-              <p style={{color: '#6B7280', marginBottom: '1.5rem', fontSize: '0.9rem'}}>
-                Estos colores se aplicarán al tema global del restaurante (landing y reels por defecto).
-              </p>
-              {/* ✅ GRID MÁS ANCHO PARA COLORPICKERS */}
-              <div style={styles.colorGridWide}>
-                <ColorPicker label="Color primario" value={stylingData.override_colors.primary_color} onChange={(v) => updateStylingColors('primary_color', v)} />
-                <ColorPicker label="Color secundario" value={stylingData.override_colors.secondary_color} onChange={(v) => updateStylingColors('secondary_color', v)} />
-                <ColorPicker label="Color de acento" value={stylingData.override_colors.accent_color} onChange={(v) => updateStylingColors('accent_color', v)} />
-                <ColorPicker label="Color de texto" value={stylingData.override_colors.text_color} onChange={(v) => updateStylingColors('text_color', v)} />
-                <ColorPicker label="Color de fondo" value={stylingData.override_colors.background_color} onChange={(v) => updateStylingColors('background_color', v)} />
-              </div>
-            </Section>
 
-            <Section title="Tipografías">
-              <div style={styles.grid}>
-                <FormField label="Fuente para títulos">
-                  <select value={stylingData.override_fonts.heading_font} onChange={(e) => updateStylingFonts('heading_font', e.target.value)} style={styles.input}>
-                    {['Inter', 'Roboto', 'Playfair Display', 'Montserrat', 'Poppins', 'Lora'].map(f => <option key={f} value={f}>{f}</option>)}
-                  </select>
-                </FormField>
-                <FormField label="Fuente para cuerpo">
-                  <select value={stylingData.override_fonts.body_font} onChange={(e) => updateStylingFonts('body_font', e.target.value)} style={styles.input}>
-                    {['Inter', 'Roboto', 'Open Sans', 'Lato', 'Source Sans Pro'].map(f => <option key={f} value={f}>{f}</option>)}
-                  </select>
-                </FormField>
-              </div>
-            </Section>
-
-            <Section title="Vista previa">
-              <div style={{...styles.preview, backgroundColor: stylingData.override_colors.background_color, color: stylingData.override_colors.text_color}}>
-                <h2 style={{fontFamily: stylingData.override_fonts.heading_font, color: stylingData.override_colors.primary_color, margin: '0 0 1rem 0'}}>Restaurante Ejemplo</h2>
-                <p style={{fontFamily: stylingData.override_fonts.body_font, margin: '0 0 1rem 0'}}>Vista previa de tu carta</p>
-                <button style={{backgroundColor: stylingData.override_colors.accent_color, color: '#FFF', border: 'none', padding: '0.75rem 1.5rem', borderRadius: '8px', cursor: 'pointer'}}>Ver Carta</button>
-              </div>
-            </Section>
-
-            <Section title="Estilo de layout">
-              <div style={styles.layoutGrid}>
-                {['modern', 'classic', 'minimal', 'elegant'].map(layout => (
-                  <button key={layout} onClick={() => updateStylingData('layout_style', layout)} style={{...styles.layoutCard, ...(stylingData.layout_style === layout ? styles.layoutCardActive : {})}}>
-                    <span style={{fontSize: '2rem'}}>{{'modern': '📱', 'classic': '📰', 'minimal': '⬜', 'elegant': '✨'}[layout]}</span>
-                    <span style={styles.layoutName}>{layout.charAt(0).toUpperCase() + layout.slice(1)}</span>
-                    {stylingData.layout_style === layout && <span style={styles.layoutCheck}>✓</span>}
-                  </button>
-                ))}
-              </div>
-            </Section>
-
-            {/* ✅ BOTÓN ESPECÍFICO PARA THEME */}
-            <div style={styles.saveButtonContainer}>
-              <button 
-                onClick={handleSaveTheme} 
-                disabled={themeMutation.isPending} 
-                style={{...styles.saveButton, ...(themeMutation.isPending ? styles.saveButtonDisabled : {})}}
-              >
-                {themeMutation.isPending ? 'Guardando...' : 'Guardar diseño global'}
-              </button>
-            </div>
-          </div>
-        )}
-
-        {activeTab === 'reels' && reelsColorsData && (
-          <div style={styles.tabContent}>
-            <Section title="Colores personalizados de reels">
-              <p style={{color: '#6B7280', marginBottom: '1.5rem'}}>
-                Estos colores sobrescribirán el tema global <strong>solo para los reels</strong> de productos que se muestran en tu menú digital.
-              </p>
-              {/* ✅ GRID MÁS ANCHO PARA COLORPICKERS */}
-              <div style={styles.colorGridWide}>
-                <ColorPicker 
-                  label="Color primario" 
-                  value={reelsColorsData.primary} 
-                  onChange={(v) => updateReelsColor('primary', v)} 
-                  description="Para títulos y elementos destacados"
-                />
-                <ColorPicker 
-                  label="Color secundario" 
-                  value={reelsColorsData.secondary} 
-                  onChange={(v) => updateReelsColor('secondary', v)} 
-                  description="Para botones y precios"
-                />
-                <ColorPicker 
-                  label="Color de texto" 
-                  value={reelsColorsData.text} 
-                  onChange={(v) => updateReelsColor('text', v)} 
-                  description="Para descripciones"
-                />
-                <ColorPicker 
-                  label="Color de fondo" 
-                  value={reelsColorsData.background} 
-                  onChange={(v) => updateReelsColor('background', v)} 
-                  description="Fondo de las tarjetas"
-                />
-              </div>
-            </Section>
-
-            <Section title="Vista previa de Reel">
-              <div style={{
-                ...styles.reelPreview,
-                backgroundColor: reelsColorsData.background,
-                color: reelsColorsData.text
-              }}>
-                <div style={{
-                  backgroundColor: reelsColorsData.primary,
-                  color: '#FFF',
-                  padding: '1rem',
-                  borderRadius: '8px',
-                  marginBottom: '1rem'
-                }}>
-                  <h3 style={{margin: '0', fontWeight: '700'}}>Paella Valenciana</h3>
-                  <p style={{margin: '0.5rem 0 0 0', fontSize: '0.9rem', opacity: 0.9}}>Plato tradicional</p>
-                </div>
-                
-                <div style={{
-                  flex: 1,
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  border: '2px dashed rgba(0,0,0,0.1)',
-                  borderRadius: '8px',
-                  marginBottom: '1rem'
-                }}>
-                  <span style={{fontSize: '3rem'}}>📷</span>
-                </div>
-                
-                <div style={{
-                  backgroundColor: reelsColorsData.secondary,
-                  color: '#FFF',
-                  padding: '0.75rem',
-                  borderRadius: '8px',
-                  textAlign: 'center',
-                  fontWeight: '700',
-                  fontSize: '1.25rem'
-                }}>
-                  15,99 €
-                </div>
-              </div>
-            </Section>
-
-            {/* ✅ BOTÓN ESPECÍFICO PARA REELS */}
-            <div style={styles.saveButtonContainer}>
-              <button 
-                onClick={handleSaveReelsColors} 
-                disabled={reelsColorsMutation.isPending} 
-                style={{...styles.saveButton, ...(reelsColorsMutation.isPending ? styles.saveButtonDisabled : {})}}
-              >
-                {reelsColorsMutation.isPending ? 'Guardando...' : 'Guardar colores de reels'}
-              </button>
-            </div>
-          </div>
-        )}
       </div>
     </div>
   );
@@ -499,74 +237,31 @@ function FormField({ label, required, children }) {
   return <div style={styles.formField}>{label && <label style={styles.label}>{label}{required && <span style={styles.required}> *</span>}</label>}{children}</div>;
 }
 
-function ColorPicker({ label, value, onChange, description }) {
-  return (
-    <div style={styles.colorPickerContainer}>
-      <label style={styles.colorPickerLabel}>{label}</label>
-      {description && <p style={styles.colorDescription}>{description}</p>}
-      <div style={styles.colorPickerWrapper}>
-        <input type="color" value={value} onChange={(e) => onChange(e.target.value)} style={styles.colorInput} />
-        <input type="text" value={value} onChange={(e) => onChange(e.target.value)} style={styles.colorTextInput} />
-      </div>
-    </div>
-  );
-}
+const styles: any = {
+  errorContainer: { display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', minHeight: '100vh', padding: '2rem' },
+  loadingContainer: { display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', minHeight: '100vh' },
+  spinner: { width: '40px', height: '40px', border: '4px solid #E5E7EB', borderTop: '4px solid #3B82F6', borderRadius: '50%', animation: 'spin 1s linear infinite' },
+  container: { maxWidth: '1200px', margin: '0 auto', padding: '2rem', fontFamily: '-apple-system, sans-serif', backgroundColor: '#F8F9FA', minHeight: '100vh' },
+  header: { display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '2rem', flexWrap: 'wrap', gap: '1rem' },
+  title: { fontSize: '2rem', fontWeight: '700', color: '#1A1A1A', margin: '0 0 0.5rem 0' },
+  subtitle: { fontSize: '1rem', color: '#6B7280', margin: 0 },
+  tabsContainer: { display: 'flex', gap: '0.5rem', marginBottom: '2rem', borderBottom: '2px solid #E5E7EB' },
+  tab: { padding: '1rem 1.5rem', background: 'transparent', border: 'none', borderBottom: '2px solid transparent', fontSize: '1rem', fontWeight: '500', color: '#6B7280', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '-2px' },
+  tabActive: { color: '#3B82F6', borderBottom: '2px solid #3B82F6' },
+  tabIcon: { fontSize: '1.25rem' },
+  content: { backgroundColor: 'white', borderRadius: '12px', padding: '2rem', boxShadow: '0 1px 3px rgba(0, 0, 0, 0.1)' },
+  tabContent: { animation: 'fadeIn 0.3s ease-in-out' },
+  section: { marginBottom: '2.5rem' },
+  sectionTitle: { fontSize: '1.5rem', fontWeight: '600', color: '#1A1A1A', margin: '0 0 1.5rem 0' },
+  grid: { display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))', gap: '1.5rem', marginBottom: '1.5rem' },
+  formField: { display: 'flex', flexDirection: 'column' },
+  label: { fontSize: '0.9rem', fontWeight: '600', color: '#374151', marginBottom: '0.5rem' },
+  required: { color: '#EF4444' },
+  input: { padding: '0.75rem', fontSize: '1rem', border: '1px solid #D1D5DB', borderRadius: '8px', outline: 'none', fontFamily: 'inherit', backgroundColor: 'white' },
+  textarea: { resize: 'vertical', minHeight: '100px' },
+  checkboxGroup: { display: 'flex', flexDirection: 'column', gap: '1rem', marginBottom: '1.5rem' },
+  checkbox: { display: 'flex', alignItems: 'center', gap: '0.75rem', cursor: 'pointer' },
 
-const styles = {
-  errorContainer: {display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', minHeight: '100vh', padding: '2rem'},
-  loadingContainer: {display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', minHeight: '100vh'},
-  spinner: {width: '40px', height: '40px', border: '4px solid #E5E7EB', borderTop: '4px solid #3B82F6', borderRadius: '50%', animation: 'spin 1s linear infinite'},
-  container: {maxWidth: '1200px', margin: '0 auto', padding: '2rem', fontFamily: '-apple-system, sans-serif', backgroundColor: '#F8F9FA', minHeight: '100vh'},
-  header: {display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '2rem', flexWrap: 'wrap', gap: '1rem'},
-  title: {fontSize: '2rem', fontWeight: '700', color: '#1A1A1A', margin: '0 0 0.5rem 0'},
-  subtitle: {fontSize: '1rem', color: '#6B7280', margin: 0},
-  tabsContainer: {display: 'flex', gap: '0.5rem', marginBottom: '2rem', borderBottom: '2px solid #E5E7EB'},
-  tab: {padding: '1rem 1.5rem', background: 'transparent', border: 'none', borderBottom: '2px solid transparent', fontSize: '1rem', fontWeight: '500', color: '#6B7280', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '-2px'},
-  tabActive: {color: '#3B82F6', borderBottom: '2px solid #3B82F6'},
-  tabIcon: {fontSize: '1.25rem'},
-  content: {backgroundColor: 'white', borderRadius: '12px', padding: '2rem', boxShadow: '0 1px 3px rgba(0, 0, 0, 0.1)'},
-  tabContent: {animation: 'fadeIn 0.3s ease-in-out'},
-  section: {marginBottom: '2.5rem'},
-  sectionTitle: {fontSize: '1.5rem', fontWeight: '600', color: '#1A1A1A', margin: '0 0 1.5rem 0'},
-  grid: {display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))', gap: '1.5rem', marginBottom: '1.5rem'},
-  formField: {display: 'flex', flexDirection: 'column'},
-  label: {fontSize: '0.9rem', fontWeight: '600', color: '#374151', marginBottom: '0.5rem'},
-  required: {color: '#EF4444'},
-  input: {padding: '0.75rem', fontSize: '1rem', border: '1px solid #D1D5DB', borderRadius: '8px', outline: 'none', fontFamily: 'inherit', backgroundColor: 'white'},
-  textarea: {resize: 'vertical', minHeight: '100px'},
-  checkboxGroup: {display: 'flex', flexDirection: 'column', gap: '1rem', marginBottom: '1.5rem'},
-  checkbox: {display: 'flex', alignItems: 'center', gap: '0.75rem', cursor: 'pointer'},
-  
-  // ✅ NUEVO: Grid más ancho para colorpickers
-  colorGridWide: {display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '2rem', marginBottom: '2rem'},
-  
-  colorPickerContainer: {display: 'flex', flexDirection: 'column'},
-  colorPickerLabel: {fontSize: '0.9rem', fontWeight: '600', color: '#374151', marginBottom: '0.5rem'},
-  colorDescription: {fontSize: '0.8rem', color: '#6B7280', margin: '0 0 0.5rem 0'},
-  colorPickerWrapper: {display: 'flex', gap: '0.75rem', alignItems: 'center'},
-  
-  // ✅ CORREGIDO: Color input más grande
-  colorInput: {width: '80px', height: '80px', border: '2px solid #D1D5DB', borderRadius: '8px', cursor: 'pointer'},
-  colorTextInput: {flex: 1, padding: '0.75rem', fontSize: '1rem', border: '1px solid #D1D5DB', borderRadius: '8px', fontFamily: 'monospace'},
-  
-  preview: {padding: '2rem', borderRadius: '12px', border: '2px dashed #D1D5DB'},
-  reelPreview: {
-    padding: '1.5rem',
-    borderRadius: '12px',
-    border: '2px solid #E5E7EB',
-    maxWidth: '300px',
-    aspectRatio: '9/16',
-    display: 'flex',
-    flexDirection: 'column',
-    margin: '0 auto'
-  },
-  layoutGrid: {display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: '1rem'},
-  layoutCard: {display: 'flex', flexDirection: 'column', alignItems: 'center', padding: '1.5rem', border: '2px solid #E5E7EB', borderRadius: '12px', backgroundColor: 'white', cursor: 'pointer', position: 'relative'},
-  layoutCardActive: {borderColor: '#3B82F6', backgroundColor: '#EFF6FF'},
-  layoutName: {fontSize: '0.95rem', fontWeight: '600', color: '#374151', marginTop: '0.5rem'},
-  layoutCheck: {position: 'absolute', top: '0.5rem', right: '0.5rem', color: '#3B82F6', fontSize: '1.25rem'},
-  
-  // ✅ NUEVO: Contenedor para botones de guardar
   saveButtonContainer: {
     marginTop: '2rem',
     paddingTop: '2rem',
@@ -574,21 +269,21 @@ const styles = {
     display: 'flex',
     justifyContent: 'flex-end'
   },
-  
+
   saveButton: {
-    padding: '0.75rem 2rem', 
-    backgroundColor: '#3B82F6', 
-    color: 'white', 
-    border: 'none', 
-    borderRadius: '8px', 
-    fontSize: '1rem', 
-    fontWeight: '600', 
+    padding: '0.75rem 2rem',
+    backgroundColor: '#3B82F6',
+    color: 'white',
+    border: 'none',
+    borderRadius: '8px',
+    fontSize: '1rem',
+    fontWeight: '600',
     cursor: 'pointer',
     transition: 'all 0.2s'
   },
-  
+
   saveButtonDisabled: {
-    opacity: 0.6, 
+    opacity: 0.6,
     cursor: 'not-allowed'
-  },
+  }
 };

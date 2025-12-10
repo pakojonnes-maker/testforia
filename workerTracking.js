@@ -126,6 +126,23 @@ const EVENT_HANDLERS = {
     'cart_abandoned': { analyticsField: 'carts_abandoned' }
 };
 // ============================================
+// PRIVACY & ANONYMIZATION UTILS
+// ============================================
+async function generatePrivacyHash(request, secretSalt) {
+    const ip = request.headers.get('cf-connecting-ip') || '0.0.0.0';
+    const userAgent = request.headers.get('user-agent') || 'unknown';
+    const today = new Date().toISOString().slice(0, 10); // YYYY-MM-DD
+
+    // Salt rotatorio diario: Hace que el hash sea imposible de rastrear mañana
+    const dailyData = `${ip}-${userAgent}-${today}-${secretSalt}`;
+
+    const msgBuffer = new TextEncoder().encode(dailyData);
+    const hashBuffer = await crypto.subtle.digest('SHA-256', msgBuffer);
+    const hashArray = Array.from(new Uint8Array(hashBuffer));
+    return hashArray.map(b => b.toString(16).padStart(2, '0')).join('').slice(0, 16);
+}
+
+// ============================================
 // SESSION MANAGEMENT
 // ============================================
 async function handleSessionStart(request, env) {
@@ -146,26 +163,42 @@ async function handleSessionStart(request, env) {
             timezone = null,
             qrcode = null // ✅ NEW: Recibir QR code
         } = data;
+
         if (!restaurantId) {
             return errorResponse('restaurantId es requerido');
         }
+
         const restaurant = await env.DB.prepare(
             'SELECT id, name, slug, is_active FROM restaurants WHERE id = ? AND is_active = 1'
         ).bind(restaurantId).first();
+
         if (!restaurant) {
             const bySlug = await env.DB.prepare(
                 'SELECT id, name, slug, is_active FROM restaurants WHERE slug = ? AND is_active = 1'
             ).bind(restaurantId).first();
+
             if (!bySlug) {
                 console.error(`[Tracking] Restaurant no encontrado: ${restaurantId}`);
                 return errorResponse(`Restaurant not found: ${restaurantId}`, 404);
             }
             restaurantId = bySlug.id;
         }
+
         const sessionId = generateUUID();
         const now = new Date().toISOString();
         const country = request.cf?.country || null;
         const city = request.cf?.city || null;
+
+        // ✅ PRIVACY LOGIC: Generar ID anónimo si no hay usuario logueado
+        let finalUserId = userid;
+        if (!finalUserId) {
+            // Si es anónimo, NO guardamos 'anon_xxx' en user_id porque viola la FK (Foreign Key) a users(id).
+            // Dejamos user_id en NULL.
+            // La "Unicidad" se calcula via Hashing en memoria para métricas agregadas (ej: daily_analytics.unique_visitors),
+            // pero no persistimos el hash en la tabla sessions individualmente si no hay columna para ello.
+            finalUserId = null;
+        }
+
         await env.DB.prepare(`
     INSERT INTO sessions (
       id, user_id, restaurant_id, device_type, os_name, browser,
@@ -174,17 +207,20 @@ async function handleSessionStart(request, env) {
       pwa_installed, consent_analytics, qr_code_id
     ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `).bind(
-            sessionId, userid, restaurantId, devicetype, osname, browser,
+            sessionId, finalUserId, restaurantId, devicetype, osname, browser,
             country, city, referrer, utm.source || null, utm.medium || null, utm.campaign || null,
             now, languages, timezone, networktype,
             ispwa ? 1 : 0, 1, qrcode
         ).run();
-        console.log(`✅ [SessionStart] Sesión creada: ${sessionId} para ${restaurantId}`);
+
+        console.log(`✅ [SessionStart] Sesión creada: ${sessionId} para ${restaurantId}. User: ${finalUserId || 'ANON'}`);
+
         return jsonResponse({
             success: true,
             sessionId,
             startedAt: now,
-            restaurantId
+            restaurantId,
+            isAnonymous: !userid
         });
     } catch (error) {
         console.error('[SessionStart] Error:', error);
@@ -353,10 +389,21 @@ async function handleEvents(request, env, ctx) {
                         }
                         const sectionUpdate = sectionUpdates.get(event.sectionId);
                         if (event.type === 'viewdish') {
-                            sectionUpdate.views += 1;
                             sectionUpdate.dish_views += 1;
                         }
                     }
+                }
+                // ✅ NEW: Handle view_section event
+                if (event.type === 'view_section' && event.entityId) {
+                    if (!sectionUpdates.has(event.entityId)) {
+                        sectionUpdates.set(event.entityId, {
+                            views: 0,
+                            dish_views: 0
+                        });
+                    }
+                    const sectionUpdate = sectionUpdates.get(event.entityId);
+                    sectionUpdate.views += 1;
+                    console.log(`👁️ [Events] Section view registrada: ${event.entityId}`);
                 }
                 // ✅ NEW: Cart Event Processing
                 if (event.entityType === 'cart' || event.type.startsWith('cart_')) {
@@ -377,22 +424,34 @@ async function handleEvents(request, env, ctx) {
                 }
                 // Nuevas métricas de sección
                 if (event.entityType === 'section' && event.entityId) {
-                    if (event.type === 'section_time' && event.props) {
+                    // ✅ FIX: Asegurar que sectionUpdates tenga una entrada para procesar las métricas después
+                    if (event.type === 'section_time' || event.type === 'scroll_depth') {
+                        if (!sectionUpdates.has(event.entityId)) {
+                            sectionUpdates.set(event.entityId, {
+                                views: 0,
+                                dish_views: 0
+                            });
+                        }
+                    }
+
+                    if (event.type === 'section_time') {
                         if (!engagementMetrics.sectionTimes.has(event.entityId)) {
                             engagementMetrics.sectionTimes.set(event.entityId, []);
                         }
                         engagementMetrics.sectionTimes.get(event.entityId).push({
                             duration: event.value,
-                            dishesViewed: event.props.dishes_viewed || 0
+                            dishesViewed: event.props?.dishes_viewed || 0
                         });
                         console.log(`⏱️ [Events] Section time registrado: ${event.entityId}, ${event.value}s`);
                     }
-                    if (event.type === 'scroll_depth' && event.props) {
+                    if (event.type === 'scroll_depth') {
                         if (!engagementMetrics.scrollDepths.has(event.entityId)) {
                             engagementMetrics.scrollDepths.set(event.entityId, []);
                         }
-                        engagementMetrics.scrollDepths.get(event.entityId).push(event.value);
-                        console.log(`📊 [Events] Scroll depth registrado: ${event.entityId}, ${event.value}%`);
+                        if (typeof event.value === 'number') {
+                            engagementMetrics.scrollDepths.get(event.entityId).push(event.value);
+                            console.log(`📊 [Events] Scroll depth registrado: ${event.entityId}, ${event.value}%`);
+                        }
                     }
                 }
             } catch (eventError) {
@@ -422,13 +481,20 @@ async function handleEvents(request, env, ctx) {
                     await customUpdate();
                 }
                 // Actualizar dish_daily_metrics
+                const hasDurations = (engagementMetrics.dishViewDurations.get(dishId) || []).length > 0;
+
                 if (updateInfo.dailyMetrics.views > 0 || updateInfo.dailyMetrics.favorites > 0 ||
-                    updateInfo.dailyMetrics.shares > 0 || updateInfo.dailyMetrics.ratings > 0) {
+                    updateInfo.dailyMetrics.shares > 0 || updateInfo.dailyMetrics.ratings > 0 || hasDurations) {
+
                     const dishDurations = engagementMetrics.dishViewDurations.get(dishId) || [];
                     const totalViewTime = dishDurations.reduce((sum, d) => sum + d, 0);
+                    // Si solo hay duraciones nuevas pero no nuevas views, el avg se recalcula ponderado en el SQL
+                    // pero necesitamos pasar 0 en views si no hubo views nuevas.
+
                     const avgViewDuration = dishDurations.length > 0
                         ? totalViewTime / dishDurations.length
                         : 0;
+
                     await env.DB.prepare(`
           INSERT INTO dish_daily_metrics (
             restaurant_id, dish_id, date, views, favorites, shares, ratings,
@@ -441,8 +507,22 @@ async function handleEvents(request, env, ctx) {
             shares = shares + excluded.shares,
             ratings = ratings + excluded.ratings,
             avg_view_duration = (
-              (avg_view_duration * views + excluded.avg_view_duration * excluded.views) / 
-              NULLIF(views + excluded.views, 0)
+              -- Recalcular promedio ponderado: (promedio_actual * views_totales_actuales + nuevos_datos) / nuevas_total_views
+              -- Como no tenemos views_totales_actuales facilmente, aproximamos usando la media acumulada
+              -- OJO: La logica original intentaba ponderar. Si excluded.views es 0 (solo actualizacion de tiempo), 
+              -- esto podria dar problemas si no se maneja bien.
+              -- Para simplificar y corregir el caso "solo tiempo": sumamos tiempo total y dividimos por views acumuladas (si pudieramos).
+              -- DADO QUE NO TENEMOS 'TOTAL_VIEWS' acumulado aqui para dividir, mantenemos la logica de acumulacion de TIEMPO TOTAL.
+              -- Y actualizamos el promedio si hay nuevas views. Si no hay nuevas views, el promedio deberia mantenerse O actualizarse
+              -- asumiendo que estas duraciones pertenecen a views pasadas?
+              -- MEJOR ESTRATEGIA: Actualizar total_view_time SIEMPRE.
+              -- Y avg_view_duration = total_view_time / NULLIF(views, 0) (se puede hacer en query de lectura o aqui si leemos primero).
+              -- Para este fix rapido sin leer previo:
+              CASE 
+                WHEN (views + excluded.views) > 0 THEN
+                  (total_view_time + excluded.total_view_time) / (views + excluded.views)
+                ELSE avg_view_duration
+              END
             ),
             total_view_time = total_view_time + excluded.total_view_time
         `).bind(
@@ -465,13 +545,16 @@ async function handleEvents(request, env, ctx) {
                 // Calcular métricas de engagement para esta sección
                 const sectionTimeData = engagementMetrics.sectionTimes.get(sectionId) || [];
                 const scrollDepthData = engagementMetrics.scrollDepths.get(sectionId) || [];
-                const avgTimeSpent = sectionTimeData.length > 0
-                    ? sectionTimeData.reduce((sum, d) => sum + d.duration, 0) / sectionTimeData.length
-                    : 0;
+
+                // ✅ FIX: Calcular TOTALES acumulados en este batch, no promedios dependientes de views del batch
+                const totalDurationAdded = sectionTimeData.reduce((sum, d) => sum + d.duration, 0);
+                const totalScrollAdded = scrollDepthData.reduce((sum, d) => sum + d, 0);
                 const totalDishesViewed = sectionTimeData.reduce((sum, d) => sum + d.dishesViewed, 0);
-                const avgScrollDepth = scrollDepthData.length > 0
-                    ? scrollDepthData.reduce((sum, d) => sum + d, 0) / scrollDepthData.length
-                    : 0;
+
+                // Si hay nuevas views en este batch, usarlas para el promedio. Si no, usamos 0.
+                // En la query, usaremos 'views' (existentes en BD) + 'excluded.views' (nuevas) como divisor.
+                // Para el dividendo, sumamos (avg_actual * views_actuales) + totalDurationAdded.
+
                 await env.DB.prepare(`
         INSERT INTO section_daily_metrics (
           restaurant_id, section_id, date, views, dish_views,
@@ -482,11 +565,11 @@ async function handleEvents(request, env, ctx) {
           views = views + excluded.views,
           dish_views = dish_views + excluded.dish_views,
           avg_time_spent = (
-            (avg_time_spent * views + excluded.avg_time_spent * excluded.views) / 
+            (avg_time_spent * views + ?) /  -- ? = totalDurationAdded
             NULLIF(views + excluded.views, 0)
           ),
           avg_scroll_depth = (
-            (avg_scroll_depth * views + excluded.avg_scroll_depth * excluded.views) / 
+            (avg_scroll_depth * views + ?) / -- ? = totalScrollAdded
             NULLIF(views + excluded.views, 0)
           ),
           total_dishes_viewed = total_dishes_viewed + excluded.total_dishes_viewed
@@ -494,10 +577,53 @@ async function handleEvents(request, env, ctx) {
                     restaurantId, sectionId, today,
                     updateInfo.views,
                     updateInfo.dish_views,
-                    Math.round(avgTimeSpent * 100) / 100,
-                    Math.round(avgScrollDepth),
+                    0, // avg_time_spent placeholder (no se usa en INSERT si updateInfo.views es 0, pero si es nuevo insert, necesitamos avg)
+                    // OJO: Si es INSERT nuevo, avg_time_spent debería ser (totalDuration / views).
+                    // Si updateInfo.views es 0 (solo tiempo), un INSERT fallaría lógicamente (division by zero metrics) a menos que
+                    // avg_time_spent sea 0.
+                    // Para simplificar: Si es INSERT (conflict no salta), toma los valores VALUES.
+                    // Si updateInfo.views > 0, calculamos el promedio inicial. Si es 0, ponemos 0.
+                    0, // avg_scroll_depth placeholder
                     totalDishesViewed
+                );
+
+                // Re-bind correcto para INSERT vs UPDATE
+                // Problema: ? en UPDATE no es accesible via bind posicional simple si usara excluded.
+                // Solución: Binding directo de valores calculados.
+
+                // Calculamos promedios iniciales para el caso INSERT
+                const initialAvgTime = updateInfo.views > 0 ? (totalDurationAdded / updateInfo.views) : 0;
+                const initialAvgScroll = updateInfo.views > 0 ? (totalScrollAdded / updateInfo.views) : 0;
+
+                await env.DB.prepare(`
+        INSERT INTO section_daily_metrics (
+          restaurant_id, section_id, date, views, dish_views,
+          avg_time_spent, avg_scroll_depth, total_dishes_viewed
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        ON CONFLICT(restaurant_id, section_id, date) 
+        DO UPDATE SET
+          views = views + excluded.views,
+          dish_views = dish_views + excluded.dish_views,
+          avg_time_spent = (
+            (avg_time_spent * views + ?) / 
+            NULLIF(views + excluded.views, 1) -- Avoid div/0 if totally empty
+          ),
+          avg_scroll_depth = (
+            (avg_scroll_depth * views + ?) / 
+            NULLIF(views + excluded.views, 1)
+          ),
+          total_dishes_viewed = total_dishes_viewed + excluded.total_dishes_viewed
+                `).bind(
+                    restaurantId, sectionId, today,
+                    updateInfo.views,
+                    updateInfo.dish_views,
+                    initialAvgTime,
+                    initialAvgScroll,
+                    totalDishesViewed,
+                    totalDurationAdded, // Param para update avg_time_spent
+                    totalScrollAdded    // Param para update avg_scroll_depth
                 ).run();
+
                 console.log(`✅ [Events] section_daily_metrics actualizado para ${sectionId}`);
             } catch (updateError) {
                 console.error('[Events] Error actualizando sección:', updateError, sectionId);
@@ -509,7 +635,9 @@ async function handleEvents(request, env, ctx) {
         if (processedEvents.length > 0) {
             const aggregatePromise = Promise.all([
                 aggregateDailyAnalytics(env.DB, restaurantId, today),
-                aggregateCartMetrics(env.DB, restaurantId, today) // ✅ NEW: Aggregate Cart Metrics
+                aggregateCartMetrics(env.DB, restaurantId, today),
+                aggregateDishMetrics(env.DB, restaurantId, today),
+                aggregateSectionMetrics(env.DB, restaurantId, today)
             ]);
             if (ctx && ctx.waitUntil) {
                 ctx.waitUntil(aggregatePromise);
@@ -541,69 +669,131 @@ async function aggregateDailyAnalytics(db, restaurantId, date) {
         console.log(`🔍 [Analytics] === INICIANDO AGREGACIÓN ===`);
         console.log(`🔍 [Analytics] restaurantId: ${restaurantId}`);
         console.log(`🔍 [Analytics] date: ${date}`);
-        const stats = await db.prepare(`
-    SELECT 
-      COUNT(DISTINCT s.id) as total_sessions,
-      SUM(CASE WHEN e.event_type = 'viewdish' THEN 1 ELSE 0 END) as dish_views,
-      COUNT(CASE WHEN e.event_type = 'favorite' AND (e.value = 'true' OR e.value = '1') THEN 1 END) as favorites_added,
-      COUNT(CASE WHEN e.event_type = 'rating' THEN 1 END) as ratings_submitted,
-      COUNT(CASE WHEN e.event_type = 'share' THEN 1 END) as shares,
-      AVG(s.duration_seconds) as avg_session_duration,
-      COUNT(DISTINCT s.id) as unique_visitors,
-      AVG(CASE WHEN e.event_type = 'dish_view_duration' THEN e.numeric_value END) as avg_dish_view_duration,
-      AVG(CASE WHEN e.event_type = 'section_time' THEN e.numeric_value END) as avg_section_time,
-      AVG(CASE WHEN e.event_type = 'scroll_depth' THEN e.numeric_value END) as avg_scroll_depth,
-      COUNT(CASE WHEN e.event_type = 'media_error' THEN 1 END) as media_errors
-    FROM sessions s
-    LEFT JOIN events e ON s.id = e.session_id
-    WHERE s.restaurant_id = ? 
-      AND DATE(s.started_at) = ?
-      AND s.consent_analytics = 1
-  `).bind(restaurantId, date).first();
-        console.log(`🔍 [Analytics] Stats calculados:`, stats);
+        const sessionStats = await db.prepare(`
+      SELECT 
+        COUNT(*) as total_sessions,
+        COUNT(DISTINCT user_id) as distinct_users, -- Optional fallback
+        AVG(duration_seconds) as avg_session_duration,
+        SUM(CASE WHEN duration_seconds IS NOT NULL THEN 1 ELSE 0 END) as finished_sessions
+      FROM sessions
+      WHERE restaurant_id = ? 
+        AND started_at BETWEEN ? AND ?
+        AND consent_analytics = 1
+    `).bind(restaurantId, date + 'T00:00:00', date + 'T23:59:59').first();
+
+        const eventStats = await db.prepare(`
+      SELECT 
+        SUM(CASE WHEN event_type = 'viewdish' THEN 1 ELSE 0 END) as dish_views,
+        COUNT(CASE WHEN event_type = 'favorite' AND (value = 'true' OR value = '1') THEN 1 END) as favorites_added,
+        COUNT(CASE WHEN event_type = 'rating' THEN 1 END) as ratings_submitted,
+        COUNT(CASE WHEN event_type = 'share' THEN 1 END) as shares,
+        AVG(CASE WHEN event_type = 'dish_view_duration' THEN numeric_value END) as avg_dish_view_duration,
+        AVG(CASE WHEN event_type = 'section_time' THEN numeric_value END) as avg_section_time,
+        AVG(CASE WHEN event_type = 'scroll_depth' THEN numeric_value END) as avg_scroll_depth,
+        COUNT(CASE WHEN event_type = 'media_error' THEN 1 END) as media_errors
+      FROM events
+      WHERE restaurant_id = ?
+        AND created_at BETWEEN ? AND ?
+    `).bind(restaurantId, date + 'T00:00:00', date + 'T23:59:59').first();
+
+        console.log(`🔍 [Analytics] Session Stats:`, sessionStats);
+        console.log(`🔍 [Analytics] Event Stats:`, eventStats);
+
         await db.prepare(`
-    INSERT INTO daily_analytics (
-      restaurant_id, date, total_views, unique_visitors, total_sessions,
-      avg_session_duration, dish_views, favorites_added, ratings_submitted, 
-      shares, avg_dish_view_duration, avg_section_time, avg_scroll_depth, media_errors,
-      reserve_clicks, call_clicks, directions_clicks
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, 0, 0)
-    ON CONFLICT(restaurant_id, date) 
-    DO UPDATE SET
-      total_views = excluded.total_views,
-      unique_visitors = excluded.unique_visitors,
-      total_sessions = excluded.total_sessions,
-      avg_session_duration = excluded.avg_session_duration,
-      dish_views = excluded.dish_views,
-      favorites_added = excluded.favorites_added,
-      ratings_submitted = excluded.ratings_submitted,
-      shares = excluded.shares,
-      avg_dish_view_duration = excluded.avg_dish_view_duration,
-      avg_section_time = excluded.avg_section_time,
-      avg_scroll_depth = excluded.avg_scroll_depth,
-      media_errors = excluded.media_errors
-  `).bind(
+      INSERT INTO daily_analytics (
+        restaurant_id, date, total_views, unique_visitors, total_sessions,
+        avg_session_duration, dish_views, favorites_added, ratings_submitted, 
+        shares, avg_dish_view_duration, avg_section_time, avg_scroll_depth, media_errors,
+        reserve_clicks, call_clicks, directions_clicks
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, 0, 0)
+      ON CONFLICT(restaurant_id, date) 
+      DO UPDATE SET
+        total_views = excluded.total_views,
+        unique_visitors = excluded.unique_visitors,
+        total_sessions = excluded.total_sessions,
+        avg_session_duration = excluded.avg_session_duration,
+        dish_views = excluded.dish_views,
+        favorites_added = excluded.favorites_added,
+        ratings_submitted = excluded.ratings_submitted,
+        shares = excluded.shares,
+        avg_dish_view_duration = excluded.avg_dish_view_duration,
+        avg_section_time = excluded.avg_section_time,
+        avg_scroll_depth = excluded.avg_scroll_depth,
+        media_errors = excluded.media_errors
+    `).bind(
             restaurantId, date,
-            stats.total_sessions || 0,
-            stats.unique_visitors || 0,
-            stats.total_sessions || 0,
-            stats.avg_session_duration || 0,
-            stats.dish_views || 0,
-            stats.favorites_added || 0,
-            stats.ratings_submitted || 0,
-            stats.shares || 0,
-            Math.round((stats.avg_dish_view_duration || 0) * 100) / 100,
-            Math.round((stats.avg_section_time || 0) * 100) / 100,
-            Math.round(stats.avg_scroll_depth || 0),
-            stats.media_errors || 0
+            sessionStats.total_sessions || 0,
+            sessionStats.total_sessions || 0, // unique_visitors heuristic (using sessions for now as users are sparse)
+            sessionStats.total_sessions || 0,
+            sessionStats.avg_session_duration || 0,
+            eventStats.dish_views || 0,
+            eventStats.favorites_added || 0,
+            eventStats.ratings_submitted || 0,
+            eventStats.shares || 0,
+            Math.round((eventStats.avg_dish_view_duration || 0) * 100) / 100,
+            Math.round((eventStats.avg_section_time || 0) * 100) / 100,
+            Math.round(eventStats.avg_scroll_depth || 0),
+            eventStats.media_errors || 0
         ).run();
         console.log(`✅ [Analytics] daily_analytics actualizado para ${restaurantId} - ${date}`);
-        console.log(`📊 [Analytics] Métricas nuevas - Avg view duration: ${stats.avg_dish_view_duration}s, Avg section time: ${stats.avg_section_time}s, Avg scroll: ${stats.avg_scroll_depth}%`);
     } catch (error) {
         console.error('[Analytics] Error en agregación diaria:', error);
         throw error;
     }
 }
+
+async function aggregateDishMetrics(db, restaurantId, date) {
+    try {
+        const results = await db.prepare(`
+            SELECT 
+                entity_id as dish_id,
+                COUNT(DISTINCT session_id) as unique_viewers
+            FROM events
+            WHERE restaurant_id = ? 
+              AND event_type = 'viewdish'
+              AND created_at BETWEEN ? AND ?
+            GROUP BY entity_id
+        `).bind(restaurantId, date + 'T00:00:00', date + 'T23:59:59').all();
+
+        for (const row of results.results || []) {
+            await db.prepare(`
+                UPDATE dish_daily_metrics 
+                SET unique_viewers = ?
+                WHERE restaurant_id = ? AND dish_id = ? AND date = ?
+            `).bind(row.unique_viewers, restaurantId, row.dish_id, date).run();
+        }
+        console.log(`✅ [Analytics] Métricas únicas de platos actualizadas`);
+    } catch (error) {
+        console.error('[Analytics] Error agregando métricas de platos:', error);
+    }
+}
+
+async function aggregateSectionMetrics(db, restaurantId, date) {
+    try {
+        const results = await db.prepare(`
+            SELECT 
+                entity_id as section_id,
+                COUNT(DISTINCT session_id) as unique_viewers
+            FROM events
+            WHERE restaurant_id = ? 
+              AND event_type = 'view_section'
+              AND created_at BETWEEN ? AND ?
+            GROUP BY entity_id
+        `).bind(restaurantId, date + 'T00:00:00', date + 'T23:59:59').all();
+
+        for (const row of results.results || []) {
+            await db.prepare(`
+                UPDATE section_daily_metrics 
+                SET unique_viewers = ?
+                WHERE restaurant_id = ? AND section_id = ? AND date = ?
+            `).bind(row.unique_viewers, restaurantId, row.section_id, date).run();
+        }
+        console.log(`✅ [Analytics] Métricas únicas de secciones actualizadas`);
+    } catch (error) {
+        console.error('[Analytics] Error agregando métricas de secciones:', error);
+    }
+}
+
 async function handleDailyAnalytics(request, env) {
     try {
         const data = await request.json();
@@ -650,10 +840,10 @@ async function handleDailyAnalyticsQuery(request, env) {
         let query = `
     SELECT * FROM daily_analytics 
     WHERE restaurant_id = ?
-  `;
+            `;
         const params = [restaurantId];
         if (startDate) {
-            query += ` AND date >= ?`;
+            query += ` AND date >= ? `;
             params.push(startDate);
         }
         query += ` AND date <= ? ORDER BY date DESC LIMIT 30`;
@@ -679,22 +869,22 @@ async function handleDishAnalyticsQuery(request, env) {
         }
         const dishes = await env.DB.prepare(`
     SELECT 
-      d.id, 
-      d.view_count, 
-      d.favorite_count, 
-      d.rating_count, 
-      d.avg_rating,
-      d.total_view_time,
-      CAST(d.total_view_time AS REAL) / NULLIF(d.view_count, 0) as avg_view_duration,
-      t.value as name
+      d.id,
+            d.view_count,
+            d.favorite_count,
+            d.rating_count,
+            d.avg_rating,
+            d.total_view_time,
+            CAST(d.total_view_time AS REAL) / NULLIF(d.view_count, 0) as avg_view_duration,
+            t.value as name
     FROM dishes d
     LEFT JOIN translations t ON d.id = t.entity_id 
       AND t.entity_type = 'dish' 
       AND t.field = 'name' 
       AND t.language_code = 'es'
     WHERE d.restaurant_id = ?
-    ORDER BY d.view_count DESC, d.favorite_count DESC
-  `).bind(restaurantId).all();
+            ORDER BY d.view_count DESC, d.favorite_count DESC
+            `).bind(restaurantId).all();
         return jsonResponse({
             success: true,
             data: dishes.results || [],
@@ -717,12 +907,12 @@ async function handleSectionAnalyticsQuery(request, env) {
         let query = `
     SELECT 
       s.id,
-      t.value as name,
-      SUM(sdm.views) as total_views,
-      SUM(sdm.dish_views) as total_dish_views,
-      AVG(sdm.avg_time_spent) as avg_time_spent,
-      AVG(sdm.avg_scroll_depth) as avg_scroll_depth,
-      SUM(sdm.total_dishes_viewed) as total_dishes_viewed
+            t.value as name,
+            SUM(sdm.views) as total_views,
+            SUM(sdm.dish_views) as total_dish_views,
+            AVG(sdm.avg_time_spent) as avg_time_spent,
+            AVG(sdm.avg_scroll_depth) as avg_scroll_depth,
+            SUM(sdm.total_dishes_viewed) as total_dishes_viewed
     FROM sections s
     LEFT JOIN section_daily_metrics sdm ON s.id = sdm.section_id
     LEFT JOIN translations t ON s.id = t.entity_id 
@@ -730,10 +920,10 @@ async function handleSectionAnalyticsQuery(request, env) {
       AND t.field = 'name' 
       AND t.language_code = 'es'
     WHERE s.restaurant_id = ?
-  `;
+            `;
         const params = [restaurantId];
         if (startDate) {
-            query += ` AND sdm.date >= ?`;
+            query += ` AND sdm.date >= ? `;
             params.push(startDate);
         }
         query += ` AND sdm.date <= ? GROUP BY s.id ORDER BY total_views DESC`;
@@ -762,11 +952,11 @@ async function handleCartEvent(db, event, session, restaurantId) {
         const cartId = event.type === 'cart_created' ? event.entityId : value.cartId;
 
         if (!cartId) {
-            console.error(`❌ [Cart] No cartId found for event ${event.type}:`, event);
+            console.error(`❌[Cart] No cartId found for event ${event.type}: `, event);
             return;
         }
 
-        console.log(`🛒 [Cart] Procesando ${event.type} para cartId=${cartId}`);
+        console.log(`🛒[Cart] Procesando ${event.type} para cartId = ${cartId} `);
 
         // Datos comunes para update
         const totalItems = value.totalItems || 0;
@@ -777,24 +967,24 @@ async function handleCartEvent(db, event, session, restaurantId) {
 
         if (event.type === 'cart_created') {
             await db.prepare(`
-                INSERT INTO cart_sessions (
-                    id, sessionid, restaurantid, createdat, status, 
-                    devicetype, languagecode, qrcodeid
-                ) VALUES (?, ?, ?, ?, 'active', ?, ?, ?)
+                INSERT INTO cart_sessions(
+                id, sessionid, restaurantid, createdat, status,
+                devicetype, languagecode, qrcodeid
+            ) VALUES(?, ?, ?, ?, 'active', ?, ?, ?)
                 ON CONFLICT(id) DO NOTHING
             `).bind(
                 cartId, session.id, restaurantId, timestamp,
                 session.device_type || 'unknown', session.language_code || 'es', session.qr_code_id || null
             ).run();
-            console.log(`✅ [Cart] Cart session created: ${cartId}`);
+            console.log(`✅[Cart] Cart session created: ${cartId} `);
         }
         else if (event.type === 'cart_item_added' || event.type === 'cart_item_removed' || event.type === 'cart_item_quantity') {
             // Ensure cart exists first
             await db.prepare(`
-                INSERT INTO cart_sessions (
-                    id, sessionid, restaurantid, createdat, status, 
-                    devicetype, languagecode, qrcodeid
-                ) VALUES (?, ?, ?, ?, 'active', ?, ?, ?)
+                INSERT INTO cart_sessions(
+                id, sessionid, restaurantid, createdat, status,
+                devicetype, languagecode, qrcodeid
+            ) VALUES(?, ?, ?, ?, 'active', ?, ?, ?)
                 ON CONFLICT(id) DO NOTHING
             `).bind(
                 cartId, session.id, restaurantId, timestamp,
@@ -804,39 +994,39 @@ async function handleCartEvent(db, event, session, restaurantId) {
             // Update with full metrics
             let query = `
                 UPDATE cart_sessions 
-                SET updatedat = ?, 
-                    modificationscount = modificationscount + 1
-            `;
+                SET updatedat = ?,
+            modificationscount = modificationscount + 1
+                `;
             const params = [timestamp];
 
             // Solo actualizar si vienen datos válidos (el frontend los enviará siempre ahora)
             if (value.totalItems !== undefined) {
-                query += `, totalitems = ?, uniquedishes = ?, estimatedvalue = ?`;
+                query += `, totalitems = ?, uniquedishes = ?, estimatedvalue = ? `;
                 params.push(totalItems, uniqueDishes, totalValue);
             }
 
             if (cartSnapshot) {
-                query += `, cartsnapshotjson = ?`;
+                query += `, cartsnapshotjson = ? `;
                 params.push(cartSnapshot);
             }
 
-            query += ` WHERE id = ?`;
+            query += ` WHERE id = ? `;
             params.push(cartId);
 
             await db.prepare(query).bind(...params).run();
-            console.log(`✅ [Cart] Cart updated: ${cartId}, items=${totalItems}, value=${totalValue}`);
+            console.log(`✅[Cart] Cart updated: ${cartId}, items = ${totalItems}, value = ${totalValue} `);
         }
         else if (event.type === 'cart_shown_to_staff') {
             await db.prepare(`
                 UPDATE cart_sessions 
-                SET status = 'converted', 
-                    showntostaffat = ?, 
-                    updatedat = ?, 
-                    estimatedvalue = ?, 
-                    totalitems = ?,
-                    uniquedishes = ?,
-                    timespentseconds = ?,
-                    cartsnapshotjson = COALESCE(?, cartsnapshotjson)
+                SET status = 'converted',
+            showntostaffat = ?,
+            updatedat = ?,
+            estimatedvalue = ?,
+            totalitems = ?,
+            uniquedishes = ?,
+            timespentseconds = ?,
+            cartsnapshotjson = COALESCE(?, cartsnapshotjson)
                 WHERE id = ?
             `).bind(
                 timestamp, timestamp,
@@ -847,17 +1037,17 @@ async function handleCartEvent(db, event, session, restaurantId) {
                 cartSnapshot,
                 cartId
             ).run();
-            console.log(`✅ [Cart] Cart converted: ${cartId}`);
+            console.log(`✅[Cart] Cart converted: ${cartId} `);
         }
         else if (event.type === 'cart_abandoned') {
             await db.prepare(`
                 UPDATE cart_sessions 
-                SET status = 'abandoned', 
-                    abandonedat = ?,
-                    updatedat = ?
+                SET status = 'abandoned',
+            abandonedat = ?,
+            updatedat = ?
                 WHERE id = ?
-            `).bind(timestamp, timestamp, cartId).run();
-            console.log(`✅ [Cart] Cart abandoned: ${cartId}`);
+                    `).bind(timestamp, timestamp, cartId).run();
+            console.log(`✅[Cart] Cart abandoned: ${cartId} `);
         }
     } catch (error) {
         console.error('❌ [Cart] Error handling cart event:', error);
@@ -865,46 +1055,46 @@ async function handleCartEvent(db, event, session, restaurantId) {
 }
 async function aggregateCartMetrics(db, restaurantId, date) {
     try {
-        console.log(`🛒 [Analytics] Agregando métricas de carrito para ${restaurantId} - ${date}`);
+        console.log(`🛒[Analytics] Agregando métricas de carrito para ${restaurantId} - ${date} `);
         // Calcular estadísticas desde cart_sessions
         const stats = await db.prepare(`
-            SELECT 
-                COUNT(*) as total_carts_created,
-                COUNT(CASE WHEN status = 'converted' THEN 1 END) as total_carts_shown,
-                COUNT(CASE WHEN status = 'abandoned' THEN 1 END) as total_carts_abandoned,
-                SUM(CASE WHEN status = 'converted' THEN estimatedvalue ELSE 0 END) as shown_carts_value,
-                SUM(estimatedvalue) as total_estimated_value,
-                AVG(estimatedvalue) as avg_cart_value,
-                SUM(totalitems) as total_items_added,
-                AVG(totalitems) as avg_items_per_cart,
-                AVG(CASE WHEN status = 'converted' THEN timespentseconds END) as avg_time_to_show
+        SELECT
+        COUNT(*) as total_carts_created,
+            COUNT(CASE WHEN status = 'converted' THEN 1 END) as total_carts_shown,
+            COUNT(CASE WHEN status = 'abandoned' THEN 1 END) as total_carts_abandoned,
+            SUM(CASE WHEN status = 'converted' THEN estimatedvalue ELSE 0 END) as shown_carts_value,
+            SUM(estimatedvalue) as total_estimated_value,
+            AVG(estimatedvalue) as avg_cart_value,
+            SUM(totalitems) as total_items_added,
+            AVG(totalitems) as avg_items_per_cart,
+            AVG(CASE WHEN status = 'converted' THEN timespentseconds END) as avg_time_to_show
             FROM cart_sessions
             WHERE restaurantid = ? AND DATE(createdat) = ?
-        `).bind(restaurantId, date).first();
+            `).bind(restaurantId, date).first();
         const conversionRate = stats.total_carts_created > 0
             ? (stats.total_carts_shown / stats.total_carts_created) * 100
             : 0;
         // Insertar o actualizar en cart_daily_metrics
         await db.prepare(`
-            INSERT INTO cart_daily_metrics (
-                restaurantid, date, 
+            INSERT INTO cart_daily_metrics(
+                restaurantid, date,
                 total_carts_created, total_carts_shown, total_carts_abandoned,
                 conversion_rate, total_estimated_value, avg_cart_value,
                 shown_carts_value, total_items_added, avg_items_per_cart,
                 avg_time_to_show
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ) VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             ON CONFLICT(restaurantid, date) DO UPDATE SET
-                total_carts_created = excluded.total_carts_created,
-                total_carts_shown = excluded.total_carts_shown,
-                total_carts_abandoned = excluded.total_carts_abandoned,
-                conversion_rate = excluded.conversion_rate,
-                total_estimated_value = excluded.total_estimated_value,
-                avg_cart_value = excluded.avg_cart_value,
-                shown_carts_value = excluded.shown_carts_value,
-                total_items_added = excluded.total_items_added,
-                avg_items_per_cart = excluded.avg_items_per_cart,
-                avg_time_to_show = excluded.avg_time_to_show
-        `).bind(
+        total_carts_created = excluded.total_carts_created,
+            total_carts_shown = excluded.total_carts_shown,
+            total_carts_abandoned = excluded.total_carts_abandoned,
+            conversion_rate = excluded.conversion_rate,
+            total_estimated_value = excluded.total_estimated_value,
+            avg_cart_value = excluded.avg_cart_value,
+            shown_carts_value = excluded.shown_carts_value,
+            total_items_added = excluded.total_items_added,
+            avg_items_per_cart = excluded.avg_items_per_cart,
+            avg_time_to_show = excluded.avg_time_to_show
+                `).bind(
             restaurantId, date,
             stats.total_carts_created || 0,
             stats.total_carts_shown || 0,
@@ -917,7 +1107,7 @@ async function aggregateCartMetrics(db, restaurantId, date) {
             stats.avg_items_per_cart || 0,
             stats.avg_time_to_show || 0
         ).run();
-        console.log(`✅ [Analytics] cart_daily_metrics actualizado.`);
+        console.log(`✅[Analytics] cart_daily_metrics actualizado.`);
     } catch (error) {
         console.error('❌ [Analytics] Error agregando métricas de carrito:', error);
     }

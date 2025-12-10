@@ -39,16 +39,23 @@ const PremiumDishCard: React.FC<DishCardProps> = ({
   onMuteToggle,
   onInteraction
 }) => {
-  const [isFavorite, setIsFavorite] = useState(false);
-  const [showDetails, setShowDetails] = useState(false);
-  const [videoLoaded, setVideoLoaded] = useState(false);
-  const [videoError, setVideoError] = useState(false);
-  
-  const videoRef = useRef<HTMLVideoElement>(null);
-  const { viewDish, favoriteDish, shareDish } = useDishTracking();
-  
+  const { viewDish, favoriteDish, shareDish, trackDishViewDuration, isFavorited } = useDishTracking();
+  const [isFavorite, setIsFavorite] = useState(() => isFavorited(dish.id));
+
   const { ref: inViewRef, inView } = useInView({ threshold: 0.7 });
-  
+  const videoRef = useRef<HTMLVideoElement>(null);
+  const [showDetails, setShowDetails] = useState(false);
+  const [, setVideoLoaded] = useState(false);
+  const [videoError, setVideoError] = useState(false);
+
+  const branding = config.restaurant?.branding || {};
+  const colors = {
+    primary: branding.primary_color || branding.primaryColor || '#FF6B6B',
+    secondary: branding.secondary_color || branding.secondaryColor || '#4ECDC4',
+    text: branding.text_color || branding.textColor || '#FFFFFF',
+    background: branding.background_color || branding.backgroundColor || '#000000'
+  };
+
   const media = dish?.media?.[0];
   const isVideo = media?.type === 'video';
   const dishName = dish?.translations?.name?.es || dish?.name || 'Plato';
@@ -73,10 +80,22 @@ const PremiumDishCard: React.FC<DishCardProps> = ({
   }, [isActive, inView, isVideo, videoError]);
 
   useEffect(() => {
+    let startTime = Date.now();
+
     if (isActive && inView && dish?.id) {
       viewDish(dish.id, section?.id);
+      startTime = Date.now();
     }
-  }, [isActive, inView, dish?.id, section?.id, viewDish]);
+
+    return () => {
+      if (isActive && inView && dish?.id) {
+        const duration = Math.floor((Date.now() - startTime) / 1000);
+        if (duration > 0) {
+          trackDishViewDuration(dish.id, duration, section?.id);
+        }
+      }
+    };
+  }, [isActive, inView, dish?.id, section?.id, viewDish, trackDishViewDuration]);
 
   const handleFavorite = useCallback((e: React.MouseEvent) => {
     e.stopPropagation();
@@ -107,7 +126,7 @@ const PremiumDishCard: React.FC<DishCardProps> = ({
         width: '100vw',
         position: 'relative',
         overflow: 'hidden',
-        bgcolor: config.colors.background
+        bgcolor: colors.background
       }}
     >
       {/* Media con efectos premium */}
@@ -150,7 +169,7 @@ const PremiumDishCard: React.FC<DishCardProps> = ({
             }}
           />
         )}
-        
+
         {/* Premium gradient overlay with radial */}
         <Box
           sx={{
@@ -159,7 +178,7 @@ const PremiumDishCard: React.FC<DishCardProps> = ({
             left: 0,
             right: 0,
             height: '50%',
-            background: `radial-gradient(ellipse at bottom, ${alpha(config.colors.background, 0.9)} 0%, ${alpha(config.colors.background, 0.4)} 50%, transparent 100%)`,
+            background: `radial-gradient(ellipse at bottom, ${alpha(colors.background, 0.9)} 0%, ${alpha(colors.background, 0.4)} 50%, transparent 100%)`,
             zIndex: 2
           }}
         />
@@ -185,10 +204,10 @@ const PremiumDishCard: React.FC<DishCardProps> = ({
             }}
           >
             {[
-              { icon: isFavorite ? <Favorite /> : <FavoriteBorder />, onClick: handleFavorite, color: isFavorite ? config.colors.primary : config.colors.text },
-              { icon: <Share />, onClick: handleShare, color: config.colors.text },
-              { icon: <Info />, onClick: (e: React.MouseEvent) => { e.stopPropagation(); setShowDetails(!showDetails); onInteraction(); }, color: config.colors.text },
-              ...(isVideo ? [{ icon: muted ? <VolumeOff /> : <VolumeUp />, onClick: (e: React.MouseEvent) => { e.stopPropagation(); onMuteToggle(); }, color: config.colors.text }] : [])
+              { icon: isFavorite ? <Favorite /> : <FavoriteBorder />, onClick: handleFavorite, color: isFavorite ? colors.primary : colors.text },
+              { icon: <Share />, onClick: handleShare, color: colors.text },
+              { icon: <Info />, onClick: (e: React.MouseEvent) => { e.stopPropagation(); setShowDetails(!showDetails); onInteraction(); }, color: colors.text },
+              ...(isVideo ? [{ icon: muted ? <VolumeOff /> : <VolumeUp />, onClick: (e: React.MouseEvent) => { e.stopPropagation(); onMuteToggle(); }, color: colors.text }] : [])
             ].map((btn, idx) => (
               <motion.div
                 key={idx}
@@ -198,18 +217,18 @@ const PremiumDishCard: React.FC<DishCardProps> = ({
                 <IconButton
                   onClick={btn.onClick}
                   sx={{
-                    bgcolor: glassmorphism 
-                      ? alpha(config.colors.text, 0.15)
-                      : alpha(config.colors.background, 0.6),
+                    bgcolor: glassmorphism
+                      ? alpha(colors.text, 0.15)
+                      : alpha(colors.background, 0.6),
                     backdropFilter: glassmorphism ? `blur(${blurIntensity}px) saturate(180%)` : 'blur(10px)',
                     WebkitBackdropFilter: glassmorphism ? `blur(${blurIntensity}px) saturate(180%)` : 'blur(10px)',
                     color: btn.color,
                     width: 58,
                     height: 58,
-                    border: `1px solid ${alpha(config.colors.text, 0.2)}`,
-                    boxShadow: `0 8px 32px ${alpha(config.colors.background, 0.4)}`,
-                    '&:hover': { 
-                      bgcolor: alpha(config.colors.text, 0.25),
+                    border: `1px solid ${alpha(colors.text, 0.2)}`,
+                    boxShadow: `0 8px 32px ${alpha(colors.background, 0.4)}`,
+                    '&:hover': {
+                      bgcolor: alpha(colors.text, 0.25),
                       borderColor: alpha(btn.color, 0.5)
                     },
                     transition: 'all 0.3s ease'
@@ -240,10 +259,10 @@ const PremiumDishCard: React.FC<DishCardProps> = ({
               p: 3,
               zIndex: 5,
               ...(glassmorphism && {
-                bgcolor: alpha(config.colors.background, 0.2),
+                bgcolor: alpha(colors.background, 0.2),
                 backdropFilter: `blur(${blurIntensity}px) saturate(180%)`,
                 WebkitBackdropFilter: `blur(${blurIntensity}px) saturate(180%)`,
-                borderTop: `1px solid ${alpha(config.colors.text, 0.1)}`,
+                borderTop: `1px solid ${alpha(colors.text, 0.1)}`,
                 borderTopLeftRadius: 24,
                 borderTopRightRadius: 24
               })
@@ -254,10 +273,10 @@ const PremiumDishCard: React.FC<DishCardProps> = ({
               label={restaurant?.name}
               size="small"
               sx={{
-                bgcolor: alpha(config.colors.text, 0.15),
+                bgcolor: alpha(colors.text, 0.15),
                 backdropFilter: 'blur(10px)',
-                color: config.colors.text,
-                border: `1px solid ${alpha(config.colors.text, 0.2)}`,
+                color: colors.text,
+                border: `1px solid ${alpha(colors.text, 0.2)}`,
                 mb: 1.5
               }}
             />
@@ -265,11 +284,11 @@ const PremiumDishCard: React.FC<DishCardProps> = ({
             <Typography
               variant="h4"
               sx={{
-                color: config.colors.text,
+                color: colors.text,
                 fontWeight: 400,
                 mb: 1,
                 fontFamily: "'Playfair Display', serif",
-                textShadow: `0 2px 20px ${alpha(config.colors.background, 0.8)}`
+                textShadow: `0 2px 20px ${alpha(colors.background, 0.8)}`
               }}
             >
               {dishName}
@@ -279,10 +298,10 @@ const PremiumDishCard: React.FC<DishCardProps> = ({
               <Typography
                 variant="h5"
                 sx={{
-                  color: config.colors.primary,
+                  color: colors.primary,
                   fontWeight: 700,
                   mb: 1.5,
-                  textShadow: `0 2px 10px ${alpha(config.colors.primary, 0.5)}`
+                  textShadow: `0 2px 10px ${alpha(colors.primary, 0.5)}`
                 }}
               >
                 €{dish.price.toFixed(2)}
@@ -291,7 +310,7 @@ const PremiumDishCard: React.FC<DishCardProps> = ({
 
             <Typography
               sx={{
-                color: config.colors.text,
+                color: colors.text,
                 fontSize: '1.05rem',
                 lineHeight: 1.5,
                 display: '-webkit-box',

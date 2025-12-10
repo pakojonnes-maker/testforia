@@ -40,34 +40,40 @@ export function AuthProvider({ children }: AuthProviderProps) {
           // Configurar token en apiClient
           apiClient.setAuthToken(authToken);
 
-          // Validar autenticación
-          // Nota: Como getCurrentUser no está disponible, usamos isAuthenticated o alguna otra verificación
-          if (!apiClient.isAuthenticated()) {
-            throw new Error("Token inválido");
-          }
+          // Validar autenticación con el backend
+          console.log("[AuthContext] Verificando token con el backend...");
 
-          // En ausencia de getCurrentUser, podríamos recuperar datos del usuario
-          // desde localStorage o usar un token decodificado
-          const storedUserData = localStorage.getItem('user_data');
-          if (storedUserData) {
-            const userData = JSON.parse(storedUserData);
+          // Hacemos una petición para verificar que el token es válido
+          // Si el token es inválido, esto lanzará un error (401)
+          const response: any = await apiClient.getCurrentUser();
+
+          // La respuesta del worker es { success: true, user: { ... } }
+          const userData = response.user || response;
+
+          if (userData) {
+            console.log("[AuthContext] Token válido, usuario:", userData.email);
             setUser(userData);
 
             // Auto-seleccionar el primer restaurante si currentRestaurant no existe
             if (!currentRestaurant && userData.restaurants && userData.restaurants.length > 0) {
               setCurrentRestaurant(userData.restaurants[0]);
             }
+          } else {
+            throw new Error("Datos de usuario no encontrados en la respuesta");
           }
 
         } catch (error) {
           // Token inválido o expirado
           console.error("Error de autenticación:", error);
+
+          // Limpiar estado y storage
           localStorage.removeItem('auth_token');
           localStorage.removeItem('user_data');
           localStorage.removeItem('current_restaurant');
           setAuthToken(null);
           setUser(null);
           setCurrentRestaurant(null);
+          apiClient.clearAuthToken();
         } finally {
           setIsLoading(false);
         }
@@ -111,7 +117,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
         return response;
       }
 
-      throw new Error('No se recib ió token de autenticación');
+      throw new Error('No se recibió token de autenticación');
     } catch (error) {
       console.error("Error de inicio de sesión:", error);
       throw error;

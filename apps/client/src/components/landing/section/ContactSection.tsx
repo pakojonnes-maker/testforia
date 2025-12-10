@@ -2,7 +2,7 @@
 import { Box, Typography, Container, Grid, Stack, Button, IconButton } from '@mui/material';
 import {
   Phone,
-  Email,
+
   Instagram,
   Facebook,
   Twitter,
@@ -20,7 +20,7 @@ interface Props {
   details: any;
 }
 
-export default function ContactSection({ restaurant, translations, theme, variant, config, details }: Props) {
+export default function ContactSection({ restaurant, translations: _translations, theme, variant: _variant, config, details }: Props) {
   const socialLinks = [
     { icon: <Instagram />, url: details?.instagram_url, color: '#E4405F' },
     { icon: <Facebook />, url: details?.facebook_url, color: '#1877F2' },

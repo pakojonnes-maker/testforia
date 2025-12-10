@@ -25,11 +25,10 @@ interface SectionBarProps {
 const SectionBar: React.FC<SectionBarProps> = ({
   sections,
   currentSectionIndex,
-  currentDishIndex,
-  totalDishesInSection,
+
   onSectionChange,
   config,
-  currentLanguage
+
 }) => {
   const scrollRef = useRef<HTMLDivElement>(null);
 
@@ -145,7 +144,7 @@ const SectionBar: React.FC<SectionBarProps> = ({
   return (
     <Box
       sx={{
-        position: 'fixed',
+        position: 'absolute', // ✅ Changed from fixed to absolute to stay within container
         bottom: 0,
         left: 0,
         right: 0,

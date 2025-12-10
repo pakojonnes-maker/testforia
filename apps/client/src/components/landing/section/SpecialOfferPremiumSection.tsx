@@ -54,10 +54,10 @@ interface Props {
 }
 
 export default function SpecialOfferSection({
-  restaurant,
-  translations,
+  restaurant: _restaurant,
+  translations: _translations,
   theme,
-  variant,
+  variant: _variant,
   config,
   content,
   labels,
@@ -69,7 +69,7 @@ export default function SpecialOfferSection({
   // Configuration defaults
   const showSubtitle = config.show_subtitle ?? true;
   const showButton = config.show_button ?? true;
-  const itemsPerView = config.items_per_view || 3;
+  // const _itemsPerView = config.items_per_view || 3;
 
   // Content defaults
   const subtitle = labels?.subtitle || content?.subtitle || 'Popular';
@@ -354,7 +354,7 @@ export default function SpecialOfferSection({
               pb: 2,
             }}
           >
-            {dishes.map((dish, index) => (
+            {dishes.map((dish, _index) => (
               <Box
                 key={dish.id}
                 className={`offer-block-two ${dish.rounded ? 'rounded' : ''}`}

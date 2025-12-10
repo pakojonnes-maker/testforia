@@ -1,5 +1,6 @@
 // src/components/landing/section/HeaderNav.tsx
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { useLanguage } from '../../../contexts/LanguageContext';
 
 type Section = {
   section_key: string;
@@ -43,9 +44,9 @@ type Props = {
   sections?: Section[];
   translations?: Record<string, string>;
   config?: HeaderConfig | string;
-  languages?: Language[];
-  currentLanguage?: string;
-  onLanguageChange?: (code: string) => void;
+  languages?: Language[]; // Opcional - usará del contexto si no se provee
+  currentLanguage?: string; // Opcional - usará del contexto si no se provee
+  // onLanguageChange removido - ahora usa el contexto directamente
 };
 
 const MEDIA_BASE_URL = 'https://visualtasteworker.franciscotortosaestudios.workers.dev/media';
@@ -87,10 +88,15 @@ export default function HeaderNav({
   sections = [],
   translations,
   config,
-  languages = [],
-  currentLanguage,
-  onLanguageChange,
+  languages: languagesProp,
+  currentLanguage: currentLanguageProp,
 }: Props) {
+  // ✅ Usar el contexto de idioma para gestión global
+  const { currentLanguage: contextLanguage, setLanguage, availableLanguages } = useLanguage();
+
+  // Props tienen prioridad sobre contexto (para compatibilidad)
+  const languages = languagesProp || availableLanguages;
+  const currentLanguage = currentLanguageProp || contextLanguage;
   const cfg = useMemo(() => parseCfg(config), [config]);
 
   const baseBg = theme?.background_color || theme?.primary_color || '#ffffff';
@@ -170,7 +176,8 @@ export default function HeaderNav({
   };
 
   const handleLangChange = (code: string) => {
-    if (onLanguageChange) onLanguageChange(code);
+    // ✅ Usar setLanguage del contexto
+    setLanguage(code);
     setLangOpen(false);
   };
 
@@ -180,8 +187,8 @@ export default function HeaderNav({
   const showTitle = cfg.show_title !== false;
 
   const bg = variant === 'transparent' ? 'transparent'
-          : variant === 'solid' ? hexToRgba(baseBg, 0.96)
-          : hexToRgba(baseBg, 0.3);
+    : variant === 'solid' ? hexToRgba(baseBg, 0.96)
+      : hexToRgba(baseBg, 0.3);
   const blur = variant === 'glass' ? 'saturate(180%) blur(14px)' : 'none';
   const accentBorder = hexToRgba(accent, 0.4);
 
@@ -536,16 +543,16 @@ export default function HeaderNav({
         </nav>
 
         <div className="hnav-actions">
-          {!!languages.length && onLanguageChange && (
+          {!!languages.length && (
             <div className="hnav-lang-picker" ref={langRef as any}>
               <button
                 className="hnav-lang-trigger"
                 onClick={() => setLangOpen(v => !v)}
                 aria-label="Language selector"
               >
-                <img 
-                  className="hnav-lang-flag" 
-                  src={getFlagUrl(currentLang?.code || 'en')} 
+                <img
+                  className="hnav-lang-flag"
+                  src={getFlagUrl(currentLang?.code || 'en')}
                   alt={currentLang?.code}
                   onError={(e) => {
                     const target = e.target as HTMLImageElement;
@@ -566,9 +573,9 @@ export default function HeaderNav({
                       className={`hnav-lang-option ${l.code === currentLanguage ? 'active' : ''}`}
                       onClick={() => handleLangChange(l.code)}
                     >
-                      <img 
-                        className="hnav-lang-option-flag" 
-                        src={getFlagUrl(l.code)} 
+                      <img
+                        className="hnav-lang-option-flag"
+                        src={getFlagUrl(l.code)}
                         alt={l.code}
                         onError={(e) => {
                           const target = e.target as HTMLImageElement;

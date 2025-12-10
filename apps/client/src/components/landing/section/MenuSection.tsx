@@ -72,7 +72,7 @@ const isImageUrl = (url?: string | null): boolean => {
   return imageExts.some(ext => url.toLowerCase().endsWith(ext));
 };
 
-export default function MenuVideoGallerySection({ theme, translations, premium, apiUrl }: Props) {
+export default function MenuVideoGallerySection({ theme, translations: _translations, premium, apiUrl }: Props) {
   const bg = theme?.background_color || theme?.primary_color || '#0E2D27';
   const accent = theme?.accent_color || theme?.secondary_color || '#D6AA52';
   const txt = theme?.text_color || autoContrast(bg);
@@ -91,19 +91,19 @@ export default function MenuVideoGallerySection({ theme, translations, premium, 
   const items: MenuItem[] = useMemo(() => {
     const raw = premium?.videos || [];
     console.log('[MenuVideoGallery] raw videos:', raw);
-    
+
     if (!raw.length) {
       console.warn('[MenuVideoGallery] ⚠️ No videos found');
       return [];
     }
-    
+
     return raw.map((v, i) => {
       const resolvedPoster = resolveUrl(v.poster, apiUrl);
       // Si poster no es imagen válida, usar placeholder
-      const posterUrl = isImageUrl(resolvedPoster) 
-        ? resolvedPoster 
+      const posterUrl = isImageUrl(resolvedPoster)
+        ? resolvedPoster
         : `https://placehold.co/1280x720/${bg.replace('#', '')}/${accent.replace('#', '')}?text=${encodeURIComponent(v.title || `Menu ${i + 1}`)}`;
-      
+
       return {
         id: `menu-${i}`,
         src: resolveUrl(v.src, apiUrl),
@@ -237,10 +237,10 @@ export default function MenuVideoGallerySection({ theme, translations, premium, 
               <article key={item.id} className="mvg-card">
                 <div className="mvg-media">
                   {item.href && <a className="mvg-link" href={item.href} aria-label={item.title} />}
-                  
+
                   {item.hasVideo && item.src ? (
                     <video
-                      ref={(el) => (vRefs.current[item.id] = el)}
+                      ref={(el) => { vRefs.current[item.id] = el; }}
                       className="mvg-video"
                       playsInline
                       muted
@@ -255,7 +255,7 @@ export default function MenuVideoGallerySection({ theme, translations, premium, 
                             vid.src = vid.dataset.src;
                             vid.load();
                           }
-                          vid.play().catch(() => {});
+                          vid.play().catch(() => { });
                         }
                       }}
                       onMouseLeave={(e) => {
@@ -275,7 +275,7 @@ export default function MenuVideoGallerySection({ theme, translations, premium, 
                       loading="lazy"
                     />
                   )}
-                  
+
                   <div className="mvg-over">
                     <span className="mvg-chip">{item.title}</span>
                     {item.href && (

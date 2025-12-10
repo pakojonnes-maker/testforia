@@ -1,6 +1,6 @@
 // apps/admin/src/components/analytics/TechnicalBreakdowns.tsx
-import React from 'react';
-import { Card, CardContent, Typography, Grid, Stack, Chip, Divider } from '@mui/material';
+import 'react';
+import { Card, CardContent, Typography, Grid, Stack, Chip } from '@mui/material';
 
 interface Props {
   breakdowns: {
@@ -35,10 +35,10 @@ export default function TechnicalBreakdowns({ breakdowns }: Props) {
               </Typography>
               {section.data.length > 0 ? (
                 section.data.slice(0, 5).map((item) => (
-                  <Stack 
-                    key={item.key} 
-                    direction="row" 
-                    justifyContent="space-between" 
+                  <Stack
+                    key={item.key}
+                    direction="row"
+                    justifyContent="space-between"
                     alignItems="center"
                     sx={{ mb: 1 }}
                   >

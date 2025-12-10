@@ -22,9 +22,14 @@ import {
   Remove,
   Close,
   ShoppingCart,
+  AddShoppingCart
 } from '@mui/icons-material';
+
+// ...
+
+<AddShoppingCart sx={{ fontSize: { xs: 22, sm: 26 } }} />
 import { useDishTracking } from '../../../../providers/TrackingAndPushProvider';
-import type { RestaurantConfig, Allergen } from '../../../../lib/apiClient';
+import type { Allergen } from '../../../../lib/apiClient';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useInView } from 'react-intersection-observer';
 
@@ -65,24 +70,21 @@ interface DishCardProps {
 
 const ClassicDishCard: React.FC<DishCardProps> = ({
   dish,
-  restaurant,
   section,
   config,
   isActive,
-  currentDishIndex,
-  totalDishes,
   currentLanguage,
   onAddToCart,
   cartItemCount,
   onOpenCart,
   totalCartItems = 0
 }) => {
-  const { viewDish, favoriteDish, trackDishViewDuration, trackMediaError } = useDishTracking();
+  const { viewDish, favoriteDish, trackDishViewDuration, trackMediaError, isFavorited } = useDishTracking();
 
-  const [isFavorite, setIsFavorite] = useState(false);
+  const [isFavorite, setIsFavorite] = useState(() => isFavorited(dish.id));
   const [showDetails, setShowDetails] = useState(false);
   const [isPlaying, setIsPlaying] = useState(false);
-  const [videoLoaded, setVideoLoaded] = useState(false);
+  const [, setVideoLoaded] = useState(false);
   const [videoError, setVideoError] = useState(false);
   const [allergenImageErrors, setAllergenImageErrors] = useState<Set<string>>(new Set());
 
@@ -345,7 +347,7 @@ const ClassicDishCard: React.FC<DishCardProps> = ({
       ref={inViewRef}
       sx={{
         height: '100%',
-        width: '100vw',
+        width: '100%', // ✅ Changed from 100vw to 100% to respect container width
         position: 'relative',
         overflow: 'hidden',
         bgcolor: '#000',
@@ -420,11 +422,11 @@ const ClassicDishCard: React.FC<DishCardProps> = ({
         sx={{
           position: 'absolute',
           right: { xs: 12, sm: 16 },
-          top: '50%',
+          top: '40%', // ✅ Moved higher (was 50%)
           transform: 'translateY(-50%)',
           display: 'flex',
           flexDirection: 'column',
-          gap: { xs: 2, sm: 2.5 },
+          gap: { xs: 1.5, sm: 2 }, // ✅ Reduced gap
           zIndex: 10
         }}
       >
@@ -433,8 +435,8 @@ const ClassicDishCard: React.FC<DishCardProps> = ({
           <IconButton
             onClick={handleFavorite}
             sx={{
-              width: { xs: 52, sm: 60 },
-              height: { xs: 52, sm: 60 },
+              width: { xs: 44, sm: 52 }, // ✅ Reduced size (was 52/60)
+              height: { xs: 44, sm: 52 }, // ✅ Reduced size
               bgcolor: 'rgba(255,255,255,0.15)',
               backdropFilter: 'blur(20px)',
               border: '1px solid rgba(255,255,255,0.2)',
@@ -448,7 +450,7 @@ const ClassicDishCard: React.FC<DishCardProps> = ({
               transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)'
             }}
           >
-            {isFavorite ? <Favorite sx={{ fontSize: { xs: 24, sm: 28 } }} /> : <FavoriteBorder sx={{ fontSize: { xs: 24, sm: 28 } }} />}
+            {isFavorite ? <Favorite sx={{ fontSize: { xs: 22, sm: 26 } }} /> : <FavoriteBorder sx={{ fontSize: { xs: 22, sm: 26 } }} />}
           </IconButton>
         </motion.div>
 
@@ -476,8 +478,8 @@ const ClassicDishCard: React.FC<DishCardProps> = ({
                 setOpenAddModal(true);
               }}
               sx={{
-                width: { xs: 52, sm: 60 },
-                height: { xs: 52, sm: 60 },
+                width: { xs: 44, sm: 52 }, // ✅ Reduced size
+                height: { xs: 44, sm: 52 }, // ✅ Reduced size
                 bgcolor: colors.secondary,
                 backdropFilter: 'blur(20px)',
                 border: '1px solid rgba(255,255,255,0.2)',
@@ -492,7 +494,7 @@ const ClassicDishCard: React.FC<DishCardProps> = ({
                 transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)'
               }}
             >
-              <Add sx={{ fontSize: { xs: 24, sm: 28 } }} />
+              <Add sx={{ fontSize: { xs: 22, sm: 26 } }} />
             </IconButton>
           </Badge>
         </motion.div>
@@ -528,8 +530,8 @@ const ClassicDishCard: React.FC<DishCardProps> = ({
                   if (onOpenCart) onOpenCart();
                 }}
                 sx={{
-                  width: { xs: 52, sm: 60 },
-                  height: { xs: 52, sm: 60 },
+                  width: { xs: 44, sm: 52 }, // ✅ Reduced size
+                  height: { xs: 44, sm: 52 }, // ✅ Reduced size
                   bgcolor: 'rgba(255,255,255,0.15)',
                   backdropFilter: 'blur(20px)',
                   border: '1px solid rgba(255,255,255,0.2)',
@@ -543,7 +545,7 @@ const ClassicDishCard: React.FC<DishCardProps> = ({
                   transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)'
                 }}
               >
-                <ShoppingCart sx={{ fontSize: { xs: 24, sm: 28 } }} />
+                <ShoppingCart sx={{ fontSize: { xs: 22, sm: 26 } }} />
               </IconButton>
             </Badge>
           </motion.div>
@@ -734,12 +736,12 @@ const ClassicDishCard: React.FC<DishCardProps> = ({
       <Box
         sx={{
           position: 'absolute',
-          bottom: { xs: 0, sm: 90 },
+          bottom: 10, // ✅ Force mobile positioning
           left: 0,
-          right: { xs: 75, sm: 90 },
+          right: 75, // ✅ Force mobile positioning
           width: '90%',
           zIndex: 5,
-          p: { xs: 2, sm: 3 },
+          p: 2, // ✅ Force mobile padding
           maxHeight: showDetails ? '60vh' : 'auto',
           overflowY: showDetails ? 'auto' : 'visible',
           WebkitOverflowScrolling: 'touch',
@@ -758,7 +760,7 @@ const ClassicDishCard: React.FC<DishCardProps> = ({
               color: colors.text,
               fontWeight: 800,
               mb: 1,
-              fontSize: { xs: '1.5rem', sm: '2rem', md: '2.2rem' },
+              fontSize: '1.25rem', // ✅ Force mobile size
               textShadow: '0 2px 10px rgba(0,0,0,0.8)',
               lineHeight: 1.2,
               fontFamily: '"Fraunces", serif'
@@ -767,14 +769,14 @@ const ClassicDishCard: React.FC<DishCardProps> = ({
             {dishName}
           </Typography>
 
-          {dish?.price && (
+          {dish?.price != null && ( // ✅ Fix: Check for null/undefined to avoid rendering "0"
             <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
               <Typography
                 variant="h5"
                 sx={{
                   color: colors.primary,
                   fontWeight: 700,
-                  fontSize: { xs: '1.1rem', sm: '1.4rem' },
+                  fontSize: '1.1rem', // ✅ Force mobile size
                   textShadow: '0 2px 8px rgba(0,0,0,0.6)',
                   fontFamily: '"Fraunces", serif'
                 }}
@@ -788,7 +790,7 @@ const ClassicDishCard: React.FC<DishCardProps> = ({
                     color: 'rgba(255,255,255,0.6)',
                     textDecoration: 'line-through',
                     ml: 2,
-                    fontSize: { xs: '0.9rem', sm: '1rem' },
+                    fontSize: '0.9rem', // ✅ Force mobile size
                     fontFamily: '"Fraunces", serif'
                   }}
                 >
@@ -873,7 +875,7 @@ const ClassicDishCard: React.FC<DishCardProps> = ({
                 alignItems: 'center',
                 justifyContent: 'center', // Centrado
                 cursor: 'pointer',
-                color: 'rgba(255,255,255,0.7)',
+
                 fontWeight: 500,
                 fontSize: { xs: '0.8rem', sm: '0.9rem' },
                 mb: showDetails ? 2 : 0,

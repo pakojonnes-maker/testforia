@@ -1,0 +1,100 @@
+# VisualTaste Project Rules & Guidelines
+
+## 1. Project Overview
+**VisualTaste** is a premium restaurant management and digital menu platform consisting of:
+- **Client App ("Gravy")**: A mobile-first, "Reels-style" digital menu experience for restaurant customers. Focuses on high-end aesthetics, smooth animations, and speed.
+- **Admin Panel**: A comprehensive dashboard for restaurant owners to manage menus, analytics, and settings.
+- **Backend / Edge**: A distributed backend using Cloudflare Workers and D1 Database for global low-latency performance.
+
+## 2. Technology Stack & Architecture
+
+### A. Client App (`apps/client`)
+- **Framework**: React 19 + Vite.
+- **Styling**: **NO TAILWIND**. Uses **Emotion** (`@emotion/react`, `@emotion/styled`) and Vanilla CSS (`App.css`).
+- **Animations**: `framer-motion` (heavily used for transitions/interactions).
+- **UI Components**: `swiper` (for reel/carousel interactions).
+- **Design Philosophy**:
+  - **Mobile-First**: Design primarily for vertical mobile screens.
+  - **Premium Aesthetic**: Use "Glassmorphism", vibrant colors, and smooth gestures.
+  - **"Wow" Factor**: Interfaces must feel alive and dynamic.
+
+### B. Admin Panel (`apps/admin`)
+- **Framework**: React 18 + Vite.
+- **Styling**: **Tailwind CSS** + **Material UI (MUI)**.
+- **State/Data**: `react-query` (@tanstack/react-query), `zustand`.
+- **Forms**: `react-hook-form` + `zod` validation.
+- **Design Philosophy**: Functional, clean, data-dense but organized.
+
+### C. Backend (Cloudflare Workers)
+- **Runtime**: Cloudflare Workers (Node.js compat only where supported, prefer Web Standards).
+- **Database**: Cloudflare D1 (SQLite-based).
+- **ORM**: **NONE**. Use raw SQL queries via `env.DB.prepare()`.
+- **Key Files**:
+  - `workerTracking.js`: Analytics and session tracking (Critical: contains privacy logic).
+  - `workerAnalytics.js`: Aggregation logic.
+  - schema: `BDschemaFinal.sql`.
+
+## 3. Critical Coding Standards
+
+### ✅ MUST DO
+- **Strict Separation**: 
+  - IF modifying `admin` -> Use Tailwind/MUI.
+  - IF modifying `client` -> Use Emotion/CSS. **NEVER use Tailwind in Client**.
+- **Privacy-First Analytics**:
+  - When measuring user activity, use the established **rotating hash** mechanism (Daily Salt) in `workerTracking.js`.
+  - **Never** store PII (IP, identifiable User Agent) in cleartext long-term.
+  - Respect the `consent_analytics` flag.
+- **Database Integrity**:
+  - Always use parameterized queries (`.bind(val1, val2)`) to prevent SQL injection.
+  - Handle `null`/`undefined` explicitly before inserting into D1 (D1 is strict).
+- **Performance**:
+  - Client: Optimize images and use virtualized lists (Swiper) for heavy media.
+  - Backend: Minimize D1 reads. Use specific `SELECT field` instead of `SELECT *`.
+
+### ❌ MUST NOT DO
+- **No ORMs**: Do not introduce Prisma, Drizzle, or TypeORM. Stick to `env.DB.prepare`.
+- **No Heavy Client Deps**: Avoid adding heavy UI libraries to existing lightweight components in Client.
+- **No "Placeholder" Design**: In Client, always implement "Premium" polished UI steps (gradients, blurs, shadows), never "bare bones" HTML.
+
+## 4. Development Workflow
+- **Monorepo**: Uses `npm` workspaces.
+- **Running**:
+  - Admin: `npm run dev:admin`
+  - Client: `npm run dev:client`
+- **Deploy**: Workers use `wrangler`. Application builds (`npm run build:client`) generic standard Vite builds.
+
+## 5. Specific Feature Implementation Rules
+
+### Analytics & Tracking
+- Use `workerTracking.js` as the source of truth for event ingestion.
+- Events map to `EVENT_HANDLERS`. When adding a new event type, register it there first.
+
+### QR Codes
+- Generated client-side using `qr-code-styling` (in Admin).
+- Stored as configurations, not static images.
+
+## 6. AI Behaviors / "Antigravity" Rules
+- **Proactiveness**: If a required column is missing in SQL for a feature, propose the migration SQL immediately.
+- **Context Awareness**: Check `apps/client` vs `apps/admin` current path before suggesting code.
+- **Aesthetics**: When asked for "design", default to the Project's "Dark Mode / Premium" aesthetic unless specified otherwise.
+
+## 7. Expert Best Practices & Code Quality
+### React & Frontend
+- **Strict Typing**: Avoid `any` types. Define interfaces for ALL props and API responses. Run `tsc` to verify before finishing tasks.
+- **Performance**:
+  - Use `useMemo` and `useCallback` for expensive calculations or reference stability in dependency arrays.
+  - **Virtualization**: For any list that might exceed 50 items (e.g., menu dishes), use virtualization or pagination.
+- **Components**:
+  - **Composition**: Prefer smaller, focused components over monolithic files.
+  - **Lazy Loading**: Use `React.lazy` and `Suspense` for route-level code splitting (as seen in Admin).
+- **Hooks**: Always include all used variables in dependency arrays. Use `eslint-plugin-react-hooks` rules.
+
+### Backend (Workers)
+- **Environment Variables**: Never hardcode secrets or fallbacks like `VisualTaste_Default_Secret_Salt`. Fail fast if env vars are missing.
+- **Error Handling**: Use structured error responses (`success: false, error: string`). Wrap ALL D1 operations in try/catch blocks.
+- **Validation**: Validate ALL incoming JSON payloads before processing (e.g., check `restaurantId` existence).
+
+### General "Expert" Behaviors
+- **DRY (Don't Repeat Yourself)**: Extract common logic (like `jsonResponse`) into utility files.
+- **Comments**: Comment *why* complex logic exists, not *what* it does.
+- **Proactive Refactoring**: If you see legacy code (e.g., `any` types in `App.tsx`), proactively suggest granular refactors to fix it.

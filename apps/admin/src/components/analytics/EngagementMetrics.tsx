@@ -99,8 +99,8 @@ export default function EngagementMetrics({ summary, detailed = false }: Props) 
     ];
 
     const metricsToShow = detailed
-        ? [...conversionMetrics, ...qualityMetrics]
-        : conversionMetrics;
+        ? [conversionMetrics[0], ...qualityMetrics] // Solo Favoritos de conversión
+        : [conversionMetrics[0]];
 
     return (
         <Card sx={{ height: '100%' }}>

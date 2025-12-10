@@ -155,25 +155,26 @@ class AdminApiClient {
   }
 
   /**
-   * Obtener datos de analytics con transformación de snake_case a camelCase
-   */
+  * Obtener analytics generales (resumen, timeseries, breakdowns)
+  */
   public async getAnalytics(restaurantId: string, params: any): Promise<any> {
     try {
-      console.log(`[apiClient] Obteniendo analytics para restaurante ${restaurantId}`, params);
-
-      const queryParams = new URLSearchParams({
+      const queryParamsObj: any = {
         restaurant_id: restaurantId,
         time_range: params.timeRange || params.time_range,
         lang: params.lang || 'es',
-        top: String(params.top || 20),
-      }).toString();
+        top: String(params.top || 10),
+        from: params.from || undefined,
+        to: params.to || undefined
+      };
 
+      Object.keys(queryParamsObj).forEach(key => queryParamsObj[key] === undefined && delete queryParamsObj[key]);
+
+      const queryParams = new URLSearchParams(queryParamsObj).toString();
+
+      console.log(`[apiClient] Solicitando analytics: /analytics?${queryParams}`);
       const response = await this.client.get(`/analytics?${queryParams}`);
       const rawData = response.data;
-
-      console.log('[apiClient] Raw analytics data:', rawData);
-
-      // Transform snake_case API response to camelCase frontend format
       return {
         summary: {
           totalViews: rawData.summary?.total_views || 0,
@@ -204,6 +205,84 @@ class AdminApiClient {
       };
     } catch (error) {
       console.error('[apiClient] Error al obtener analytics:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Obtener estadísticas detalladas de platos
+   */
+  public async getDishAnalytics(restaurantId: string, params: any): Promise<any> {
+    try {
+      const queryParamsObj: any = {
+        restaurant_id: restaurantId,
+        time_range: params.timeRange || params.time_range,
+        lang: params.lang || 'es',
+        from: params.from || undefined,
+        to: params.to || undefined
+      };
+
+      // Eliminar claves undefined para que no se envíen como "undefined" o ""
+      Object.keys(queryParamsObj).forEach(key => queryParamsObj[key] === undefined && delete queryParamsObj[key]);
+
+      const queryParams = new URLSearchParams(queryParamsObj).toString();
+
+      const response = await this.client.get(`/analytics/dishes?${queryParams}`);
+      return response.data;
+    } catch (error) {
+      console.error('[apiClient] Error al obtener analytics de platos:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Obtener estadísticas detalladas de secciones
+   */
+  public async getSectionAnalytics(restaurantId: string, params: any): Promise<any> {
+    try {
+      const queryParamsObj: any = {
+        restaurant_id: restaurantId,
+        time_range: params.timeRange || params.time_range,
+        lang: params.lang || 'es',
+        from: params.from || undefined,
+        to: params.to || undefined
+      };
+
+      // Eliminar claves undefined para que no se envíen como "undefined" o ""
+      Object.keys(queryParamsObj).forEach(key => queryParamsObj[key] === undefined && delete queryParamsObj[key]);
+
+      const queryParams = new URLSearchParams(queryParamsObj).toString();
+
+      const response = await this.client.get(`/analytics/sections?${queryParams}`);
+      return response.data;
+    } catch (error) {
+      console.error('[apiClient] Error al obtener analytics de secciones:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Obtener lista detallada de sesiones
+   */
+  public async getSessionAnalytics(restaurantId: string, params: any): Promise<any> {
+    try {
+      const queryParamsObj: any = {
+        restaurant_id: restaurantId,
+        time_range: params.timeRange || params.time_range,
+        page: String(params.page || 1),
+        limit: String(params.limit || 20),
+        from: params.from || undefined,
+        to: params.to || undefined
+      };
+
+      Object.keys(queryParamsObj).forEach(key => queryParamsObj[key] === undefined && delete queryParamsObj[key]);
+
+      const queryParams = new URLSearchParams(queryParamsObj).toString();
+
+      const response = await this.client.get(`/analytics/sessions?${queryParams}`);
+      return response.data;
+    } catch (error) {
+      console.error('[apiClient] Error al obtener analytics de sesiones:', error);
       throw error;
     }
   }
@@ -468,6 +547,43 @@ class AdminApiClient {
       return response.data;
     } catch (error) {
       console.error('[apiClient] Error al actualizar orden de platos por sección:', error);
+      throw error;
+    }
+  }
+
+  // ============================================
+  // USERS METHODS
+  // ============================================
+
+  public async getRestaurantUsers(restaurantId: string): Promise<any[]> {
+    try {
+      console.log(`[apiClient] Obteniendo usuarios para restaurante ${restaurantId}`);
+      const response = await this.baseClient.client.get(`/restaurants/${restaurantId}/users`);
+      return response.data.users || [];
+    } catch (error) {
+      console.error('[apiClient] Error al obtener usuarios:', error);
+      throw error;
+    }
+  }
+
+  public async addRestaurantUser(restaurantId: string, userData: { email: string; name?: string; role: string }): Promise<any> {
+    try {
+      console.log(`[apiClient] Añadiendo usuario al restaurante ${restaurantId}`, userData);
+      const response = await this.baseClient.client.post(`/restaurants/${restaurantId}/users`, userData);
+      return response.data;
+    } catch (error) {
+      console.error('[apiClient] Error al añadir usuario:', error);
+      throw error;
+    }
+  }
+
+  public async removeRestaurantUser(restaurantId: string, userId: string): Promise<any> {
+    try {
+      console.log(`[apiClient] Eliminando usuario ${userId} del restaurante ${restaurantId}`);
+      const response = await this.baseClient.client.delete(`/restaurants/${restaurantId}/users/${userId}`);
+      return response.data;
+    } catch (error) {
+      console.error('[apiClient] Error al eliminar usuario:', error);
       throw error;
     }
   }

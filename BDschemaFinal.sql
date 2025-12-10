@@ -57,7 +57,7 @@ CREATE TABLE dishes (
   view_count INTEGER DEFAULT 0,
   favorite_count INTEGER DEFAULT 0,
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-  modified_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  modified_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, total_view_time INTEGER DEFAULT 0,
   FOREIGN KEY (restaurant_id) REFERENCES restaurants(id)
 );
 CREATE TABLE section_dishes (
@@ -345,7 +345,7 @@ CREATE TABLE daily_analytics (
   shares INTEGER DEFAULT 0,
   reserve_clicks INTEGER DEFAULT 0,
   call_clicks INTEGER DEFAULT 0,
-  directions_clicks INTEGER DEFAULT 0,
+  directions_clicks INTEGER DEFAULT 0, avg_dish_view_duration REAL DEFAULT 0, avg_section_time REAL DEFAULT 0, avg_scroll_depth REAL DEFAULT 0, media_errors INTEGER DEFAULT 0,
   PRIMARY KEY (restaurant_id, date),
   FOREIGN KEY (restaurant_id) REFERENCES restaurants(id)
 ) WITHOUT ROWID;
@@ -362,7 +362,7 @@ CREATE TABLE dish_daily_metrics (
   avg_rating REAL DEFAULT 0,
   reserve_clicks INTEGER DEFAULT 0,
   call_clicks INTEGER DEFAULT 0,
-  directions_clicks INTEGER DEFAULT 0,
+  directions_clicks INTEGER DEFAULT 0, avg_view_duration REAL DEFAULT 0, total_view_time INTEGER DEFAULT 0,
   PRIMARY KEY (restaurant_id, dish_id, date),
   FOREIGN KEY (restaurant_id) REFERENCES restaurants(id),
   FOREIGN KEY (dish_id) REFERENCES dishes(id)
@@ -377,7 +377,7 @@ CREATE TABLE section_daily_metrics (
   avg_dwell_seconds REAL DEFAULT 0,
   reserve_clicks INTEGER DEFAULT 0,
   call_clicks INTEGER DEFAULT 0,
-  directions_clicks INTEGER DEFAULT 0,
+  directions_clicks INTEGER DEFAULT 0, avg_time_spent REAL DEFAULT 0, avg_scroll_depth INTEGER DEFAULT 0, total_dishes_viewed INTEGER DEFAULT 0,
   PRIMARY KEY (restaurant_id, section_id, date),
   FOREIGN KEY (restaurant_id) REFERENCES restaurants(id),
   FOREIGN KEY (section_id) REFERENCES sections(id)
@@ -572,28 +572,6 @@ CREATE TABLE restaurant_landing_sections (
   UNIQUE(restaurant_id, section_key),     -- Solo 1 instancia de cada sección por restaurante
   UNIQUE(restaurant_id, order_index)      -- No puede haber 2 secciones en mismo orden
 );
-CREATE TABLE cart_sessions (
-  id TEXT PRIMARY KEY,
-  sessionid TEXT NOT NULL,
-  restaurantid TEXT NOT NULL,
-  status TEXT DEFAULT 'active',
-  createdat TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-  updatedat TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-  showntostaffat TIMESTAMP,
-  abandonedat TIMESTAMP,
-  cartsnapshotjson TEXT,
-  totalitems INTEGER DEFAULT 0,
-  uniquedishes INTEGER DEFAULT 0,
-  estimatedvalue REAL DEFAULT 0.0,
-  timespentseconds INTEGER DEFAULT 0,
-  modificationscount INTEGER DEFAULT 0,
-  devicetype TEXT,
-  languagecode TEXT,
-  qrcodeid TEXT,
-  FOREIGN KEY (sessionid) REFERENCES sessions(id) ON DELETE CASCADE,
-  FOREIGN KEY (restaurantid) REFERENCES restaurants(id) ON DELETE CASCADE,
-  FOREIGN KEY (qrcodeid) REFERENCES qrcodes(id) ON DELETE SET NULL
-);
 CREATE TABLE cart_daily_metrics (
   restaurantid TEXT NOT NULL,
   date TEXT NOT NULL,
@@ -641,6 +619,28 @@ CREATE TABLE restaurant_media (
     
     FOREIGN KEY (restaurant_id) REFERENCES restaurants(id) ON DELETE CASCADE
 );
+CREATE TABLE cart_sessions (
+  id TEXT PRIMARY KEY,
+  sessionid TEXT NOT NULL,
+  restaurantid TEXT NOT NULL,
+  status TEXT DEFAULT 'active',
+  createdat TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updatedat TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  showntostaffat TIMESTAMP,
+  abandonedat TIMESTAMP,
+  cartsnapshotjson TEXT,
+  totalitems INTEGER DEFAULT 0,
+  uniquedishes INTEGER DEFAULT 0,
+  estimatedvalue REAL DEFAULT 0.0,
+  timespentseconds INTEGER DEFAULT 0,
+  modificationscount INTEGER DEFAULT 0,
+  devicetype TEXT,
+  languagecode TEXT,
+  qrcodeid TEXT,
+  FOREIGN KEY (sessionid) REFERENCES sessions(id) ON DELETE CASCADE,
+  FOREIGN KEY (restaurantid) REFERENCES restaurants(id) ON DELETE CASCADE,
+  FOREIGN KEY (qrcodeid) REFERENCES qr_codes(id) ON DELETE SET NULL
+);
 CREATE INDEX idx_dishes_restaurant ON dishes(restaurant_id);
 CREATE INDEX idx_sections_restaurant ON sections(restaurant_id);
 CREATE INDEX idx_translations_entity ON translations(entity_id, entity_type);
@@ -668,10 +668,12 @@ CREATE INDEX idx_lsl_active ON landing_section_library(is_active, display_order)
 CREATE INDEX idx_rls_restaurant ON restaurant_landing_sections(restaurant_id);
 CREATE INDEX idx_rls_order ON restaurant_landing_sections(restaurant_id, order_index);
 CREATE INDEX idx_rls_active ON restaurant_landing_sections(restaurant_id, is_active);
-CREATE INDEX idx_cartsessions_session ON cart_sessions(sessionid);
-CREATE INDEX idx_cartsessions_restaurant_status ON cart_sessions(restaurantid, status);
-CREATE INDEX idx_cartsessions_created ON cart_sessions(createdat);
 CREATE INDEX idx_cartdaily_restaurant_date ON cart_daily_metrics(restaurantid, date);
 CREATE INDEX idx_rm_restaurant ON restaurant_media(restaurant_id);
 CREATE INDEX idx_rm_context_role ON restaurant_media(context, role);
 CREATE INDEX idx_rm_active ON restaurant_media(is_active);
+CREATE INDEX idx_events_type_date ON events(event_type, created_at);
+CREATE INDEX idx_events_entity_type ON events(entity_id, entity_type, event_type);
+CREATE INDEX idx_cartsessions_session ON cart_sessions(sessionid);
+CREATE INDEX idx_cartsessions_restaurant_status ON cart_sessions(restaurantid, status);
+CREATE INDEX idx_cartsessions_created ON cart_sessions(createdat);

@@ -1,5 +1,5 @@
 // apps/client/src/components/landing/section/GallerySection.tsx
-import { Box, Typography, Container, Grid, Stack, Chip, ImageList, ImageListItem } from '@mui/material';
+import { Box, Typography, Container, Grid, Stack } from '@mui/material';
 import { Collections, ZoomIn } from '@mui/icons-material';
 import { useState } from 'react';
 
@@ -12,20 +12,20 @@ interface Props {
   gallery: string[];
 }
 
-export default function GallerySection({ restaurant, translations, theme, variant, config, gallery }: Props) {
+export default function GallerySection({ restaurant: _restaurant, translations: _translations, theme, variant: _variant, config, gallery }: Props) {
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
-  
+
   // Placeholder images si no hay gallery
-  const images = gallery && gallery.length > 0 
-    ? gallery 
+  const images = gallery && gallery.length > 0
+    ? gallery
     : [
-        'https://images.unsplash.com/photo-1555939594-58d7cb561ad1?w=800',
-        'https://images.unsplash.com/photo-1540189549336-e6e99c3679fe?w=800',
-        'https://images.unsplash.com/photo-1565299624946-b28f40a0ae38?w=800',
-        'https://images.unsplash.com/photo-1565958011703-44f9829ba187?w=800',
-        'https://images.unsplash.com/photo-1567620905732-2d1ec7ab7445?w=800',
-        'https://images.unsplash.com/photo-1512621776951-a57141f2eefd?w=800',
-      ];
+      'https://images.unsplash.com/photo-1555939594-58d7cb561ad1?w=800',
+      'https://images.unsplash.com/photo-1540189549336-e6e99c3679fe?w=800',
+      'https://images.unsplash.com/photo-1565299624946-b28f40a0ae38?w=800',
+      'https://images.unsplash.com/photo-1565958011703-44f9829ba187?w=800',
+      'https://images.unsplash.com/photo-1567620905732-2d1ec7ab7445?w=800',
+      'https://images.unsplash.com/photo-1512621776951-a57141f2eefd?w=800',
+    ];
 
   return (
     <Box

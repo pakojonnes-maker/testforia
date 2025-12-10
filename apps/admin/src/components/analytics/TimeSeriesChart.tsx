@@ -16,7 +16,7 @@ interface Props {
 type Metric = 'views' | 'visitors' | 'sessions';
 
 export default function TimeSeriesChart({ data, timeRange }: Props) {
-    const [selectedMetric, setSelectedMetric] = useState<Metric>('views');
+    const [selectedMetric] = useState<Metric>('sessions');
 
     const chartData = useMemo(() => {
         const labels = data.map(d =>
@@ -29,12 +29,8 @@ export default function TimeSeriesChart({ data, timeRange }: Props) {
 
         const datasets = [
             {
-                label: selectedMetric === 'views' ? 'Visitas' :
-                    selectedMetric === 'visitors' ? 'Visitantes Únicos' : 'Sesiones',
-                data: data.map(d =>
-                    selectedMetric === 'views' ? d.totalViews :
-                        selectedMetric === 'visitors' ? d.uniqueVisitors : d.totalSessions
-                ),
+                label: 'Sesiones',
+                data: data.map(d => d.totalSessions),
                 fill: true,
                 backgroundColor: 'rgba(25, 118, 210, 0.1)',
                 borderColor: '#1976d2',
@@ -78,27 +74,7 @@ export default function TimeSeriesChart({ data, timeRange }: Props) {
         <Card>
             <CardContent>
                 <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
-                    <Typography variant="h6">Evolución Temporal</Typography>
-                    <ButtonGroup size="small">
-                        <Button
-                            variant={selectedMetric === 'views' ? 'contained' : 'outlined'}
-                            onClick={() => setSelectedMetric('views')}
-                        >
-                            Visitas
-                        </Button>
-                        <Button
-                            variant={selectedMetric === 'visitors' ? 'contained' : 'outlined'}
-                            onClick={() => setSelectedMetric('visitors')}
-                        >
-                            Visitantes
-                        </Button>
-                        <Button
-                            variant={selectedMetric === 'sessions' ? 'contained' : 'outlined'}
-                            onClick={() => setSelectedMetric('sessions')}
-                        >
-                            Sesiones
-                        </Button>
-                    </ButtonGroup>
+                    <Typography variant="h6">Evolución de Sesiones</Typography>
                 </Box>
                 <Box sx={{ height: 350 }}>
                     <Line data={chartData} options={options} />

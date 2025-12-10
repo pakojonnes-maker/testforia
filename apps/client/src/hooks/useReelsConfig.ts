@@ -16,6 +16,13 @@ interface RestaurantBranding {
   textColor: string;
   backgroundColor: string;
   fontFamily: string;
+  // Snake case variants for compatibility
+  primary_color?: string;
+  secondary_color?: string;
+  text_color?: string;
+  background_color?: string;
+  accent_color?: string;
+  accentColor?: string;
 }
 
 interface RestaurantConfig {
@@ -25,6 +32,8 @@ interface RestaurantConfig {
     slug: string;
     logourl?: string;
     coverimageurl?: string;
+    website?: string;
+    website_url?: string;
     branding: RestaurantBranding;
   };
   sections: any[];
@@ -37,7 +46,10 @@ interface RestaurantConfig {
     isPremium: boolean;
   } | null;
   config: Record<string, any>;
+  marketing?: any;
 }
+
+export type ReelConfig = RestaurantConfig;
 
 // ✅ Cache básico pero efectivo
 const configCache = new Map<string, {
@@ -50,33 +62,34 @@ const CACHE_TTL = 5 * 60 * 1000; // 5 minutes
 // ✅ API call directo al worker
 async function fetchReelsData(slug: string, language = 'es'): Promise<RestaurantConfig> {
   const API_URL = import.meta.env.VITE_API_URL || "https://visualtasteworker.franciscotortosaestudios.workers.dev";
-  
+
   const url = `${API_URL}/restaurants/${slug}/reels?lang=${language}`;
-  
+
   console.log(`[useReelsConfig] 🔍 Fetching: ${url}`);
-  
+
   const response = await fetch(url, {
     headers: { 'Accept': 'application/json' }
   });
-  
+
   if (!response.ok) {
     const error = await response.json().catch(() => ({ message: 'Network error' }));
     throw new Error(error.message || `HTTP ${response.status}`);
   }
-  
+
   const data = await response.json();
-  
+
   if (!data.success) {
     throw new Error(data.message || 'API returned error');
   }
-  
+
   return {
     restaurant: data.restaurant,
     sections: data.sections,
     dishesBySection: data.dishesBySection,
     languages: data.languages,
     template: data.template,
-    config: data.config || {}
+    config: data.config || {},
+    marketing: data.marketing // ✅ Include marketing data
   };
 }
 
@@ -113,18 +126,18 @@ export function useReelsConfig(slug: string | undefined, language = 'es') {
   const [config, setConfig] = useState<RestaurantConfig | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<Error | null>(null);
-  
+
   // ✅ Cleanup and deduplication
   const mountedRef = useRef(true);
   const requestIdRef = useRef<string | null>(null);
-  
+
   useEffect(() => {
     return () => { mountedRef.current = false; };
   }, []);
 
   const loadConfig = useCallback(async (targetSlug: string, lang: string) => {
     const requestId = `${targetSlug}-${lang}`;
-    
+
     // ✅ Prevent duplicate requests
     if (requestIdRef.current === requestId) return;
     requestIdRef.current = requestId;
@@ -133,7 +146,7 @@ export function useReelsConfig(slug: string | undefined, language = 'es') {
       // ✅ Check simple cache first
       const cacheKey = `${targetSlug}-${lang}`;
       const cached = configCache.get(cacheKey);
-      
+
       if (cached && Date.now() < cached.expiry) {
         console.log(`[useReelsConfig] ✨ Cache hit: ${cacheKey}`);
         if (mountedRef.current) {
@@ -149,7 +162,7 @@ export function useReelsConfig(slug: string | undefined, language = 'es') {
       setError(null);
 
       const data = await fetchReelsData(targetSlug, lang);
-      
+
       if (!mountedRef.current) return;
 
       // ✅ Cache the result
@@ -164,15 +177,15 @@ export function useReelsConfig(slug: string | undefined, language = 'es') {
 
     } catch (err) {
       if (!mountedRef.current) return;
-      
+
       console.error('[useReelsConfig] ❌ Error:', err);
       const error = err instanceof Error ? err : new Error('Unknown error');
       setError(error);
-      
+
       // ✅ Fallback to default
       const defaultConfig = getDefaultConfig();
       setConfig(defaultConfig);
-      
+
     } finally {
       if (mountedRef.current) {
         setLoading(false);
@@ -213,3 +226,4 @@ export const clearConfigCache = () => {
 };
 
 export type { RestaurantConfig, Language };
+export type ReelColors = RestaurantBranding;

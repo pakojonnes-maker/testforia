@@ -13,6 +13,8 @@ import { handleMediaRequests } from './workerMedia.optimized.js';
 import { handleTracking } from './workerTracking.js';
 import { handleLandingRequests } from './workerLanding.js';
 import { handleLandingAdminRequests } from './workerLandingAdmin.js';
+import { handleMarketingRequests } from './workerMarketing.js';
+
 
 const corsHeaders = {
     "Access-Control-Allow-Origin": "*",
@@ -77,6 +79,12 @@ export default {
                 const landingResponse = await handleLandingRequests(request, env);
                 if (landingResponse) return landingResponse;
             }
+
+            // MARKETING (Leads)
+            const marketingResponse = await handleMarketingRequests(request, env);
+            if (marketingResponse) return marketingResponse;
+
+
 
             // MEDIA
             const mediaResponse = await handleMediaRequests(request, env);

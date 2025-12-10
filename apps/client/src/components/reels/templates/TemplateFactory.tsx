@@ -6,7 +6,7 @@ import type { ReelConfig } from '../../../hooks/useReelsConfig';
 import ClassicTemplate from './classic/ClassicTemplate';
 import PremiumTemplate from './premium/PremiumTemplate';
 import MinimalTemplate from './minimal/MinimalTemplate';
-import DynamicTemplate from './dynamic/DynamicTemplate';
+import DynamicTemplate from './Dynamic/DynamicTemplate';
 
 interface TemplateFactoryProps {
   template: string;

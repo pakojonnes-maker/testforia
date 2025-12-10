@@ -35,6 +35,14 @@ const PremiumSectionsBar: React.FC<SectionsBarProps> = ({
   const glassmorphism = config.config.glassmorphism !== false;
   const blurIntensity = config.config.blur_intensity || 20;
 
+  const branding = config.restaurant?.branding || {};
+  const colors = {
+    primary: branding.primary_color || branding.primaryColor || '#FF6B6B',
+    secondary: branding.secondary_color || branding.secondaryColor || '#4ECDC4',
+    text: branding.text_color || branding.textColor || '#FFFFFF',
+    background: branding.background_color || branding.backgroundColor || '#000000'
+  };
+
   return (
     <motion.div
       initial={{ y: 100, opacity: 0 }}
@@ -51,29 +59,29 @@ const PremiumSectionsBar: React.FC<SectionsBarProps> = ({
           right: 0,
           zIndex: 100,
           background: glassmorphism
-            ? `linear-gradient(to top, ${alpha(config.colors.background, 0.8)} 0%, ${alpha(config.colors.background, 0.5)} 100%)`
-            : `linear-gradient(to top, ${alpha(config.colors.background, 0.95)} 0%, ${alpha(config.colors.background, 0.7)} 100%)`,
+            ? `linear-gradient(to top, ${alpha(colors.background, 0.8)} 0%, ${alpha(colors.background, 0.5)} 100%)`
+            : `linear-gradient(to top, ${alpha(colors.background, 0.95)} 0%, ${alpha(colors.background, 0.7)} 100%)`,
           backdropFilter: glassmorphism ? `blur(${blurIntensity}px) saturate(180%)` : 'blur(20px)',
           WebkitBackdropFilter: glassmorphism ? `blur(${blurIntensity}px) saturate(180%)` : 'blur(20px)',
-          borderTop: `1px solid ${alpha(config.colors.text, 0.15)}`,
+          borderTop: `1px solid ${alpha(colors.text, 0.15)}`,
           borderTopLeftRadius: 28,
           borderTopRightRadius: 28,
           pb: 3,
           pt: 2,
-          boxShadow: `0 -10px 40px ${alpha(config.colors.background, 0.3)}`
+          boxShadow: `0 -10px 40px ${alpha(colors.background, 0.3)}`
         }}
       >
         <Box
           sx={{
             width: 50,
             height: 5,
-            bgcolor: alpha(config.colors.text, 0.3),
+            bgcolor: alpha(colors.text, 0.3),
             borderRadius: 3,
             mx: 'auto',
             mb: 2.5
           }}
         />
-        
+
         <Box
           sx={{
             display: 'flex',
@@ -86,7 +94,7 @@ const PremiumSectionsBar: React.FC<SectionsBarProps> = ({
         >
           {sections.map((section, index) => {
             const isActive = currentSectionIndex === index;
-            
+
             return (
               <motion.div
                 key={section.id}
@@ -96,15 +104,15 @@ const PremiumSectionsBar: React.FC<SectionsBarProps> = ({
                 style={{
                   padding: '14px 24px',
                   borderRadius: 24,
-                  background: isActive 
-                    ? `linear-gradient(135deg, ${config.colors.primary} 0%, ${config.colors.secondary} 100%)`
-                    : alpha(config.colors.text, 0.12),
-                  color: config.colors.text,
+                  background: isActive
+                    ? `linear-gradient(135deg, ${colors.primary} 0%, ${colors.secondary} 100%)`
+                    : alpha(colors.text, 0.12),
+                  color: colors.text,
                   whiteSpace: 'nowrap',
                   cursor: 'pointer',
-                  border: `1px solid ${isActive ? alpha(config.colors.primary, 0.5) : alpha(config.colors.text, 0.2)}`,
-                  boxShadow: isActive 
-                    ? `0 8px 24px ${alpha(config.colors.primary, 0.5)}`
+                  border: `1px solid ${isActive ? alpha(colors.primary, 0.5) : alpha(colors.text, 0.2)}`,
+                  boxShadow: isActive
+                    ? `0 8px 24px ${alpha(colors.primary, 0.5)}`
                     : 'none',
                   backdropFilter: 'blur(10px)'
                 }}
@@ -128,14 +136,14 @@ const PremiumSectionsBar: React.FC<SectionsBarProps> = ({
             );
           })}
         </Box>
-        
+
         {config.config.show_progress && (
           <Box sx={{ display: 'flex', justifyContent: 'center', mt: 2.5, gap: 0.7 }}>
             {Array.from({ length: totalDishesInSection }).map((_, index) => (
               <motion.div
                 key={index}
                 initial={{ scale: 0.8 }}
-                animate={{ 
+                animate={{
                   scale: index === currentDishIndex ? 1 : 0.8,
                   width: index === currentDishIndex ? 24 : 7
                 }}
@@ -145,11 +153,11 @@ const PremiumSectionsBar: React.FC<SectionsBarProps> = ({
                   sx={{
                     height: 7,
                     borderRadius: 4,
-                    bgcolor: index === currentDishIndex 
-                      ? config.colors.primary 
-                      : alpha(config.colors.text, 0.25),
-                    boxShadow: index === currentDishIndex 
-                      ? `0 0 12px ${alpha(config.colors.primary, 0.6)}`
+                    bgcolor: index === currentDishIndex
+                      ? colors.primary
+                      : alpha(colors.text, 0.25),
+                    boxShadow: index === currentDishIndex
+                      ? `0 0 12px ${alpha(colors.primary, 0.6)}`
                       : 'none'
                   }}
                 />

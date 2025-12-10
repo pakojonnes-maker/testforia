@@ -14,10 +14,12 @@ import { useDishTracking, useTracking } from '../../providers/TrackingAndPushPro
 import ClassicDishCard from './templates/classic/DishCard';
 import ClassicSectionBar from './templates/classic/SectionBar';
 import ClassicHeader from './templates/classic/Header';
+import SocialMenu from './SocialMenu';
+import WelcomeModal from './WelcomeModal';
 
 // CSS
+// @ts-ignore
 import 'swiper/css';
-import 'swiper/css/virtual';
 
 // MUI Icons
 import {
@@ -30,14 +32,12 @@ import {
 } from '@mui/icons-material';
 import {
   IconButton,
-  Badge,
   Drawer,
   List,
   ListItem,
   Alert,
   Button
 } from '@mui/material';
-import { motion, AnimatePresence } from 'framer-motion';
 import apiClient from '../../lib/apiClient';
 
 // ======================================================================
@@ -123,7 +123,57 @@ const ReelsContainer: React.FC<ReelsContainerProps> = React.memo(({
 
   const [currentSectionIndex, setCurrentSectionIndex] = useState(initialSectionIndex);
   const [currentDishIndex, setCurrentDishIndex] = useState(initialDishIndex);
+  const [welcomeModalOpen, setWelcomeModalOpen] = useState(false);
   const [muted, setMuted] = useState(true);
+
+  // Extract marketing campaign
+  const marketingCampaign = useMemo(() => {
+    console.log('🔍 [ReelsContainer] Extracting marketing campaign from config:', reelConfig?.marketing);
+    return reelConfig?.marketing;
+  }, [reelConfig]);
+
+  // Auto-open Welcome Modal
+  useEffect(() => {
+    console.log('🔍 [ReelsContainer] Checking auto-open conditions:', {
+      hasCampaign: !!marketingCampaign,
+      restaurantId: reelConfig?.restaurant?.id,
+      settings: marketingCampaign?.settings
+    });
+
+    if (!marketingCampaign || !reelConfig?.restaurant?.id) return;
+
+    // Check if enabled in config (default to true if no config provided, or false if explicitly disabled)
+    const isEnabled = marketingCampaign.settings?.auto_open !== false;
+    const delay = marketingCampaign.settings?.delay || 1500;
+
+    console.log('🔍 [ReelsContainer] Auto-open enabled:', isEnabled, 'Delay:', delay);
+
+    if (!isEnabled) return;
+
+    const hasSeenWelcome = localStorage.getItem(`welcome_seen_${reelConfig.restaurant.id}`);
+    const hasSubscribed = localStorage.getItem(`subscribed_${reelConfig.restaurant.id}`);
+
+    console.log('🔍 [ReelsContainer] LocalStorage checks:', { hasSeenWelcome, hasSubscribed });
+
+    if (!hasSeenWelcome && !hasSubscribed) {
+      console.log('🔍 [ReelsContainer] Scheduling modal open...');
+      // Delay slightly for better UX
+      const timer = setTimeout(() => {
+        console.log('🔍 [ReelsContainer] Opening modal now!');
+        setWelcomeModalOpen(true);
+        localStorage.setItem(`welcome_seen_${reelConfig.restaurant.id}`, 'true');
+      }, delay);
+      return () => clearTimeout(timer);
+    } else {
+      console.log('🔍 [ReelsContainer] Modal suppressed (already seen or subscribed)');
+    }
+  }, [reelConfig?.restaurant?.id, marketingCampaign]);
+
+  const handleOpenOffer = () => {
+    console.log('🔍 [ReelsContainer] Manual open offer triggered');
+    console.log('🔍 [ReelsContainer] Current campaign state:', marketingCampaign);
+    setWelcomeModalOpen(true);
+  };
 
   // ======================================================================
   // REFS
@@ -136,7 +186,6 @@ const ReelsContainer: React.FC<ReelsContainerProps> = React.memo(({
   const isClickNavigationRef = useRef<boolean>(false);
   const currentSectionIndexRef = useRef<number>(initialSectionIndex);
   // ✅ NUEVO: Refs para tracking de tiempo en sección
-  const sectionStartTimeRef = useRef<number | null>(null);
   const sectionDishesViewedRef = useRef<Set<string>>(new Set());
 
   // ======================================================================
@@ -390,9 +439,15 @@ const ReelsContainer: React.FC<ReelsContainerProps> = React.memo(({
 
   const {
     setCurrentSection,
-    trackSectionTime,
-    trackScrollDepth
+    trackScrollDepth,
+    trackSectionTime
   } = useDishTracking();
+
+  // ✅ NUEVO: Refs para tracking de tiempo en sección
+  const sectionStartTimeRef = useRef<number>(Date.now());
+  const prevSectionIdRef = useRef<string | null>(null);
+
+
 
   // ======================================================================
   // COMPUTED VALUES
@@ -417,6 +472,8 @@ const ReelsContainer: React.FC<ReelsContainerProps> = React.memo(({
   // EFFECTS
   // ======================================================================
 
+
+
   useEffect(() => {
     currentSectionIndexRef.current = currentSectionIndex;
   }, [currentSectionIndex]);
@@ -431,34 +488,6 @@ const ReelsContainer: React.FC<ReelsContainerProps> = React.memo(({
     console.log(`🎯 [ReelsContainer] State - Section: ${currentSectionIndex}, Dish: ${currentDishIndex}, Language: ${currentLanguage}`);
   }, [currentSectionIndex, currentDishIndex, currentLanguage]);
 
-  // ✅ NUEVO: Tracking de tiempo en sección
-  useEffect(() => {
-    if (!currentSection?.id) return;
-
-    // Iniciar timer para la nueva sección
-    sectionStartTimeRef.current = Date.now();
-    sectionDishesViewedRef.current = new Set();
-    console.log('⏱️ [ReelsContainer] Iniciando timer de sección:', currentSection.id);
-
-    return () => {
-      // Al salir de la sección, enviar el tiempo
-      if (sectionStartTimeRef.current && currentSection.id) {
-        const duration = Math.floor((Date.now() - sectionStartTimeRef.current) / 1000);
-        const dishesViewed = sectionDishesViewedRef.current.size;
-
-        if (duration >= 1) {
-          console.log('⏱️ [ReelsContainer] Enviando tiempo de sección:', {
-            sectionId: currentSection.id,
-            duration,
-            dishesViewed
-          });
-          trackSectionTime(currentSection.id, duration, dishesViewed);
-        }
-      }
-    };
-  }, [currentSection?.id, trackSectionTime]);
-
-  // ✅ NUEVO: Tracking de scroll depth (profundidad de visualización)
   useEffect(() => {
     if (!currentSection?.id) return;
 
@@ -473,6 +502,46 @@ const ReelsContainer: React.FC<ReelsContainerProps> = React.memo(({
       trackScrollDepth(currentSection.id, currentDishIndex, currentDishes.length);
     }
   }, [currentSection?.id, currentDishIndex, currentDishes, trackScrollDepth]);
+
+  // ✅ EFFECT: Trackear tiempo en sección al cambiar
+  useEffect(() => {
+    // Si es la primera carga o cambio de sección
+    if (currentSection?.id) {
+      const now = Date.now();
+
+      // Si había una sección anterior, enviar su tiempo
+      if (prevSectionIdRef.current && prevSectionIdRef.current !== currentSection.id) {
+        const duration = Math.floor((now - sectionStartTimeRef.current) / 1000);
+        const dishesViewed = sectionDishesViewedRef.current.size;
+
+        if (duration > 0) {
+          trackSectionTime(prevSectionIdRef.current, duration, dishesViewed);
+        }
+
+        // Resetear contador de platos para la nueva sección
+        sectionDishesViewedRef.current.clear();
+      }
+
+      // Actualizar refs para la nueva sección
+      if (prevSectionIdRef.current !== currentSection.id) {
+        sectionStartTimeRef.current = now;
+        prevSectionIdRef.current = currentSection.id;
+      }
+    }
+  }, [currentSection?.id, trackSectionTime]);
+
+  // ✅ EFFECT: Cleanup al desmontar (enviar tiempo de última sección)
+  useEffect(() => {
+    return () => {
+      if (prevSectionIdRef.current) {
+        const duration = Math.floor((Date.now() - sectionStartTimeRef.current) / 1000);
+        const dishesViewed = sectionDishesViewedRef.current.size;
+        if (duration > 0) {
+          trackSectionTime(prevSectionIdRef.current, duration, dishesViewed);
+        }
+      }
+    };
+  }, [trackSectionTime]);
 
   // ======================================================================
   // EVENT HANDLERS
@@ -681,403 +750,461 @@ const ReelsContainer: React.FC<ReelsContainerProps> = React.memo(({
 
   const { DishCard, SectionBar, Header } = templateComponents;
 
+  // ✅ Desktop Background & Pattern
+  // Log branding to debug color issues
+  console.log('🎨 [ReelsContainer] Branding:', reelConfig.restaurant?.branding);
+
+  // ✅ FIX: Use background_color to match Hero Section (not accent_color)
+  const brandColor = (reelConfig.restaurant?.branding as any)?.background_color || reelConfig.restaurant?.branding?.primaryColor || '#000000';
+
+  // Use pattern from config or assets, similar to HeroPremiumSection
+  const patternUrl = (reelConfig.config as any)?.pattern_url ||
+    (reelConfig.config as any)?.background_pattern_url ||
+    (reelConfig.restaurant as any)?.assets?.landing_pattern_url ||
+    "https://visualtasteworker.franciscotortosaestudios.workers.dev/media/System/patterns/waves.svg";
+
   return (
+    // ✅ Outer Container: Desktop Background
     <Box
       sx={{
-        height: '100svh',
         width: '100vw',
-        position: 'relative',
-        background: 'linear-gradient(145deg, #0f0f0f 0%, #1a1a1a 100%)',
+        height: '100svh',
+        bgcolor: brandColor,
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
         overflow: 'hidden',
-        userSelect: 'none',
-        WebkitUserSelect: 'none',
-        transform: 'translateZ(0)',
-        backfaceVisibility: 'hidden',
-        WebkitBackfaceVisibility: 'hidden',
-        WebkitOverflowScrolling: 'touch'
+        position: 'relative'
       }}
     >
-      <Header
-        restaurant={reelConfig.restaurant}
-        currentSection={currentSection}
-        currentDishIndex={currentDishIndex}
-        totalDishesInSection={currentDishes.length}
-        config={reelConfig}
-        languages={availableLanguages}
-        currentLanguage={currentLanguage}
-        onLanguageChange={handleLanguageChange}
-        onClose={onClose}
+      {/* ✅ Pattern Overlay */}
+      <Box
+        sx={{
+          position: 'absolute',
+          inset: 0,
+          backgroundImage: `url('${patternUrl}')`,
+          backgroundSize: '160px auto',
+          backgroundRepeat: 'repeat',
+          backgroundPosition: 'center top', // Match HeroPremiumSection
+          opacity: 0.12, // Match HeroPremiumSection
+          mixBlendMode: 'soft-light', // Match HeroPremiumSection
+          pointerEvents: 'none'
+        }}
       />
 
+      {/* ✅ Inner Container: Mobile Phone Simulation */}
       <Box
         sx={{
-          position: 'fixed',
-          left: { xs: 12, sm: 16 },
-          top: '50%',
-          transform: 'translateY(-50%)',
-          zIndex: 15,
-          display: 'flex',
-          flexDirection: 'column',
-          gap: 0.8
-        }}
-      >
-        {Array.from({ length: Math.min(currentDishes.length, 12) }).map((_, index) => (
-          <Box
-            key={index}
-            sx={{
-              width: { xs: 3, sm: 4 },
-              height: index === currentDishIndex ? { xs: 24, sm: 28 } : { xs: 8, sm: 10 },
-              borderRadius: 2,
-              bgcolor: index === currentDishIndex
-                ? reelConfig.restaurant?.branding?.primary_color || '#FF6B6B'
-                : 'rgba(255,255,255,0.4)',
-              transition: 'all 0.4s cubic-bezier(0.4, 0, 0.2, 1)',
-              boxShadow: index === currentDishIndex
-                ? `0 0 8px ${reelConfig.restaurant?.branding?.primary_color || '#FF6B6B'}40`
-                : 'none'
-            }}
-          />
-        ))}
-        {currentDishes.length > 12 && (
-          <Typography
-            variant="caption"
-            sx={{
-              color: 'rgba(255,255,255,0.6)',
-              fontSize: { xs: '0.6rem', sm: '0.7rem' },
-              textAlign: 'center',
-              mt: 0.5,
-              fontFamily: '"Fraunces", serif'
-            }}
-          >
-            +{currentDishes.length - 12}
-          </Typography>
-        )}
-      </Box>
-
-
-
-      {/* Cart Drawer */}
-      <Drawer
-        anchor="right"
-        open={openCartDrawer}
-        onClose={() => setOpenCartDrawer(false)}
-        PaperProps={{
-          sx: {
-            width: { xs: '100%', sm: 400 },
-            bgcolor: 'rgba(20,20,20,0.98)',
-            backdropFilter: 'blur(40px)',
-            borderLeft: '1px solid rgba(255,255,255,0.1)'
-          }
-        }}
-      >
-        <Box sx={{
-          p: 3,
-          display: 'flex',
-          justifyContent: 'space-between',
-          alignItems: 'center',
-          borderBottom: '1px solid rgba(255,255,255,0.1)'
-        }}>
-          <Typography variant="h5" sx={{ color: '#fff', fontWeight: 700, fontFamily: '"Fraunces", serif' }}>
-            Mi Carrito
-          </Typography>
-          <IconButton onClick={() => setOpenCartDrawer(false)} sx={{ color: '#fff' }}>
-            <Close />
-          </IconButton>
-        </Box>
-
-        <List sx={{
-          flexGrow: 1,
-          overflowY: 'auto',
-          p: 2,
-          '&::-webkit-scrollbar': { width: 8 },
-          '&::-webkit-scrollbar-thumb': {
-            bgcolor: 'rgba(255,255,255,0.2)',
-            borderRadius: 4
-          }
-        }}>
-          {cart.length === 0 ? (
-            <Box sx={{
-              textAlign: 'center',
-              py: 8,
-              color: 'rgba(255,255,255,0.5)'
-            }}>
-              <ShoppingCart sx={{ fontSize: 64, mb: 2, opacity: 0.3 }} />
-              <Typography sx={{ fontFamily: '"Fraunces", serif' }}>Tu carrito está vacío</Typography>
-            </Box>
-          ) : (
-            cart.map((item) => (
-              <React.Fragment key={item.dishId}>
-                <ListItem
-                  sx={{
-                    bgcolor: 'rgba(255,255,255,0.05)',
-                    borderRadius: 2,
-                    mb: 2,
-                    flexDirection: 'column',
-                    alignItems: 'stretch',
-                    p: 2
-                  }}
-                >
-                  <Box sx={{ display: 'flex', gap: 2, mb: 2 }}>
-                    {item.image && (
-                      <Box
-                        component="img"
-                        src={item.image}
-                        alt={item.name}
-                        sx={{
-                          width: 80,
-                          height: 80,
-                          objectFit: 'cover',
-                          borderRadius: 2
-                        }}
-                      />
-                    )}
-
-                    <Box sx={{ flexGrow: 1 }}>
-                      <Typography sx={{ color: '#fff', fontWeight: 600, mb: 0.5, fontFamily: '"Fraunces", serif' }}>
-                        {item.name}
-                      </Typography>
-                      <Typography sx={{ color: reelConfig.restaurant?.branding?.primary_color || '#FF6B6B', fontWeight: 700, fontSize: '1.1rem', fontFamily: '"Fraunces", serif' }}>
-                        €{item.price.toFixed(2)}
-                      </Typography>
-                    </Box>
-
-                    <IconButton
-                      onClick={() => removeFromCart(item.dishId)}
-                      sx={{
-                        color: 'rgba(255,100,100,0.8)',
-                        alignSelf: 'flex-start',
-                        '&:hover': { color: 'rgba(255,100,100,1)' }
-                      }}
-                    >
-                      <DeleteOutline />
-                    </IconButton>
-                  </Box>
-
-                  <Box sx={{
-                    display: 'flex',
-                    justifyContent: 'space-between',
-                    alignItems: 'center',
-                    pt: 1,
-                    borderTop: '1px solid rgba(255,255,255,0.1)'
-                  }}>
-                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-                      <IconButton
-                        size="small"
-                        onClick={() => updateCartItemQuantity(item.dishId, item.quantity - 1)}
-                        sx={{
-                          bgcolor: 'rgba(255,255,255,0.1)',
-                          color: '#fff',
-                          width: 32,
-                          height: 32,
-                          '&:hover': { bgcolor: 'rgba(255,255,255,0.2)' }
-                        }}
-                      >
-                        <Remove fontSize="small" />
-                      </IconButton>
-
-                      <Typography sx={{
-                        color: '#fff',
-                        fontWeight: 600,
-                        fontSize: '1.1rem',
-                        minWidth: 30,
-                        textAlign: 'center',
-                        fontFamily: '"Fraunces", serif'
-                      }}>
-                        {item.quantity}
-                      </Typography>
-
-                      <IconButton
-                        size="small"
-                        onClick={() => updateCartItemQuantity(item.dishId, item.quantity + 1)}
-                        sx={{
-                          bgcolor: reelConfig.restaurant?.branding?.secondary_color || '#4ECDC4',
-                          color: '#fff',
-                          width: 32,
-                          height: 32,
-                          '&:hover': { bgcolor: reelConfig.restaurant?.branding?.secondary_color || '#4ECDC4', opacity: 0.8 }
-                        }}
-                      >
-                        <Add fontSize="small" />
-                      </IconButton>
-                    </Box>
-
-                    <Typography sx={{ color: '#fff', fontWeight: 700, fontSize: '1.1rem', fontFamily: '"Fraunces", serif' }}>
-                      €{(item.price * item.quantity).toFixed(2)}
-                    </Typography>
-                  </Box>
-                </ListItem>
-              </React.Fragment>
-            ))
-          )}
-        </List>
-
-        {cart.length > 0 && (
-          <Box sx={{
-            p: 3,
-            borderTop: '1px solid rgba(255,255,255,0.1)',
-            bgcolor: 'rgba(0,0,0,0.3)'
-          }}>
-            <Box sx={{
-              display: 'flex',
-              justifyContent: 'space-between',
-              alignItems: 'center',
-              mb: 3
-            }}>
-              <Typography variant="h6" sx={{ color: '#fff', fontWeight: 600, fontFamily: '"Fraunces", serif' }}>
-                Total:
-              </Typography>
-              <Typography variant="h4" sx={{ color: reelConfig.restaurant?.branding?.primary_color || '#FF6B6B', fontWeight: 700, fontFamily: '"Fraunces", serif' }}>
-                €{getTotalPrice().toFixed(2)}
-              </Typography>
-            </Box>
-
-            <Alert
-              icon={<Restaurant />}
-              severity="info"
-              sx={{
-                bgcolor: `${reelConfig.restaurant?.branding?.secondary_color || '#4ECDC4'}20`,
-                color: '#fff',
-                border: `1px solid ${reelConfig.restaurant?.branding?.secondary_color || '#4ECDC4'}40`,
-                borderRadius: 2,
-                mb: 2,
-                '& .MuiAlert-icon': {
-                  color: reelConfig.restaurant?.branding?.secondary_color || '#4ECDC4'
-                },
-                fontFamily: '"Fraunces", serif'
-              }}
-            >
-              <Typography sx={{ fontWeight: 500, fontSize: '0.9rem', fontFamily: '"Fraunces", serif' }}>
-                Para completar tu pedido, consulta con el personal de sala
-              </Typography>
-            </Alert>
-
-            <Button
-              fullWidth
-              variant="contained"
-              startIcon={<Restaurant />}
-              onClick={handleShowToStaff}
-              sx={{
-                bgcolor: reelConfig.restaurant?.branding?.secondary_color || '#4ECDC4',
-                color: '#fff',
-                fontWeight: 700,
-                fontSize: '1.1rem',
-                py: 2,
-                textTransform: 'none',
-                borderRadius: 2,
-                boxShadow: `0 8px 32px ${reelConfig.restaurant?.branding?.secondary_color || '#4ECDC4'}80`,
-                '&:hover': {
-                  bgcolor: reelConfig.restaurant?.branding?.secondary_color || '#4ECDC4',
-                  opacity: 0.9,
-                  transform: 'translateY(-2px)',
-                  boxShadow: `0 12px 40px ${reelConfig.restaurant?.branding?.secondary_color || '#4ECDC4'}99`
-                },
-                transition: 'all 0.3s ease',
-                fontFamily: '"Fraunces", serif'
-              }}
-            >
-              Solicitar al Personal ({getTotalItems()} items)
-            </Button>
-          </Box>
-        )}
-      </Drawer>
-
-      <Box
-        sx={{
+          height: '100%',
+          width: '100%',
+          maxWidth: '430px', // ✅ iPhone Pro Max width
           position: 'relative',
-          height: '100svh',
-          width: '100vw',
-          pt: '80px',
-          pb: '90px'
+          background: 'linear-gradient(145deg, #0f0f0f 0%, #1a1a1a 100%)',
+          overflow: 'hidden',
+          userSelect: 'none',
+          WebkitUserSelect: 'none',
+          transform: 'translateZ(0)',
+          backfaceVisibility: 'hidden',
+          WebkitBackfaceVisibility: 'hidden',
+          WebkitOverflowScrolling: 'touch',
+          boxShadow: '0 0 50px rgba(0,0,0,0.5)', // ✅ Shadow to pop out
+          zIndex: 1 // ✅ Ensure it's above the pattern
         }}
       >
-        {/* ✅ HORIZONTAL SWIPER CON onSwiper */}
-        <Swiper
-          {...swiperConfigs.horizontal}
-          onSwiper={(swiper) => {
-            horizontalSwiperRef.current = swiper;
-            console.log('🎯 [Horizontal Swiper] onSwiper executed, ref assigned:', !!swiper);
-          }}
-          initialSlide={initialSectionIndex}
-          onSlideChange={(swiper) => {
-            if (!isClickNavigationRef.current) {
-              const newIndex = swiper.activeIndex;
-              console.log(`🎯 [Horizontal Swiper] Slide changed via SWIPE to: ${newIndex}`);
-              if (newIndex !== currentSectionIndex) {
-                setCurrentSectionIndex(newIndex);
-                setCurrentDishIndex(0);
-                const section = reelConfig?.sections?.[newIndex];
-                if (section) {
-                  setCurrentSection(section.id);
-                }
-              }
-            } else {
-              console.log(`🎯 [Horizontal Swiper] Slide changed via CLICK (ignoring onSlideChange)`);
-            }
-          }}
-          style={{
-            height: '100%',
-            width: '100vw',
-            transform: 'translateZ(0)'
+        <Header
+          restaurant={reelConfig.restaurant}
+          currentSection={currentSection}
+          currentDishIndex={currentDishIndex}
+          totalDishesInSection={currentDishes.length}
+          config={reelConfig}
+          languages={availableLanguages}
+          currentLanguage={currentLanguage}
+          onLanguageChange={handleLanguageChange}
+          onClose={onClose}
+        />
+
+        <SocialMenu
+          restaurant={reelConfig.restaurant}
+          onOpenOffer={handleOpenOffer}
+        />
+
+        <WelcomeModal
+          open={welcomeModalOpen}
+          onClose={() => setWelcomeModalOpen(false)}
+          restaurant={reelConfig.restaurant}
+          campaign={marketingCampaign}
+        />
+
+        <Box
+          sx={{
+            position: 'fixed',
+            left: { xs: 12, sm: 16 },
+            top: '50%',
+            transform: 'translateY(-50%)',
+            zIndex: 15,
+            display: 'flex',
+            flexDirection: 'column',
+            gap: 0.8
           }}
         >
-          {reelConfig?.sections?.map((section, sectionIdx) => (
-            <SwiperSlide key={section.id} virtualIndex={sectionIdx}>
-              {/* ✅ VERTICAL SWIPER CON onSwiper */}
-              <Swiper
-                {...swiperConfigs.vertical}
-                onSwiper={(swiper) => {
-                  verticalSwiperRefs.current[sectionIdx] = swiper;
-                  if (sectionIdx === currentSectionIndex) {
-                    verticalSwiperRef.current = swiper;
-                  }
-                  console.log(`🎯 [Vertical Swiper ${sectionIdx}] onSwiper executed`);
-                }}
-                initialSlide={sectionIdx === initialSectionIndex ? initialDishIndex : 0}
-                onSlideChange={(swiper) => {
-                  handleDishChange(swiper.activeIndex, sectionIdx);
-                }}
-                style={{
-                  height: '100%',
-                  width: '100vw',
-                  transform: 'translateZ(0)'
+          {Array.from({ length: Math.min(currentDishes.length, 12) }).map((_, index) => (
+            <Box
+              key={index}
+              sx={{
+                width: { xs: 3, sm: 4 },
+                height: index === currentDishIndex ? { xs: 24, sm: 28 } : { xs: 8, sm: 10 },
+                borderRadius: 2,
+                bgcolor: index === currentDishIndex
+                  ? reelConfig.restaurant?.branding?.primaryColor || '#FF6B6B'
+                  : 'rgba(255,255,255,0.4)',
+                transition: 'all 0.4s cubic-bezier(0.4, 0, 0.2, 1)',
+                boxShadow: index === currentDishIndex
+                  ? `0 0 8px ${reelConfig.restaurant?.branding?.primaryColor || '#FF6B6B'}40`
+                  : 'none'
+              }}
+            />
+          ))}
+          {currentDishes.length > 12 && (
+            <Typography
+              variant="caption"
+              sx={{
+                color: 'rgba(255,255,255,0.6)',
+                fontSize: { xs: '0.6rem', sm: '0.7rem' },
+                textAlign: 'center',
+                mt: 0.5,
+                fontFamily: '"Fraunces", serif'
+              }}
+            >
+              +{currentDishes.length - 12}
+            </Typography>
+          )}
+        </Box>
+
+
+
+        {/* Cart Drawer */}
+        <Drawer
+          anchor="right"
+          open={openCartDrawer}
+          onClose={() => setOpenCartDrawer(false)}
+          PaperProps={{
+            sx: {
+              width: { xs: '100%', sm: 400 },
+              bgcolor: 'rgba(20,20,20,0.98)',
+              backdropFilter: 'blur(40px)',
+              borderLeft: '1px solid rgba(255,255,255,0.1)'
+            }
+          }}
+        >
+          <Box sx={{
+            p: 3,
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+            borderBottom: '1px solid rgba(255,255,255,0.1)'
+          }}>
+            <Typography variant="h5" sx={{ color: '#fff', fontWeight: 700, fontFamily: '"Fraunces", serif' }}>
+              Mi Carrito
+            </Typography>
+            <IconButton onClick={() => setOpenCartDrawer(false)} sx={{ color: '#fff' }}>
+              <Close />
+            </IconButton>
+          </Box>
+
+          <List sx={{
+            flexGrow: 1,
+            overflowY: 'auto',
+            p: 2,
+            '&::-webkit-scrollbar': { width: 8 },
+            '&::-webkit-scrollbar-thumb': {
+              bgcolor: 'rgba(255,255,255,0.2)',
+              borderRadius: 4
+            }
+          }}>
+            {cart.length === 0 ? (
+              <Box sx={{
+                textAlign: 'center',
+                py: 8,
+                color: 'rgba(255,255,255,0.5)'
+              }}>
+                <ShoppingCart sx={{ fontSize: 64, mb: 2, opacity: 0.3 }} />
+                <Typography sx={{ fontFamily: '"Fraunces", serif' }}>Tu carrito está vacío</Typography>
+              </Box>
+            ) : (
+              cart.map((item) => (
+                <React.Fragment key={item.dishId}>
+                  <ListItem
+                    sx={{
+                      bgcolor: 'rgba(255,255,255,0.05)',
+                      borderRadius: 2,
+                      mb: 2,
+                      flexDirection: 'column',
+                      alignItems: 'stretch',
+                      p: 2
+                    }}
+                  >
+                    <Box sx={{ display: 'flex', gap: 2, mb: 2 }}>
+                      {item.image && (
+                        <Box
+                          component="img"
+                          src={item.image}
+                          alt={item.name}
+                          sx={{
+                            width: 80,
+                            height: 80,
+                            objectFit: 'cover',
+                            borderRadius: 2
+                          }}
+                        />
+                      )}
+
+                      <Box sx={{ flexGrow: 1 }}>
+                        <Typography sx={{ color: '#fff', fontWeight: 600, mb: 0.5, fontFamily: '"Fraunces", serif' }}>
+                          {item.name}
+                        </Typography>
+                        <Typography sx={{ color: reelConfig.restaurant?.branding?.primaryColor || '#FF6B6B', fontWeight: 700, fontSize: '1.1rem', fontFamily: '"Fraunces", serif' }}>
+                          €{item.price.toFixed(2)}
+                        </Typography>
+                      </Box>
+
+                      <IconButton
+                        onClick={() => removeFromCart(item.dishId)}
+                        sx={{
+                          color: 'rgba(255,100,100,0.8)',
+                          alignSelf: 'flex-start',
+                          '&:hover': { color: 'rgba(255,100,100,1)' }
+                        }}
+                      >
+                        <DeleteOutline />
+                      </IconButton>
+                    </Box>
+
+                    <Box sx={{
+                      display: 'flex',
+                      justifyContent: 'space-between',
+                      alignItems: 'center',
+                      pt: 1,
+                      borderTop: '1px solid rgba(255,255,255,0.1)'
+                    }}>
+                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+                        <IconButton
+                          size="small"
+                          onClick={() => updateCartItemQuantity(item.dishId, item.quantity - 1)}
+                          sx={{
+                            bgcolor: 'rgba(255,255,255,0.1)',
+                            color: '#fff',
+                            width: 32,
+                            height: 32,
+                            '&:hover': { bgcolor: 'rgba(255,255,255,0.2)' }
+                          }}
+                        >
+                          <Remove fontSize="small" />
+                        </IconButton>
+
+                        <Typography sx={{
+                          color: '#fff',
+                          fontWeight: 600,
+                          fontSize: '1.1rem',
+                          minWidth: 30,
+                          textAlign: 'center',
+                          fontFamily: '"Fraunces", serif'
+                        }}>
+                          {item.quantity}
+                        </Typography>
+
+                        <IconButton
+                          size="small"
+                          onClick={() => updateCartItemQuantity(item.dishId, item.quantity + 1)}
+                          sx={{
+                            bgcolor: reelConfig.restaurant?.branding?.secondaryColor || '#4ECDC4',
+                            color: '#fff',
+                            width: 32,
+                            height: 32,
+                            '&:hover': { bgcolor: reelConfig.restaurant?.branding?.secondaryColor || '#4ECDC4', opacity: 0.8 }
+                          }}
+                        >
+                          <Add fontSize="small" />
+                        </IconButton>
+                      </Box>
+
+                      <Typography sx={{ color: '#fff', fontWeight: 700, fontSize: '1.1rem', fontFamily: '"Fraunces", serif' }}>
+                        €{(item.price * item.quantity).toFixed(2)}
+                      </Typography>
+                    </Box>
+                  </ListItem>
+                </React.Fragment>
+              ))
+            )}
+          </List>
+
+          {cart.length > 0 && (
+            <Box sx={{
+              p: 3,
+              borderTop: '1px solid rgba(255,255,255,0.1)',
+              bgcolor: 'rgba(0,0,0,0.3)'
+            }}>
+              <Box sx={{
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+                mb: 3
+              }}>
+                <Typography variant="h6" sx={{ color: '#fff', fontWeight: 600, fontFamily: '"Fraunces", serif' }}>
+                  Total:
+                </Typography>
+                <Typography variant="h4" sx={{ color: reelConfig.restaurant?.branding?.primaryColor || '#FF6B6B', fontWeight: 700, fontFamily: '"Fraunces", serif' }}>
+                  €{getTotalPrice().toFixed(2)}
+                </Typography>
+              </Box>
+
+              <Alert
+                icon={<Restaurant />}
+                severity="info"
+                sx={{
+                  bgcolor: `${reelConfig.restaurant?.branding?.secondaryColor || '#4ECDC4'}20`,
+                  color: '#fff',
+                  border: `1px solid ${reelConfig.restaurant?.branding?.secondaryColor || '#4ECDC4'}40`,
+                  borderRadius: 2,
+                  mb: 2,
+                  '& .MuiAlert-icon': {
+                    color: reelConfig.restaurant?.branding?.secondaryColor || '#4ECDC4'
+                  },
+                  fontFamily: '"Fraunces", serif'
                 }}
               >
-                {section?.dishes?.map((dish: any, dishIdx: number) => (
-                  <SwiperSlide key={dish.id} virtualIndex={dishIdx}>
-                    <DishCard
-                      dish={dish}
-                      restaurant={reelConfig.restaurant}
-                      section={section}
-                      isActive={sectionIdx === currentSectionIndex && dishIdx === currentDishIndex}
-                      config={reelConfig}
-                      muted={muted}
-                      onMuteToggle={toggleMuted}
-                      currentDishIndex={dishIdx}
-                      totalDishes={section?.dishes?.length || 0}
-                      currentLanguage={currentLanguage}
-                      onAddToCart={addToCart}
-                      cartItemCount={cart.find(i => i.dishId === dish.id)?.quantity || 0}
-                      onOpenCart={handleOpenCartDrawer}
-                      totalCartItems={getTotalItems()}
-                    />
-                  </SwiperSlide>
-                ))}
-              </Swiper>
-            </SwiperSlide>
-          ))}
-        </Swiper>
-      </Box>
+                <Typography sx={{ fontWeight: 500, fontSize: '0.9rem', fontFamily: '"Fraunces", serif' }}>
+                  Para completar tu pedido, consulta con el personal de sala
+                </Typography>
+              </Alert>
 
-      <SectionBar
-        sections={reelConfig?.sections || []}
-        currentSectionIndex={currentSectionIndex}
-        currentDishIndex={currentDishIndex}
-        totalDishesInSection={currentDishes.length}
-        onSectionChange={handleSectionChange}
-        config={reelConfig}
-        currentLanguage={currentLanguage}
-      />
-    </Box>
+              <Button
+                fullWidth
+                variant="contained"
+                startIcon={<Restaurant />}
+                onClick={handleShowToStaff}
+                sx={{
+                  bgcolor: reelConfig.restaurant?.branding?.secondaryColor || '#4ECDC4',
+                  color: '#fff',
+                  fontWeight: 700,
+                  fontSize: '1.1rem',
+                  py: 2,
+                  textTransform: 'none',
+                  borderRadius: 2,
+                  boxShadow: `0 8px 32px ${reelConfig.restaurant?.branding?.secondaryColor || '#4ECDC4'}80`,
+                  '&:hover': {
+                    bgcolor: reelConfig.restaurant?.branding?.secondaryColor || '#4ECDC4',
+                    opacity: 0.9,
+                    transform: 'translateY(-2px)',
+                    boxShadow: `0 12px 40px ${reelConfig.restaurant?.branding?.secondaryColor || '#4ECDC4'}99`
+                  },
+                  transition: 'all 0.3s ease',
+                  fontFamily: '"Fraunces", serif'
+                }}
+              >
+                Solicitar al Personal ({getTotalItems()} items)
+              </Button>
+            </Box>
+          )}
+        </Drawer>
+
+        <Box
+          sx={{
+            position: 'relative',
+            height: '100svh',
+            width: '100%', // ✅ Changed from 100vw to 100% to respect container width
+            pt: '80px',
+            pb: '90px'
+          }}
+        >
+          {/* ✅ HORIZONTAL SWIPER CON onSwiper */}
+          <Swiper
+            {...swiperConfigs.horizontal}
+            onSwiper={(swiper) => {
+              horizontalSwiperRef.current = swiper;
+              console.log('🎯 [Horizontal Swiper] onSwiper executed, ref assigned:', !!swiper);
+            }}
+            initialSlide={initialSectionIndex}
+            onSlideChange={(swiper) => {
+              if (!isClickNavigationRef.current) {
+                const newIndex = swiper.activeIndex;
+                console.log(`🎯 [Horizontal Swiper] Slide changed via SWIPE to: ${newIndex}`);
+                if (newIndex !== currentSectionIndex) {
+                  setCurrentSectionIndex(newIndex);
+                  setCurrentDishIndex(0);
+                  const section = reelConfig?.sections?.[newIndex];
+                  if (section) {
+                    setCurrentSection(section.id);
+                  }
+                }
+              } else {
+                console.log(`🎯 [Horizontal Swiper] Slide changed via CLICK (ignoring onSlideChange)`);
+              }
+            }}
+            style={{
+              height: '100%',
+              width: '100%', // ✅ Changed from 100vw to 100%
+              transform: 'translateZ(0)'
+            }}
+          >
+            {reelConfig?.sections?.map((section, sectionIdx) => (
+              <SwiperSlide key={section.id} virtualIndex={sectionIdx}>
+                {/* ✅ VERTICAL SWIPER CON onSwiper */}
+                <Swiper
+                  {...swiperConfigs.vertical}
+                  onSwiper={(swiper) => {
+                    verticalSwiperRefs.current[sectionIdx] = swiper;
+                    if (sectionIdx === currentSectionIndex) {
+                      verticalSwiperRef.current = swiper;
+                    }
+                    console.log(`🎯 [Vertical Swiper ${sectionIdx}] onSwiper executed`);
+                  }}
+                  initialSlide={sectionIdx === initialSectionIndex ? initialDishIndex : 0}
+                  onSlideChange={(swiper) => {
+                    handleDishChange(swiper.activeIndex, sectionIdx);
+                  }}
+                  style={{
+                    height: '100%',
+                    width: '100%', // ✅ Changed from 100vw to 100%
+                    transform: 'translateZ(0)'
+                  }}
+                >
+                  {section?.dishes?.map((dish: any, dishIdx: number) => (
+                    <SwiperSlide key={dish.id} virtualIndex={dishIdx}>
+                      <DishCard
+                        dish={dish}
+                        restaurant={reelConfig.restaurant}
+                        section={section}
+                        isActive={sectionIdx === currentSectionIndex && dishIdx === currentDishIndex}
+                        config={reelConfig}
+                        muted={muted}
+                        onMuteToggle={toggleMuted}
+                        currentDishIndex={dishIdx}
+                        totalDishes={section?.dishes?.length || 0}
+                        currentLanguage={currentLanguage}
+                        onAddToCart={addToCart}
+                        cartItemCount={cart.find(i => i.dishId === dish.id)?.quantity || 0}
+                        onOpenCart={handleOpenCartDrawer}
+                        totalCartItems={getTotalItems()}
+                      />
+                    </SwiperSlide>
+                  ))}
+                </Swiper>
+              </SwiperSlide>
+            ))}
+          </Swiper>
+        </Box>
+
+        <SectionBar
+          sections={reelConfig?.sections || []}
+          currentSectionIndex={currentSectionIndex}
+          currentDishIndex={currentDishIndex}
+          totalDishesInSection={currentDishes.length}
+          onSectionChange={handleSectionChange}
+          config={reelConfig}
+          currentLanguage={currentLanguage}
+        />
+      </Box >
+    </Box >
   );
 });
 

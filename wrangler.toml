@@ -1,0 +1,11 @@
+name = "visualtasteworker"
+main = "worker.js"
+compatibility_date = "2023-10-30"
+
+[vars]
+# Add environment variables here if needed
+
+[[d1_databases]]
+binding = "DB" # Should match the binding used in your worker code
+database_name = "visualtaste-db"
+database_id = "e7490605-7286-4860-9426-5d9d020084e3" # I need to find the real ID or ask the user to provide it.

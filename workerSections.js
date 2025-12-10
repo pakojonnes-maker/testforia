@@ -363,63 +363,71 @@ export async function handleSectionRequests(request, env) {
 
 async function getSectionsForRestaurant(restaurantId, env) {
     try {
+        // ✅ OPTIMIZADO: Query única con GROUP_CONCAT para traducciones
         const sectionsData = await env.DB.prepare(`
-      SELECT s.id, s.menu_id, s.order_index, s.icon_url, s.bg_color
-      FROM sections s
-      WHERE s.restaurant_id = ?
-      ORDER BY s.order_index ASC
-    `).bind(restaurantId).all();
+            SELECT 
+                s.id, s.menu_id, s.order_index, s.icon_url, s.bg_color,
+                m.name as menu_name,
+                COUNT(DISTINCT sd.dish_id) as dish_count,
+                GROUP_CONCAT(
+                    CASE 
+                        WHEN t.field = 'name' AND t.language_code IN ('es', 'en') THEN 
+                            t.language_code || ':name:' || t.value
+                        WHEN t.field = 'description' AND t.language_code IN ('es', 'en') THEN 
+                            t.language_code || ':description:' || t.value
+                    END, '|||'
+                ) as translations_data
+            FROM sections s
+            LEFT JOIN menus m ON s.menu_id = m.id
+            LEFT JOIN section_dishes sd ON s.id = sd.section_id
+            LEFT JOIN translations t ON t.entity_id = s.id 
+                AND t.entity_type = 'section'
+                AND t.language_code IN ('es', 'en')
+                AND t.field IN ('name', 'description')
+            WHERE s.restaurant_id = ?
+            GROUP BY s.id, s.menu_id, s.order_index, s.icon_url, s.bg_color, m.name
+            ORDER BY s.order_index ASC
+        `).bind(restaurantId).all();
 
         if (!sectionsData.results || sectionsData.results.length === 0) {
             return createResponse({ success: true, sections: [] });
         }
 
-        const sectionsWithDetails = await Promise.all(sectionsData.results.map(async (section) => {
-            const menuData = await env.DB.prepare(`
-        SELECT name FROM menus WHERE id = ?
-      `).bind(section.menu_id).first();
-
+        // ✅ OPTIMIZADO: Procesar traducciones en memoria (sin queries adicionales)
+        const sections = sectionsData.results.map(section => {
             const translations = { name: {}, description: {} };
 
-            const nameES = await env.DB.prepare(
-                `SELECT value FROM translations WHERE entity_id = ? AND entity_type = 'section' AND field = 'name' AND language_code = 'es'`
-            ).bind(section.id).first();
+            // Parsear translations_data
+            if (section.translations_data) {
+                const parts = section.translations_data.split('|||').filter(Boolean);
+                parts.forEach(part => {
+                    if (!part) return;
+                    const [lang, field, ...valueParts] = part.split(':');
+                    const value = valueParts.join(':'); // Por si el valor contiene ':'
 
-            if (nameES) translations.name.es = nameES.value;
-
-            const nameEN = await env.DB.prepare(
-                `SELECT value FROM translations WHERE entity_id = ? AND entity_type = 'section' AND field = 'name' AND language_code = 'en'`
-            ).bind(section.id).first();
-
-            if (nameEN) translations.name.en = nameEN.value;
-
-            const descES = await env.DB.prepare(
-                `SELECT value FROM translations WHERE entity_id = ? AND entity_type = 'section' AND field = 'description' AND language_code = 'es'`
-            ).bind(section.id).first();
-
-            if (descES) translations.description.es = descES.value;
-
-            const descEN = await env.DB.prepare(
-                `SELECT value FROM translations WHERE entity_id = ? AND entity_type = 'section' AND field = 'description' AND language_code = 'en'`
-            ).bind(section.id).first();
-
-            if (descEN) translations.description.en = descEN.value;
-
-            const dishCount = await env.DB.prepare(`
-        SELECT COUNT(*) as count FROM section_dishes WHERE section_id = ?
-      `).bind(section.id).first();
+                    if (lang && field && value) {
+                        translations[field][lang] = value;
+                    }
+                });
+            }
 
             return {
-                ...section,
+                id: section.id,
+                menu_id: section.menu_id,
+                order_index: section.order_index,
+                icon_url: section.icon_url,
+                bg_color: section.bg_color,
                 translations,
-                menu_name: menuData?.name || "Menú sin nombre",
-                dish_count: dishCount?.count || 0
+                menu_name: section.menu_name || "Menú sin nombre",
+                dish_count: section.dish_count || 0
             };
-        }));
+        });
+
+        console.log(`[Sections] ✅ Optimized: ${sections.length} sections loaded with 1 query (vs ${sections.length * 6} before)`);
 
         return createResponse({
             success: true,
-            sections: sectionsWithDetails
+            sections
         });
 
     } catch (dbError) {

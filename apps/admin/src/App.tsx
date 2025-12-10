@@ -11,13 +11,15 @@ import DashboardPage from './pages/DashboardPage';
 import DishesPage from './pages/DishesPage';
 import DishFormPage from './pages/DishFormPage';
 import SectionsPage from './pages/SectionsPage';
-import LandingBuilder from './pages/landing/LandingBuilder';
+const WebPage = lazy(() => import('./pages/WebPage'));
 
 // Importaciones con carga diferida para las nuevas páginas
 const ConfigurationPage = lazy(() => import('./pages/ConfigurationPage'));
 const StylingPage = lazy(() => import('./pages/StylingPage'));
 const MarketingPage = lazy(() => import('./pages/MarketingPage'));
 const AnalyticsPage = lazy(() => import('./pages/AnalyticsPage'));
+const UsersPage = lazy(() => import('./pages/UsersPage'));
+const QRGeneratorPage = lazy(() => import('./pages/QRGeneratorPage'));
 
 
 // Componente para proteger rutas
@@ -54,7 +56,14 @@ function App() {
           <Route path="dishes" element={<DishesPage />} />
           <Route path="dishes/new" element={<DishFormPage />} />
           <Route path="dishes/:id" element={<DishFormPage />} />
-          <Route path="/admin/landing" element={<LandingBuilder />} />
+          <Route
+            path="/admin/landing"
+            element={
+              <Suspense fallback={<LinearProgress />}>
+                <WebPage />
+              </Suspense>
+            }
+          />
 
           {/* Nuevas rutas */}
           <Route
@@ -86,6 +95,22 @@ function App() {
             element={
               <Suspense fallback={<LinearProgress />}>
                 <AnalyticsPage />
+              </Suspense>
+            }
+          />
+          <Route
+            path="users"
+            element={
+              <Suspense fallback={<LinearProgress />}>
+                <UsersPage />
+              </Suspense>
+            }
+          />
+          <Route
+            path="qr-generator"
+            element={
+              <Suspense fallback={<LinearProgress />}>
+                <QRGeneratorPage />
               </Suspense>
             }
           />

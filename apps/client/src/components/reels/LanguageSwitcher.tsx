@@ -1,8 +1,8 @@
 // apps/client/src/components/reels/LanguageSwitcher.tsx
 
 import React, { useState } from 'react';
-import { IconButton, Menu, MenuItem, Box, Typography } from '@mui/material';
-import { Language as LanguageIcon, ExpandMore } from '@mui/icons-material';
+import { Box, Typography, Menu, MenuItem } from '@mui/material';
+import { ExpandMore } from '@mui/icons-material';
 
 interface Language {
   code: string;
@@ -30,7 +30,7 @@ const LanguageSwitcher: React.FC<LanguageSwitcherProps> = ({
   if (languages.length <= 1) return null;
 
   const currentLang = languages.find(l => l.code === currentLanguage);
-  
+
   // ✅ Fallback flags
   const flagMap: { [key: string]: string } = {
     'es': '🇪🇸', 'en': '🇬🇧', 'fr': '🇫🇷', 'de': '🇩🇪', 'it': '🇮🇹'
@@ -67,20 +67,22 @@ const LanguageSwitcher: React.FC<LanguageSwitcherProps> = ({
           cursor: disabled ? 'default' : 'pointer',
           opacity: disabled ? 0.5 : 1,
           transition: 'all 0.3s ease',
-          '&:hover': !disabled && {
-            bgcolor: 'rgba(255,255,255,0.25)',
-            transform: 'translateY(-1px)'
-          }
+          ...(!disabled ? {
+            '&:hover': {
+              bgcolor: 'rgba(255,255,255,0.25)',
+              transform: 'translateY(-1px)'
+            }
+          } : {})
         }}
       >
         <Typography sx={{ fontSize: '1.1rem' }}>
           {currentLang?.flag_emoji || flagMap[currentLanguage] || '🌐'}
         </Typography>
-        <Typography 
+        <Typography
           variant="caption"
-          sx={{ 
-            color: '#fff', 
-            fontSize: '0.8rem', 
+          sx={{
+            color: '#fff',
+            fontSize: '0.8rem',
             fontWeight: 600,
             textTransform: 'uppercase'
           }}

@@ -14,18 +14,20 @@ const DynamicTemplate: React.FC<DynamicTemplateProps> = ({
   config,
   children
 }) => {
+  const branding = config.restaurant?.branding || {};
+
   return (
     <Box
       sx={{
         position: 'relative',
         width: '100%',
         height: '100%',
-        bgcolor: config.colors.background,
-        fontFamily: config.fonts?.body || "'Montserrat', sans-serif",
+        bgcolor: branding.background_color || branding.backgroundColor || '#000000',
+        fontFamily: branding.fontFamily || "'Montserrat', sans-serif",
         overflow: 'hidden'
       }}
     >
-      {children}
+      {(children as any)}
     </Box>
   );
 };

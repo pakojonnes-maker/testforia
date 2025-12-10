@@ -11,11 +11,11 @@ interface Props {
   config: any;
 }
 
-export default function HeroSection({ restaurant, translations, theme, variant, config }: Props) {
+export default function HeroSection({ restaurant, translations, theme, variant: _variant, config }: Props) {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const height = config.height || '100vh';
   const ctaText = config.cta_text || 'Explorar Menú';
-  
+
   // Video URL - puedes usar el cover_image_url si es video, o un video por defecto
   const videoUrl = config.video_url || 'https://cdn.coverr.co/videos/coverr-cooking-delicious-food-5670/1080p.mp4';
 

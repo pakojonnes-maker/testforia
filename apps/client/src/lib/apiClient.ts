@@ -8,7 +8,7 @@ import type { DishMedia, RestaurantReelsData } from "@visualtaste/api";
 // ======================================================================
 
 // API URL desde variables de entorno o por defecto
-const API_URL = import.meta.env.VITE_API_URL || "https://visualtasteworker.franciscotortosaestudios.workers.dev";
+export const API_URL = import.meta.env.VITE_API_URL || "https://visualtasteworker.franciscotortosaestudios.workers.dev";
 
 // Crear instancia del cliente API base
 const baseApiClient = createApiClient(API_URL);
@@ -176,6 +176,51 @@ export const apiClient = {
 
       // Fallback a método normal
       return this.sendEvents(eventsData);
+    },
+
+    /**
+     * Obtener analytics diarios
+     */
+    async getDailyAnalytics(params: {
+      restaurant_id: string;
+      start_date?: string;
+      end_date?: string;
+    }) {
+      console.log('📊 [apiClient.tracking] Obteniendo analytics diarios:', params);
+      try {
+        const queryParams = new URLSearchParams({
+          restaurant_id: params.restaurant_id,
+          ...(params.start_date && { from: params.start_date }),
+          ...(params.end_date && { to: params.end_date })
+        });
+
+        const response = await baseApiClient.client.get(`/analytics?${queryParams.toString()}`);
+        return response.data;
+      } catch (error) {
+        console.error('❌ [apiClient.tracking] Error getting daily analytics:', error);
+        throw error;
+      }
+    },
+
+    /**
+     * Obtener analytics de platos
+     */
+    async getDishAnalytics(restaurantId: string) {
+      console.log('📊 [apiClient.tracking] Obteniendo analytics de platos:', restaurantId);
+      try {
+        const response = await baseApiClient.client.get(`/analytics/dishes?restaurant_id=${restaurantId}`);
+        return response.data;
+      } catch (error) {
+        console.error('❌ [apiClient.tracking] Error getting dish analytics:', error);
+        throw error;
+      }
+    },
+
+    /**
+     * Aggregate daily analytics (Alias/Wrapper)
+     */
+    async aggregateDailyAnalytics(params: any) {
+      return this.getDailyAnalytics(params);
     }
   },
 

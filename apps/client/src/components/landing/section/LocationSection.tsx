@@ -11,7 +11,7 @@ interface Props {
   details: any;
 }
 
-export default function LocationSection({ restaurant, translations, theme, variant, config, details }: Props) {
+export default function LocationSection({ restaurant, translations: _translations, theme, variant: _variant, config, details }: Props) {
   return (
     <Box
       id="location"

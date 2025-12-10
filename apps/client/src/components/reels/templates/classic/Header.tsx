@@ -86,7 +86,7 @@ const ClassicHeader: React.FC<HeaderProps> = ({
     handleLanguageClose();
   };
 
-  const currentLangData = languages.find(lang => lang.code === currentLanguage) || languages[0];
+
 
   // ✅ FALLBACK: Emojis si las banderas SVG fallan
   const flagEmojiMap: { [key: string]: string } = {
@@ -177,7 +177,7 @@ const ClassicHeader: React.FC<HeaderProps> = ({
       {/* ✅ HEADER REDISEÑADO */}
       <Box
         sx={{
-          position: 'fixed',
+          position: 'absolute', // ✅ Changed from fixed to absolute to stay within container
           top: 0,
           left: 0,
           right: 0,
@@ -185,8 +185,8 @@ const ClassicHeader: React.FC<HeaderProps> = ({
           background: 'linear-gradient(180deg, rgba(0,0,0,0.8) 0%, rgba(0,0,0,0.6) 70%, transparent 100%)',
           backdropFilter: 'blur(20px)',
           WebkitBackdropFilter: 'blur(20px)',
-          pt: { xs: 3, sm: 3 },
-          pb: 3,
+          pt: { xs: 1.25, sm: 1.25 }, // ✅ Reduced top padding (10px)
+          pb: 1.25, // ✅ Reduced bottom padding (10px)
           px: 3,
           transform: 'translateZ(0)',
           willChange: 'transform',
@@ -277,23 +277,43 @@ const ClassicHeader: React.FC<HeaderProps> = ({
               </Typography>
 
               {/* ✅ NOMBRE DE SECCIÓN - Color Secundario */}
-              <Typography
-                sx={{
-                  color: colors.secondary, // ✅ Color secundario del reel
-                  fontSize: { xs: '0.85rem', sm: '0.95rem' },
-                  fontWeight: 400,
-                  fontFamily: '"Fraunces", serif',
-                  letterSpacing: 1,
-                  textTransform: 'uppercase',
-                  textAlign: 'center',
-                  overflow: 'hidden',
-                  textOverflow: 'ellipsis',
-                  whiteSpace: 'nowrap',
-                  textShadow: '0 2px 8px rgba(0,0,0,0.4)' // Sombra para mejor legibilidad
-                }}
-              >
-                {getSectionName(currentSection)}
-              </Typography>
+              {/* ✅ NOMBRE DE SECCIÓN - Color Secundario con Marquee si es largo */}
+              <Box sx={{
+                width: '100%',
+                overflow: 'hidden',
+                position: 'relative',
+                height: '20px', // Fixed height for the text
+                display: 'flex',
+                justifyContent: 'center',
+                alignItems: 'center'
+              }}>
+                <Typography
+                  className="marquee-text"
+                  sx={{
+                    color: colors.secondary,
+                    fontSize: { xs: '0.75rem', sm: '0.85rem' }, // Reduced font size
+                    fontWeight: 400,
+                    fontFamily: '"Fraunces", serif',
+                    letterSpacing: 1,
+                    textTransform: 'uppercase',
+                    textAlign: 'center',
+                    whiteSpace: 'nowrap',
+                    textShadow: '0 2px 8px rgba(0,0,0,0.4)',
+                    // Animation logic will be handled by CSS if content overflows
+                    animation: getSectionName(currentSection).length > 20 ? 'marquee 10s linear infinite' : 'none',
+                    paddingLeft: getSectionName(currentSection).length > 20 ? '100%' : 0,
+                    display: 'inline-block'
+                  }}
+                >
+                  {getSectionName(currentSection)}
+                </Typography>
+                <style>{`
+                  @keyframes marquee {
+                    0% { transform: translateX(0); }
+                    100% { transform: translateX(-100%); }
+                  }
+                `}</style>
+              </Box>
             </motion.div>
           </Box>
 

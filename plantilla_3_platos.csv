@@ -1,0 +1,4 @@
+section_name;name;description;price;allergens;calories;is_vegetarian;is_vegan;is_gluten_free;image_url
+"Entrantes";"Patatas Bravas";"Salsa casera picante";8.50;"Sulfitos";450;"SI";"SI";"SI";"bravas.jpg"
+"Platos Principales";"Hamburguesa Trufada";"Carne 100% vacuno con trufa";15.00;"Gluten, Lácteos, Huevos";850;"NO";"NO";"NO";"burger.jpg"
+"Postres";"Tarta de Queso";"Estilo La Viña";6.50;"Lácteos, Huevos, Gluten";500;"SI";"NO";"NO";"cheesecake.jpg"

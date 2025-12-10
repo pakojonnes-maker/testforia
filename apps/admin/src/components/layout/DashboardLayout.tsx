@@ -43,6 +43,7 @@ import {
   Web as WebIcon,
   Person as PersonIcon,
   Notifications as NotificationsIcon,
+  QrCode as QrCodeIcon,
 } from '@mui/icons-material';
 
 const drawerWidth = 240;
@@ -141,6 +142,16 @@ export default function DashboardLayout() {
       text: 'Web',
       icon: <WebIcon />,
       path: '/admin/landing'
+    },
+    {
+      text: 'Usuarios',
+      icon: <PersonIcon />,
+      path: '/users'
+    },
+    {
+      text: 'Generador QR',
+      icon: <QrCodeIcon />,
+      path: '/qr-generator'
     },
     {
       text: 'Configuración',

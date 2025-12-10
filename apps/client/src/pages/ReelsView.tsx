@@ -1,5 +1,5 @@
 // apps/client/src/pages/ReelsView.tsx - INTEGRACIÓN FINAL
-import React, { useMemo } from 'react';
+import { useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useRestaurant } from '../App';
 import ReelsContainer from '../components/reels/ReelsContainer';
@@ -27,7 +27,7 @@ function ReelsView() {
 
         if (params.dishId && restaurantData.dishesBySection[foundSectionIndex]) {
           const dishes = restaurantData.dishesBySection[foundSectionIndex].dishes;
-          const foundDishIndex = dishes.findIndex(d => d.id === params.dishId);
+          const foundDishIndex = dishes.findIndex((d: any) => d.id === params.dishId);
           if (foundDishIndex !== -1) {
             dishIndex = foundDishIndex;
           }

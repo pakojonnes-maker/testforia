@@ -71,7 +71,7 @@ const isImageUrl = (url?: string | null): boolean => {
   return imageExts.some(ext => url.toLowerCase().endsWith(ext));
 };
 
-export default function MenuVideoGallerySection({ theme, translations, premium, apiUrl }: Props) {
+export default function MenuVideoGallerySection({ theme, translations: _translations, premium, apiUrl }: Props) {
   const bg = theme?.background_color || theme?.primary_color || '#0E2D27';
   const accent = theme?.accent_color || theme?.secondary_color || '#D6AA52';
   const txt = theme?.text_color || autoContrast(bg);
@@ -89,13 +89,13 @@ export default function MenuVideoGallerySection({ theme, translations, premium, 
   const items: MenuItem[] = useMemo(() => {
     const raw = premium?.videos || [];
     if (!raw.length) return [];
-    
+
     return raw.map((v, i) => {
       const resolvedPoster = resolveUrl(v.poster, apiUrl);
-      const posterUrl = isImageUrl(resolvedPoster) 
-        ? resolvedPoster 
+      const posterUrl = isImageUrl(resolvedPoster)
+        ? resolvedPoster
         : `https://placehold.co/1280x720/${bg.replace('#', '')}/${accent.replace('#', '')}?text=${encodeURIComponent(v.title || `Menu ${i + 1}`)}`;
-      
+
       return {
         id: `menu-${i}`,
         src: resolveUrl(v.src, apiUrl),
@@ -167,7 +167,7 @@ export default function MenuVideoGallerySection({ theme, translations, premium, 
               video.src = video.dataset.src;
               video.load();
             }
-            video.play().catch(() => {});
+            video.play().catch(() => { });
           } else {
             // Salió del viewport: pausar y resetear
             video.pause();
@@ -177,7 +177,7 @@ export default function MenuVideoGallerySection({ theme, translations, premium, 
       },
       { rootMargin: '0px', threshold: 0.25 } // 25% visible para activar
     );
-    
+
     Object.values(vRefs.current).forEach((v) => v && io.observe(v));
     return () => io.disconnect();
   }, [items, page]);
@@ -245,10 +245,10 @@ export default function MenuVideoGallerySection({ theme, translations, premium, 
               <article key={item.id} className="mvg-card">
                 <div className="mvg-media">
                   {item.href && <a className="mvg-link" href={item.href} aria-label={item.title} />}
-                  
+
                   {item.hasVideo && item.src ? (
                     <video
-                      ref={(el) => (vRefs.current[item.id] = el)}
+                      ref={(el) => { vRefs.current[item.id] = el; }}
                       className="mvg-video"
                       playsInline
                       muted
@@ -266,7 +266,7 @@ export default function MenuVideoGallerySection({ theme, translations, premium, 
                       loading="lazy"
                     />
                   )}
-                  
+
                   <div className="mvg-over">
                     <span className="mvg-chip">{item.title}</span>
                     {item.href && (

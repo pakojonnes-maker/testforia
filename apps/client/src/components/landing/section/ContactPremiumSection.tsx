@@ -1,5 +1,5 @@
 // src/components/landing/section/ContactPremiumSection.tsx
-import React, { useMemo } from 'react';
+import { useMemo } from 'react';
 
 type Restaurant = {
   name?: string;
@@ -10,6 +10,7 @@ type Restaurant = {
   city?: string;
   country?: string;
   postal_code?: string;
+  cover_image_url?: string;
 };
 
 type RestaurantDetails = {
@@ -40,19 +41,19 @@ type Props = {
 };
 
 const hexToRgba = (hex: string, a = 1) => {
-  const h = (hex || '#000000').replace('#','');
-  const r = parseInt(h.slice(0,2) || '00', 16);
-  const g = parseInt(h.slice(2,4) || '00', 16);
-  const b = parseInt(h.slice(4,6) || '00', 16);
+  const h = (hex || '#000000').replace('#', '');
+  const r = parseInt(h.slice(0, 2) || '00', 16);
+  const g = parseInt(h.slice(2, 4) || '00', 16);
+  const b = parseInt(h.slice(4, 6) || '00', 16);
   return `rgba(${r}, ${g}, ${b}, ${a})`;
 };
 
 const autoContrast = (hex: string) => {
-  const h = (hex || '#ffffff').replace('#','');
-  const r = parseInt(h.slice(0,2) || 'ff', 16);
-  const g = parseInt(h.slice(2,4) || 'ff', 16);
-  const b = parseInt(h.slice(4,6) || 'ff', 16);
-  const y = (r*299 + g*587 + b*114) / 1000;
+  const h = (hex || '#ffffff').replace('#', '');
+  const r = parseInt(h.slice(0, 2) || 'ff', 16);
+  const g = parseInt(h.slice(2, 4) || 'ff', 16);
+  const b = parseInt(h.slice(4, 6) || 'ff', 16);
+  const y = (r * 299 + g * 587 + b * 114) / 1000;
   return y > 155 ? '#161616' : '#F7F7F5';
 };
 
@@ -85,7 +86,7 @@ export default function ContactPremiumSection({
   const email = restaurantDetails?.reservation_email || restaurant?.email || '';
   const openingCompact = useMemo(() => {
     if (!hours) return '';
-    const firstOpen = Object.values(hours as any).find((d: any) => d && !d.closed);
+    const firstOpen = Object.values(hours as any).find((d: any) => d && !d.closed) as any;
     return firstOpen ? `${firstOpen.open} - ${firstOpen.close}` : (translations?.contact_closed || 'Closed');
   }, [hours, translations]);
 
@@ -166,7 +167,7 @@ export default function ContactPremiumSection({
       width:70%;
       height:28px;
       transform:translateX(-50%);
-      background:radial-gradient(ellipse at center, ${hexToRgba('#000',0.35)} 0%, transparent 65%);
+      background:radial-gradient(ellipse at center, ${hexToRgba('#000', 0.35)} 0%, transparent 65%);
       opacity:0.85;
       z-index:0;
     }
@@ -218,7 +219,7 @@ export default function ContactPremiumSection({
       display:block; 
       width:clamp(20px, 4vw, 28px); 
       height:1px; 
-      background:${hexToRgba(accent,.6)}; 
+      background:${hexToRgba(accent, .6)}; 
     }
     
     .contact-prem-visit span{ 
@@ -248,7 +249,7 @@ export default function ContactPremiumSection({
     
     .contact-prem-info a:hover{ 
       color:${accent}; 
-      border-bottom-color:${hexToRgba(accent,.5)}; 
+      border-bottom-color:${hexToRgba(accent, .5)}; 
     }
 
     .contact-prem-orn-col{ 
@@ -261,7 +262,7 @@ export default function ContactPremiumSection({
     .contact-prem-dot{ 
       width:2px; 
       height:clamp(12px, 2vw, 18px); 
-      background:${hexToRgba(accent,.5)}; 
+      background:${hexToRgba(accent, .5)}; 
     }
     
     .contact-prem-star{ 
@@ -285,7 +286,7 @@ export default function ContactPremiumSection({
     
     .contact-prem-nl p{ 
       margin:0 0 clamp(14px, 3vw, 20px); 
-      color:${hexToRgba(txt,.85)}; 
+      color:${hexToRgba(txt, .85)}; 
       font-size:clamp(13px, 2.5vw, 15px);
     }
     
@@ -300,8 +301,8 @@ export default function ContactPremiumSection({
       min-width:200px;
       padding:clamp(12px, 2vw, 14px) clamp(14px, 2.5vw, 18px); 
       border-radius:clamp(8px, 1.5vw, 10px); 
-      border:1px solid ${hexToRgba(accent,.35)};
-      background:${hexToRgba(txt,.04)}; 
+      border:1px solid ${hexToRgba(accent, .35)};
+      background:${hexToRgba(txt, .04)}; 
       color:${txt}; 
       outline:none;
       font-size:clamp(13px, 2.5vw, 15px);
@@ -310,11 +311,11 @@ export default function ContactPremiumSection({
     
     .contact-prem-nl input:focus{
       border-color:${accent};
-      background:${hexToRgba(txt,.06)};
+      background:${hexToRgba(txt, .06)};
     }
     
     .contact-prem-nl input::placeholder{ 
-      color:${hexToRgba(txt,.6)}; 
+      color:${hexToRgba(txt, .6)}; 
     }
     
     .contact-prem-nl button{ 

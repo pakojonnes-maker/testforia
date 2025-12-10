@@ -1,6 +1,7 @@
 // apps/client/src/components/landing/section/AboutPremiumSection.tsx
 import { Box, Container } from '@mui/material';
 import { useMemo } from 'react';
+import { getConfigText, getUIString } from '../../../utils/i18n';
 
 interface TagImage {
   text: string;
@@ -50,6 +51,8 @@ interface Props {
   content?: Content;
   labels?: Labels;
   restaurant_media?: any;
+  ui?: Record<string, string>; // ✅ NUEVO
+  currentLanguage?: string; // ✅ NUEVO
 }
 
 export default function AboutPremiumSection({
@@ -60,18 +63,32 @@ export default function AboutPremiumSection({
   content,
   labels,
   restaurant_media,
+  ui,
+  currentLanguage = 'es',
 }: Props) {
   // Config
   const showSubtitle = config.show_subtitle ?? true;
   const sectionPadding = config.section_padding || 'clamp(60px, 8vw, 100px) 0';
 
   // Content
-  const subtitle = labels?.subtitle || content?.subtitle || 'OUR STORY';
-  const title = content?.title || 'Enjoy Every Moment with Tasty';
-  const description =
-    content?.description ||
+  const subtitle = labels?.subtitle || content?.subtitle || getUIString(ui, 'about_label', 'OUR STORY');
+  const title = getConfigText(
+    content,
+    'title',
+    currentLanguage,
+    'about_fallback_title',
+    ui,
+    'Enjoy Every Moment with Tasty'
+  );
+  const description = getConfigText(
+    content,
+    'description',
+    currentLanguage,
+    'about_fallback_description',
+    ui,
     translations.about_description ||
-    'Experience culinary artistry at its finest where traditional flavors meet modern innovation creating unforgettable dining moments.';
+    'Experience culinary artistry at its finest where traditional flavors meet modern innovation creating unforgettable dining moments.'
+  );
 
   const tagImages = content?.tag_images || [];
 
@@ -251,7 +268,7 @@ export default function AboutPremiumSection({
       />
 
       <Container maxWidth="lg" sx={{ position: 'relative', zIndex: 2 }}>
-        
+
         {/* --- MOBILE LAYOUT (< 900px) --- */}
         <Box sx={{ display: { xs: 'flex', md: 'none' }, flexDirection: 'column', gap: 4 }}>
           {/* Header Mobile */}
@@ -314,7 +331,7 @@ export default function AboutPremiumSection({
 
         {/* --- DESKTOP LAYOUT (>= 900px) --- */}
         <Box sx={{ display: { xs: 'none', md: 'flex' }, alignItems: 'center', minHeight: '600px' }}>
-          
+
           {/* Left Content */}
           <Box sx={{ flex: 1, pr: 8, position: 'relative', zIndex: 2 }}>
             {showSubtitle && (
@@ -371,7 +388,7 @@ export default function AboutPremiumSection({
                     overflow: 'hidden',
                     boxShadow: `0 25px 50px -12px ${hexToRgba('#000', 0.4)}`,
                     border: `1px solid ${hexToRgba('#FFF', 0.1)}`,
-                    
+
                     ...(isLeft && {
                       width: '45%',
                       aspectRatio: '3/4',

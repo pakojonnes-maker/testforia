@@ -1,0 +1,5 @@
+menu_name;is_default;section_name;section_order;section_icon
+"Carta Principal";"SI";"Entrantes";1;"star"
+"Carta Principal";"SI";"Platos Principales";2;"restaurant"
+"Carta Principal";"SI";"Postres";3;"icecream"
+"Vinos";"NO";"Tintos";1;"wine_bar"

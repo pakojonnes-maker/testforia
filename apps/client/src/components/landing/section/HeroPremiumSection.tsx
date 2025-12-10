@@ -1,5 +1,5 @@
-// src/components/landing/section/HeroPremiumSection.tsx
 import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { getConfigText } from '../../../utils/i18n';
 
 type Props = {
   restaurant?: any;
@@ -9,6 +9,8 @@ type Props = {
   config?: any;
   restaurant_media?: any;
   assets?: { landing_pattern_url?: string };
+  ui?: Record<string, string>; // ✅ NUEVO: UI strings traducidos
+  currentLanguage?: string; // ✅ NUEVO: Idioma actual
 };
 
 export default function HeroPremiumSection({
@@ -19,6 +21,8 @@ export default function HeroPremiumSection({
   config,
   restaurant_media,
   assets,
+  ui,
+  currentLanguage = 'es',
 }: Props) {
   const BRAND_PRIMARY =
     theme?.background_color ?? theme?.primary_color ?? theme?.backgroundcolor ?? theme?.primarycolor ?? '#143733';
@@ -31,15 +35,30 @@ export default function HeroPremiumSection({
   let cfg: any = config;
   if (typeof cfg === 'string') { try { cfg = JSON.parse(cfg); } catch { cfg = {}; } }
   cfg = cfg || {};
-  const height = cfg.height ?? '50vh';
+  // const _height = cfg.height ?? '50vh';
   const textAlign = cfg.textalign ?? cfg.text_align ?? 'center';
-  const title = (cfg.titleoverride ?? cfg.title_override) || restaurant?.name || 'Delightful Experience';
-  const subtitle =
-    (cfg.subtitleoverride ?? cfg.subtitle_override) ||
+
+  // ✅ ACTUALIZADO: Usar getConfigText con fallback a UI strings
+  const title = getConfigText(
+    cfg,
+    'title_override',
+    currentLanguage,
+    'hero_fallback_title',
+    ui,
+    restaurant?.name || 'Delightful Experience'
+  );
+
+  const subtitle = getConfigText(
+    cfg,
+    'subtitle_override',
+    currentLanguage,
+    'hero_fallback_subtitle',
+    ui,
     translations?.short_description ||
     translations?.shortdescription ||
     restaurant?.description ||
-    'A taste of perfection in every dish - fine dining with a modern twist.';
+    'A taste of perfection in every dish - fine dining with a modern twist.'
+  );
 
   const placeholder = 'https://placehold.co/600x400/EEE/31343C';
   const cover =
@@ -90,6 +109,7 @@ export default function HeroPremiumSection({
     .hero-prem-root{ 
       position:relative; 
       background-image:url('${patternUrl}'); 
+      background-color: ${BRAND_PRIMARY};
       min-height:50vh; 
       color:${TEXT_COLOR};
       overflow:hidden; 
@@ -210,29 +230,48 @@ export default function HeroPremiumSection({
       .hero-prem-subtitle{ font-size:18px; }
       .hero-prem-frame{ width:min(1180px,92vw); aspect-ratio:16/7.2; }
     }
+    @keyframes fadeIn { 
+      from { opacity: 0; } 
+      to { opacity: 1; } 
+    }
+    .fade-in { 
+      animation: fadeIn 0.8s ease-in-out; 
+    }
   `;
 
   const Media = (
     <div className="hero-prem-frame" onTouchStart={onTouchStart} onTouchEnd={onTouchEnd}>
       <div className="hero-prem-media">
         {String(media).toLowerCase().endsWith('.mp4') ? (
-          <video className="hero-prem-vid" autoPlay muted loop playsInline>
+          <video
+            key={media}
+            className="hero-prem-vid fade-in"
+            autoPlay
+            muted
+            loop
+            playsInline
+          >
             <source src={media} type="video/mp4" />
           </video>
         ) : (
-          <img className="hero-prem-img" src={media} alt={slides[idx]?.alt || restaurant?.name || 'Hero'} />
+          <img
+            key={media}
+            className="hero-prem-img fade-in"
+            src={media}
+            alt={slides[idx]?.alt || restaurant?.name || 'Hero'}
+          />
         )}
       </div>
       {slides.length > 1 && (
         <>
           <button className="hero-prem-nav hero-prem-prev" aria-label="Previous" onClick={() => go(-1)}>
             <svg width="22" height="22" viewBox="0 0 24 24" fill="none" aria-hidden>
-              <path d="M15 18L9 12L15 6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+              <path d="M15 18L9 12L15 6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
             </svg>
           </button>
           <button className="hero-prem-nav hero-prem-next" aria-label="Next" onClick={() => go(1)}>
             <svg width="22" height="22" viewBox="0 0 24 24" fill="none" aria-hidden>
-              <path d="M9 6L15 12L9 18" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+              <path d="M9 6L15 12L9 18" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
             </svg>
           </button>
         </>
@@ -241,12 +280,12 @@ export default function HeroPremiumSection({
   );
 
   const Split = (
-    <div style={{ display:'grid', gap:24, alignItems:'center', margin:'0 auto', maxWidth:1180 }}>
-      <div style={{ order:2, textAlign:textAlign as any }}>
-        <h2 className="hero-prem-title" style={{ fontSize:32, marginBottom:8 }}>{title}</h2>
-        <p className="hero-prem-subtitle" style={{ margin:0 }}>{subtitle}</p>
+    <div style={{ display: 'grid', gap: 24, alignItems: 'center', margin: '0 auto', maxWidth: 1180 }}>
+      <div style={{ order: 2, textAlign: textAlign as any }}>
+        <h2 className="hero-prem-title" style={{ fontSize: 32, marginBottom: 8 }}>{title}</h2>
+        <p className="hero-prem-subtitle" style={{ margin: 0 }}>{subtitle}</p>
       </div>
-      <div style={{ order:1 }}>{Media}</div>
+      <div style={{ order: 1 }}>{Media}</div>
     </div>
   );
 

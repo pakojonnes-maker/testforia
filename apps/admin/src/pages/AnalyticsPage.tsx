@@ -1,5 +1,5 @@
 // apps/admin/src/pages/AnalyticsPage.tsx
-import React, { useState, useMemo } from 'react';
+import React, { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import {
   Box,
@@ -9,13 +9,11 @@ import {
   Card,
   CardContent,
   Button,
-  ButtonGroup,
-  Alert,
   Tabs,
   Tab,
-  Chip,
   Stack,
   Divider,
+  Alert,
 } from '@mui/material';
 import {
   Chart as ChartJS,
@@ -30,25 +28,20 @@ import {
   LineElement,
   Filler,
 } from 'chart.js';
-import { Line, Bar, Doughnut } from 'react-chartjs-2';
-// Adjust import path based on actual location found
 import { useAuth } from '../contexts/AuthContext';
 import { apiClient } from '../lib/apiClient';
 
 // Components
 import SummaryKPIs from '../components/analytics/SummaryKPIs';
 import TimeSeriesChart from '../components/analytics/TimeSeriesChart';
-import DishPerformanceTable from '../components/analytics/DishPerformanceTable';
-import SectionPerformanceTable from '../components/analytics/SectionPerformanceTable';
 import DeviceBreakdown from '../components/analytics/DeviceBreakdown';
-import GeographicInsights from '../components/analytics/GeographicInsights';
-import UserBehaviorFlow from '../components/analytics/UserBehaviorFlow';
 import HourlyTrafficChart from '../components/analytics/HourlyTrafficChart';
-import QRAttribution from '../components/analytics/QRAttribution';
-import PWAInsights from '../components/analytics/PWAInsights';
 import CartAnalytics from '../components/analytics/CartAnalytics';
-import EngagementMetrics from '../components/analytics/EngagementMetrics';
-import RecommendationsPanel from '../components/analytics/RecommendationsPanel';
+
+// New Tabs
+import DishesTab from '../components/analytics/DishesTab';
+import SectionsTab from '../components/analytics/SectionsTab';
+import SessionsTab from '../components/analytics/SessionsTab';
 
 ChartJS.register(
   CategoryScale,
@@ -64,15 +57,16 @@ ChartJS.register(
 );
 
 type TimeRange = 'today' | 'week' | 'month' | 'quarter';
-type TabValue = 'overview' | 'dishes' | 'users' | 'conversion' | 'technical';
+type TabValue = 'dishes' | 'kpis' | 'sections' | 'sessions';
 
 export default function AnalyticsPage() {
   const { currentRestaurant } = useAuth();
   const restaurantId = currentRestaurant?.id;
 
   const [timeRange, setTimeRange] = useState<TimeRange>('week');
-  const [activeTab, setActiveTab] = useState<TabValue>('overview');
+  const [activeTab, setActiveTab] = useState<TabValue>('dishes');
 
+  // Query principal para KPIs y resumen (se mantiene para la tab de KPIs)
   const { data, isLoading, error } = useQuery({
     queryKey: ['analytics', restaurantId, timeRange],
     queryFn: async () => {
@@ -87,19 +81,12 @@ export default function AnalyticsPage() {
     staleTime: 5 * 60 * 1000,
   });
 
-  // Estado de carga
-  if (isLoading) {
+  if (isLoading && !data) {
     return <LoadingState />;
   }
 
-  // Estado de error
-  if (error || !data) {
+  if (error) {
     return <ErrorState error={error} />;
-  }
-
-  // Sin datos suficientes
-  if (!data.summary || data.summary.totalViews === 0) {
-    return <EmptyState />;
   }
 
   return (
@@ -111,7 +98,7 @@ export default function AnalyticsPage() {
             Analytics
           </Typography>
           <Typography variant="body1" color="text.secondary">
-            Visión general del rendimiento de tu menú digital
+            Visión completa del rendimiento de tu negocio
           </Typography>
         </Box>
 
@@ -145,11 +132,6 @@ export default function AnalyticsPage() {
         </Stack>
       </Box>
 
-      {/* KPIs Principales - Siempre visible */}
-      <Box sx={{ mb: 5 }}>
-        <SummaryKPIs data={data.summary} timeRange={timeRange} />
-      </Box>
-
       {/* Tabs de Navegación */}
       <Box sx={{ mb: 4 }}>
         <Tabs
@@ -163,129 +145,73 @@ export default function AnalyticsPage() {
             '& .MuiTab-root': {
               fontSize: '1rem',
               mr: 2,
+              textTransform: 'none',
+              fontWeight: 600
             }
           }}
         >
-          <Tab label="Vista General" value="overview" />
           <Tab label="Platos" value="dishes" />
-          <Tab label="Usuarios" value="users" />
-          <Tab label="Conversión" value="conversion" />
-          <Tab label="Técnico" value="technical" />
+          <Tab label="KPIs" value="kpis" />
+          <Tab label="Secciones" value="sections" />
+          <Tab label="Sesiones" value="sessions" />
         </Tabs>
         <Divider sx={{ mt: '-1px' }} />
       </Box>
 
-      {/* Vista General */}
-      {activeTab === 'overview' && (
-        <OverviewTab data={data} timeRange={timeRange} />
-      )}
+      {/* Contenido de Tabs */}
 
-      {/* Platos y Secciones */}
+      {/* 1. Platos */}
       {activeTab === 'dishes' && (
-        <DishesTab data={data} />
+        <DishesTab timeRange={timeRange} />
       )}
 
-      {/* Comportamiento de Usuarios */}
-      {activeTab === 'users' && (
-        <UsersTab data={data} />
+      {/* 2. KPIs */}
+      {activeTab === 'kpis' && data && (
+        <KPIsTab data={data} timeRange={timeRange} />
       )}
 
-      {/* Conversión y Engagement */}
-      {activeTab === 'conversion' && (
-        <ConversionTab data={data} />
+      {/* 3. Secciones */}
+      {activeTab === 'sections' && (
+        <SectionsTab timeRange={timeRange} />
       )}
 
-      {/* Técnico y Atribución */}
-      {activeTab === 'technical' && (
-        <TechnicalTab data={data} />
+      {/* 4. Sesiones */}
+      {activeTab === 'sessions' && (
+        <SessionsTab timeRange={timeRange} />
       )}
+
     </Container>
   );
 }
 
-// ==================== TABS ====================
+// ==================== KPI TAB (Agrupada) ====================
 
-function OverviewTab({ data, timeRange }: any) {
+function KPIsTab({ data, timeRange }: any) {
   return (
     <Grid container spacing={3}>
+      {/* 1. Resumen Principal (Top Cards) */}
       <Grid item xs={12}>
+        <SummaryKPIs data={data.summary} timeRange={timeRange} />
+      </Grid>
+
+      {/* 2. Gráfico Temporal Principal */}
+      <Grid item xs={12} lg={8}>
         <TimeSeriesChart data={data.timeseries} timeRange={timeRange} />
       </Grid>
-      <Grid item xs={12} md={8}>
+
+      {/* 3. Tráfico por Hora (Heatmap simplificado) */}
+      <Grid item xs={12} lg={4}>
         <HourlyTrafficChart data={data.trafficByHour} />
       </Grid>
-      <Grid item xs={12} md={4}>
-        <RecommendationsPanel data={data} />
-      </Grid>
-      <Grid item xs={12} md={6}>
-        <DishPerformanceTable dishes={data.topDishes?.slice(0, 5) || []} compact />
-      </Grid>
-      <Grid item xs={12} md={6}>
-        <EngagementMetrics summary={data.summary} />
-      </Grid>
-    </Grid>
-  );
-}
 
-function DishesTab({ data }: any) {
-  return (
-    <Grid container spacing={3}>
-      <Grid item xs={12}>
-        <DishPerformanceTable dishes={data.topDishes || []} />
-      </Grid>
-      <Grid item xs={12}>
-        <SectionPerformanceTable sections={data.topSections || []} />
-      </Grid>
-    </Grid>
-  );
-}
-
-function UsersTab({ data }: any) {
-  return (
-    <Grid container spacing={3}>
+      {/* 4. Analítica de Carrito (Ahora Real) */}
       <Grid item xs={12} md={6}>
-        <GeographicInsights
-          countries={data.breakdowns?.countries || []}
-          cities={data.breakdowns?.cities || []}
-        />
+        <CartAnalytics data={data.cartMetrics} />
       </Grid>
+
+      {/* 5. Desglose de Dispositivos (Siempre útil) */}
       <Grid item xs={12} md={6}>
         <DeviceBreakdown breakdowns={data.breakdowns || {}} />
-      </Grid>
-      <Grid item xs={12}>
-        <UserBehaviorFlow flows={data.flows || []} />
-      </Grid>
-    </Grid>
-  );
-}
-
-function ConversionTab({ data }: any) {
-  return (
-    <Grid container spacing={3}>
-      <Grid item xs={12}>
-        <CartAnalytics data={data} />
-      </Grid>
-      <Grid item xs={12} md={6}>
-        <EngagementMetrics summary={data.summary} detailed />
-      </Grid>
-      <Grid item xs={12} md={6}>
-        <RecommendationsPanel data={data} />
-      </Grid>
-    </Grid>
-  );
-}
-
-function TechnicalTab({ data }: any) {
-  return (
-    <Grid container spacing={3}>
-      <Grid item xs={12} md={8}>
-        <QRAttribution qrData={data.qrAttribution || []} />
-      </Grid>
-      <Grid item xs={12} md={4}>
-        <PWAInsights pwaData={data.breakdowns?.pwa} />
-      </Grid>
-      <Grid item xs={12}>
-        <TechnicalBreakdowns breakdowns={data.breakdowns || {}} />
       </Grid>
     </Grid>
   );
@@ -298,8 +224,8 @@ function LoadingState() {
     <Container maxWidth="xl" sx={{ py: 3 }}>
       <Typography variant="h4" gutterBottom>Cargando Analytics...</Typography>
       <Grid container spacing={3}>
-        {[...Array(6)].map((_, i) => (
-          <Grid item xs={12} md={4} key={i}>
+        {[...Array(3)].map((_, i) => (
+          <Grid item xs={12} key={i}>
             <Card><CardContent sx={{ height: 200 }} /></Card>
           </Grid>
         ))}
@@ -316,65 +242,5 @@ function ErrorState({ error }: any) {
         <Typography>{error?.message || 'Error desconocido'}</Typography>
       </Alert>
     </Container>
-  );
-}
-
-function EmptyState() {
-  return (
-    <Container maxWidth="xl" sx={{ py: 3, textAlign: 'center' }}>
-      <Alert severity="info" sx={{ mb: 3 }}>
-        <Typography variant="h6">Sin datos suficientes</Typography>
-        <Typography>Los datos aparecerán cuando los clientes empiecen a usar tu menú digital.</Typography>
-      </Alert>
-    </Container>
-  );
-}
-
-// ==================== COMPONENTE TÉCNICO ====================
-
-function TechnicalBreakdowns({ breakdowns }: any) {
-  const { devices, os, browsers, languages, networks } = breakdowns;
-
-  return (
-    <Card>
-      <CardContent>
-        <Typography variant="h6" gutterBottom>Desglose Técnico</Typography>
-        <Grid container spacing={3}>
-          <Grid item xs={12} md={4}>
-            <Typography variant="subtitle2" color="text.secondary" gutterBottom>
-              Sistemas Operativos
-            </Typography>
-            {(os || []).slice(0, 5).map((item: any) => (
-              <Stack key={item.key} direction="row" justifyContent="space-between" sx={{ mb: 1 }}>
-                <Typography variant="body2">{item.key}</Typography>
-                <Chip label={item.count} size="small" />
-              </Stack>
-            ))}
-          </Grid>
-          <Grid item xs={12} md={4}>
-            <Typography variant="subtitle2" color="text.secondary" gutterBottom>
-              Navegadores
-            </Typography>
-            {(browsers || []).slice(0, 5).map((item: any) => (
-              <Stack key={item.key} direction="row" justifyContent="space-between" sx={{ mb: 1 }}>
-                <Typography variant="body2">{item.key}</Typography>
-                <Chip label={item.count} size="small" />
-              </Stack>
-            ))}
-          </Grid>
-          <Grid item xs={12} md={4}>
-            <Typography variant="subtitle2" color="text.secondary" gutterBottom>
-              Tipos de Red
-            </Typography>
-            {(networks || []).slice(0, 5).map((item: any) => (
-              <Stack key={item.key} direction="row" justifyContent="space-between" sx={{ mb: 1 }}>
-                <Typography variant="body2">{item.key}</Typography>
-                <Chip label={item.count} size="small" />
-              </Stack>
-            ))}
-          </Grid>
-        </Grid>
-      </CardContent>
-    </Card>
   );
 }
