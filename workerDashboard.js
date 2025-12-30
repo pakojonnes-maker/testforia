@@ -9,40 +9,90 @@
 // - GET /restaurants/:id/analytics/summary?period={1d|7d|30d}
 // - GET /restaurants/:id/analytics/dishes/top?period={7d|30d}&limit=10
 // - GET /restaurants/:id/analytics/qr-breakdown
+// - GET /restaurants/:id/content/health
+// - GET /restaurants/:id/dishes/stagnant?days=7
+// - GET /restaurants/:id/dashboard/pulse
+// ===========================================================================
 
-try {
-  // Route to specific endpoint handlers
-  if (pathname.includes('/analytics/summary')) {
-    return await handleAnalyticsSummary(env, restaurantId, url);
+import { verifyJWT, JWT_SECRET } from './workerAuthentication.js';
+
+/**
+ * Main request handler for dashboard analytics
+ * @param {Request} request - The incoming request
+ * @param {Object} env - Environment bindings (includes DB)
+ * @returns {Response} JSON response
+ */
+export async function handleDashboardRequests(request, env) {
+  const url = new URL(request.url);
+  const pathname = url.pathname;
+
+  // Verify authorization
+  const authHeader = request.headers.get('Authorization');
+  if (!authHeader || !authHeader.startsWith('Bearer ')) {
+    return createResponse({ success: false, message: "No autorizado" }, 401);
   }
 
-  if (pathname.includes('/analytics/dishes/top')) {
-    return await handleTopDishes(env, restaurantId, url);
+  // Extract restaurant ID from path: /restaurants/{id}/...
+  const match = pathname.match(/^\/restaurants\/([^/]+)\//);
+  if (!match) {
+    return null; // Not a restaurant endpoint, let other handlers process
   }
 
-  if (pathname.includes('/analytics/qr-breakdown')) {
-    return await handleQRBreakdown(env, restaurantId);
+  const restaurantId = match[1];
+
+  // Extract and verify JWT token
+  const token = authHeader.substring(7); // Remove "Bearer " prefix
+
+  // Use the imported verifyJWT
+  const userData = await verifyJWT(token, JWT_SECRET);
+
+  if (!userData) {
+    return createResponse({ success: false, message: "Token inválido o expirado" }, 401);
   }
 
-  if (pathname.includes('/content/health')) {
-    return await handleContentHealth(env, restaurantId);
+  // Verify user has access to this restaurant
+  if (!userData.restaurants || !userData.restaurants.includes(restaurantId)) {
+    return createResponse({ success: false, message: "No autorizado para este restaurante" }, 403);
   }
 
-  if (pathname.includes('/dishes/stagnant')) {
-    return await handleStagnantDishes(env, restaurantId, url);
+  try {
+    // Route to specific endpoint handlers
+    if (pathname.includes('/analytics/summary')) {
+      return await handleAnalyticsSummary(env, restaurantId, url);
+    }
+
+    if (pathname.includes('/analytics/dishes/top')) {
+      return await handleTopDishes(env, restaurantId, url);
+    }
+
+    if (pathname.includes('/analytics/qr-breakdown')) {
+      return await handleQRBreakdown(env, restaurantId);
+    }
+
+    if (pathname.includes('/content/health')) {
+      return await handleContentHealth(env, restaurantId);
+    }
+
+    if (pathname.includes('/dishes/stagnant')) {
+      return await handleStagnantDishes(env, restaurantId, url);
+    }
+
+    // NEW: Pulse endpoint for dashboard overview
+    if (pathname.includes('/pulse')) {
+      return await handleDashboardPulse(env, restaurantId);
+    }
+
+    // Not a dashboard endpoint
+    return null;
+
+  } catch (error) {
+    console.error('[Dashboard Worker] Error:', error);
+    return createResponse({
+      success: false,
+      message: "Error interno del servidor",
+      error: error.message
+    }, 500);
   }
-
-  // Not a dashboard endpoint
-  return null;
-
-} catch (error) {
-  console.error('[Dashboard Worker] Error:', error);
-  return createResponse({
-    success: false,
-    message: "Error interno del servidor",
-    error: error.message
-  }, 500);
-}
 }
 
 // ===========================================================================
@@ -417,7 +467,143 @@ function calculatePercentageChange(oldValue, newValue) {
 /**
  * Get date offset by days
  * @param {string} dateStr - Date in YYYY-MM-DD format
-    const response = await handleDashboardRequests(request, env);
-    return response || new Response("Not Found", { status: 404 });
+ * @param {number} days - Number of days to offset
+ * @returns {string} New date in YYYY-MM-DD format
+ */
+function getDateOffset(dateStr, days) {
+  const date = new Date(dateStr);
+  date.setDate(date.getDate() + days);
+  return date.toISOString().split('T')[0];
+}
+/**
+ * GET /restaurants/:id/dashboard/pulse
+ * Returns lightweight real-time status for the dashboard
+ */
+async function handleDashboardPulse(env, restaurantId) {
+  const now = new Date();
+  const todayStr = now.toISOString().split('T')[0];
+
+  const yesterdayStr = getDateOffset(todayStr, -1);
+
+  // Parallelize lightweight queries
+  const [reservationsToday, pendingReservations, activeTables, settings, yesterdayMetrics] = await Promise.all([
+    // 1. Total reservations for today
+    env.DB.prepare(`
+      SELECT COUNT(*) as count 
+      FROM reservations 
+      WHERE restaurant_id = ? 
+        AND reservation_date = ? 
+        AND status != 'cancelled'
+    `).bind(restaurantId, todayStr).first(),
+
+    // 2. Pending reservations (Action required)
+    env.DB.prepare(`
+      SELECT COUNT(*) as count 
+      FROM reservations 
+      WHERE restaurant_id = ? 
+        AND status = 'pending'
+    `).bind(restaurantId).first(),
+
+    // 3. Active tables (Estimated by time window)
+    env.DB.prepare(`
+      SELECT COUNT(*) as count, SUM(party_size) as covers
+      FROM reservations 
+      WHERE restaurant_id = ? 
+        AND reservation_date = ?
+        AND status = 'confirmed'
+        AND reservation_time BETWEEN ? AND ?
+    `).bind(
+      restaurantId,
+      todayStr,
+      getOffsetTime(now, -90),
+      getOffsetTime(now, 0)
+    ).first(),
+
+    // 4. Get settings for Open/Closed status
+    env.DB.prepare(`
+      SELECT booking_availability, closed_dates, is_enabled 
+      FROM reservation_settings 
+      WHERE restaurant_id = ?
+    `).bind(restaurantId).first(),
+
+    // 5. Yesterday's Visits (Sessions from daily_analytics)
+    env.DB.prepare(`
+      SELECT COALESCE(SUM(total_sessions), 0) as count
+      FROM daily_analytics
+      WHERE restaurant_id = ?
+        AND date = ?
+    `).bind(restaurantId, yesterdayStr).first()
+  ]);
+
+  // Determine Open/Closed Status
+  let isOpen = false;
+
+  if (settings && settings.is_enabled) {
+    const dayOfWeek = now.toLocaleDateString('en-US', { weekday: 'long' }).toLowerCase();
+    const closedDates = settings.closed_dates ? JSON.parse(settings.closed_dates) : [];
+
+    // Check if specifically closed today
+    if (!closedDates.includes(todayStr)) {
+      const schedule = settings.booking_availability ? JSON.parse(settings.booking_availability) : null;
+      if (schedule) {
+        const todaySlots = schedule[dayOfWeek] || schedule['default'] || [];
+        const currentMinutes = now.getHours() * 60 + now.getMinutes();
+
+        // Check if current time falls within any open slot
+        isOpen = todaySlots.some(slot => {
+          const start = convertToMinutes(slot.start);
+          const end = convertToMinutes(slot.end);
+          return currentMinutes >= start && currentMinutes < end;
+        });
+      }
+    }
   }
-};
+
+  return createResponse({
+    success: true,
+    status: {
+      isOpen,
+      message: isOpen ? "Abierto" : "Cerrado",
+    },
+    metrics: {
+      reservationsToday: reservationsToday.count,
+      pendingReservations: pendingReservations.count,
+      activeTables: activeTables.count,
+      visitsYesterday: yesterdayMetrics?.count || 0
+    },
+    timestamp: now.toISOString()
+  });
+}
+
+function getOffsetTime(date, minutesOffset) {
+  const d = new Date(date);
+  d.setMinutes(d.getMinutes() + minutesOffset);
+  const h = d.getHours().toString().padStart(2, '0');
+  const m = d.getMinutes().toString().padStart(2, '0');
+  return `${h}:${m}`;
+}
+
+function convertToMinutes(timeStr) {
+  const [h, m] = timeStr.split(':').map(Number);
+  return h * 60 + m;
+}
+
+/**
+ * Create JSON response with CORS headers
+ * @param {Object} data - Response data
+ * @param {number} status - HTTP status code
+ * @returns {Response} HTTP response
+ */
+function createResponse(data, status = 200) {
+  return new Response(JSON.stringify(data), {
+    status,
+    headers: {
+      "Content-Type": "application/json",
+      "Access-Control-Allow-Origin": "*",
+      "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS",
+      "Access-Control-Allow-Headers": "Content-Type, Authorization",
+      "Cache-Control": status === 200 ? "public, max-age=60" : "no-cache"
+    },
+  });
+}
+

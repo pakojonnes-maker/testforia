@@ -32,9 +32,8 @@ import type { SelectChangeEvent } from '@mui/material';
 
 import {
   Menu as MenuIcon,
-  Dashboard as DashboardIcon,
+
   Restaurant as RestaurantIcon,
-  ViewList as SectionsIcon,
   MenuBook as DishesIcon,
   Settings as SettingsIcon,
   Logout as LogoutIcon,
@@ -44,7 +43,9 @@ import {
   Person as PersonIcon,
   Notifications as NotificationsIcon,
   QrCode as QrCodeIcon,
+  EventAvailable,
 } from '@mui/icons-material';
+import { RestaurantSelectorDialog } from '../common/RestaurantSelectorDialog';
 
 const drawerWidth = 240;
 
@@ -58,6 +59,7 @@ export default function DashboardLayout() {
   const [mobileOpen, setMobileOpen] = useState(false);
   const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null);
   const [showIdleWarning, setShowIdleWarning] = useState(false);
+  const [restaurantDialogOpen, setRestaurantDialogOpen] = useState(false);
 
   // ✅ Detección de inactividad global - Aplicable a todo el admin
   const { isIdle, timeUntilLogout } = useIdleDetection({
@@ -114,8 +116,8 @@ export default function DashboardLayout() {
   // Actualización de items del menú lateral
   const menuItems = [
     {
-      text: 'Dashboard',
-      icon: <DashboardIcon />,
+      text: 'Estadísticas',
+      icon: <StatsIcon />,
       path: '/'
     },
     {
@@ -123,16 +125,7 @@ export default function DashboardLayout() {
       icon: <DishesIcon />,
       path: '/dishes'
     },
-    {
-      text: 'Secciones',
-      icon: <SectionsIcon />,
-      path: '/sections'
-    },
-    {
-      text: 'Estadísticas',
-      icon: <StatsIcon />,
-      path: '/analytics'
-    },
+
     {
       text: 'Marketing',
       icon: <CampaignIcon />,
@@ -154,6 +147,11 @@ export default function DashboardLayout() {
       path: '/qr-generator'
     },
     {
+      text: 'Reservas',
+      icon: <EventAvailable />,
+      path: '/reservations'
+    },
+    {
       text: 'Configuración',
       icon: <SettingsIcon />,
       path: '/settings'
@@ -165,57 +163,111 @@ export default function DashboardLayout() {
       <Toolbar sx={{
         display: 'flex',
         flexDirection: 'column',
-        alignItems: 'flex-start',
-        py: 1.5
+        alignItems: 'center', // Centered alignment
+        py: 3
       }}>
-        <Typography variant="h6" noWrap component="div" sx={{ display: 'flex', alignItems: 'center', mb: 1 }}>
-          <RestaurantIcon sx={{ mr: 1 }} />
-          VisualTaste
-        </Typography>
+        <Box
+          component="img"
+          src="/logo.png"
+          alt="VisualTaste Logo"
+          sx={{
+            width: 80,
+            height: 80,
+            mb: 2,
+            borderRadius: '12px',
+            boxShadow: '0 4px 12px rgba(0,0,0,0.1)'
+          }}
+        />
         {hasMultipleRestaurants && (
-          <FormControl
-            size="small"
-            sx={{ mt: 1, minWidth: '100%' }}
-            fullWidth
-          >
-            <InputLabel id="restaurant-select-label">Restaurante</InputLabel>
-            <Select
-              labelId="restaurant-select-label"
-              id="restaurant-select"
-              value={user?.currentRestaurant?.id || ''}
-              label="Restaurante"
-              onChange={handleRestaurantChange}
+          user.restaurants.length > 1 ? (
+            <>
+              <ListItemButton
+                onClick={() => setRestaurantDialogOpen(true)}
+                sx={{
+                  border: '1px solid',
+                  borderColor: 'divider',
+                  borderRadius: 1,
+                  mt: 1,
+                  mb: 1,
+                  py: 1,
+                  mx: 2,
+                  width: 'auto'
+                }}
+              >
+                {user.currentRestaurant?.logo_url ? (
+                  <Avatar
+                    src={user.currentRestaurant.logo_url}
+                    alt={user.currentRestaurant.name}
+                    sx={{ width: 24, height: 24, mr: 1 }}
+                  />
+                ) : (
+                  <RestaurantIcon sx={{ mr: 1, fontSize: 20, color: 'text.secondary' }} />
+                )}
+                <Box sx={{ overflow: 'hidden' }}>
+                  <Typography variant="body2" noWrap sx={{ fontWeight: 500 }}>
+                    {user.currentRestaurant?.name || 'Seleccionar Restaurante'}
+                  </Typography>
+                  <Typography variant="caption" color="primary" sx={{ display: 'block' }}>
+                    Cambiar ({user.restaurants.length})
+                  </Typography>
+                </Box>
+              </ListItemButton>
+
+              <RestaurantSelectorDialog
+                open={restaurantDialogOpen}
+                onClose={() => setRestaurantDialogOpen(false)}
+                onSelect={(id) => {
+                  switchRestaurant(id);
+                  setRestaurantDialogOpen(false);
+                }}
+                restaurants={user.restaurants}
+                currentRestaurantId={user.currentRestaurant?.id}
+              />
+            </>
+          ) : (
+            <FormControl
+              size="small"
+              sx={{ mt: 1, minWidth: '90%', mx: 'auto' }}
             >
-              {user?.restaurants.map((restaurant) => (
-                <MenuItem
-                  key={restaurant.id}
-                  value={restaurant.id}
-                  sx={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: 1.5
-                  }}
-                >
-                  {restaurant.logo_url && (
-                    <Avatar
-                      src={restaurant.logo_url}
-                      alt={restaurant.name}
-                      sx={{ width: 24, height: 24 }}
-                    />
-                  )}
-                  <Box sx={{ display: 'flex', flexDirection: 'column' }}>
-                    <Typography variant="body2">
-                      {restaurant.name}
-                    </Typography>
-                    <Typography variant="caption" color="text.secondary">
-                      {restaurant.role === 'owner' ? 'Propietario' :
-                        restaurant.role === 'manager' ? 'Gerente' : 'Staff'}
-                    </Typography>
-                  </Box>
-                </MenuItem>
-              ))}
-            </Select>
-          </FormControl>
+              <InputLabel id="restaurant-select-label">Restaurante</InputLabel>
+              <Select
+                labelId="restaurant-select-label"
+                id="restaurant-select"
+                value={user?.currentRestaurant?.id || ''}
+                label="Restaurante"
+                onChange={handleRestaurantChange}
+              >
+                {user?.restaurants.map((restaurant) => (
+                  <MenuItem
+                    key={restaurant.id}
+                    value={restaurant.id}
+                    sx={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 1.5
+                    }}
+                  >
+                    {restaurant.logo_url && (
+                      <Avatar
+                        src={restaurant.logo_url}
+                        alt={restaurant.name}
+                        sx={{ width: 24, height: 24 }}
+                      />
+                    )}
+                    <Box sx={{ display: 'flex', flexDirection: 'column' }}>
+                      <Typography variant="body2">
+                        {restaurant.name}
+                      </Typography>
+                      <Typography variant="caption" color="text.secondary">
+                        {restaurant.role === 'owner' ? 'Propietario' :
+                          restaurant.role === 'manager' ? 'Gerente' : 'Staff'}
+                      </Typography>
+                    </Box>
+                  </MenuItem>
+                ))}
+              </Select>
+            </FormControl>
+          )
         )}
       </Toolbar>
       <Divider />
@@ -233,23 +285,16 @@ export default function DashboardLayout() {
                 component={Link}
                 to={item.path}
                 selected={isActive}
-                sx={{
-                  '&.Mui-selected': {
-                    backgroundColor: 'rgba(25, 118, 210, 0.08)',
-                    '&:hover': {
-                      backgroundColor: 'rgba(25, 118, 210, 0.12)',
-                    }
-                  }
-                }}
+              // Theme handles selected state colors
               >
-                <ListItemIcon sx={{ color: isActive ? 'primary.main' : 'inherit' }}>
+                <ListItemIcon sx={{ color: isActive ? 'primary.main' : 'text.secondary' }}>
                   {item.icon}
                 </ListItemIcon>
                 <ListItemText
                   primary={item.text}
                   primaryTypographyProps={{
-                    color: isActive ? 'primary' : 'inherit',
-                    fontWeight: isActive ? 500 : 400
+                    color: isActive ? 'primary.main' : 'text.primary',
+                    fontWeight: isActive ? 600 : 500
                   }}
                 />
               </ListItemButton>
@@ -386,7 +431,11 @@ export default function DashboardLayout() {
           variant="permanent"
           sx={{
             display: { xs: 'none', md: 'block' },
-            '& .MuiDrawer-paper': { boxSizing: 'border-box', width: drawerWidth },
+            '& .MuiDrawer-paper': {
+              boxSizing: 'border-box',
+              width: drawerWidth,
+              overflowX: 'hidden', // Hide horizontal scrollbar
+            },
           }}
           open
         >

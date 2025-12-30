@@ -111,10 +111,14 @@ export default function SectionsTab({ timeRange }: SectionsTabProps) {
                                 <TableCell component="th" scope="row">
                                     <Typography variant="subtitle2">{row.name}</Typography>
                                 </TableCell>
-                                <TableCell align="right">{row.views}</TableCell>
-                                <TableCell align="right">{row.dish_views}</TableCell>
-                                <TableCell align="right">{row.avg_dwell_seconds.toFixed(1)}s</TableCell>
-                                <TableCell align="right">{row.avg_scroll_depth.toFixed(0)}%</TableCell>
+                                <TableCell align="right">{row.views || 0}</TableCell>
+                                <TableCell align="right">{row.dish_views || 0}</TableCell>
+                                <TableCell align="right">
+                                    {row.avg_dwell_seconds > 0 ? `${row.avg_dwell_seconds.toFixed(1)}s` : '-'}
+                                </TableCell>
+                                <TableCell align="right">
+                                    {row.avg_scroll_depth > 0 ? `${row.avg_scroll_depth.toFixed(0)}%` : '-'}
+                                </TableCell>
                             </TableRow>
                         ))}
                         {sortedData.length === 0 && (

@@ -14,6 +14,7 @@ import {
 import { Close, CardGiftcard } from '@mui/icons-material';
 import { API_URL } from '../../lib/apiClient';
 import { PrivacyContent } from '../legal/PrivacyContent'; // ✅ Import
+import { useTranslation } from '../../contexts/TranslationContext';
 
 // Matches the new 'marketing_campaigns' table structure
 export interface Campaign {
@@ -42,6 +43,7 @@ interface WelcomeModalProps {
 }
 
 const WelcomeModal: React.FC<WelcomeModalProps> = ({ open, onClose, restaurant, campaign }) => {
+    const { t } = useTranslation();
     const [email, setEmail] = useState('');
     const [phone, setPhone] = useState('');
     const [consent, setConsent] = useState(false);
@@ -54,8 +56,8 @@ const WelcomeModal: React.FC<WelcomeModalProps> = ({ open, onClose, restaurant, 
 
     // Extract config from campaign
     const { content, settings } = campaign;
-    const title = content?.title || `¡Bienvenido a ${restaurant?.name}!`;
-    const description = content?.description || 'Únete a nuestra comunidad para recibir ofertas exclusivas y novedades.';
+    const title = content?.title || `${t('welcome_title_prefix', '¡Bienvenido a ')}${restaurant?.name}!`;
+    const description = content?.description || t('welcome_description_default', 'Únete a nuestra comunidad para recibir ofertas exclusivas y novedades.');
     const imageUrl = content?.image_url;
 
     const showForm = settings?.show_capture_form !== false; // Default true
@@ -65,11 +67,11 @@ const WelcomeModal: React.FC<WelcomeModalProps> = ({ open, onClose, restaurant, 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         if (!consent) {
-            setError('Debes aceptar la política de privacidad');
+            setError(t('error_accept_privacy', 'Debes aceptar la política de privacidad'));
             return;
         }
         if (!email && !phone) {
-            setError('Introduce tu email o teléfono');
+            setError(t('error_enter_contact', 'Introduce tu email o teléfono'));
             return;
         }
 
@@ -103,10 +105,10 @@ const WelcomeModal: React.FC<WelcomeModalProps> = ({ open, onClose, restaurant, 
                     onClose();
                 }, 2000);
             } else {
-                setError(data.message || 'Error al guardar');
+                setError(data.message || t('error_save_generic', 'Error al guardar'));
             }
         } catch (err) {
-            setError('Error de conexión');
+            setError(t('error_connection', 'Error de conexión'));
         } finally {
             setLoading(false);
         }
@@ -130,10 +132,10 @@ const WelcomeModal: React.FC<WelcomeModalProps> = ({ open, onClose, restaurant, 
                 <Box sx={{ p: 4, textAlign: 'center' }}>
                     <CardGiftcard sx={{ fontSize: 60, color: '#FFD700', mb: 2 }} />
                     <Typography variant="h5" gutterBottom sx={{ fontWeight: 'bold' }}>
-                        ¡Gracias!
+                        {t('success_title', '¡Gracias!')}
                     </Typography>
                     <Typography variant="body1" sx={{ opacity: 0.8 }}>
-                        Tus datos se han guardado correctamente. ¡Disfruta de tu oferta!
+                        {t('success_message', 'Tus datos se han guardado correctamente. ¡Disfruta de tu oferta!')}
                     </Typography>
                 </Box>
             </Dialog>
@@ -202,7 +204,7 @@ const WelcomeModal: React.FC<WelcomeModalProps> = ({ open, onClose, restaurant, 
                     <Box component="form" onSubmit={handleSubmit} sx={{ px: 3, display: 'flex', flexDirection: 'column', gap: 2 }}>
                         {showEmail && (
                             <TextField
-                                placeholder="Tu Email (para descuentos)"
+                                placeholder={t('placeholder_email', 'Tu Email (para descuentos)')}
                                 type="email"
                                 value={email}
                                 onChange={(e) => { setEmail(e.target.value); setPhone(''); }}
@@ -222,12 +224,12 @@ const WelcomeModal: React.FC<WelcomeModalProps> = ({ open, onClose, restaurant, 
                         )}
 
                         {showEmail && showPhone && (
-                            <Typography variant="caption" sx={{ opacity: 0.5 }}>O</Typography>
+                            <Typography variant="caption" sx={{ opacity: 0.5 }}>{t('or', 'O')}</Typography>
                         )}
 
                         {showPhone && (
                             <TextField
-                                placeholder="Tu WhatsApp (para comunidad)"
+                                placeholder={t('placeholder_whatsapp', 'Tu WhatsApp (para comunidad)')}
                                 type="tel"
                                 value={phone}
                                 onChange={(e) => { setPhone(e.target.value); setEmail(''); }}
@@ -256,14 +258,14 @@ const WelcomeModal: React.FC<WelcomeModalProps> = ({ open, onClose, restaurant, 
                             }
                             label={
                                 <Typography variant="caption" sx={{ opacity: 0.7, textAlign: 'left', display: 'block' }}>
-                                    Acepto la <Link
+                                    {t('consent_prefix', 'Acepto la ')} <Link
                                         component="button"
                                         onClick={(e) => {
                                             e.preventDefault();
                                             setShowPrivacy(true);
                                         }}
                                         sx={{ color: '#FFD700', verticalAlign: 'baseline', textDecoration: 'none' }}
-                                    >Política de Privacidad</Link> y consiento el tratamiento de mis datos.
+                                    >{t('privacy_policy_link', 'Política de Privacidad')}</Link> {t('consent_suffix', ' y consiento el tratamiento de mis datos.')}
                                 </Typography>
                             }
                             sx={{ alignItems: 'flex-start', ml: 0 }}
@@ -288,7 +290,7 @@ const WelcomeModal: React.FC<WelcomeModalProps> = ({ open, onClose, restaurant, 
                                 '&:hover': { bgcolor: '#FFC000' }
                             }}
                         >
-                            {loading ? 'Guardando...' : 'Obtener Oferta'}
+                            {loading ? t('button_saving', 'Guardando...') : t('button_get_offer', 'Obtener Oferta')}
                         </Button>
                     </Box>
                 ) : (
@@ -306,7 +308,7 @@ const WelcomeModal: React.FC<WelcomeModalProps> = ({ open, onClose, restaurant, 
                                 '&:hover': { bgcolor: '#FFC000' }
                             }}
                         >
-                            Entendido
+                            {t('button_understood', 'Entendido')}
                         </Button>
                     </Box>
                 )}
@@ -329,7 +331,7 @@ const WelcomeModal: React.FC<WelcomeModalProps> = ({ open, onClose, restaurant, 
                 <DialogContent>
                     <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
                         <Typography variant="h5" sx={{ fontFamily: 'Fraunces', color: '#FFD700' }}>
-                            Política de Privacidad
+                            {t('privacy_policy_link', 'Política de Privacidad')}
                         </Typography>
                         <IconButton onClick={() => setShowPrivacy(false)} sx={{ color: 'rgba(255,255,255,0.5)' }}>
                             <Close />
@@ -344,7 +346,7 @@ const WelcomeModal: React.FC<WelcomeModalProps> = ({ open, onClose, restaurant, 
                             variant="outlined"
                             sx={{ color: '#FFD700', borderColor: '#FFD700' }}
                         >
-                            Cerrar
+                            {t('button_close', 'Cerrar')}
                         </Button>
                     </Box>
                 </DialogContent>

@@ -5,6 +5,88 @@ export async function handleAnalyticsRequests(request, env) {
     if (request.method === "OPTIONS") {
         return createResponse({}, 204);
     }
+
+    // 🔧 DEBUG ENDPOINT - Check what data exists
+    if (request.method === "GET" && url.pathname === "/analytics/debug") {
+        const params = new URLSearchParams(url.search);
+        const restaurantId = params.get("restaurant_id");
+
+        if (!restaurantId) {
+            return createResponse({ error: "restaurant_id required" }, 400);
+        }
+
+        try {
+            // Check daily_analytics table
+            const dailyAnalytics = await env.DB.prepare(
+                `SELECT date, total_views, unique_visitors, total_sessions, dish_views 
+                 FROM daily_analytics 
+                 WHERE restaurant_id = ? 
+                 ORDER BY date DESC 
+                 LIMIT 10`
+            ).bind(restaurantId).all();
+
+            // Check sessions table
+            const sessions = await env.DB.prepare(
+                `SELECT COUNT(*) as count, MIN(started_at) as first, MAX(started_at) as last 
+                 FROM sessions 
+                 WHERE restaurant_id = ?`
+            ).bind(restaurantId).first();
+
+            // Check events table
+            const events = await env.DB.prepare(
+                `SELECT event_type, COUNT(*) as count 
+                 FROM events 
+                 WHERE restaurant_id = ? 
+                 GROUP BY event_type 
+                 ORDER BY count DESC 
+                 LIMIT 20`
+            ).bind(restaurantId).all();
+
+            // Check dish_daily_metrics
+            const dishMetrics = await env.DB.prepare(
+                `SELECT dish_id, SUM(views) as views, SUM(favorites) as favorites 
+                 FROM dish_daily_metrics 
+                 WHERE restaurant_id = ? 
+                 GROUP BY dish_id 
+                 ORDER BY views DESC 
+                 LIMIT 10`
+            ).bind(restaurantId).all();
+
+            // Check section_daily_metrics
+            const sectionMetrics = await env.DB.prepare(
+                `SELECT section_id, SUM(views) as views, AVG(avg_time_spent) as avg_time 
+                 FROM section_daily_metrics 
+                 WHERE restaurant_id = ? 
+                 GROUP BY section_id`
+            ).bind(restaurantId).all();
+
+            return createResponse({
+                success: true,
+                restaurantId,
+                debug: {
+                    daily_analytics: {
+                        rows: dailyAnalytics.results?.length || 0,
+                        sample: dailyAnalytics.results?.slice(0, 3) || []
+                    },
+                    sessions: sessions,
+                    events: {
+                        types: events.results || []
+                    },
+                    dish_daily_metrics: {
+                        dishes: dishMetrics.results?.length || 0,
+                        sample: dishMetrics.results?.slice(0, 5) || []
+                    },
+                    section_daily_metrics: {
+                        sections: sectionMetrics.results?.length || 0,
+                        sample: sectionMetrics.results || []
+                    }
+                }
+            });
+        } catch (err) {
+            return createResponse({ error: err.message, stack: err.stack }, 500);
+        }
+    }
+
     // /analytics: dataset completo para AnalyticsPage
     if (request.method === "GET" && (url.pathname === "/analytics" || url.pathname === "/analytics/")) {
         // Auth
@@ -31,25 +113,75 @@ export async function handleAnalyticsRequests(request, env) {
         const fromTs = from + 'T00:00:00';
         const toTs = to + 'T23:59:59';
         try {
-            // 1) Summary (daily_analytics)
-            // ✅ UPDATED: Added new metrics columns
-            const summary = await env.DB.prepare(
+            // 1) Summary - Calculate from source tables (not daily_analytics which may be empty)
+            // ✅ IMPROVED: Smart fallback for session duration
+            // - Uses duration_seconds if available (from heartbeats or session end)
+            // - Falls back to calculating from last event timestamp
+            // - Counts sessions as unique visitors when visitor_id is NULL
+            const sessionStats = await env.DB.prepare(
                 `SELECT 
-           COALESCE(SUM(total_views),0) AS total_views,
-           COALESCE(SUM(unique_visitors),0) AS unique_visitors,
-           COALESCE(SUM(total_sessions),0) AS total_sessions,
-           COALESCE(AVG(avg_session_duration),0) AS avg_session_duration,
-           COALESCE(SUM(dish_views),0) AS dish_views,
-           COALESCE(SUM(favorites_added),0) AS favorites,
-           -- COALESCE(SUM(ratings_submitted),0) AS ratings,
-           -- COALESCE(SUM(shares),0) AS shares,
-           COALESCE(AVG(avg_dish_view_duration),0) AS avg_dish_view_duration,
-           COALESCE(AVG(avg_section_time),0) AS avg_section_time,
-           COALESCE(AVG(avg_scroll_depth),0) AS avg_scroll_depth,
-           COALESCE(SUM(media_errors),0) AS media_errors
-         FROM daily_analytics
-         WHERE restaurant_id = ? AND date BETWEEN ? AND ?`
+                   COUNT(*) AS total_sessions,
+                   COUNT(DISTINCT COALESCE(visitor_id, id)) AS unique_visitors,
+                   AVG(
+                       COALESCE(
+                           duration_seconds,
+                           -- Fallback: Calculate from last event if duration_seconds is NULL
+                           (SELECT MAX(
+                               CAST((julianday(e.created_at) - julianday(s.started_at)) * 86400 AS INTEGER)
+                           ) FROM events e WHERE e.session_id = s.id)
+                       )
+                   ) AS avg_session_duration
+                 FROM sessions s
+                 WHERE s.restaurant_id = ? AND s.started_at BETWEEN ? AND ?`
+            ).bind(restaurantId, fromTs, toTs).first();
+
+            // Get event stats
+            const eventStats = await env.DB.prepare(
+                `SELECT 
+                   SUM(CASE WHEN event_type = 'viewdish' THEN 1 ELSE 0 END) AS dish_views,
+                   SUM(CASE WHEN event_type = 'favorite' THEN 1 ELSE 0 END) AS favorites,
+                   SUM(CASE WHEN event_type = 'rating' THEN 1 ELSE 0 END) AS ratings,
+                   SUM(CASE WHEN event_type = 'share' THEN 1 ELSE 0 END) AS shares
+                 FROM events
+                 WHERE restaurant_id = ? AND created_at BETWEEN ? AND ?`
+            ).bind(restaurantId, fromTs, toTs).first();
+
+            // Get avg dish view duration from dish_daily_metrics
+            const dishDurationStats = await env.DB.prepare(
+                `SELECT AVG(avg_view_duration) AS avg_dish_view_duration
+                 FROM dish_daily_metrics
+                 WHERE restaurant_id = ? AND date BETWEEN ? AND ?`
             ).bind(restaurantId, from, to).first();
+
+            // ✅ NEW: Get visitor recurrence stats (new vs returning)
+            const visitorRecurrence = await env.DB.prepare(
+                `SELECT 
+                   COUNT(DISTINCT CASE WHEN visit_count = 1 THEN COALESCE(visitor_id, id) END) AS new_visitors,
+                   COUNT(DISTINCT CASE WHEN visit_count > 1 THEN COALESCE(visitor_id, id) END) AS returning_visitors
+                 FROM sessions
+                 WHERE restaurant_id = ? AND started_at BETWEEN ? AND ?`
+            ).bind(restaurantId, fromTs, toTs).first();
+
+            // Combine into summary object
+            const summary = {
+                total_views: sessionStats?.total_sessions || 0, // Use sessions as proxy for views
+                unique_visitors: sessionStats?.unique_visitors || 0,
+                total_sessions: sessionStats?.total_sessions || 0,
+                avg_session_duration: sessionStats?.avg_session_duration || 0,
+                dish_views: eventStats?.dish_views || 0,
+                favorites: eventStats?.favorites || 0,
+                ratings: eventStats?.ratings || 0,
+                shares: eventStats?.shares || 0,
+                avg_dish_view_duration: dishDurationStats?.avg_dish_view_duration || 0,
+                avg_section_time: 0,
+                avg_scroll_depth: 0,
+                media_errors: 0,
+                // ✅ NEW: Include visitor recurrence for return rate calculation
+                new_visitors: visitorRecurrence?.new_visitors || 0,
+                returning_visitors: visitorRecurrence?.returning_visitors || 0
+            };
+
+            console.log('[Analytics] Summary calculated:', summary);
             // 2) Timeseries (daily_analytics)
             const timeseriesRes = await env.DB.prepare(
                 `SELECT date, total_views, unique_visitors, total_sessions
@@ -212,22 +344,35 @@ export async function handleAnalyticsRequests(request, env) {
          GROUP BY qc.id, qc.location
          ORDER BY scans DESC`
             ).bind(restaurantId, fromTs, toTs).all();
-            // 9) ✅ NEW: Cart Metrics (cart_daily_metrics)
-            const cartMetrics = await env.DB.prepare(
+
+            // 9) ✅ NEW: Cart Metrics - Calculated from source (cart_sessions)
+            const cartMetricsRaw = await env.DB.prepare(
                 `SELECT 
-                    COALESCE(SUM(total_carts_created),0) AS total_carts_created,
-                    COALESCE(SUM(total_carts_shown),0) AS total_carts_shown,
-                    COALESCE(SUM(total_carts_abandoned),0) AS total_carts_abandoned,
-                    COALESCE(AVG(conversion_rate),0) AS avg_conversion_rate,
-                    COALESCE(SUM(total_estimated_value),0) AS total_estimated_value,
-                    COALESCE(AVG(avg_cart_value),0) AS avg_cart_value,
-                    COALESCE(SUM(shown_carts_value),0) AS shown_carts_value,
-                    COALESCE(SUM(total_items_added),0) AS total_items_added,
-                    COALESCE(AVG(avg_items_per_cart),0) AS avg_items_per_cart,
-                    COALESCE(AVG(avg_time_to_show),0) AS avg_time_to_show
-                FROM cart_daily_metrics
-                WHERE restaurantid = ? AND date BETWEEN ? AND ?`
-            ).bind(restaurantId, from, to).first();
+                    COUNT(*) AS total_carts_created,
+                    SUM(CASE WHEN modificationscount > 0 THEN 1 ELSE 0 END) AS total_carts_active,
+                    SUM(CASE WHEN (status = 'converted' OR status = 'checkout') THEN 1 ELSE 0 END) AS total_carts_converted,
+                    SUM(estimatedvalue) AS total_estimated_value,
+                    AVG(estimatedvalue) AS avg_cart_value,
+                    SUM(totalitems) AS total_items_added,
+                    AVG(totalitems) AS avg_items_per_cart
+                FROM cart_sessions
+                WHERE restaurantid = ? AND createdat BETWEEN ? AND ?`
+            ).bind(restaurantId, fromTs, toTs).first();
+
+            const cartMetrics = {
+                total_carts_created: cartMetricsRaw?.total_carts_created || 0,
+                total_carts_shown: cartMetricsRaw?.total_carts_active || 0, // Proxying active as shown
+                total_carts_abandoned: (cartMetricsRaw?.total_carts_created || 0) - (cartMetricsRaw?.total_carts_converted || 0),
+                avg_conversion_rate: cartMetricsRaw?.total_carts_created > 0
+                    ? (cartMetricsRaw?.total_carts_converted / cartMetricsRaw?.total_carts_created)
+                    : 0,
+                total_estimated_value: cartMetricsRaw?.total_estimated_value || 0,
+                avg_cart_value: cartMetricsRaw?.avg_cart_value || 0,
+                shown_carts_value: cartMetricsRaw?.total_estimated_value || 0,
+                total_items_added: cartMetricsRaw?.total_items_added || 0,
+                avg_items_per_cart: cartMetricsRaw?.avg_items_per_cart || 0,
+                avg_time_to_show: 0
+            };
             return createResponse({
                 success: true,
                 range: { from, to },
@@ -366,26 +511,28 @@ export async function handleAnalyticsRequests(request, env) {
         const to = (toParam && toParam !== "") ? toParam : isoDate(now);
         const from = (fromParam && fromParam !== "") ? fromParam : computeFrom(timeRange, now);
         try {
-            // Fetch aggregated metrics from dish_daily_metrics
+            // Fetch aggregated metrics from dish_daily_metrics + cart events
             const dishes = await env.DB.prepare(
                 `SELECT 
                     dm.dish_id,
                     COALESCE(SUM(dm.views), 0) as views,
                     COALESCE(SUM(dm.unique_viewers), 0) as unique_viewers,
                     COALESCE(SUM(dm.favorites), 0) as favorites,
-                    -- COALESCE(SUM(dm.ratings), 0) as ratings,
-                    -- COALESCE(AVG(dm.avg_rating), 0) as avg_rating,
-                    -- COALESCE(SUM(dm.shares), 0) as shares,
-                    -- ✅ FIX: Leer la columna correcta que tiene los datos (avg_view_duration en vez de avg_dwell_seconds)
                     COALESCE(AVG(dm.avg_view_duration), 0) as avg_dwell_seconds,
                     COALESCE(SUM(dm.reserve_clicks), 0) as reserve_clicks,
                     COALESCE(SUM(dm.call_clicks), 0) as call_clicks,
-                    COALESCE(SUM(dm.directions_clicks), 0) as directions_clicks
+                    COALESCE(SUM(dm.directions_clicks), 0) as directions_clicks,
+                    -- ✅ NEW: Cart additions from events
+                    (SELECT COUNT(*) FROM events e 
+                     WHERE e.entity_id = dm.dish_id 
+                     AND e.event_type = 'cart_item_added'
+                     AND e.restaurant_id = dm.restaurant_id
+                     AND DATE(e.created_at) BETWEEN ? AND ?) as cart_additions
                 FROM dish_daily_metrics dm
                 WHERE dm.restaurant_id = ? AND dm.date BETWEEN ? AND ?
                 GROUP BY dm.dish_id
                 ORDER BY views DESC`
-            ).bind(restaurantId, from, to).all();
+            ).bind(from, to, restaurantId, from, to).all();
             // Fetch names and images
             const results = await Promise.all((dishes.results ?? []).map(async (d) => {
                 const [nameRes, imageRes] = await Promise.all([

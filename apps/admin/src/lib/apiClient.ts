@@ -1,7 +1,7 @@
 // apps/admin/src/lib/apiClient.ts
 
 import { createApiClient, getQueryDefaults, ApiClient } from "@visualtaste/api";
-import type { Dish, DishMedia } from "@visualtaste/api";
+import type { DishMedia } from "@visualtaste/api";
 
 // API URL desde variables de entorno o por defecto
 const API_URL = import.meta.env.VITE_API_URL || "https://visualtasteworker.franciscotortosaestudios.workers.dev";
@@ -89,11 +89,11 @@ class AdminApiClient {
 
   // Métodos específicamente optimizados para el admin
   public async getDishes(restaurantId: string): Promise<Dish[]> {
-    const dishes = await this.baseClient.getDishes(restaurantId);
+    const dishes = await this.baseClient.getDishes(restaurantId) as unknown as Dish[];
     // Ordenamos por nombre para mejor visualización en admin
     return Array.isArray(dishes) ? dishes.sort((a, b) => {
-      const nameA = a.translations?.name?.es || a.name || '';
-      const nameB = b.translations?.name?.es || b.name || '';
+      const nameA = a.translations?.name?.es || (a as any).name || '';
+      const nameB = b.translations?.name?.es || (b as any).name || '';
       return nameA.localeCompare(nameB);
     }) : dishes;
   }
@@ -103,17 +103,49 @@ class AdminApiClient {
     try {
       // Intentar usar el método base si existe
       if (typeof this.baseClient.getDish === 'function') {
-        return await this.baseClient.getDish(dishId);
+        return await this.baseClient.getDish(dishId) as unknown as Dish;
       }
 
       // Implementación alternativa usando client.get directamente
       const response = await this.baseClient.client.get(`/dishes/${dishId}`);
       // Verificar estructura de respuesta
-      return response.data.dish || response.data;
+      return (response.data.dish || response.data) as Dish;
     } catch (error) {
       console.error(`[apiClient] Error obteniendo plato:`, error);
-      throw new Error(`Error al cargar el plato: ${error?.message || 'Error desconocido'}`);
+      throw new Error(`Error al cargar el plato: ${(error as any)?.message || 'Error desconocido'}`);
     }
+  }
+
+  public async getSections(restaurantId: string): Promise<any[]> {
+    return this.invokeBaseMethod('getSections', restaurantId);
+  }
+
+  public async createSection(sectionData: any): Promise<any> {
+    return this.invokeBaseMethod('createSection', sectionData);
+  }
+
+  public async updateSection(sectionId: string, data: any): Promise<any> {
+    return this.invokeBaseMethod('updateSection', sectionId, data);
+  }
+
+  public async deleteSection(sectionId: string, restaurantId: string): Promise<any> {
+    return this.invokeBaseMethod('deleteSection', sectionId, restaurantId);
+  }
+
+  public async getAllergens(): Promise<any[]> {
+    return this.invokeBaseMethod('getAllergens');
+  }
+
+  public async createDish(data: CreateDishData): Promise<any> {
+    return this.invokeBaseMethod('createDish', data);
+  }
+
+  public async updateDish(id: string, data: UpdateDishData): Promise<any> {
+    return this.invokeBaseMethod('updateDish', id, data);
+  }
+
+  public async deleteDish(id: string, restaurantId: string): Promise<any> {
+    return this.invokeBaseMethod('deleteDish', id, restaurantId);
   }
 
   // Métodos para la gestión de medios
@@ -189,6 +221,9 @@ class AdminApiClient {
           avgSectionTime: rawData.summary?.avg_section_time || 0,
           avgScrollDepth: rawData.summary?.avg_scroll_depth || 0,
           mediaErrors: rawData.summary?.media_errors || 0,
+          // ✅ Map visitor recurrence fields
+          new_visitors: rawData.summary?.new_visitors || 0,
+          returning_visitors: rawData.summary?.returning_visitors || 0,
         },
         timeseries: (rawData.timeseries || []).map((item: any) => ({
           date: item.date,
@@ -202,6 +237,16 @@ class AdminApiClient {
         trafficByHour: rawData.trafficByHour || [],
         flows: rawData.flows || [],
         qrAttribution: rawData.qrAttribution || [],
+        // ✅ Include cart metrics in returned data
+        cartMetrics: {
+          totalCarts: rawData.cartMetrics?.total_carts_created || 0,
+          totalItems: rawData.cartMetrics?.total_items_added || 0,
+          avgValue: rawData.cartMetrics?.avg_cart_value || 0,
+          totalValue: rawData.cartMetrics?.total_estimated_value || 0,
+          conversionRate: rawData.cartMetrics?.avg_conversion_rate || 0,
+          cartsShown: rawData.cartMetrics?.total_carts_shown || 0,
+          cartsAbandoned: rawData.cartMetrics?.total_carts_abandoned || 0,
+        },
       };
     } catch (error) {
       console.error('[apiClient] Error al obtener analytics:', error);
@@ -446,6 +491,21 @@ class AdminApiClient {
   // ============================================
 
   /**
+   * Get lightweight dashboard status (Pulse)
+   */
+  public async getDashboardPulse(restaurantId: string): Promise<any> {
+    try {
+      const response = await this.client.get(
+        `/restaurants/${restaurantId}/dashboard/pulse`
+      );
+      return response.data;
+    } catch (error) {
+      console.warn('[apiClient] Dashboard pulse endpoint failed:', error);
+      return null;
+    }
+  }
+
+  /**
    * Get dashboard summary with today vs yesterday comparison
    */
   public async getDashboardSummary(
@@ -552,6 +612,89 @@ class AdminApiClient {
   }
 
   // ============================================
+  // RESERVATIONS METHODS
+  // ============================================
+  public async getReservationSettings(restaurantId: string): Promise<any> {
+    try {
+      const response = await this.client.get(`/reservations/config/${restaurantId}`);
+      return response.data.config;
+    } catch (error) {
+      console.error('[apiClient] Error al obtener configuración de reservas:', error);
+      throw error;
+    }
+  }
+
+  public async updateReservationConfig(restaurantId: string, config: any): Promise<any> {
+    try {
+      const response = await this.client.put(`/reservations/config/${restaurantId}`, config);
+      return response.data;
+    } catch (error) {
+      console.error('[apiClient] Error al actualizar configuración de reservas:', error);
+      throw error;
+    }
+  }
+
+  public async toggleReservations(restaurantId: string, enabled: boolean): Promise<any> {
+    try {
+      const response = await this.client.post(`/reservations/settings/toggle`, {
+        restaurant_id: restaurantId,
+        is_enabled: enabled
+      });
+      return response.data;
+    } catch (error) {
+      console.error('[apiClient] Error al cambiar estado de reservas:', error);
+      throw error;
+    }
+  }
+
+  public async getReservationsList(restaurantId: string, date?: string): Promise<any> {
+    try {
+      const params = new URLSearchParams({ restaurant_id: restaurantId });
+      if (date) params.append('date', date);
+      const response = await this.client.get(`/reservations/admin/list?${params}`);
+      return response.data;
+    } catch (error) {
+      console.error('[apiClient] Error al obtener lista de reservas:', error);
+      throw error;
+    }
+  }
+
+
+
+  public async getReservationLogs(restaurantId: string): Promise<any> {
+    try {
+      const response = await this.client.get(`/reservations/admin/logs?restaurant_id=${restaurantId}`);
+      return response.data;
+    } catch (error) {
+      console.error('[apiClient] Error al obtener logs:', error);
+      throw error;
+    }
+  }
+
+  public async getReservationStats(restaurantId: string, month: string): Promise<any> {
+    try {
+      const response = await this.client.get(`/reservations/stats?restaurant_id=${restaurantId}&month=${month}`);
+      return response.data;
+    } catch (error) {
+      console.error('[apiClient] Error al obtener estadisticas:', error);
+      throw error;
+    }
+  }
+
+  public async updateReservationStatus(reservationId: string, status: string, reason?: string): Promise<any> {
+    try {
+      const response = await this.client.patch(`/reservations/${reservationId}`, {
+        status,
+        cancellation_reason: reason
+      });
+      return response.data;
+    } catch (error) {
+      console.error('[apiClient] Error al actualizar estado:', error);
+      throw error;
+    }
+  }
+
+  // ============================================
   // USERS METHODS
   // ============================================
 
@@ -617,3 +760,71 @@ export const apiClient = new Proxy(adminApiClient, {
 
 // Para uso directo si es necesario
 export { baseApiClient };
+
+export interface Dish {
+  id: string;
+  restaurant_id: string;
+  price: number;
+  status: 'active' | 'out_of_stock' | 'seasonal' | 'hidden';
+  calories?: number;
+  preparation_time?: number;
+  is_vegetarian: boolean;
+  is_vegan: boolean;
+  is_gluten_free: boolean;
+  is_new: boolean;
+  is_featured: boolean;
+  has_half_portion: boolean;
+  half_price?: number;
+  avg_rating?: number;
+  rating_count?: number;
+  translations?: {
+    name?: Record<string, string>;
+    description?: Record<string, string>;
+    ingredients?: Record<string, string>;
+  };
+  media?: DishMedia[];
+  allergens?: any[]; // Changed Allergen[] to any[] to avoid strict type issues
+  section_ids?: string[];
+}
+
+export interface CreateDishData {
+  restaurant_id: string;
+  price: number;
+  status: string;
+  is_vegetarian?: boolean;
+  is_vegan?: boolean;
+  is_gluten_free?: boolean;
+  is_new?: boolean;
+  is_featured?: boolean;
+  has_half_portion?: boolean;
+  half_price?: number;
+  name?: string; // Para compatibilidad
+  description?: string; // Para compatibilidad
+  translations?: {
+    name?: Record<string, string>;
+    description?: Record<string, string>;
+    ingredients?: Record<string, string>;
+  };
+  allergens?: string[];
+  section_ids?: string[];
+}
+
+export interface UpdateDishData {
+  restaurant_id?: string;
+  price?: number;
+  status?: string;
+  is_vegetarian?: boolean;
+  is_vegan?: boolean;
+  is_gluten_free?: boolean;
+  is_new?: boolean;
+  is_featured?: boolean;
+  has_half_portion?: boolean;
+  half_price?: number;
+  translations?: {
+    name?: Record<string, string>;
+    description?: Record<string, string>;
+    ingredients?: Record<string, string>;
+  };
+  allergens?: string[];
+  section_ids?: string[];
+}

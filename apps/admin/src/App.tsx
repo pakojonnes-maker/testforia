@@ -7,10 +7,9 @@ import { useAuth } from './contexts/AuthContext';
 import theme from './theme';
 
 // Importaciones habituales
-import DashboardPage from './pages/DashboardPage';
+
 import DishesPage from './pages/DishesPage';
 import DishFormPage from './pages/DishFormPage';
-import SectionsPage from './pages/SectionsPage';
 const WebPage = lazy(() => import('./pages/WebPage'));
 
 // Importaciones con carga diferida para las nuevas páginas
@@ -20,6 +19,7 @@ const MarketingPage = lazy(() => import('./pages/MarketingPage'));
 const AnalyticsPage = lazy(() => import('./pages/AnalyticsPage'));
 const UsersPage = lazy(() => import('./pages/UsersPage'));
 const QRGeneratorPage = lazy(() => import('./pages/QRGeneratorPage'));
+const ReservationsPage = lazy(() => import('./pages/ReservationsPage'));
 
 
 // Componente para proteger rutas
@@ -51,8 +51,11 @@ function App() {
             </ProtectedRoute>
           }
         >
-          <Route index element={<DashboardPage />} />
-          <Route path="sections" element={<SectionsPage />} />
+          <Route index element={
+            <Suspense fallback={<LinearProgress />}>
+              <AnalyticsPage />
+            </Suspense>
+          } />
           <Route path="dishes" element={<DishesPage />} />
           <Route path="dishes/new" element={<DishFormPage />} />
           <Route path="dishes/:id" element={<DishFormPage />} />
@@ -90,14 +93,7 @@ function App() {
               </Suspense>
             }
           />
-          <Route
-            path="analytics"
-            element={
-              <Suspense fallback={<LinearProgress />}>
-                <AnalyticsPage />
-              </Suspense>
-            }
-          />
+
           <Route
             path="users"
             element={
@@ -111,6 +107,14 @@ function App() {
             element={
               <Suspense fallback={<LinearProgress />}>
                 <QRGeneratorPage />
+              </Suspense>
+            }
+          />
+          <Route
+            path="reservations"
+            element={
+              <Suspense fallback={<LinearProgress />}>
+                <ReservationsPage />
               </Suspense>
             }
           />

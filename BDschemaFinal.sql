@@ -118,7 +118,7 @@ CREATE TABLE users (
   auth_provider TEXT, -- 'google', 'email', etc.
   preferred_language TEXT,
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-  last_login TIMESTAMP, password_hash TEXT,
+  last_login TIMESTAMP, password_hash TEXT, is_superadmin BOOLEAN DEFAULT FALSE,
   FOREIGN KEY (preferred_language) REFERENCES languages(code)
 );
 CREATE TABLE restaurant_staff (
@@ -155,7 +155,8 @@ CREATE TABLE user_ratings (
 );
 CREATE TABLE notification_tokens (
   id TEXT PRIMARY KEY,
-  user_id TEXT NOT NULL,
+  user_id TEXT, -- Nullable now
+  visitor_id TEXT, -- Linked to cookies
   token TEXT NOT NULL,
   device_type TEXT,
   is_active BOOLEAN DEFAULT TRUE,
@@ -276,6 +277,8 @@ CREATE TABLE qr_codes (
   utm_source TEXT,
   utm_medium TEXT,
   utm_campaign TEXT,
+  type TEXT DEFAULT 'menu', -- 'menu', 'loyalty', 'staff'
+  assigned_staff_id TEXT, -- Link to specific staff member
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   FOREIGN KEY (restaurant_id) REFERENCES restaurants(id)
 );
@@ -303,7 +306,7 @@ CREATE TABLE sessions (
   network_type TEXT,
   pwa_installed INTEGER DEFAULT 0,         -- 0/1
   qr_code_id TEXT,
-  consent_analytics INTEGER DEFAULT 1,     -- 0/1
+  consent_analytics INTEGER DEFAULT 1, visitor_id TEXT, visit_count INTEGER DEFAULT 1,     -- 0/1
   FOREIGN KEY (user_id) REFERENCES users(id),
   FOREIGN KEY (restaurant_id) REFERENCES restaurants(id),
   FOREIGN KEY (qr_code_id) REFERENCES qr_codes(id)
@@ -345,7 +348,7 @@ CREATE TABLE daily_analytics (
   shares INTEGER DEFAULT 0,
   reserve_clicks INTEGER DEFAULT 0,
   call_clicks INTEGER DEFAULT 0,
-  directions_clicks INTEGER DEFAULT 0, avg_dish_view_duration REAL DEFAULT 0, avg_section_time REAL DEFAULT 0, avg_scroll_depth REAL DEFAULT 0, media_errors INTEGER DEFAULT 0,
+  directions_clicks INTEGER DEFAULT 0, avg_dish_view_duration REAL DEFAULT 0, avg_section_time REAL DEFAULT 0, avg_scroll_depth REAL DEFAULT 0, media_errors INTEGER DEFAULT 0, new_visitors INTEGER DEFAULT 0, returning_visitors INTEGER DEFAULT 0,
   PRIMARY KEY (restaurant_id, date),
   FOREIGN KEY (restaurant_id) REFERENCES restaurants(id)
 ) WITHOUT ROWID;
@@ -503,6 +506,7 @@ CREATE TABLE restaurant_details (
   tiktok_url TEXT,
   youtube_url TEXT,
   tripadvisor_url TEXT,
+  google_review_url TEXT,
   
   -- Información adicional
   accepts_credit_cards BOOLEAN DEFAULT TRUE,
@@ -641,6 +645,161 @@ CREATE TABLE cart_sessions (
   FOREIGN KEY (restaurantid) REFERENCES restaurants(id) ON DELETE CASCADE,
   FOREIGN KEY (qrcodeid) REFERENCES qr_codes(id) ON DELETE SET NULL
 );
+CREATE TABLE marketing_campaigns (
+    id TEXT PRIMARY KEY,
+    restaurant_id TEXT NOT NULL,
+    name TEXT NOT NULL,              -- Internal name (e.g., "Welcome Summer 2025")
+    type TEXT NOT NULL,              -- 'welcome_modal', 'exit_intent', 'banner', 'newsletter'
+    is_active BOOLEAN DEFAULT TRUE,
+    priority INTEGER DEFAULT 0,      -- Higher number = higher priority
+    
+    -- Configuration & Content
+    -- We use JSON for flexibility within the structured table.
+    -- content: { title, description, image_url, ... }
+    -- settings: { show_email, show_phone, auto_open, delay, ... }
+    content JSON,
+    settings JSON,
+    
+    -- Scheduling
+    start_date TIMESTAMP,
+    end_date TIMESTAMP,
+    
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    
+    FOREIGN KEY (restaurant_id) REFERENCES restaurants(id) ON DELETE CASCADE
+);
+CREATE TABLE marketing_leads (
+    id TEXT PRIMARY KEY,
+    restaurant_id TEXT NOT NULL,
+    campaign_id TEXT,                -- Link to the specific campaign (optional but recommended)
+    
+    type TEXT NOT NULL CHECK(type IN ('email', 'phone')),
+    contact_value TEXT NOT NULL,
+    
+    -- Metadata
+    source TEXT,                     -- 'welcome_modal', 'footer', etc. (redundant if campaign_id is used, but good for backup)
+    consent_given BOOLEAN DEFAULT TRUE,
+    metadata JSON,                   -- { device: 'mobile', url: '/menu', ... }
+    
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    
+    FOREIGN KEY (restaurant_id) REFERENCES restaurants(id) ON DELETE CASCADE,
+    FOREIGN KEY (restaurant_id) REFERENCES restaurants(id) ON DELETE CASCADE,
+    FOREIGN KEY (campaign_id) REFERENCES marketing_campaigns(id) ON DELETE SET NULL
+);
+CREATE TABLE campaign_rewards (
+  id TEXT PRIMARY KEY,
+  campaign_id TEXT NOT NULL,
+  name TEXT NOT NULL,
+  description TEXT,
+  probability REAL DEFAULT 0, -- 0.0 to 1.0 (for probabilistic games)
+  max_quantity INTEGER, -- Inventory limit
+  image_url TEXT,
+  is_active BOOLEAN DEFAULT TRUE,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (campaign_id) REFERENCES marketing_campaigns(id) ON DELETE CASCADE
+);
+CREATE TABLE campaign_claims (
+  id TEXT PRIMARY KEY,
+  restaurant_id TEXT NOT NULL,
+  campaign_id TEXT NOT NULL,
+  reward_id TEXT, -- Nullable if campaign is just "viewed" or generic
+  session_id TEXT NOT NULL,
+  customer_contact TEXT,
+  magic_link_token TEXT UNIQUE,
+  status TEXT DEFAULT 'active', -- active, redeemed, expired
+  redeemed_at TIMESTAMP,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (campaign_id) REFERENCES marketing_campaigns(id),
+  FOREIGN KEY (reward_id) REFERENCES campaign_rewards(id),
+  FOREIGN KEY (restaurant_id) REFERENCES restaurants(id)
+);
+CREATE TABLE reservation_settings (
+  restaurant_id TEXT PRIMARY KEY,
+  is_enabled BOOLEAN DEFAULT FALSE, -- Master toggle
+  
+  -- Capacity and Timing
+  max_capacity INTEGER NOT NULL DEFAULT 50, -- Total capacity (default fallback)
+  max_party_size INTEGER DEFAULT 10,
+  min_party_size INTEGER DEFAULT 1,
+  slot_duration_minutes INTEGER DEFAULT 90,
+  gap_between_slots_minutes INTEGER DEFAULT 15,
+  
+  -- Business Rules (Future proofing for No-shows)
+  requires_deposit BOOLEAN DEFAULT FALSE, 
+  deposit_amount_per_person REAL DEFAULT 0, 
+  auto_confirm BOOLEAN DEFAULT TRUE,
+  
+  -- Messages & Legal
+  terms_and_conditions TEXT,
+  privacy_policy_link TEXT,
+  
+  -- Availability Schedule (JSON)
+  -- Format: { "monday": [{ "start": "13:00", "end": "15:30" }], ... }
+  booking_availability JSON, 
+  
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  modified_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (restaurant_id) REFERENCES restaurants(id) ON DELETE CASCADE
+);
+CREATE TABLE reservations (
+  id TEXT PRIMARY KEY,
+  restaurant_id TEXT NOT NULL,
+  user_id TEXT, -- Optional, if user is logged in
+  client_name TEXT NOT NULL,
+  client_email TEXT NOT NULL,
+  client_phone TEXT NOT NULL,
+  
+  reservation_date TEXT NOT NULL, -- YYYY-MM-DD
+  reservation_time TEXT NOT NULL, -- HH:MM
+  party_size INTEGER NOT NULL,
+  
+  status TEXT DEFAULT 'pending', -- pending, confirmed, cancelled_user, cancelled_restaurant, completed, no_show
+  
+  special_requests TEXT,
+  occasion TEXT,
+  
+  -- Legal / System Data
+  accepted_policy BOOLEAN DEFAULT FALSE, -- GDPR Critical
+  accepted_marketing BOOLEAN DEFAULT FALSE, -- Separate GDPR
+  ip_address TEXT,
+  
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, cancellation_reason TEXT,
+  
+  FOREIGN KEY (restaurant_id) REFERENCES restaurants(id) ON DELETE CASCADE
+);
+CREATE TABLE reservation_waitlist (
+  id TEXT PRIMARY KEY,
+  restaurant_id TEXT NOT NULL,
+  client_name TEXT NOT NULL,
+  client_contact_method TEXT NOT NULL, -- 'email', 'whatsapp', 'phone'
+  client_contact_value TEXT NOT NULL,
+  
+  desired_date TEXT NOT NULL,
+  desired_time_range TEXT, -- "20:00-22:00"
+  party_size INTEGER NOT NULL,
+  
+  notes TEXT,
+  status TEXT DEFAULT 'waiting', -- waiting, contacted, converted, cancelled
+  
+  accepted_policy BOOLEAN DEFAULT FALSE, -- GDPR Critical
+  
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (restaurant_id) REFERENCES restaurants(id) ON DELETE CASCADE
+);
+CREATE TABLE reservation_logs (
+  id TEXT PRIMARY KEY,
+  reservation_id TEXT NOT NULL,
+  action TEXT NOT NULL, -- 'created', 'status_change', 'modified', 'cancelled'
+  previous_state TEXT, 
+  new_state TEXT, 
+  changed_by TEXT, -- 'system', 'user', 'staff:ID'
+  reason TEXT,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (reservation_id) REFERENCES reservations(id) ON DELETE CASCADE
+);
 CREATE INDEX idx_dishes_restaurant ON dishes(restaurant_id);
 CREATE INDEX idx_sections_restaurant ON sections(restaurant_id);
 CREATE INDEX idx_translations_entity ON translations(entity_id, entity_type);
@@ -677,3 +836,10 @@ CREATE INDEX idx_events_entity_type ON events(entity_id, entity_type, event_type
 CREATE INDEX idx_cartsessions_session ON cart_sessions(sessionid);
 CREATE INDEX idx_cartsessions_restaurant_status ON cart_sessions(restaurantid, status);
 CREATE INDEX idx_cartsessions_created ON cart_sessions(createdat);
+CREATE INDEX idx_marketing_campaigns_restaurant ON marketing_campaigns(restaurant_id, is_active);
+CREATE INDEX idx_marketing_leads_restaurant ON marketing_leads(restaurant_id);
+CREATE INDEX idx_marketing_leads_campaign ON marketing_leads(campaign_id);
+CREATE INDEX idx_reservations_restaurant_date ON reservations(restaurant_id, reservation_date);
+CREATE INDEX idx_reservations_status ON reservations(status);
+CREATE INDEX idx_waitlist_restaurant_date ON reservation_waitlist(restaurant_id, desired_date);
+CREATE INDEX idx_sessions_visitor ON sessions(visitor_id, restaurant_id);

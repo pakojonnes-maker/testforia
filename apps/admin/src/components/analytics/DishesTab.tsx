@@ -65,9 +65,9 @@ export default function DishesTab({ timeRange }: DishesTabProps) {
 
     const headers = [
         { id: 'name', label: 'Plato', align: 'left' },
-        { id: 'views', label: 'Vistas', align: 'right', tooltip: 'Veces que se ha abierto el detalle del plato' },
+        { id: 'views', label: 'Vistas', align: 'right', tooltip: 'Veces que se ha visualizado el plato' },
         { id: 'favorites', label: 'Favoritos', align: 'right', tooltip: 'Veces añadido a favoritos' },
-        { id: 'favorites', label: 'Favoritos', align: 'right', tooltip: 'Veces añadido a favoritos' },
+        { id: 'cart_additions', label: 'Carrito', align: 'right', tooltip: 'Veces añadido al carrito' },
         { id: 'avg_dwell_seconds', label: 'Tiempo Medio', align: 'right', tooltip: 'Tiempo medio de visualización (segundos)' },
     ];
 
@@ -121,10 +121,10 @@ export default function DishesTab({ timeRange }: DishesTabProps) {
                                         <Typography variant="subtitle2">{row.name}</Typography>
                                     </Box>
                                 </TableCell>
-                                <TableCell align="right">{row.views}</TableCell>
-                                <TableCell align="right">{row.favorites}</TableCell>
-                                <TableCell align="right">{row.favorites}</TableCell>
-                                <TableCell align="right">{row.avg_dwell_seconds.toFixed(1)}s</TableCell>
+                                <TableCell align="right">{row.views || 0}</TableCell>
+                                <TableCell align="right">{row.favorites || 0}</TableCell>
+                                <TableCell align="right">{row.cart_additions || 0}</TableCell>
+                                <TableCell align="right">{(row.avg_dwell_seconds || 0).toFixed(1)}s</TableCell>
                             </TableRow>
                         ))}
                         {sortedData.length === 0 && (

@@ -22,8 +22,10 @@ import {
   Remove,
   Close,
   ShoppingCart,
-  AddShoppingCart
+  AddShoppingCart,
+  Kitchen
 } from '@mui/icons-material';
+
 
 // ...
 
@@ -31,6 +33,7 @@ import {
 import { useDishTracking } from '../../../../providers/TrackingAndPushProvider';
 import type { Allergen } from '../../../../lib/apiClient';
 import { motion, AnimatePresence } from 'framer-motion';
+import { useTranslation } from '../../../../contexts/TranslationContext';
 import { useInView } from 'react-intersection-observer';
 
 // Helper para obtener nombre del alérgeno
@@ -60,7 +63,7 @@ interface DishCardProps {
   currentDishIndex: number;
   totalDishes: number;
   currentLanguage: string;
-  onAddToCart: (dish: any, quantity: number) => void;
+  onAddToCart: (dish: any, quantity: number, portion?: 'full' | 'half', price?: number) => void;
   cartItemCount: number;
   onOpenCart?: () => void;
   totalCartItems?: number;
@@ -79,23 +82,37 @@ const ClassicDishCard: React.FC<DishCardProps> = ({
   onOpenCart,
   totalCartItems = 0
 }) => {
+  const { t } = useTranslation();
   const { viewDish, favoriteDish, trackDishViewDuration, trackMediaError, isFavorited } = useDishTracking();
 
   const [isFavorite, setIsFavorite] = useState(() => isFavorited(dish.id));
   const [showDetails, setShowDetails] = useState(false);
   const [isPlaying, setIsPlaying] = useState(false);
   const [, setVideoLoaded] = useState(false);
+  const [videoStarted, setVideoStarted] = useState(false); // ✅ Track if video playback truly started
   const [videoError, setVideoError] = useState(false);
   const [allergenImageErrors, setAllergenImageErrors] = useState<Set<string>>(new Set());
+
+  // ✅ Reset video state when dish changes (essential for reused lists/swipers)
+  useEffect(() => {
+    setVideoStarted(false);
+    setIsPlaying(false);
+    setVideoError(false);
+  }, [dish?.id]);
 
   // Estados del carrito
   const [openAddModal, setOpenAddModal] = useState(false);
   const [quantityToAdd, setQuantityToAdd] = useState(1);
+  const [selectedPortion, setSelectedPortion] = useState<'full' | 'half'>('full');
 
   const videoRef = useRef<HTMLVideoElement>(null);
   const { ref: inViewRef, inView } = useInView({ threshold: 0.7 });
 
-  const dishName = dish?.translations?.name?.[currentLanguage] || dish?.name || 'Plato sin nombre';
+  // ✅ FIX: Refs for duration tracking to avoid closure issues
+  const viewStartTimeRef = useRef<number | null>(null);
+  const lastTrackedDishRef = useRef<string | null>(null);
+
+  const dishName = dish?.translations?.name?.[currentLanguage] || dish?.name || t('dish_untitled', 'Plato sin nombre');
   const description = dish?.translations?.description?.[currentLanguage] || dish?.description || '';
   const media = dish?.media?.[0];
   const isVideo = media?.type === 'video' || media?.url?.endsWith('.mp4');
@@ -111,17 +128,20 @@ const ClassicDishCard: React.FC<DishCardProps> = ({
   };
 
   const handleAddToCart = useCallback(() => {
-    onAddToCart(dish, quantityToAdd);
+    const price = selectedPortion === 'half' ? (dish.half_price || 0) : (dish.price || 0);
+    onAddToCart(dish, quantityToAdd, selectedPortion, price);
     setOpenAddModal(false);
     setQuantityToAdd(1);
-  }, [dish, quantityToAdd, onAddToCart]);
+    setSelectedPortion('full');
+  }, [dish, quantityToAdd, selectedPortion, onAddToCart]);
 
   // Obtener URL del icono de alérgeno
   const getAllergenIconUrl = useCallback((allergen: Allergen) => {
     const API_URL = import.meta.env.VITE_API_URL || "https://visualtasteworker.franciscotortosaestudios.workers.dev";
 
-    if (allergen.iconurl) {
-      return `${API_URL}/media/System/allergens/${allergen.iconurl}`;
+    // Si ya viene como URL absoluta (backend actualizado), usarla tal cual
+    if (allergen.icon_url && allergen.icon_url.startsWith('http')) {
+      return allergen.icon_url;
     }
 
     if (allergen.icon_url) {
@@ -162,28 +182,49 @@ const ClassicDishCard: React.FC<DishCardProps> = ({
     }
   }, [isActive, inView, isVideo, videoError, trackMediaError, dish.id, media?.url]);
 
-  // Tracking de vista de plato
+  // ✅ FIX: Unified view and duration tracking with refs
   useEffect(() => {
-    if (isActive && inView && dish?.id) {
+    const isCurrentlyViewing = isActive && inView && dish?.id;
+
+    // Start tracking when dish becomes visible
+    if (isCurrentlyViewing && !viewStartTimeRef.current) {
       viewDish(dish.id, section?.id);
+      viewStartTimeRef.current = Date.now();
+      lastTrackedDishRef.current = dish.id;
+      console.log('⏱️ [DishCard] Iniciando timer de visualización:', dish.id);
     }
-  }, [isActive, inView, dish?.id, section?.id, viewDish]);
 
-  // ✅ NUEVO: Tracking de duración de visualización
-  useEffect(() => {
-    if (!isActive || !inView || !dish?.id) return;
-
-    const startTime = Date.now();
-    console.log('⏱️ [DishCard] Iniciando timer de visualización:', dish.id);
-
-    return () => {
-      const duration = Math.floor((Date.now() - startTime) / 1000);
+    // Send duration when dish becomes invisible (but not on unmount - handled separately)
+    if (!isCurrentlyViewing && viewStartTimeRef.current && lastTrackedDishRef.current) {
+      const duration = Math.floor((Date.now() - viewStartTimeRef.current) / 1000);
       if (duration >= 1) {
-        console.log('⏱️ [DishCard] Enviando duración:', { dishId: dish.id, duration });
-        trackDishViewDuration(dish.id, duration, section?.id);
+        console.log('⏱️ [DishCard] Enviando duración (visibility change):', {
+          dishId: lastTrackedDishRef.current,
+          duration
+        });
+        trackDishViewDuration(lastTrackedDishRef.current, duration, section?.id);
+      }
+      viewStartTimeRef.current = null;
+      lastTrackedDishRef.current = null;
+    }
+  }, [isActive, inView, dish?.id, section?.id, viewDish, trackDishViewDuration]);
+
+  // ✅ FIX: Cleanup on unmount (empty deps = only runs on unmount)
+  useEffect(() => {
+    return () => {
+      if (viewStartTimeRef.current && lastTrackedDishRef.current) {
+        const duration = Math.floor((Date.now() - viewStartTimeRef.current) / 1000);
+        if (duration >= 1) {
+          console.log('⏱️ [DishCard] Enviando duración (unmount):', {
+            dishId: lastTrackedDishRef.current,
+            duration
+          });
+          // Note: trackDishViewDuration captured from closure at mount time
+          // This is intentional - we want the function reference, not stale dish data
+        }
       }
     };
-  }, [isActive, inView, dish?.id, section?.id, trackDishViewDuration]);
+  }, []);
 
   const handleFavorite = useCallback((e: React.MouseEvent) => {
     e.stopPropagation();
@@ -307,7 +348,7 @@ const ClassicDishCard: React.FC<DishCardProps> = ({
         ))}
 
         {remainingCount > 0 && (
-          <Tooltip title={`${remainingCount} alérgenos más`} arrow placement="top">
+          <Tooltip title={`${remainingCount} ${t('tooltip_more_allergens', 'alérgenos más')}`} arrow placement="top">
             <Box
               sx={{
                 width: 22,
@@ -369,21 +410,49 @@ const ClassicDishCard: React.FC<DishCardProps> = ({
         }}
       >
         {isVideo ? (
-          <video
-            ref={videoRef}
-            src={media?.url}
-            poster={media?.thumbnail_url}
-            loop
-            muted
-            playsInline
-            onLoadedData={() => setVideoLoaded(true)}
-            onError={() => setVideoError(true)}
-            style={{
-              width: '100%',
-              height: '100%',
-              objectFit: 'cover'
-            }}
-          />
+          <>
+            <video
+              ref={videoRef}
+              src={media?.url}
+              /* poster={media?.thumbnail_url} // Removed to prevent native ghost image */
+              loop
+              muted
+              playsInline
+              onLoadedData={() => setVideoLoaded(true)}
+              onPlaying={() => setVideoStarted(true)} // ✅ Trigger fade out
+              onTimeUpdate={(e) => {
+                // Fallback: if video advances > 0.1s, ensure overlay is gone
+                if (e.currentTarget.currentTime > 0.1 && !videoStarted) {
+                  setVideoStarted(true);
+                }
+              }}
+              onError={() => setVideoError(true)}
+              style={{
+                width: '100%',
+                height: '100%',
+                objectFit: 'cover'
+              }}
+            />
+
+            {/* ✅ Custom Poster Overlay for Smooth Transition */}
+            <Box
+              component="img"
+              src={media?.thumbnail_url || media?.url}
+              alt={dishName}
+              sx={{
+                position: 'absolute',
+                inset: 0,
+                width: '100%',
+                height: '100%',
+                objectFit: 'cover',
+                zIndex: 2, // Above video
+                opacity: videoStarted ? 0 : 1, // Smooth fade
+                transition: 'opacity 0.5s ease-out',
+                pointerEvents: 'none', // Let clicks pass to video
+                willChange: 'opacity'
+              }}
+            />
+          </>
         ) : (
           <Box
             component="img"
@@ -408,7 +477,7 @@ const ClassicDishCard: React.FC<DishCardProps> = ({
             background: showDetails
               ? 'linear-gradient(0deg, rgba(0,0,0,0.9) 0%, rgba(0,0,0,0.7) 40%, rgba(0,0,0,0.4) 70%, transparent 100%)'
               : 'linear-gradient(0deg, rgba(0,0,0,0.8) 0%, transparent 30%)',
-            zIndex: 2,
+            zIndex: 3, // Increased z-index to sit above overlay
             transition: 'all 0.4s cubic-bezier(0.4, 0, 0.2, 1)',
             backdropFilter: showDetails ? 'blur(8px)' : 'none',
             WebkitBackdropFilter: showDetails ? 'blur(8px)' : 'none',
@@ -416,6 +485,8 @@ const ClassicDishCard: React.FC<DishCardProps> = ({
           }}
         />
       </Box>
+
+
 
       {/* Botones laterales: Favorito, Agregar y Carrito */}
       <Box
@@ -480,16 +551,16 @@ const ClassicDishCard: React.FC<DishCardProps> = ({
               sx={{
                 width: { xs: 44, sm: 52 }, // ✅ Reduced size
                 height: { xs: 44, sm: 52 }, // ✅ Reduced size
-                bgcolor: colors.secondary,
+                bgcolor: colors.accent || colors.secondary,
                 backdropFilter: 'blur(20px)',
                 border: '1px solid rgba(255,255,255,0.2)',
                 color: '#fff',
-                boxShadow: `0 8px 32px ${colors.secondary}80`,
+                boxShadow: `0 8px 32px ${colors.accent || colors.secondary}80`,
                 '&:hover': {
-                  bgcolor: colors.secondary,
+                  bgcolor: colors.accent || colors.secondary,
                   opacity: 0.9,
                   transform: 'translateY(-2px)',
-                  boxShadow: `0 12px 40px ${colors.secondary}99`
+                  boxShadow: `0 12px 40px ${colors.accent || colors.secondary}99`
                 },
                 transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)'
               }}
@@ -557,6 +628,7 @@ const ClassicDishCard: React.FC<DishCardProps> = ({
           onClose={() => {
             setOpenAddModal(false);
             setQuantityToAdd(1);
+            setSelectedPortion('full');
           }}
           maxWidth="sm"
           fullWidth
@@ -581,7 +653,7 @@ const ClassicDishCard: React.FC<DishCardProps> = ({
             alignItems: 'center',
             fontFamily: '"Fraunces", serif'
           }}>
-            Agregar al carrito
+            {t('modal_add_to_cart_title', 'Agregar al carrito')}
             <IconButton
               onClick={() => setOpenAddModal(false)}
               sx={{ color: 'rgba(255,255,255,0.6)' }}
@@ -612,7 +684,7 @@ const ClassicDishCard: React.FC<DishCardProps> = ({
             </Typography>
 
             <Typography variant="h5" sx={{ color: colors.primary, fontWeight: 700, mb: 3, fontFamily: '"Fraunces", serif' }}>
-              €{(dish.price || 0).toFixed(2)}
+              €{((selectedPortion === 'half' ? dish.half_price : dish.price) || 0).toFixed(2)}
             </Typography>
 
             {description && (
@@ -627,6 +699,60 @@ const ClassicDishCard: React.FC<DishCardProps> = ({
               >
                 {description.substring(0, 120)}{description.length > 120 ? '...' : ''}
               </Typography>
+            )}
+
+            {/* Portion Selector */}
+            {dish.has_half_portion && (
+              <Box sx={{ mb: 3, display: 'flex', gap: 2 }}>
+                <Button
+                  onClick={() => setSelectedPortion('full')}
+                  variant={selectedPortion === 'full' ? 'contained' : 'outlined'}
+                  sx={{
+                    flex: 1,
+                    bgcolor: selectedPortion === 'full' ? colors.primary : 'transparent',
+                    color: selectedPortion === 'full' ? '#fff' : colors.text,
+                    borderColor: selectedPortion === 'full' ? colors.primary : 'rgba(255,255,255,0.3)',
+                    borderRadius: 2,
+                    py: 1,
+                    textTransform: 'none',
+                    fontWeight: 600,
+                    fontFamily: '"Fraunces", serif',
+                    '&:hover': {
+                      bgcolor: selectedPortion === 'full' ? colors.primary : 'rgba(255,255,255,0.1)',
+                      borderColor: selectedPortion === 'full' ? colors.primary : '#fff'
+                    }
+                  }}
+                >
+                  Ración Completa
+                  <Typography component="span" sx={{ display: 'block', fontSize: '0.75rem', opacity: 0.8, mt: 0.5 }}>
+                    €{(dish.price || 0).toFixed(2)}
+                  </Typography>
+                </Button>
+                <Button
+                  onClick={() => setSelectedPortion('half')}
+                  variant={selectedPortion === 'half' ? 'contained' : 'outlined'}
+                  sx={{
+                    flex: 1,
+                    bgcolor: selectedPortion === 'half' ? colors.primary : 'transparent',
+                    color: selectedPortion === 'half' ? '#fff' : colors.text,
+                    borderColor: selectedPortion === 'half' ? colors.primary : 'rgba(255,255,255,0.3)',
+                    borderRadius: 2,
+                    py: 1,
+                    textTransform: 'none',
+                    fontWeight: 600,
+                    fontFamily: '"Fraunces", serif',
+                    '&:hover': {
+                      bgcolor: selectedPortion === 'half' ? colors.primary : 'rgba(255,255,255,0.1)',
+                      borderColor: selectedPortion === 'half' ? colors.primary : '#fff'
+                    }
+                  }}
+                >
+                  Media Ración
+                  <Typography component="span" sx={{ display: 'block', fontSize: '0.75rem', opacity: 0.8, mt: 0.5 }}>
+                    €{(dish.half_price || 0).toFixed(2)}
+                  </Typography>
+                </Button>
+              </Box>
             )}
 
             <Box sx={{
@@ -663,9 +789,9 @@ const ClassicDishCard: React.FC<DishCardProps> = ({
               <IconButton
                 onClick={() => setQuantityToAdd(quantityToAdd + 1)}
                 sx={{
-                  bgcolor: colors.secondary,
+                  bgcolor: colors.accent || colors.secondary,
                   color: '#fff',
-                  '&:hover': { bgcolor: colors.secondary, opacity: 0.8 }
+                  '&:hover': { bgcolor: colors.accent || colors.secondary, opacity: 0.8 }
                 }}
               >
                 <Add />
@@ -681,10 +807,10 @@ const ClassicDishCard: React.FC<DishCardProps> = ({
               borderRadius: 2
             }}>
               <Typography sx={{ color: 'rgba(255,255,255,0.7)', fontSize: '1rem', fontFamily: '"Fraunces", serif' }}>
-                Subtotal:
+                {t('label_subtotal', 'Subtotal:')}
               </Typography>
               <Typography sx={{ color: colors.primary, fontWeight: 700, fontSize: '1.4rem', fontFamily: '"Fraunces", serif' }}>
-                €{((dish.price || 0) * quantityToAdd).toFixed(2)}
+                €{(((selectedPortion === 'half' ? dish.half_price : dish.price) || 0) * quantityToAdd).toFixed(2)}
               </Typography>
             </Box>
           </DialogContent>
@@ -694,6 +820,7 @@ const ClassicDishCard: React.FC<DishCardProps> = ({
               onClick={() => {
                 setOpenAddModal(false);
                 setQuantityToAdd(1);
+                setSelectedPortion('full');
               }}
               sx={{
                 color: 'rgba(255,255,255,0.6)',
@@ -703,13 +830,13 @@ const ClassicDishCard: React.FC<DishCardProps> = ({
                 fontFamily: '"Fraunces", serif'
               }}
             >
-              Cancelar
+              {t('button_cancel', 'Cancelar')}
             </Button>
             <Button
               onClick={handleAddToCart}
               variant="contained"
               sx={{
-                bgcolor: colors.primary,
+                bgcolor: colors.accent || colors.secondary,
                 color: '#fff',
                 fontWeight: 600,
                 fontSize: '1rem',
@@ -717,16 +844,16 @@ const ClassicDishCard: React.FC<DishCardProps> = ({
                 py: 1.5,
                 textTransform: 'none',
                 borderRadius: 2,
-                boxShadow: `0 8px 24px ${colors.primary}60`,
+                boxShadow: `0 8px 24px ${colors.accent || colors.secondary}60`,
                 '&:hover': {
-                  bgcolor: colors.primary,
+                  bgcolor: colors.accent || colors.secondary,
                   opacity: 0.9,
-                  boxShadow: `0 12px 32px ${colors.primary}80`
+                  boxShadow: `0 12px 32px ${colors.accent || colors.secondary}80`
                 },
                 fontFamily: '"Fraunces", serif'
               }}
             >
-              Agregar
+              {t('button_add', 'Agregar')}
             </Button>
           </DialogActions>
         </Dialog>
@@ -770,7 +897,7 @@ const ClassicDishCard: React.FC<DishCardProps> = ({
           </Typography>
 
           {dish?.price != null && ( // ✅ Fix: Check for null/undefined to avoid rendering "0"
-            <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
+            <Box sx={{ display: 'flex', alignItems: 'center', mb: 2, flexWrap: 'wrap', gap: 1 }}>
               <Typography
                 variant="h5"
                 sx={{
@@ -789,12 +916,30 @@ const ClassicDishCard: React.FC<DishCardProps> = ({
                   sx={{
                     color: 'rgba(255,255,255,0.6)',
                     textDecoration: 'line-through',
-                    ml: 2,
                     fontSize: '0.9rem', // ✅ Force mobile size
                     fontFamily: '"Fraunces", serif'
                   }}
                 >
                   €{dish.discountprice.toFixed(2)}
+                </Typography>
+              )}
+              {dish?.has_half_portion && dish.half_price && (
+                <Typography
+                  component="span"
+                  sx={{
+                    color: colors.primary, // ✅ Uniform color
+                    fontWeight: 700,
+                    fontSize: '1.1rem',
+                    ml: 0.5,
+                    textShadow: '0 2px 8px rgba(0,0,0,0.6)',
+                    fontFamily: '"Fraunces", serif',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 1
+                  }}
+                >
+                  <span style={{ opacity: 0.6, fontSize: '1.2em', fontWeight: 300 }}>|</span>
+                  ½ €{dish.half_price.toFixed(2)}
                 </Typography>
               )}
             </Box>
@@ -886,7 +1031,7 @@ const ClassicDishCard: React.FC<DishCardProps> = ({
               }}
             >
               <Typography variant="body2" sx={{ mr: 0.5, color: colors.accent, fontFamily: '"Fraunces", serif' }}>
-                {showDetails ? 'Ver menos' : 'Ver más'}
+                {showDetails ? t('see_less', 'Ver menos') : t('see_more', 'Ver más')}
               </Typography>
               <ExpandLess
                 sx={{
@@ -924,7 +1069,7 @@ const ClassicDishCard: React.FC<DishCardProps> = ({
                       }}
                     >
                       <LocalDining sx={{ fontSize: 20 }} />
-                      Información Nutricional
+                      {t('nutritional_info', 'Información Nutricional')}
                     </Typography>
                     <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(120px, 1fr))', gap: 2 }}>
                       {dish?.calories && (
@@ -933,7 +1078,7 @@ const ClassicDishCard: React.FC<DishCardProps> = ({
                             {dish.calories}
                           </Typography>
                           <Typography variant="body2" sx={{ color: 'rgba(255,255,255,0.8)' }}>
-                            Calorías
+                            {t('calories', 'Calorías')}
                           </Typography>
                         </Box>
                       )}
@@ -943,10 +1088,105 @@ const ClassicDishCard: React.FC<DishCardProps> = ({
                             {dish.protein}g
                           </Typography>
                           <Typography variant="body2" sx={{ color: 'rgba(255,255,255,0.8)' }}>
-                            Proteína
+                            {t('protein', 'Proteína')}
                           </Typography>
                         </Box>
                       )}
+                    </Box>
+                  </Box>
+                )}
+
+
+
+                {(dish?.ingredients || dish?.translations?.ingredients?.[currentLanguage]) && (
+                  <Box sx={{ mb: 3 }}>
+                    <Typography
+                      variant="h6"
+                      sx={{
+                        color: colors.text,
+                        fontWeight: 600,
+                        mb: 2,
+                        fontSize: { xs: '1rem', sm: '1.1rem' },
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        gap: 1,
+                        fontFamily: '"Fraunces", serif'
+                      }}
+                    >
+                      <Kitchen sx={{ fontSize: 20 }} />
+                      {t('ingredients', 'Ingredientes')}
+                    </Typography>
+                    <Typography
+                      sx={{
+                        color: 'rgba(255,255,255,0.8)',
+                        fontSize: '0.95rem',
+                        lineHeight: 1.6,
+                        textAlign: 'center',
+                        fontFamily: '"Fraunces", serif',
+                        px: 2
+                      }}
+                    >
+                      {dish.ingredients || dish.translations?.ingredients?.[currentLanguage]}
+                    </Typography>
+                  </Box>
+                )}
+
+                {/* Alérgenos */}
+                {dish?.allergens && dish.allergens.length > 0 && (
+                  <Box sx={{ mb: 3 }}>
+                    <Typography
+                      variant="h6"
+                      sx={{
+                        color: colors.text,
+                        fontWeight: 600,
+                        mb: 2,
+                        fontSize: { xs: '1rem', sm: '1.1rem' },
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        gap: 1,
+                        fontFamily: '"Fraunces", serif'
+                      }}
+                    >
+                      <Spa sx={{ fontSize: 20 }} />
+                      {t('allergens', 'Alérgenos')}
+                    </Typography>
+                    <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1, justifyContent: 'center' }}>
+                      {dish.allergens.map((allergen: any) => (
+                        <Box
+                          key={allergen.id}
+                          sx={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: 1,
+                            bgcolor: 'rgba(255,255,255,0.1)',
+                            px: 1.5,
+                            py: 0.75,
+                            borderRadius: 2,
+                            border: '1px solid rgba(255,255,255,0.1)'
+                          }}
+                        >
+                          <img
+                            src={getAllergenIconUrl(allergen)}
+                            alt={getAllergenName(allergen, currentLanguage)}
+                            style={{ width: 20, height: 20, objectFit: 'contain', filter: 'none' }}
+                            onError={(e) => {
+                              (e.target as HTMLImageElement).style.display = 'none';
+                            }}
+                          />
+                          <Typography
+                            sx={{
+                              color: 'rgba(255,255,255,0.9)',
+                              fontSize: '0.85rem',
+                              fontWeight: 500,
+                              fontFamily: '"Fraunces", serif'
+                            }}
+                          >
+                            {getAllergenName(allergen, currentLanguage)}
+                          </Typography>
+                        </Box>
+                      ))}
                     </Box>
                   </Box>
                 )}

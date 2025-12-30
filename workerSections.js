@@ -138,23 +138,31 @@ export async function handleSectionRequests(request, env) {
     // Endpoint público RESTful para obtener secciones por restaurante
     if (request.method === "GET" && url.pathname.match(/^\/restaurants\/[\w-]+\/sections$/)) {
         const restaurantId = url.pathname.split('/')[2];
-        return await getSectionsForRestaurant(restaurantId, env);
+        const includeDishes = url.searchParams.get('include_dishes') === 'true';
+        // ✅ Detectar si es contexto admin (tiene JWT válido)
+        const userData = await authenticateRequest(request);
+        const isAdmin = !!userData;
+        return await getSectionsForRestaurant(restaurantId, env, includeDishes, isAdmin);
     }
 
     // Endpoint original para obtener secciones (mantener por compatibilidad)
     if (request.method === "GET" && url.pathname === "/sections") {
         const params = new URLSearchParams(url.search);
         const restaurantId = params.get('restaurant_id');
+        const includeDishes = params.get('include_dishes') === 'true';
 
         if (!restaurantId) {
             return createResponse({ success: false, message: "Restaurant ID requerido" }, 400);
         }
 
-        return await getSectionsForRestaurant(restaurantId, env);
+        // ✅ Detectar si es contexto admin (tiene JWT válido)
+        const userData = await authenticateRequest(request);
+        const isAdmin = !!userData;
+        return await getSectionsForRestaurant(restaurantId, env, includeDishes, isAdmin);
     }
 
     // Endpoint para manejar secciones (crear/actualizar) - REQUIERE AUTENTICACIÓN
-    if ((request.method === "POST" || request.method === "PUT") && url.pathname.match(/^\/sections(\/. +)?$/)) {
+    if ((request.method === "POST" || request.method === "PUT") && url.pathname.match(/^\/sections(\/[\w_-]+)?$/)) {
         // ✅ Verificar autenticación
         const userData = await authenticateRequest(request);
         if (!userData) {
@@ -165,7 +173,7 @@ export async function handleSectionRequests(request, env) {
             const data = await request.json();
             const isNew = request.method === "POST" || !url.pathname.includes('/');
             const sectionId = isNew ? `sect_${Date.now()}_${Math.random().toString(36).substring(2, 7)}` : url.pathname.split('/').pop();
-            const { restaurant_id, menu_id, translations, order_index, icon_url, bg_color } = data;
+            const { restaurant_id, menu_id, translations, order_index, icon_url, bg_color, is_visible } = data;
 
             if (!restaurant_id) {
                 return createResponse({ success: false, message: "Restaurant ID requerido" }, 400);
@@ -201,15 +209,16 @@ export async function handleSectionRequests(request, env) {
                 if (isNew) {
                     await env.DB.prepare(`
             INSERT INTO sections (
-              id, restaurant_id, menu_id, order_index, icon_url, bg_color
-            ) VALUES (?, ?, ?, ?, ?, ?)
+              id, restaurant_id, menu_id, order_index, icon_url, bg_color, is_visible
+            ) VALUES (?, ?, ?, ?, ?, ?, ?)
           `).bind(
                         sectionId,
                         restaurant_id,
                         menu_id,
                         order_index || maxOrder,
                         icon_url || null,
-                        bg_color || null
+                        bg_color || null,
+                        is_visible ?? true
                     ).run();
                 } else {
                     await env.DB.prepare(`
@@ -218,6 +227,7 @@ export async function handleSectionRequests(request, env) {
               order_index = ?,
               icon_url = ?,
               bg_color = ?,
+              is_visible = COALESCE(?, is_visible),
               modified_at = CURRENT_TIMESTAMP
             WHERE id = ? AND restaurant_id = ?
           `).bind(
@@ -225,6 +235,7 @@ export async function handleSectionRequests(request, env) {
                         order_index,
                         icon_url || null,
                         bg_color || null,
+                        is_visible !== undefined ? is_visible : null,
                         sectionId,
                         restaurant_id
                     ).run();
@@ -361,12 +372,16 @@ export async function handleSectionRequests(request, env) {
 // FUNCIONES AUXILIARES
 // ===========================================================================
 
-async function getSectionsForRestaurant(restaurantId, env) {
+async function getSectionsForRestaurant(restaurantId, env, includeDishes = false, isAdmin = false) {
     try {
         // ✅ OPTIMIZADO: Query única con GROUP_CONCAT para traducciones
+        // ✅ isAdmin: Si es admin, muestra todas las secciones con is_visible; si no, filtra solo visibles
+        const visibilityFilter = isAdmin ? '' : 'AND s.is_visible = TRUE';
+
         const sectionsData = await env.DB.prepare(`
             SELECT 
                 s.id, s.menu_id, s.order_index, s.icon_url, s.bg_color,
+                ${isAdmin ? 's.is_visible,' : ''}
                 m.name as menu_name,
                 COUNT(DISTINCT sd.dish_id) as dish_count,
                 GROUP_CONCAT(
@@ -384,7 +399,7 @@ async function getSectionsForRestaurant(restaurantId, env) {
                 AND t.entity_type = 'section'
                 AND t.language_code IN ('es', 'en')
                 AND t.field IN ('name', 'description')
-            WHERE s.restaurant_id = ?
+            WHERE s.restaurant_id = ? ${visibilityFilter}
             GROUP BY s.id, s.menu_id, s.order_index, s.icon_url, s.bg_color, m.name
             ORDER BY s.order_index ASC
         `).bind(restaurantId).all();
@@ -417,13 +432,51 @@ async function getSectionsForRestaurant(restaurantId, env) {
                 order_index: section.order_index,
                 icon_url: section.icon_url,
                 bg_color: section.bg_color,
+                // ✅ Incluir is_visible solo si está presente (contexto admin)
+                ...(section.is_visible !== undefined && { is_visible: !!section.is_visible }),
                 translations,
                 menu_name: section.menu_name || "Menú sin nombre",
-                dish_count: section.dish_count || 0
+                dish_count: section.dish_count || 0,
+                dishes: [] // Inicializar array de platos
             };
         });
 
-        console.log(`[Sections] ✅ Optimized: ${sections.length} sections loaded with 1 query (vs ${sections.length * 6} before)`);
+        // ✅ SI SE SOLICITAN PLATOS: Buscar platos activos ordenados por sección
+        if (includeDishes) {
+            console.log(`[Sections] Fetching dishes for restaurant ${restaurantId}`);
+            const dishesData = await env.DB.prepare(`
+                SELECT 
+                    sd.section_id, 
+                    d.id, d.price, d.status,
+                    COALESCE(t_name.value, 'Sin nombre') as name,
+                    t_desc.value as description
+                FROM section_dishes sd
+                JOIN dishes d ON sd.dish_id = d.id
+                JOIN sections s ON sd.section_id = s.id
+                LEFT JOIN translations t_name ON d.id = t_name.entity_id AND t_name.entity_type = 'dish' AND t_name.field = 'name' AND t_name.language_code = 'es'
+                LEFT JOIN translations t_desc ON d.id = t_desc.entity_id AND t_desc.entity_type = 'dish' AND t_desc.field = 'description' AND t_desc.language_code = 'es'
+                WHERE s.restaurant_id = ? AND d.status = 'active'
+                ORDER BY sd.section_id, sd.order_index
+            `).bind(restaurantId).all();
+
+            // Agrupar platos por sección
+            const dishesBySection = {};
+            if (dishesData.results) {
+                dishesData.results.forEach(dish => {
+                    if (!dishesBySection[dish.section_id]) {
+                        dishesBySection[dish.section_id] = [];
+                    }
+                    dishesBySection[dish.section_id].push(dish);
+                });
+            }
+
+            // Asignar platos a sus secciones
+            sections.forEach(section => {
+                section.dishes = dishesBySection[section.id] || [];
+            });
+        }
+
+        console.log(`[Sections] ✅ Optimized: ${sections.length} sections loaded (Dishes included: ${includeDishes})`);
 
         return createResponse({
             success: true,

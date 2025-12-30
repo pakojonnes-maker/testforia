@@ -1,17 +1,24 @@
 import React, { useState } from 'react';
 import { Box, IconButton, Paper } from '@mui/material';
-import { Menu as MenuIcon, Instagram, LocalOffer, WhatsApp } from '@mui/icons-material';
+import { Menu as MenuIcon, Instagram, LocalOffer, WhatsApp, EventAvailable, Star, Close, Notifications, NotificationsActive } from '@mui/icons-material';
 import { motion, AnimatePresence } from 'framer-motion';
+import { useDishTracking } from '../../providers/TrackingAndPushProvider';
 
 interface SocialMenuProps {
     restaurant: any;
     onOpenOffer: () => void;
+    reservationsEnabled?: boolean;
+    onOpenReservation?: () => void;
+    previousRating?: number | null;
 }
+import RatingModal from '../ui/RatingModal';
 
-const SocialMenu: React.FC<SocialMenuProps> = ({ restaurant, onOpenOffer }) => {
+const SocialMenu: React.FC<SocialMenuProps> = ({ restaurant, onOpenOffer, reservationsEnabled, onOpenReservation }) => {
     console.log('SocialMenu restaurant:', restaurant);
     console.log('SocialMenu instagram:', restaurant?.social_media?.instagram || restaurant?.instagram_url || restaurant?.instagram);
     const [isOpen, setIsOpen] = useState(false);
+    const [loading, setLoading] = useState(false);
+    const { subscribeToPush, isPushEnabled, isPushSupported } = useDishTracking(); // Hook import
 
     const getInstagramUrl = () => {
         if (!restaurant) return null;
@@ -44,6 +51,63 @@ const SocialMenu: React.FC<SocialMenuProps> = ({ restaurant, onOpenOffer }) => {
         }
     };
 
+
+    // Rating State
+    const [ratingModalOpen, setRatingModalOpen] = useState(false);
+    const [currentRating, setCurrentRating] = useState<number | null>(null); // Local state to update immediately
+
+    const handleRatingSubmit = async (rating: number, comment: string) => {
+        try {
+            const visitorId = localStorage.getItem('visitor_id'); // Assuming this key
+            const sessionId = sessionStorage.getItem('session_id'); // Assuming this key or similar
+
+            if (!visitorId) {
+                console.warn('No visitor_id found for rating');
+                // Could generate one here if needed
+            }
+
+            const response = await fetch(`${import.meta.env.VITE_API_URL || 'https://visualtasteworker.franciscotortosaestudios.workers.dev'}/restaurants/${restaurant.slug}/rating`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    rating,
+                    comment,
+                    visitor_id: visitorId,
+                    session_id: sessionId
+                })
+            });
+
+            if (response.ok) {
+                console.log('Rating submitted successfully');
+                setCurrentRating(rating);
+                // Save to localStorage to avoid asking again if needed, but we wanted to allow re-rate for high scores.
+                localStorage.setItem(`rated_${restaurant.id}`, rating.toString());
+            }
+        } catch (error) {
+            console.error('Error submitting rating:', error);
+        }
+    };
+
+    // Determine effective rating (prop or local)
+    const effectiveRating = currentRating || restaurant.userStatus?.previousRating || (localStorage.getItem(`rated_${restaurant?.id}`) ? parseInt(localStorage.getItem(`rated_${restaurant?.id}`)!) : null);
+
+    // Hide star if rated <= 3 (per user request "ya no se volvera a activar")? 
+    // User said: "Si es mas de 3 estrellas ... ya no se volvera a activar". Wait.
+    // User Request: "Si es mas de 3 estrellas simplemente dara las gracias y ya no se volvera a activar. Si son 4 o 5 entonces te llevara a la pagina de google..."
+    // Wait, re-reading: "Si es mas de 3 estrellas simplemente dara las gracias y ya no se volvera a activar." -> Checks usage of "mas de 3". 
+    // "mas de 3" usually means > 3 (4, 5).
+    // Let's re-read carefully: "Si es mas de 3 estrellas simplemente dara las gracias y ya no se volvera a activar. Si son 4 o 5 entonces te llevara a la pagina de google".
+    // This is contradictory. "mas de 3" includes 4 and 5.
+    // Maybe they meant "mas de 3 (bad logic) OR menos de 3?".
+    // Let's look at the second request: "Permite que pueda volver a calificar si ha puesto 5 o mas, si ha puesto 3 estrellas que no le permita redirigirlos."
+    // OK, Current logic:
+    // <= 3: Thanks & Done. ("ya no se volvera a activar" -> Hide icon?)
+    // >= 4: Google Redirect. Allow Re-rate.
+
+    const shouldShowStar = !effectiveRating || effectiveRating >= 4;
+
     return (
         <Box
             sx={{
@@ -65,7 +129,7 @@ const SocialMenu: React.FC<SocialMenuProps> = ({ restaurant, onOpenOffer }) => {
                     '&:hover': { bgcolor: 'rgba(0,0,0,0.8)' }
                 }}
             >
-                <MenuIcon />
+                {isOpen ? <Close /> : <MenuIcon />}
             </IconButton>
 
             <AnimatePresence>
@@ -88,6 +152,46 @@ const SocialMenu: React.FC<SocialMenuProps> = ({ restaurant, onOpenOffer }) => {
                                 border: '1px solid rgba(255,255,255,0.1)'
                             }}
                         >
+                            {/* Reservations */}
+                            {reservationsEnabled && onOpenReservation && (
+                                <IconButton
+                                    size="small"
+                                    onClick={() => {
+                                        onOpenReservation();
+                                        setIsOpen(false);
+                                    }}
+                                    sx={{
+                                        color: '#fff',
+                                        '&:hover': {
+                                            transform: 'scale(1.1)',
+                                            color: '#69F0AE'
+                                        }
+                                    }}
+                                >
+                                    <EventAvailable fontSize="small" />
+                                </IconButton>
+                            )}
+
+                            {/* Rating Star */}
+                            {shouldShowStar && (
+                                <IconButton
+                                    size="small"
+                                    onClick={() => {
+                                        setRatingModalOpen(true);
+                                        setIsOpen(false);
+                                    }}
+                                    sx={{
+                                        color: effectiveRating && effectiveRating >= 4 ? '#FFD700' : 'white', // Gold if high rating
+                                        '&:hover': {
+                                            transform: 'scale(1.1)',
+                                            color: '#FFD700'
+                                        }
+                                    }}
+                                >
+                                    <Star fontSize="small" />
+                                </IconButton>
+                            )}
+
                             {getInstagramUrl() && (
                                 <IconButton
                                     size="small"
@@ -103,6 +207,53 @@ const SocialMenu: React.FC<SocialMenuProps> = ({ restaurant, onOpenOffer }) => {
                                     }}
                                 >
                                     <Instagram fontSize="small" sx={{ color: 'inherit' }} />
+                                </IconButton>
+                            )}
+
+                            {/* Notifications Bell */}
+                            {isPushSupported && !isPushEnabled && (
+                                <IconButton
+                                    size="small"
+                                    disabled={loading}
+                                    onClick={async () => {
+                                        setLoading(true);
+                                        const result = await subscribeToPush();
+                                        setLoading(false);
+
+                                        if (result === 'success') {
+                                            alert('✅ Notificaciones activadas correctamente');
+                                        } else if (result === 'denied') {
+                                            alert('❌ Has bloqueado las notificaciones. Por favor, actívalas en la configuración del navegador.');
+                                        } else if (result === 'ios_prompt') {
+                                            // The prompt is handled by provider, no alert needed or maybe a hint
+                                        } else if (result === 'error') {
+                                            alert('❌ Error al activar las notificaciones. Inténtalo de nuevo.');
+                                        }
+                                    }}
+                                    sx={{
+                                        color: 'white',
+                                        '&:hover': {
+                                            color: '#FF4081',
+                                            transform: 'scale(1.1)'
+                                        },
+                                        opacity: loading ? 0.5 : 1
+                                    }}
+                                >
+                                    <Notifications fontSize="small" />
+                                </IconButton>
+                            )}
+                            {isPushEnabled && (
+                                <IconButton
+                                    size="small"
+                                    onClick={() => alert('✅ Las notificaciones están activadas. ¡Gracias!')}
+                                    sx={{
+                                        color: '#FFD700', // Gold to show it's active/premium
+                                        '&:hover': {
+                                            transform: 'scale(1.1)'
+                                        }
+                                    }}
+                                >
+                                    <NotificationsActive fontSize="small" />
                                 </IconButton>
                             )}
 
@@ -126,6 +277,14 @@ const SocialMenu: React.FC<SocialMenuProps> = ({ restaurant, onOpenOffer }) => {
                     </motion.div>
                 )}
             </AnimatePresence>
+
+            <RatingModal
+                open={ratingModalOpen}
+                onClose={() => setRatingModalOpen(false)}
+                onSubmit={handleRatingSubmit}
+                googleReviewUrl={restaurant?.google_review_url || restaurant?.details?.google_review_url}
+                previousRating={effectiveRating}
+            />
         </Box>
     );
 };

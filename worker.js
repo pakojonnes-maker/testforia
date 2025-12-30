@@ -8,17 +8,18 @@ import { handleMenuRequests } from './workerMenus.js';
 import { handleDishRequests } from './workerDishes.js';
 import { handleSectionRequests } from './workerSections.js';
 import { handleRestaurantRequests } from './workerRestaurants.js';
-import { handleReelsRequests } from './workerReels.js';
+import { handleReelsRequests, handleLoyaltyRequests } from './workerReels.js';
 import { handleMediaRequests } from './workerMedia.optimized.js';
 import { handleTracking } from './workerTracking.js';
 import { handleLandingRequests } from './workerLanding.js';
 import { handleLandingAdminRequests } from './workerLandingAdmin.js';
 import { handleMarketingRequests } from './workerMarketing.js';
+import { handleReservationRequests } from './workerReservations.js';
 
 
 const corsHeaders = {
     "Access-Control-Allow-Origin": "*",
-    "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS",
+    "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS, PATCH",
     "Access-Control-Allow-Headers": "Content-Type, Authorization"
 };
 
@@ -44,6 +45,8 @@ export default {
         try {
             const url = new URL(request.url);
             console.log(`[Worker] ${request.method} ${url.pathname}`);
+
+
 
             // ALÉRGENOS
             if (url.pathname === "/allergens") {
@@ -86,6 +89,10 @@ export default {
 
 
 
+            // RESERVATIONS
+            const reservationsResponse = await handleReservationRequests(request, env);
+            if (reservationsResponse) return reservationsResponse;
+
             // MEDIA
             const mediaResponse = await handleMediaRequests(request, env);
             if (mediaResponse) return mediaResponse;
@@ -93,6 +100,10 @@ export default {
             // REELS
             const reelsResponse = await handleReelsRequests(request, env);
             if (reelsResponse) return reelsResponse;
+
+            // LOYALTY (Client)
+            const loyaltyResponse = await handleLoyaltyRequests(request, env);
+            if (loyaltyResponse) return loyaltyResponse;
 
             // RESTAURANTES (ahora va DESPUÉS de landing)
             const restaurantResponse = await handleRestaurantRequests(request, env);

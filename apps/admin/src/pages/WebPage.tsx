@@ -11,22 +11,22 @@ import ReelsStyling from '../components/web/ReelsStyling';
 export default function WebPage() {
     const [activeTab, setActiveTab] = useState('sections');
 
-    // Styles for the tab navigation
+    // Styles for the tab navigation - Dark Theme
     const styles = {
-        tabsContainer: { display: 'flex', gap: '0.5rem', marginBottom: '2rem', borderBottom: '2px solid #E5E7EB', marginTop: '2rem' },
-        tab: { padding: '1rem 1.5rem', background: 'transparent', border: 'none', borderBottom: '2px solid transparent', fontSize: '1rem', fontWeight: '500', color: '#6B7280', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '-2px' },
+        tabsContainer: { display: 'flex', gap: '0.5rem', marginBottom: '2rem', borderBottom: '2px solid rgba(255, 255, 255, 0.1)', marginTop: '2rem' },
+        tab: { padding: '1rem 1.5rem', background: 'transparent', border: 'none', borderBottom: '2px solid transparent', fontSize: '1rem', fontWeight: '500', color: '#94a3b8', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '-2px' },
         tabActive: { color: '#3B82F6', borderBottom: '2px solid #3B82F6' },
         tabIcon: { fontSize: '1.25rem' },
-        content: { backgroundColor: 'white', borderRadius: '12px', padding: '2rem', boxShadow: '0 1px 3px rgba(0, 0, 0, 0.1)' },
+        content: { backgroundColor: '#1e293b', borderRadius: '12px', padding: '2rem', border: '1px solid rgba(255, 255, 255, 0.05)' },
     };
 
     return (
-        <Box sx={{ minHeight: '100vh', backgroundColor: '#f5f7fa', pb: 10 }}>
+        <Box sx={{ minHeight: '100vh', bgcolor: 'background.default', pb: 10 }}>
             <Container maxWidth="lg" sx={{ pt: 4, pb: 4 }}>
-                <Typography variant="h4" sx={{ fontWeight: 700, mb: 0.5 }}>
+                <Typography variant="h4" sx={{ fontWeight: 700, mb: 0.5, color: 'text.primary' }}>
                     Configuración Web
                 </Typography>
-                <Typography variant="body2" sx={{ color: '#666', mb: 2 }}>
+                <Typography variant="body2" sx={{ color: 'text.secondary', mb: 2 }}>
                     Gestiona tu landing page y el estilo de tus reels
                 </Typography>
 

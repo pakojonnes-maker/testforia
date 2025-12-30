@@ -47,6 +47,8 @@ interface RestaurantConfig {
   } | null;
   config: Record<string, any>;
   marketing?: any;
+  reservationsEnabled?: boolean;
+  translations?: Record<string, string>; // ✅ Global translations
 }
 
 export type ReelConfig = RestaurantConfig;
@@ -89,7 +91,9 @@ async function fetchReelsData(slug: string, language = 'es'): Promise<Restaurant
     languages: data.languages,
     template: data.template,
     config: data.config || {},
-    marketing: data.marketing // ✅ Include marketing data
+    marketing: data.marketing, // ✅ Include marketing data
+    reservationsEnabled: data.reservationsEnabled, // ✅ Include reservations status
+    translations: data.translations // ✅ Include global translations
   };
 }
 

@@ -31,14 +31,16 @@ import {
 import { useAuth } from '../contexts/AuthContext';
 import { apiClient } from '../lib/apiClient';
 
-// Components
+// Components - Updated imports
 import SummaryKPIs from '../components/analytics/SummaryKPIs';
 import TimeSeriesChart from '../components/analytics/TimeSeriesChart';
-import DeviceBreakdown from '../components/analytics/DeviceBreakdown';
 import HourlyTrafficChart from '../components/analytics/HourlyTrafficChart';
 import CartAnalytics from '../components/analytics/CartAnalytics';
+import TopDishesChart from '../components/analytics/TopDishesChart';
+import ConversionFunnel from '../components/analytics/ConversionFunnel';
+import TopCitiesChart from '../components/analytics/TopCitiesChart';
 
-// New Tabs
+// Tabs
 import DishesTab from '../components/analytics/DishesTab';
 import SectionsTab from '../components/analytics/SectionsTab';
 import SessionsTab from '../components/analytics/SessionsTab';
@@ -63,8 +65,8 @@ export default function AnalyticsPage() {
   const { currentRestaurant } = useAuth();
   const restaurantId = currentRestaurant?.id;
 
-  const [timeRange, setTimeRange] = useState<TimeRange>('week');
-  const [activeTab, setActiveTab] = useState<TabValue>('dishes');
+  const [timeRange, setTimeRange] = useState<TimeRange>('today');
+  const [activeTab, setActiveTab] = useState<TabValue>('kpis');
 
   // Query principal para KPIs y resumen (se mantiene para la tab de KPIs)
   const { data, isLoading, error } = useQuery({
@@ -184,34 +186,53 @@ export default function AnalyticsPage() {
   );
 }
 
-// ==================== KPI TAB (Agrupada) ====================
+// ==================== KPI TAB (Rediseñada) ====================
 
 function KPIsTab({ data, timeRange }: any) {
+  // Prepare funnel data
+  const funnelData = {
+    totalSessions: data.summary?.totalSessions || data.summary?.total_sessions || 0,
+    dishViews: data.summary?.dishViews || data.summary?.dish_views || 0,
+    favorites: data.summary?.favorites || 0,
+    cartItems: data.cartMetrics?.total_items_added || 0,
+  };
+
   return (
     <Grid container spacing={3}>
-      {/* 1. Resumen Principal (Top Cards) */}
+      {/* Row 1: Summary KPIs */}
       <Grid item xs={12}>
-        <SummaryKPIs data={data.summary} timeRange={timeRange} />
+        <SummaryKPIs
+          data={data.summary}
+          timeRange={timeRange}
+          cartMetrics={data.cartMetrics}
+        />
       </Grid>
 
-      {/* 2. Gráfico Temporal Principal */}
+      {/* Row 2: Evolución de Sesiones (8 cols) + Horas Pico (4 cols) */}
       <Grid item xs={12} lg={8}>
         <TimeSeriesChart data={data.timeseries} timeRange={timeRange} />
       </Grid>
-
-      {/* 3. Tráfico por Hora (Heatmap simplificado) */}
       <Grid item xs={12} lg={4}>
         <HourlyTrafficChart data={data.trafficByHour} />
       </Grid>
 
-      {/* 4. Analítica de Carrito (Ahora Real) */}
-      <Grid item xs={12} md={6}>
-        <CartAnalytics data={data.cartMetrics} />
+      {/* Row 3: Top Platos (4 cols) + Funnel de Conversión (4 cols) + Top Ciudades (4 cols) */}
+      <Grid item xs={12} md={6} lg={4}>
+        <TopDishesChart dishes={data.topDishes || []} />
+      </Grid>
+      <Grid item xs={12} md={6} lg={4}>
+        <ConversionFunnel data={funnelData} />
+      </Grid>
+      <Grid item xs={12} md={6} lg={4}>
+        <TopCitiesChart
+          cities={data.breakdowns?.cities || []}
+          countries={data.breakdowns?.countries || []}
+        />
       </Grid>
 
-      {/* 5. Desglose de Dispositivos (Siempre útil) */}
-      <Grid item xs={12} md={6}>
-        <DeviceBreakdown breakdowns={data.breakdowns || {}} />
+      {/* Row 4: Cart Analytics (full width for prominence) */}
+      <Grid item xs={12}>
+        <CartAnalytics data={data.cartMetrics} />
       </Grid>
     </Grid>
   );

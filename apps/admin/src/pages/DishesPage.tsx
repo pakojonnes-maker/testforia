@@ -6,6 +6,7 @@ import { apiClient } from '../lib/apiClient'; // import nombrado para evitar err
 import { useTheme } from '@mui/material/styles';
 import useMediaQuery from '@mui/material/useMediaQuery';
 import MultimediaTab from '../components/media/MultimediaTab';
+import MenuManagementTab from '../components/menu/MenuManagementTab';
 
 
 
@@ -562,36 +563,13 @@ export default function DishesPage() {
 
       {/* Tab 1: Header Gestionar Menú */}
       {currentTab === 1 && (
-        <Box sx={{
-          display: 'flex', flexDirection: { xs: 'column', sm: 'row' },
-          justifyContent: 'space-between', alignItems: { xs: 'stretch', sm: 'center' }, mb: 3, gap: 2,
-        }}>
-          <Typography variant="h5" component="h1" sx={{ fontWeight: 600 }}>
+        <Box sx={{ mb: 2 }}>
+          <Typography variant="h5" component="h1" sx={{ fontWeight: 600, mb: 1 }}>
             Gestión de menú
           </Typography>
-          <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
-            <Button
-              variant="outlined"
-              color="inherit"
-              startIcon={<CloseIcon />}
-              onClick={() => {
-                setSectionOrderMode(false);
-                setHasSectionOrderChanges(false);
-                setCurrentTab(0);
-              }}
-            >
-              Cancelar
-            </Button>
-            <Button
-              variant="contained"
-              color="primary"
-              startIcon={saveSectionOrderMutation.isPending ? <CircularProgress size={18} color="inherit" /> : <SaveIcon />}
-              onClick={handleSaveSectionOrder}
-              disabled={!hasSectionOrderChanges || saveSectionOrderMutation.isPending}
-            >
-              {saveSectionOrderMutation.isPending ? 'Guardando...' : 'Guardar orden'}
-            </Button>
-          </Box>
+          <Typography variant="body2" color="text.secondary">
+            Organiza tus menús, secciones y platos
+          </Typography>
         </Box>
       )}
 
@@ -675,32 +653,9 @@ export default function DishesPage() {
         </Paper>
       )}
 
-      {/* Contenido principal */}
-      {currentTab === 1 && (
-        <>
-          <Alert severity="info" sx={{ mb: 3 }}>
-            <AlertTitle>Gestión de menú</AlertTitle>
-            Arrastra platos para reorganizarlos dentro de cada sección o muévelos a otra sección soltándolos sobre su cabecera.
-            <Button size="small" startIcon={<InfoIcon />} onClick={() => setShowQuickHelp(true)} sx={{ ml: 1 }}>
-              Ver ayuda
-            </Button>
-          </Alert>
-
-          <Box sx={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-            {sections.map((section: any) => (
-              <DishOrderSection
-                key={section.id}
-                section={section}
-                dishes={sectionDishes[section.id] || []}
-                onMoveDish={(index, direction) => moveDish(section.id, index, direction)}
-                onEditDish={handleEditDish}
-                onDeleteDish={handleOpenDeleteDialog}
-                isMobile={isMobile}
-                isUpdating={saveSectionOrderMutation.isPending}
-              />
-            ))}
-          </Box>
-        </>
+      {/* Contenido Tab 1: Gestión de Menú */}
+      {currentTab === 1 && restaurantId && (
+        <MenuManagementTab restaurantId={restaurantId} />
       )}
 
       {currentTab === 0 && (

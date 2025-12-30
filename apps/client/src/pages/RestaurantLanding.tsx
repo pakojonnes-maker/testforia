@@ -115,10 +115,10 @@ function RestaurantLandingContent({ slug }: { slug: string }) {
   const headerSection = activeSections.find((s: any) => s.section_key === 'header');
 
   return (
-    <Box sx={{ 
-      position: 'relative', 
-      minHeight: '100vh', 
-      backgroundColor: theme?.accent_color || theme?.background_color || '#fff',
+    <Box sx={{
+      position: 'relative',
+      minHeight: '100vh',
+      backgroundColor: theme?.background_color || theme?.primary_color || '#fff',
       backgroundImage: 'url(https://visualtasteworker.franciscotortosaestudios.workers.dev/media/System/landing/patron.png)',
       backgroundRepeat: 'repeat',
       backgroundSize: '300px' // Adjust size as needed

@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect, useMemo, useCallback } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useForm, Controller } from 'react-hook-form';
@@ -34,7 +34,6 @@ import {
   CircularProgress,
   Tooltip,
   Avatar,
-  Stack,
 } from '@mui/material';
 import {
   Save as SaveIcon,
@@ -48,12 +47,15 @@ import {
 // Esquema de validación con Zod - SOLO campos básicos
 const dishSchema = z.object({
   // Campos básicos
+  price: z.number().min(0, 'El precio debe ser mayor o igual a 0'),
   status: z.enum(['active', 'out_of_stock', 'seasonal', 'hidden']),
   is_vegetarian: z.boolean().default(false),
   is_vegan: z.boolean().default(false),
   is_gluten_free: z.boolean().default(false),
   is_new: z.boolean().default(false),
   is_featured: z.boolean().default(false),
+  has_half_portion: z.boolean().default(false),
+  half_price: z.number().optional(),
 
   // Traducciones básicas (solo español)
   translations: z.object({
@@ -62,7 +64,10 @@ const dishSchema = z.object({
     }),
     description: z.object({
       es: z.string()
-    })
+    }),
+    ingredients: z.object({
+      es: z.string().optional()
+    }).optional()
   }),
 
   // Relaciones
@@ -95,7 +100,7 @@ export default function DishFormPage() {
     error: dishError,
   } = useQuery({
     queryKey: ['dish', id],
-    queryFn: () => apiClient.getDish(id),
+    queryFn: () => apiClient.getDish(id!),
     enabled: isEditMode && !!restaurantId,
   });
 
@@ -104,7 +109,7 @@ export default function DishFormPage() {
     isLoading: isLoadingSections
   } = useQuery({
     queryKey: ['sections', restaurantId],
-    queryFn: () => apiClient.getSections(restaurantId),
+    queryFn: () => apiClient.getSections(restaurantId!),
     enabled: !!restaurantId,
   });
 
@@ -126,15 +131,19 @@ export default function DishFormPage() {
   } = useForm<DishFormData>({
     resolver: zodResolver(dishSchema),
     defaultValues: {
+      price: 0,
       status: 'active',
       is_vegetarian: false,
       is_vegan: false,
       is_gluten_free: false,
       is_new: false,
       is_featured: false,
+      has_half_portion: false,
+      half_price: undefined,
       translations: {
         name: { es: '' },
-        description: { es: '' }
+        description: { es: '' },
+        ingredients: { es: '' }
       },
       section_ids: [],
       allergen_ids: [],
@@ -144,15 +153,19 @@ export default function DishFormPage() {
   // Cuando el plato se carga (en modo edición), actualizar el formulario
   useEffect(() => {
     if (dish && isEditMode) {
+      setValue('price', dish.price);
       setValue('status', dish.status);
       setValue('is_vegetarian', dish.is_vegetarian);
       setValue('is_vegan', dish.is_vegan);
       setValue('is_gluten_free', dish.is_gluten_free);
       setValue('is_new', dish.is_new);
       setValue('is_featured', dish.is_featured);
+      setValue('has_half_portion', dish.has_half_portion);
+      setValue('half_price', dish.half_price);
       setValue('translations', {
         name: { es: dish.translations?.name?.es || '' },
-        description: { es: dish.translations?.description?.es || '' }
+        description: { es: dish.translations?.description?.es || '' },
+        ingredients: { es: dish.translations?.ingredients?.es || '' }
       });
       setValue('section_ids', dish.section_ids || []);
       setValue('allergen_ids', dish.allergens?.map(a => a.id) || []);
@@ -167,7 +180,7 @@ export default function DishFormPage() {
         restaurant_id: restaurantId
       };
 
-      if (isEditMode) {
+      if (isEditMode && id) {
         return apiClient.updateDish(id, dishData);
       } else {
         return apiClient.createDish(dishData);
@@ -185,8 +198,8 @@ export default function DishFormPage() {
         severity: 'success'
       });
 
-      if (!isEditMode && response?.dishId) {
-        navigate(`/dishes/${response.dishId}`);
+      if (!isEditMode && (response as any)?.dishId) {
+        navigate(`/dishes/${(response as any).dishId}`);
       }
     },
     onError: (error: any) => {
@@ -202,7 +215,7 @@ export default function DishFormPage() {
   // Mutación para eliminar el plato
   const deleteMutation = useMutation({
     mutationFn: () => {
-      return apiClient.deleteDish(id, restaurantId);
+      return apiClient.deleteDish(id!, restaurantId!);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['dishes', restaurantId] });
@@ -342,6 +355,89 @@ export default function DishFormPage() {
             />
           </Grid>
 
+          {/* Precio y Media Ración */}
+          <Grid item xs={12} sm={6}>
+            <Box sx={{ display: 'flex', gap: 2, alignItems: 'flex-start' }}>
+              <Controller
+                name="price"
+                control={control}
+                rules={{ required: 'El precio es obligatorio', min: 0 }}
+                render={({ field }) => (
+                  <TextField
+                    {...field}
+                    label="Precio (€)"
+                    type="number"
+                    variant="outlined"
+                    fullWidth
+                    required
+                    size={isMobile ? "small" : "medium"}
+                    error={!!(errors as any).price}
+                    helperText={(errors as any).price?.message}
+                    onChange={(e) => field.onChange(parseFloat(e.target.value))}
+                    InputProps={{ inputProps: { min: 0, step: 0.1 } }}
+                  />
+                )}
+              />
+
+              <Controller
+                name="has_half_portion"
+                control={control}
+                render={({ field }) => (
+                  <FormControlLabel
+                    control={
+                      <Switch
+                        checked={field.value}
+                        onChange={(e) => {
+                          field.onChange(e.target.checked);
+                          if (!e.target.checked) {
+                            setValue('half_price', 0); // Use 0 or appropriate value instead of undefined if strict
+                          }
+                        }}
+                        color="primary"
+                      />
+                    }
+                    label={
+                      <Box>
+                        <Typography variant="body2" sx={{ fontWeight: 500 }}>Media Ración</Typography>
+                        <Typography variant="caption" color="text.secondary">Habilitar</Typography>
+                      </Box>
+                    }
+                    sx={{ ml: 1 }}
+                  />
+                )}
+              />
+            </Box>
+
+            {/* Precio Media Ración (Condicional) */}
+            {watch('has_half_portion') && (
+              <Box sx={{ mt: 2 }}>
+                <Controller
+                  name="half_price"
+                  control={control}
+                  rules={{
+                    required: watch('has_half_portion') ? 'El precio de media ración es obligatorio' : false,
+                    min: 0
+                  }}
+                  render={({ field }) => (
+                    <TextField
+                      {...field}
+                      label="Precio Media Ración (€)"
+                      type="number"
+                      variant="outlined"
+                      fullWidth
+                      required
+                      size={isMobile ? "small" : "medium"}
+                      error={!!errors.half_price}
+                      helperText={errors.half_price?.message}
+                      onChange={(e) => field.onChange(parseFloat(e.target.value))}
+                      InputProps={{ inputProps: { min: 0, step: 0.1 } }}
+                    />
+                  )}
+                />
+              </Box>
+            )}
+          </Grid>
+
           {/* Secciones */}
           <Grid item xs={12} sm={6}>
             <Controller
@@ -426,6 +522,27 @@ export default function DishFormPage() {
                   error={!!errors.translations?.description?.es}
                   helperText={errors.translations?.description?.es?.message}
                   placeholder="Añade una descripción detallada del plato"
+                />
+              )}
+            />
+          </Grid>
+
+          {/* Ingredientes en español */}
+          <Grid item xs={12}>
+            <Controller
+              name="translations.ingredients.es"
+              control={control}
+              render={({ field }) => (
+                <TextField
+                  {...field}
+                  label="Ingredientes"
+                  variant="outlined"
+                  fullWidth
+                  multiline
+                  rows={2}
+                  size={isMobile ? "small" : "medium"}
+                  placeholder="Lista de ingredientes (ej. Tomate, Lechuga, Cebolla)"
+                  helperText="Se mostrará en la ficha del plato si se rellena"
                 />
               )}
             />

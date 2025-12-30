@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useRef, useMemo } from 'react';
 import { Box, Typography } from '@mui/material';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Restaurant } from '@mui/icons-material';
+import { useTranslation } from '../../../../contexts/TranslationContext';
 
 interface Section {
   id: string;
@@ -30,6 +31,7 @@ const SectionBar: React.FC<SectionBarProps> = ({
   config,
 
 }) => {
+  const { t } = useTranslation();
   const scrollRef = useRef<HTMLDivElement>(null);
 
   const themeColors = useMemo(() => ({
@@ -38,6 +40,21 @@ const SectionBar: React.FC<SectionBarProps> = ({
     text: config?.restaurant?.branding?.text_color || '#FFFFFF',
     background: config?.restaurant?.branding?.background_color || '#000000'
   }), [config]);
+
+
+  const hexToRgba = (hex: string, alpha = 1) => {
+    let r = 0, g = 0, b = 0;
+    if (hex.length === 4) {
+      r = parseInt("0x" + hex[1] + hex[1]);
+      g = parseInt("0x" + hex[2] + hex[2]);
+      b = parseInt("0x" + hex[3] + hex[3]);
+    } else if (hex.length === 7) {
+      r = parseInt("0x" + hex[1] + hex[2]);
+      g = parseInt("0x" + hex[3] + hex[4]);
+      b = parseInt("0x" + hex[5] + hex[6]);
+    }
+    return `rgba(${r},${g},${b},${alpha})`;
+  };
 
   const getSectionIconUrl = useCallback((section: Section) => {
     const API_URL = import.meta.env.VITE_API_URL || "https://visualtasteworker.franciscotortosaestudios.workers.dev";
@@ -51,8 +68,8 @@ const SectionBar: React.FC<SectionBarProps> = ({
   }, []);
 
   const getSectionName = useCallback((section: Section) => {
-    return section.name || 'Sección';
-  }, []);
+    return section.name || t('default_section_name', 'Sección');
+  }, [t]);
 
   const handleSectionClick = useCallback((index: number) => {
     console.log(`🔥 [SectionBar] Click en sección ${index}, actual: ${currentSectionIndex}`);
@@ -149,7 +166,7 @@ const SectionBar: React.FC<SectionBarProps> = ({
         left: 0,
         right: 0,
         zIndex: 1000,
-        background: 'linear-gradient(180deg, transparent 0%, rgba(0, 0, 0, 0.3) 20%, rgba(0, 0, 0, 0.6) 100%)',
+        background: `linear-gradient(180deg, transparent 0%, ${hexToRgba(themeColors.background, 0.3)} 20%, ${hexToRgba(themeColors.background, 0.8)} 100%)`,
         backdropFilter: 'blur(16px)',
         WebkitBackdropFilter: 'blur(16px)',
         borderTop: '1px solid rgba(255, 255, 255, 0.08)',

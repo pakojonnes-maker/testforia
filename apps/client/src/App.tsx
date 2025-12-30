@@ -1,15 +1,21 @@
-// apps/client/src/App.tsx - OPTIMIZADO PARA TEMPLATES
-import React, { useEffect, useState, useMemo } from 'react';
+// apps/client/src/App.tsx - OPTIMIZADO: Lazy Loading & Subdomains
+import React, { useEffect, useState, useMemo, Suspense } from 'react';
 import { useLocation } from 'react-router-dom';
 import { CssBaseline, ThemeProvider, createTheme, Box, CircularProgress, Typography } from '@mui/material';
 import { apiClient } from './lib/apiClient';
 import { TrackingAndPushProvider } from './providers/TrackingAndPushProvider';
-import HomePage from './pages/HomePage';
-import ReelsView from './pages/ReelsView';
-import RestaurantLanding from './pages/RestaurantLanding';
-import NotFoundPage from './pages/NotFoundPage';
-import PrivacyPolicyPage from './pages/PrivacyPolicyPage'; // ✅ Import
+import { SplashScreen } from './components/ui/SplashScreen';
+import { CookieConsentBanner } from './components/ui/CookieConsentBanner';
 import '@fontsource-variable/fraunces/index.css'
+
+// ✅ Lazy Loading para Code Splitting (Mejora masiva de performance)
+const HomePage = React.lazy(() => import('./pages/HomePage'));
+const ReelsView = React.lazy(() => import('./pages/ReelsView'));
+const RestaurantLanding = React.lazy(() => import('./pages/RestaurantLanding'));
+const NotFoundPage = React.lazy(() => import('./pages/NotFoundPage'));
+const PrivacyPolicyPage = React.lazy(() => import('./pages/PrivacyPolicyPage'));
+const ReservePage = React.lazy(() => import('./pages/ReservePage'));
+const LoyaltyPage = React.lazy(() => import('./pages/LoyaltyPage').then(module => ({ default: module.LoyaltyPage })));
 
 // ✅ Tema personalizado adaptable
 const createCustomTheme = (primaryColor?: string, secondaryColor?: string) => createTheme({
@@ -24,25 +30,15 @@ const createCustomTheme = (primaryColor?: string, secondaryColor?: string) => cr
   },
 });
 
-// ✅ Context para datos del restaurante
-interface RestaurantData {
-  restaurant: any;
-  sections: any[];
-  dishesBySection: any;
-  languages: any[];
-  reelsConfig?: any;
-}
+import { RestaurantProvider } from './contexts/RestaurantContext';
+import type { RestaurantData } from './contexts/RestaurantContext';
 
-const RestaurantContext = React.createContext<RestaurantData | null>(null);
-
-// Hook para usar datos del restaurante
-export const useRestaurant = () => {
-  const context = React.useContext(RestaurantContext);
-  if (!context) {
-    throw new Error('useRestaurant debe usarse dentro de RestaurantContext.Provider');
-  }
-  return context;
-};
+// Loader Global para Suspense
+const GlobalLoader = () => (
+  <Box display="flex" justifyContent="center" alignItems="center" height="100vh" bgcolor="#000">
+    <CircularProgress sx={{ color: '#9c27b0' }} />
+  </Box>
+);
 
 // ✅ COMPONENTE PRINCIPAL
 function App() {
@@ -51,55 +47,73 @@ function App() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  // Extraer slug de cualquier ruta
-  const slug = useMemo(() => {
+  // ✅ 1. Detectar Subdominio y Slug
+  const { isMenuDomain, slug, isLegacyReels } = useMemo(() => {
+    const hostname = window.location.hostname;
+    // Detectar si estamos en menu.visualtaste.com (o equivalentes locales/staging)
+    const isMenuDomain = hostname.startsWith('menu.');
+
     const path = location.pathname;
+    let slug: string | null = null;
+    let isLegacyReels = false;
 
-    if (path === '/') return null;
-    if (path.startsWith('/legal/')) return null; // ✅ Ignorar slug para legal
-
-    // Formato nuevo: /yucas, /yucas/r
-    const newFormatMatch = path.match(/^\/([^\/]+)/);
-    if (newFormatMatch && !path.startsWith('/r/')) {
-      return newFormatMatch[1];
+    // Lógica para extraer slug
+    if (path === '/') {
+      slug = null;
+    } else if (path.startsWith('/legal/')) {
+      slug = null;
+    } else if (path.startsWith('/reserve/')) {
+      slug = path.split('/')[2];
+    } else if (path.startsWith('/r/')) {
+      // Legacy Format: /r/slug
+      isLegacyReels = true;
+      slug = path.split('/')[2];
+    } else {
+      // Standard Format: /slug
+      const matches = path.match(/^\/([^\/]+)/);
+      if (matches) slug = matches[1];
     }
 
-    // Formato viejo: /r/yucas
-    const oldFormatMatch = path.match(/^\/r\/([^\/]+)/);
-    if (oldFormatMatch) {
-      return oldFormatMatch[1];
-    }
-
-    return null;
+    return { isMenuDomain, slug, isLegacyReels };
   }, [location.pathname]);
 
-  // Determinar qué página mostrar
+  // ✅ 2. Determinar qué página mostrar
   const currentPage = useMemo(() => {
     const path = location.pathname;
 
-    if (path === '/') return 'home';
-    if (path.startsWith('/legal/privacy')) return 'privacy'; // ✅ Detectar pagina legal
+    if (path === '/' && !isMenuDomain) return 'home'; // Home solo en dominio principal
+    if (path.startsWith('/legal/privacy')) return 'privacy';
+    if (path.startsWith('/reserve/')) return 'reserve';
+    if (path.startsWith('/loyalty/') || path.startsWith('/l/') || path.match(/^\/[^/]+\/loyalty/)) return 'loyalty';
+
     if (!slug) return 'notfound';
 
-    // Si tiene /r al final o formato viejo con /r/
-    if (path.endsWith('/r') || path.includes('/r/') || path.includes('/section/') || path.includes('/dish/')) {
+    // REGLAS DE ENRUTAMIENTO:
+
+    // Caso A: Dominio "menu." -> SIEMPRE muestra Reels (Menu)
+    if (isMenuDomain) {
       return 'reels';
     }
 
-    // Si solo es el slug, mostrar landing
+    // Caso B: Ruta Legacy "/r/" -> SIEMPRE muestra Reels
+    if (isLegacyReels || path.includes('/section/') || path.includes('/dish/')) {
+      return 'reels';
+    }
+
+    // Caso C: Default en dominio principal -> LANDING (Marketing)
     return 'landing';
-  }, [location.pathname, slug]);
+  }, [location.pathname, slug, isMenuDomain, isLegacyReels]);
 
   // ⭐ Cargar datos del restaurante SOLO para REELS
   useEffect(() => {
-    // ✅ Si no hay slug O si es landing O legal, NO cargar datos aquí
-    if (!slug || currentPage === 'landing' || currentPage === 'privacy') {
+    // Si no es página de reels ni de reservas, no cargamos datos pesados
+    if ((currentPage !== 'reels' && currentPage !== 'reserve') || !slug) {
       setRestaurantData(null);
       setLoading(false);
       return;
     }
 
-    // ✅ Solo cargar para REELS
+    // Cargar datos para el menú
     let isMounted = true;
 
     async function loadRestaurant() {
@@ -107,14 +121,14 @@ function App() {
         setLoading(true);
         setError(null);
 
-        console.log('🚀 [App] Cargando restaurante para REELS:', slug);
+        console.log('🚀 [App] Cargando menú para:', slug);
 
         const result = await apiClient.getRestaurantReelsData(slug!);
 
         if (!isMounted) return;
 
         if (result?.restaurant) {
-          console.log('✅ [App] Restaurante cargado:', result.restaurant.name);
+          console.log('✅ [App] Datos cargados:', result.restaurant.name);
 
           setRestaurantData({
             ...result,
@@ -126,133 +140,107 @@ function App() {
 
       } catch (err) {
         if (!isMounted) return;
-
         const message = err instanceof Error ? err.message : 'Error desconocido';
         console.error('❌ [App] Error:', message);
         setError(message);
         setRestaurantData(null);
       } finally {
-        if (isMounted) {
-          setLoading(false);
-        }
+        if (isMounted) setLoading(false);
       }
     }
 
     loadRestaurant();
 
-    return () => {
-      isMounted = false;
-    };
-  }, [slug, currentPage]); // ← Añadido currentPage como dependencia
+    return () => { isMounted = false; };
+  }, [slug, currentPage]);
 
-  // ✅ Tema dinámico basado en config de reels
+  // ✅ Tema dinámico
   const theme = useMemo(() => {
     const primaryColor = restaurantData?.reelsConfig?.colors?.primary;
     const secondaryColor = restaurantData?.reelsConfig?.colors?.secondary;
     return createCustomTheme(primaryColor, secondaryColor);
   }, [restaurantData?.reelsConfig]);
 
-  // ✅ RENDERIZADO OPTIMIZADO
+  // ✅ RENDERIZADO OPTIMIZADO CON SUSPENSE
   const renderContent = () => {
-    // Página de inicio
-    if (currentPage === 'home') {
-      return <HomePage />;
-    }
+    return (
+      <Suspense fallback={<GlobalLoader />}>
+        {_renderPageContent()}
+      </Suspense>
+    );
+  };
 
-    // ✅ Página de Privacidad
-    if (currentPage === 'privacy') {
-      return <PrivacyPolicyPage />;
-    }
-
-    // Not found
-    if (currentPage === 'notfound') {
-      return <NotFoundPage />;
-    }
-
+  const _renderPageContent = () => {
+    if (currentPage === 'home') return <HomePage />;
+    if (currentPage === 'privacy') return <PrivacyPolicyPage />;
+    if (currentPage === 'notfound') return <NotFoundPage />;
 
     if (currentPage === 'landing') {
       console.log('🏠 [App] Renderizando LANDING para:', slug);
       return <RestaurantLanding slugProp={slug || undefined} />;
     }
-    // ✅ REELS - Necesita loading y context
-    if (loading) {
+
+    if (currentPage === 'reserve') {
+      if (loading) return <GlobalLoader />;
+      if (error || !restaurantData?.restaurant) return <NotFoundPage />;
+
       return (
-        <Box
-          display="flex"
-          flexDirection="column"
-          alignItems="center"
-          justifyContent="center"
-          minHeight="100vh"
-          bgcolor="#000"
-          color="#fff"
-        >
-          <CircularProgress size={60} sx={{ color: '#9c27b0', mb: 2 }} />
-          <Typography variant="h6">Cargando {slug}...</Typography>
-        </Box>
+        <RestaurantProvider value={restaurantData}>
+          <TrackingAndPushProvider restaurantId={restaurantData.restaurant.id}>
+            <ReservePage />
+            <CookieConsentBanner />
+          </TrackingAndPushProvider>
+        </RestaurantProvider>
       );
     }
+
+    if (currentPage === 'loyalty') {
+      return <LoyaltyPage />;
+    }
+
+    // --- LOGICA REELS VIEW ---
+    // Note: We don't return GlobalLoader here if loading is true, 
+    // because we want the content to be ready behind the splash screen.
+    // However, if we return null, the splash screen covers it.
+    if (loading) return <GlobalLoader />;
 
     if (error || !restaurantData?.restaurant) {
       return (
-        <Box
-          display="flex"
-          flexDirection="column"
-          alignItems="center"
-          justifyContent="center"
-          minHeight="100vh"
-          bgcolor="#000"
-          color="#fff"
-          p={3}
-        >
-          <Typography variant="h4" color="error" gutterBottom>
-            ⚠️ Error
-          </Typography>
-          <Typography variant="body1" color="textSecondary" gutterBottom align="center">
-            {error || `Restaurante "${slug}" no encontrado`}
-          </Typography>
-          <button
-            onClick={() => window.location.reload()}
-            style={{
-              marginTop: '16px',
-              padding: '12px 24px',
-              backgroundColor: '#9c27b0',
-              color: 'white',
-              border: 'none',
-              borderRadius: '8px',
-              cursor: 'pointer',
-              fontSize: '16px',
-              fontWeight: 600
-            }}
-          >
-            🔄 Reintentar
-          </button>
+        <Box display="flex" flexDirection="column" alignItems="center" justifyContent="center" minHeight="100vh" bgcolor="#000" color="#fff" p={3}>
+          <Typography variant="h4" color="error" gutterBottom>⚠️ Error</Typography>
+          <Typography variant="body1" color="textSecondary" align="center">{error || `Restaurante "${slug}" no encontrado`}</Typography>
         </Box>
       );
     }
 
-    // ✅ REELS con tracking y context
-    console.log('🎬 [App] Renderizando REELS con tracking para:', slug);
-    console.log('🔍 [App] Datos para tracking:', {
-      restaurantId: restaurantData.restaurant.id,
-      restaurantName: restaurantData.restaurant.name,
-      restaurantSlug: restaurantData.restaurant.slug,
-      hasReelsConfig: !!restaurantData.reelsConfig
-    });
-
+    console.log('🎬 [App] Renderizando MENÚ DIGITAL para:', slug);
     return (
-      <RestaurantContext.Provider value={restaurantData}>
-        <TrackingAndPushProvider
-          restaurantId={restaurantData.restaurant.id}
-        >
+      <RestaurantProvider value={restaurantData}>
+        <TrackingAndPushProvider restaurantId={restaurantData.restaurant.id}>
           <ReelsView />
+          {!showSplash && <CookieConsentBanner />}
         </TrackingAndPushProvider>
-      </RestaurantContext.Provider>
+      </RestaurantProvider>
     );
   };
+
+  // State for Splash Screen
+  const [showSplash, setShowSplash] = useState(true);
+
+  // If loading is true, app is NOT ready.
+  // Exception: Landing page handles its own loading, so for 'landing' currentPage, loading is false in App.
+  // But we might want to show splash for landing too? 
+  // For now, respect App's loading state.
 
   return (
     <ThemeProvider theme={theme}>
       <CssBaseline />
+      {showSplash && (
+        <SplashScreen
+          isAppReady={!loading}
+          onComplete={() => setShowSplash(false)}
+        />
+      )}
       {renderContent()}
     </ThemeProvider>
   );

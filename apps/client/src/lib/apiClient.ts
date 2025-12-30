@@ -40,8 +40,32 @@ export interface Allergen {
   translations?: {
     name?: Record<string, string>;
   };
-  iconurl?: string;
   icon_url?: string;
+}
+
+export interface Dish {
+  id: string;
+  restaurant_id: string;
+  price: number;
+  status: 'active' | 'out_of_stock' | 'seasonal' | 'hidden';
+  calories?: number;
+  preparation_time?: number;
+  is_vegetarian: boolean;
+  is_vegan: boolean;
+  is_gluten_free: boolean;
+  is_new: boolean;
+  is_featured: boolean;
+  has_half_portion: boolean;
+  half_price?: number;
+  avg_rating?: number;
+  rating_count?: number;
+  translations?: {
+    name?: Record<string, string>;
+    description?: Record<string, string>;
+  };
+  media?: DishMedia[];
+  allergens?: Allergen[];
+  section_ids?: string[];
 }
 
 // ======================================================================
@@ -78,6 +102,7 @@ export const apiClient = {
       ispwa?: boolean;
       languages?: string;
       timezone?: string;
+      visitorId?: string;
     }) {
       console.log('🚀 [apiClient.tracking] Iniciando sesión:', sessionData);
 
@@ -291,8 +316,10 @@ export const apiClient = {
     console.log('🚀 [apiClient] Cargando datos de reels para:', slug);
 
     try {
-      // Usar el método del cliente base que ya funciona correctamente
-      const data = await baseApiClient.getRestaurantReelsData(slug);
+      // Usar endpoint directo para asegurar compatibilidad
+      const response = await baseApiClient.client.get(`/restaurants/${slug}/reels`);
+      const data = response.data;
+
       console.log('✅ [apiClient] Datos de reels obtenidos:', {
         restaurant: data.restaurant?.name || 'N/A',
         sections: data.sections?.length || 0,
@@ -302,6 +329,32 @@ export const apiClient = {
     } catch (error) {
       console.error('❌ [apiClient] Error obteniendo datos de reels:', error);
       throw error;
+    }
+  },
+
+  reservations: {
+    async getConfig(restaurantId: string) {
+      return (await baseApiClient.client.get(`/reservations/config/${restaurantId}`)).data;
+    },
+    async checkAvailability(restaurantId: string, date: string, partySize: number) {
+      const params = new URLSearchParams({
+        restaurant_id: restaurantId,
+        date,
+        party_size: partySize.toString()
+      });
+      return (await baseApiClient.client.get(`/reservations/availability?${params}`)).data;
+    },
+    async getCalendar(restaurantId: string, startDate?: string, endDate?: string) {
+      const params = new URLSearchParams({ restaurant_id: restaurantId });
+      if (startDate) params.append('start_date', startDate);
+      if (endDate) params.append('end_date', endDate);
+      return (await baseApiClient.client.get(`/reservations/availability/calendar?${params}`)).data;
+    },
+    async createReservation(data: any) {
+      return (await baseApiClient.client.post('/reservations', data)).data;
+    },
+    async joinWaitlist(data: any) {
+      return (await baseApiClient.client.post('/reservations/waitlist', data)).data;
     }
   },
 

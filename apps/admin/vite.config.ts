@@ -4,8 +4,9 @@ import path from 'path'
 
 // https://vitejs.dev/config/
 export default defineConfig({
+  base: '/',
   plugins: [react()],
-   optimizeDeps: {
+  optimizeDeps: {
     include: ['chart.js', 'react-chartjs-2']
   },
   resolve: {
@@ -13,7 +14,7 @@ export default defineConfig({
       '@': path.resolve(__dirname, './src'),
     },
   },
-    server: {
+  server: {
     force: true // Fuerza la reoptimización de dependencias
   }
 })

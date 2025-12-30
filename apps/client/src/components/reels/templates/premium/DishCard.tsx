@@ -16,6 +16,7 @@ import {
 import { useDishTracking } from '../../../../providers/TrackingAndPushProvider';
 import type { ReelConfig } from '../../../../hooks/useReelsConfig';
 
+
 interface DishCardProps {
   dish: any;
   restaurant: any;
@@ -48,6 +49,10 @@ const PremiumDishCard: React.FC<DishCardProps> = ({
   const [, setVideoLoaded] = useState(false);
   const [videoError, setVideoError] = useState(false);
 
+  // ✅ FIX: Refs for duration tracking to avoid closure issues
+  const viewStartTimeRef = useRef<number | null>(null);
+  const lastTrackedDishRef = useRef<string | null>(null);
+
   const branding = config.restaurant?.branding || {};
   const colors = {
     primary: branding.primary_color || branding.primaryColor || '#FF6B6B',
@@ -79,23 +84,39 @@ const PremiumDishCard: React.FC<DishCardProps> = ({
     }
   }, [isActive, inView, isVideo, videoError]);
 
+  // ✅ FIX: Unified view and duration tracking with refs
   useEffect(() => {
-    let startTime = Date.now();
+    const isCurrentlyViewing = isActive && inView && dish?.id;
 
-    if (isActive && inView && dish?.id) {
+    // Start tracking when dish becomes visible
+    if (isCurrentlyViewing && !viewStartTimeRef.current) {
       viewDish(dish.id, section?.id);
-      startTime = Date.now();
+      viewStartTimeRef.current = Date.now();
+      lastTrackedDishRef.current = dish.id;
     }
 
+    // Send duration when dish becomes invisible
+    if (!isCurrentlyViewing && viewStartTimeRef.current && lastTrackedDishRef.current) {
+      const duration = Math.floor((Date.now() - viewStartTimeRef.current) / 1000);
+      if (duration > 0) {
+        trackDishViewDuration(lastTrackedDishRef.current, duration, section?.id);
+      }
+      viewStartTimeRef.current = null;
+      lastTrackedDishRef.current = null;
+    }
+  }, [isActive, inView, dish?.id, section?.id, viewDish, trackDishViewDuration]);
+
+  // ✅ FIX: Cleanup on unmount only
+  useEffect(() => {
     return () => {
-      if (isActive && inView && dish?.id) {
-        const duration = Math.floor((Date.now() - startTime) / 1000);
+      if (viewStartTimeRef.current && lastTrackedDishRef.current) {
+        const duration = Math.floor((Date.now() - viewStartTimeRef.current) / 1000);
         if (duration > 0) {
-          trackDishViewDuration(dish.id, duration, section?.id);
+          trackDishViewDuration(lastTrackedDishRef.current, duration, section?.id);
         }
       }
     };
-  }, [isActive, inView, dish?.id, section?.id, viewDish, trackDishViewDuration]);
+  }, []);
 
   const handleFavorite = useCallback((e: React.MouseEvent) => {
     e.stopPropagation();
@@ -183,6 +204,9 @@ const PremiumDishCard: React.FC<DishCardProps> = ({
           }}
         />
       </Box>
+
+      {/* Visual Indicators */}
+
 
       {/* Action buttons with glassmorphism */}
       {showUI && (

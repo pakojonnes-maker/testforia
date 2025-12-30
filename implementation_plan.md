@@ -4,6 +4,28 @@
 1.  **Analítica Interna (VisualTaste):** Convertir el sistema actual en "Privacy-First" (Sin Cookies/Consentimiento) mediante anonimización robusta en el servidor.
 2.  **Cloudflare Analytics:** Integrar la medición de Cloudflare Web Analytics en el frontend para métricas de rendimiento y tráfico global.
 
+## Backend Endpoints (API)
+-   **GET /marketing/active**: Returns active campaigns (Welcome Modal, etc.) for a session.
+-   **POST /marketing/interact**: Track views/clicks.
+-   **POST /loyalty/scan** (Waiters QR):
+    -   Starts session attributed to waiter.
+    -   Returns the specific `scratch_win` campaign configured for the restaurant.
+-   **POST /loyalty/play**:
+    -   Logic to pick reward from `campaign_rewards`.
+-   **POST /loyalty/claim**:
+    -   Save contact to `campaign_claims`.
+    -   Return Magic Link.
+    -   **Response includes `google_review_url`**.
+
+### Admin Backend (`workerMarketing.js`)
+-   **GET /api/campaigns/:id/rewards**: List rewards.
+-   **POST /api/campaigns/:id/rewards**: Create/Update reward.
+-   **DELETE /api/rewards/:id**: Delete reward.
+-   **GET /api/staff/qrs**: List staff QRs.
+-   **POST /api/staff/assign-qr**: Create/Assign QR to staff.
+
+### Admin Panel (New)
+
 ## 1. Cloudflare Web Analytics (Frontend)
 Cloudflare Analytics es "privacy-first" por defecto y no usa cookies.
 - **Acción:** Insertar el script JS ligero en el `index.html` del cliente.

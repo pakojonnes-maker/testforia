@@ -104,7 +104,7 @@ export interface Section extends BaseEntity {
   icon_url?: string;
   bg_color?: string;
   translations?: Record<string, Record<string, string>>;
-    dishes?: Dish[]; // Añadir esta propiedad opcional
+  dishes?: Dish[]; // Añadir esta propiedad opcional
 }
 
 export interface Dish extends BaseEntity {
@@ -178,6 +178,8 @@ export interface User extends BaseEntity {
   auth_provider: string;
   preferred_language?: string;
   last_login?: string;
+  is_superadmin?: boolean;
+  restaurants?: Partial<Restaurant>[];
 }
 
 export interface RestaurantStaff extends BaseEntity {

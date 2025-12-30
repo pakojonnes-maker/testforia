@@ -4,18 +4,148 @@
 // Secure authentication worker for VisualTaste admin panel
 // Uses native Web Crypto API (PBKDF2) for password hashing
 // No external dependencies required - Copy & Paste ready
-const messageData = encoder.encode(data);
+// ===========================================================================
 
-const key = await crypto.subtle.importKey(
-    'raw',
-    keyData,
-    { name: 'HMAC', hash: 'SHA-256' },
-    false,
-    ['sign']
-);
+// ===========================================================================
+// CONFIGURATION
+// ===========================================================================
 
-const signature = await crypto.subtle.sign('HMAC', key, messageData);
-return base64UrlEncode(signature);
+export const JWT_SECRET = 'YOUR_SECRET_KEY_HERE_CHANGE_IN_PRODUCTION'; // ⚠️ CHANGE THIS!
+export const JWT_ALGORITHM = 'HS256';
+export const JWT_EXPIRATION = '7d'; // 7 days
+
+// Password Hashing Configuration
+const PBKDF2_ITERATIONS = 100000;
+const PBKDF2_SALT_SIZE = 16;
+const PBKDF2_HASH_ALGO = 'SHA-256';
+
+// ===========================================================================
+// PASSWORD UTILITIES (Native Web Crypto)
+// ===========================================================================
+
+/**
+ * Hash a password using PBKDF2
+ * @param {string} password 
+ * @returns {Promise<string>} Format: "salt_hex:hash_hex"
+ */
+async function hashPassword(password) {
+    const encoder = new TextEncoder();
+    const salt = crypto.getRandomValues(new Uint8Array(PBKDF2_SALT_SIZE));
+    const keyMaterial = await crypto.subtle.importKey(
+        'raw',
+        encoder.encode(password),
+        { name: 'PBKDF2' },
+        false,
+        ['deriveBits', 'deriveKey']
+    );
+
+    const hash = await crypto.subtle.deriveBits(
+        {
+            name: 'PBKDF2',
+            salt: salt,
+            iterations: PBKDF2_ITERATIONS,
+            hash: PBKDF2_HASH_ALGO
+        },
+        keyMaterial,
+        256
+    );
+
+    return `${buf2hex(salt)}:${buf2hex(hash)}`;
+}
+
+/**
+ * Verify a password against a stored hash
+ * @param {string} password - Plain text password
+ * @param {string} storedHash - Format: "salt_hex:hash_hex"
+ * @returns {Promise<boolean>}
+ */
+async function verifyPassword(password, storedHash) {
+    const [saltHex, originalHashHex] = storedHash.split(':');
+    if (!saltHex || !originalHashHex) return false;
+
+    const salt = hex2buf(saltHex);
+    const encoder = new TextEncoder();
+    const keyMaterial = await crypto.subtle.importKey(
+        'raw',
+        encoder.encode(password),
+        { name: 'PBKDF2' },
+        false,
+        ['deriveBits', 'deriveKey']
+    );
+
+    const hash = await crypto.subtle.deriveBits(
+        {
+            name: 'PBKDF2',
+            salt: salt,
+            iterations: PBKDF2_ITERATIONS,
+            hash: PBKDF2_HASH_ALGO
+        },
+        keyMaterial,
+        256
+    );
+
+    const newHashHex = buf2hex(hash);
+    return newHashHex === originalHashHex;
+}
+
+function buf2hex(buffer) {
+    return [...new Uint8Array(buffer)]
+        .map(x => x.toString(16).padStart(2, '0'))
+        .join('');
+}
+
+function hex2buf(hex) {
+    return new Uint8Array(
+        hex.match(/.{1,2}/g).map(byte => parseInt(byte, 16))
+    );
+}
+
+// ===========================================================================
+// JWT UTILITIES
+// ===========================================================================
+
+async function generateJWT(payload, secret) {
+    const header = { alg: JWT_ALGORITHM, typ: 'JWT' };
+    const expirationTime = Math.floor(Date.now() / 1000) + (7 * 24 * 60 * 60);
+    const jwtPayload = { ...payload, iat: Math.floor(Date.now() / 1000), exp: expirationTime };
+
+    const encodedHeader = base64UrlEncode(JSON.stringify(header));
+    const encodedPayload = base64UrlEncode(JSON.stringify(jwtPayload));
+    const signatureInput = `${encodedHeader}.${encodedPayload}`;
+
+    const signature = await signHMAC(signatureInput, secret);
+    return `${signatureInput}.${signature}`;
+}
+
+async function verifyJWT(token, secret) {
+    try {
+        const parts = token.split('.');
+        if (parts.length !== 3) return null;
+
+        const [encodedHeader, encodedPayload, signature] = parts;
+        const signatureInput = `${encodedHeader}.${encodedPayload}`;
+
+        const expectedSignature = await signHMAC(signatureInput, secret);
+        if (signature !== expectedSignature) return null;
+
+        const payload = JSON.parse(base64UrlDecode(encodedPayload));
+        if (payload.exp && payload.exp < Math.floor(Date.now() / 1000)) return null;
+
+        return payload;
+    } catch (error) {
+        return null;
+    }
+}
+
+async function signHMAC(data, secret) {
+    const encoder = new TextEncoder();
+    const keyData = encoder.encode(secret);
+    const messageData = encoder.encode(data);
+    const key = await crypto.subtle.importKey(
+        'raw', keyData, { name: 'HMAC', hash: 'SHA-256' }, false, ['sign']
+    );
+    const signature = await crypto.subtle.sign('HMAC', key, messageData);
+    return base64UrlEncode(signature);
 }
 
 function base64UrlEncode(data) {
@@ -62,7 +192,7 @@ async function handleLogin(request, env) {
         }
 
         const user = await env.DB.prepare(`
-      SELECT id, email, display_name, password_hash, photo_url
+      SELECT id, email, display_name, password_hash, photo_url, is_superadmin
       FROM users WHERE email = ? LIMIT 1
     `).bind(email).first();
 
@@ -83,18 +213,33 @@ async function handleLogin(request, env) {
             );
         }
 
-        const restaurants = await env.DB.prepare(`
-      SELECT r.id, r.name, r.slug, rs.role
-      FROM restaurant_staff rs
-      JOIN restaurants r ON rs.restaurant_id = r.id
-      WHERE rs.user_id = ? AND rs.is_active = TRUE
-      ORDER BY r.name ASC
-    `).bind(user.id).all();
+        let restaurants = [];
+        const isSuperAdmin = user.is_superadmin === 1;
+
+        if (isSuperAdmin) {
+            const allRestaurants = await env.DB.prepare(`
+                SELECT id, name, slug, 'owner' as role
+                FROM restaurants
+                WHERE is_active = TRUE
+                ORDER BY name ASC
+            `).all();
+            restaurants = allRestaurants.results;
+        } else {
+            const staffRestaurants = await env.DB.prepare(`
+                SELECT r.id, r.name, r.slug, rs.role
+                FROM restaurant_staff rs
+                JOIN restaurants r ON rs.restaurant_id = r.id
+                WHERE rs.user_id = ? AND rs.is_active = TRUE
+                ORDER BY r.name ASC
+            `).bind(user.id).all();
+            restaurants = staffRestaurants.results;
+        }
 
         const token = await generateJWT({
             userId: user.id,
             email: user.email,
-            restaurants: restaurants.results.map(r => r.id)
+            is_superadmin: isSuperAdmin,
+            restaurants: restaurants.map(r => r.id)
         }, JWT_SECRET);
 
         await env.DB.prepare(
@@ -109,7 +254,8 @@ async function handleLogin(request, env) {
                 email: user.email,
                 display_name: user.display_name,
                 photo_url: user.photo_url,
-                restaurants: restaurants.results
+                is_superadmin: isSuperAdmin,
+                restaurants: restaurants
             }
         });
     } catch (error) {
@@ -133,7 +279,7 @@ async function handleGetCurrentUser(request, env) {
 
     try {
         const user = await env.DB.prepare(`
-      SELECT id, email, display_name, photo_url
+      SELECT id, email, display_name, photo_url, is_superadmin
       FROM users WHERE id = ? LIMIT 1
     `).bind(userData.userId).first();
 
@@ -144,13 +290,27 @@ async function handleGetCurrentUser(request, env) {
             );
         }
 
-        const restaurants = await env.DB.prepare(`
-      SELECT r.id, r.name, r.slug, rs.role
-      FROM restaurant_staff rs
-      JOIN restaurants r ON rs.restaurant_id = r.id
-      WHERE rs.user_id = ? AND rs.is_active = TRUE
-      ORDER BY r.name ASC
-    `).bind(user.id).all();
+        let restaurants = [];
+        const isSuperAdmin = user.is_superadmin === 1;
+
+        if (isSuperAdmin) {
+            const allRestaurants = await env.DB.prepare(`
+                SELECT id, name, slug, 'owner' as role
+                FROM restaurants
+                WHERE is_active = TRUE
+                ORDER BY name ASC
+            `).all();
+            restaurants = allRestaurants.results;
+        } else {
+            const staffRestaurants = await env.DB.prepare(`
+                SELECT r.id, r.name, r.slug, rs.role
+                FROM restaurant_staff rs
+                JOIN restaurants r ON rs.restaurant_id = r.id
+                WHERE rs.user_id = ? AND rs.is_active = TRUE
+                ORDER BY r.name ASC
+            `).bind(user.id).all();
+            restaurants = staffRestaurants.results;
+        }
 
         return createResponse({
             success: true,
@@ -159,7 +319,8 @@ async function handleGetCurrentUser(request, env) {
                 email: user.email,
                 display_name: user.display_name,
                 photo_url: user.photo_url,
-                restaurants: restaurants.results
+                is_superadmin: isSuperAdmin,
+                restaurants: restaurants
             }
         });
     } catch (error) {

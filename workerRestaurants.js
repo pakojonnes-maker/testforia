@@ -484,6 +484,12 @@ async function getRestaurantConfig(env, slug) {
             }
         }
 
+        // [NEW] Fetch Reservation Status
+        const reservationSettings = await env.DB.prepare(`
+            SELECT is_enabled FROM reservation_settings WHERE restaurant_id = ?
+        `).bind(restaurant.id).first();
+        const reservationsEnabled = reservationSettings?.is_enabled === 1;
+
         // ✅ CORREGIDO: branding usa SOLO tabla themes (NO config_overrides)
         const config = {
             template: {
@@ -508,7 +514,8 @@ async function getRestaurantConfig(env, slug) {
             },
             features: { ...restaurantFeatures },
             overrides: configOverrides,
-            marketing: marketingCampaign // [NEW] Inject campaign here
+            marketing: marketingCampaign, // [NEW] Inject campaign here
+            reservationsEnabled: reservationsEnabled // [NEW] Status
         };
 
         return createResponse({ success: true, config });
@@ -582,26 +589,40 @@ async function updateRestaurant(env, restaurantId, request) {
         const body = await request.json();
 
         const restaurant = await env.DB.prepare(`
-      SELECT id FROM restaurants WHERE (id = ? OR slug = ?)
+      SELECT id, features FROM restaurants WHERE (id = ? OR slug = ?)
     `).bind(restaurantId, restaurantId).first();
 
         if (!restaurant) {
             return createResponse({ success: false, message: "Restaurant not found" }, 404);
         }
 
+        let newFeatures = restaurant.features ? JSON.parse(restaurant.features) : {};
+        if (body.features) {
+            // Merge/Patch features
+            newFeatures = { ...newFeatures, ...body.features };
+        }
+
         await env.DB.prepare(`
       UPDATE restaurants 
-      SET name = ?, description = ?, email = ?, phone = ?, website = ?,
-          city = ?, country = ?, modified_at = CURRENT_TIMESTAMP
+      SET name = COALESCE(?, name), 
+          description = COALESCE(?, description), 
+          email = COALESCE(?, email), 
+          phone = COALESCE(?, phone), 
+          website = COALESCE(?, website),
+          city = COALESCE(?, city), 
+          country = COALESCE(?, country),
+          features = ?, 
+          modified_at = CURRENT_TIMESTAMP
       WHERE id = ?
     `).bind(
-            body.name || '',
-            body.description || '',
-            body.email || '',
-            body.phone || '',
-            body.website || '',
-            body.city || '',
-            body.country || '',
+            body.name !== undefined ? body.name : null,
+            body.description !== undefined ? body.description : null,
+            body.email !== undefined ? body.email : null,
+            body.phone !== undefined ? body.phone : null,
+            body.website !== undefined ? body.website : null,
+            body.city !== undefined ? body.city : null,
+            body.country !== undefined ? body.country : null,
+            JSON.stringify(newFeatures),
             restaurant.id
         ).run();
 

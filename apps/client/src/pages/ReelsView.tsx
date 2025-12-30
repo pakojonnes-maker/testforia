@@ -1,7 +1,7 @@
 // apps/client/src/pages/ReelsView.tsx - INTEGRACIÓN FINAL
 import { useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { useRestaurant } from '../App';
+import { useRestaurant } from '../contexts/RestaurantContext';
 import ReelsContainer from '../components/reels/ReelsContainer';
 import { Box, Typography, CircularProgress } from '@mui/material';
 

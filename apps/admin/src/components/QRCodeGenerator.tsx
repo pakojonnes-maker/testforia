@@ -2,13 +2,10 @@
 import React, { useEffect, useRef, useImperativeHandle, forwardRef } from "react";
 import QRCodeStyling, {
     DrawType,
-    TypeNumber,
-    Mode,
-    ErrorCorrectionLevel,
     DotType,
     CornerSquareType,
     CornerDotType,
-    Options
+    Gradient
 } from "qr-code-styling";
 
 export interface QRCodeGeneratorProps {
@@ -16,19 +13,23 @@ export interface QRCodeGeneratorProps {
     size?: number;
     image?: string;
     dotsOptions?: {
-        color: string;
-        type: DotType;
+        color?: string;
+        type?: DotType;
+        gradient?: Gradient;
     };
     cornersSquareOptions?: {
-        color: string;
-        type: CornerSquareType;
+        color?: string;
+        type?: CornerSquareType;
+        gradient?: Gradient;
     };
     cornersDotOptions?: {
-        color: string;
-        type: CornerDotType;
+        color?: string;
+        type?: CornerDotType;
+        gradient?: Gradient;
     };
     backgroundOptions?: {
-        color: string;
+        color?: string;
+        gradient?: Gradient;
     };
     imageOptions?: {
         crossOrigin?: string;
@@ -62,6 +63,8 @@ const QRCodeGenerator = forwardRef<QRCodeHandle, QRCodeGeneratorProps>(
             });
 
             if (refContainer.current) {
+                // Clear previous QR code before appending new one
+                refContainer.current.innerHTML = '';
                 qrCode.current.append(refContainer.current);
             }
         }, []);
@@ -80,7 +83,7 @@ const QRCodeGenerator = forwardRef<QRCodeHandle, QRCodeGeneratorProps>(
                 backgroundOptions: backgroundOptions,
                 imageOptions: imageOptions
             });
-        }, [data, size, image, dotsOptions, cornersSquareOptions, cornersDotOptions, backgroundOptions, imageOptions]);
+        }, [data, size, image, JSON.stringify(dotsOptions), JSON.stringify(cornersSquareOptions), JSON.stringify(cornersDotOptions), JSON.stringify(backgroundOptions), JSON.stringify(imageOptions)]);
 
         // Expose methods to parent
         useImperativeHandle(ref, () => ({
@@ -92,7 +95,7 @@ const QRCodeGenerator = forwardRef<QRCodeHandle, QRCodeGeneratorProps>(
             }
         }));
 
-        return <div ref={refContainer} />;
+        return <div ref={refContainer} style={{ display: 'flex', justifyContent: 'center', alignItems: 'center' }} />;
     }
 );
 
