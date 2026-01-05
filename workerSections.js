@@ -1,30 +1,43 @@
-import { verifyJWT, JWT_SECRET } from './workerAuthentication.js';
+import { verifyJWT } from './workerAuthentication.js';
 
 // ===========================================================================
 // CLOUDFLARE WORKER - SECTIONS API
 // ===========================================================================
 
-const corsHeaders = {
-    "Access-Control-Allow-Origin": "*",
-    "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS",
-    "Access-Control-Allow-Headers": "Content-Type, Authorization",
-};
+// CORS - Dominios permitidos
+const ALLOWED_ORIGINS = [
+    'https://admin.visualtastes.com',
+    'https://menu.visualtastes.com',
+    'https://visualtastes.com',
+    'http://localhost:5173',
+    'http://localhost:5174',
+    'http://menu.localhost:5173',
+    'http://admin.localhost:5174'
+];
 
-function createResponse(body, status = 200) {
+function getCorsHeaders(request) {
+    const origin = request?.headers?.get('Origin') || '';
+    const allowedOrigin = ALLOWED_ORIGINS.includes(origin) ? origin : ALLOWED_ORIGINS[0];
+    return {
+        "Content-Type": "application/json",
+        "Access-Control-Allow-Origin": allowedOrigin,
+        "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS",
+        "Access-Control-Allow-Headers": "Content-Type, Authorization",
+    };
+}
+
+function createResponse(body, status = 200, request = null) {
     return new Response(JSON.stringify(body), {
         status,
-        headers: {
-            "Content-Type": "application/json",
-            ...corsHeaders
-        }
+        headers: getCorsHeaders(request)
     });
 }
 
-async function authenticateRequest(request) {
+async function authenticateRequest(request, env) {
     const authHeader = request.headers.get('Authorization');
     if (!authHeader || !authHeader.startsWith('Bearer ')) return null;
     const token = authHeader.substring(7);
-    return await verifyJWT(token, JWT_SECRET);
+    return await verifyJWT(token, env.JWT_SECRET);
 }
 
 export async function handleSectionRequests(request, env) {
@@ -492,14 +505,9 @@ async function getSectionsForRestaurant(restaurantId, env, includeDishes = false
     }
 }
 
-export function createResponse(data, status = 200) {
+export function createResponse(data, status = 200, request = null) {
     return new Response(JSON.stringify(data), {
         status,
-        headers: {
-            "Content-Type": "application/json",
-            "Access-Control-Allow-Origin": "*",
-            "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS",
-            "Access-Control-Allow-Headers": "Content-Type, Authorization",
-        },
+        headers: getCorsHeaders(request),
     });
 }

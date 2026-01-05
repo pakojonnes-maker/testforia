@@ -1,4 +1,12 @@
 // workers/workerRestaurant.js - VERSIÓN CORREGIDA CON PREFIJOS
+
+// Import password utilities from authentication worker (DRY principle)
+import { hashPassword, generateSecurePassword } from './workerAuthentication.js';
+
+// ===========================================================================
+// MAIN HANDLER
+// ===========================================================================
+
 export async function handleRestaurantRequests(request, env) {
     const url = new URL(request.url);
     const pathname = url.pathname;
@@ -57,6 +65,14 @@ export async function handleRestaurantRequests(request, env) {
         const restaurantId = parts[2];
         const userId = parts[4];
         return removeRestaurantUser(env, restaurantId, userId);
+    }
+
+    // Reset user password (Owner only)
+    if (method === "POST" && pathname.match(/^\/restaurants\/[^/]+\/users\/[^/]+\/reset-password$/)) {
+        const parts = pathname.split('/');
+        const restaurantId = parts[2];
+        const userId = parts[4];
+        return resetUserPassword(env, restaurantId, userId, request);
     }
 
     // ============================================
@@ -350,17 +366,15 @@ async function addRestaurantUser(env, restaurantId, request) {
 
         // Check if user exists
         let user = await env.DB.prepare(`SELECT id, email FROM users WHERE email = ?`).bind(email).first();
+        let generatedPassword = null;
 
         if (!user) {
-            // Create new user
+            // Create new user with secure random password
             const userId = `user_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
-            // Simple hash for auto-generated password (in production use proper crypto)
-            const tempPassword = Math.random().toString(36).slice(-8);
-            // We're skipping proper hashing here for brevity, assuming standard hashPassword avail or similar
-            // For now let's just insert a placeholder or use a simple hash approach if crypto is available
-            // Since we don't have the hash utils imported here, we'll assume a utility or insert a dummy hash
-            // TODO: Implement proper invitation flow or password reset
-            const passwordHash = "TEMP_HASH";
+
+            // Generate secure password and hash it
+            generatedPassword = generateSecurePassword(12);
+            const passwordHash = await hashPassword(generatedPassword);
 
             await env.DB.prepare(`
                 INSERT INTO users (id, email, display_name, password_hash, auth_provider, created_at)
@@ -368,6 +382,7 @@ async function addRestaurantUser(env, restaurantId, request) {
             `).bind(userId, email, name || email.split('@')[0], passwordHash).run();
 
             user = { id: userId, email };
+            console.log(`[Users POST] Created new user ${email} with secure password`);
         }
 
         // Check if already in restaurant
@@ -385,7 +400,21 @@ async function addRestaurantUser(env, restaurantId, request) {
             VALUES (?, ?, ?, TRUE, CURRENT_TIMESTAMP)
         `).bind(restaurantId, user.id, role || 'staff').run();
 
-        return createResponse({ success: true, message: "User added successfully", user: { ...user, role: role || 'staff' } });
+        // Return response WITH generated password (only shown once)
+        const response = {
+            success: true,
+            message: generatedPassword
+                ? "Usuario creado con contraseña generada"
+                : "Usuario existente añadido al restaurante",
+            user: { ...user, role: role || 'staff' }
+        };
+
+        // Include generated password in response (only for new users)
+        if (generatedPassword) {
+            response.generatedPassword = generatedPassword;
+        }
+
+        return createResponse(response);
 
     } catch (error) {
         console.error("[Users POST] Error:", error);
@@ -419,6 +448,54 @@ async function removeRestaurantUser(env, restaurantId, userId) {
     } catch (error) {
         console.error("[Users DELETE] Error:", error);
         return createResponse({ success: false, message: "Error removing user: " + error.message }, 500);
+    }
+}
+
+async function resetUserPassword(env, restaurantId, userId, request) {
+    try {
+        // Verify the user belongs to this restaurant
+        const staffMember = await env.DB.prepare(`
+            SELECT rs.user_id, u.email, u.display_name 
+            FROM restaurant_staff rs
+            JOIN users u ON rs.user_id = u.id
+            WHERE rs.restaurant_id = ? AND rs.user_id = ?
+        `).bind(restaurantId, userId).first();
+
+        if (!staffMember) {
+            return createResponse({
+                success: false,
+                message: "Usuario no encontrado en este restaurante"
+            }, 404);
+        }
+
+        // Generate new secure password
+        const newPassword = generateSecurePassword(12);
+        const passwordHash = await hashPassword(newPassword);
+
+        // Update the user's password
+        await env.DB.prepare(`
+            UPDATE users SET password_hash = ? WHERE id = ?
+        `).bind(passwordHash, userId).run();
+
+        console.log(`[Users RESET] Password reset for ${staffMember.email}`);
+
+        return createResponse({
+            success: true,
+            message: "Contraseña reseteada correctamente",
+            user: {
+                id: userId,
+                email: staffMember.email,
+                display_name: staffMember.display_name
+            },
+            generatedPassword: newPassword
+        });
+
+    } catch (error) {
+        console.error("[Users RESET] Error:", error);
+        return createResponse({
+            success: false,
+            message: "Error resetting password: " + error.message
+        }, 500);
     }
 }
 
@@ -586,7 +663,23 @@ async function getRestaurantBySlug(env, slug) {
 
 async function updateRestaurant(env, restaurantId, request) {
     try {
-        const body = await request.json();
+        // DEBUG: Read body as text first to see what we're receiving
+        const rawBody = await request.text();
+        console.log(`[Restaurant PUT] Raw body length: ${rawBody.length}`);
+        console.log(`[Restaurant PUT] Raw body first 200 chars: ${rawBody.substring(0, 200)}`);
+
+        let body;
+        try {
+            body = JSON.parse(rawBody);
+        } catch (parseError) {
+            console.error(`[Restaurant PUT] JSON parse error:`, parseError.message);
+            console.error(`[Restaurant PUT] Body content:`, rawBody);
+            return createResponse({
+                success: false,
+                message: "Invalid JSON body: " + parseError.message,
+                debug: { bodyLength: rawBody.length, preview: rawBody.substring(0, 100) }
+            }, 400);
+        }
 
         const restaurant = await env.DB.prepare(`
       SELECT id, features FROM restaurants WHERE (id = ? OR slug = ?)

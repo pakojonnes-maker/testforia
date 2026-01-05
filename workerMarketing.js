@@ -84,10 +84,9 @@ export async function handleMarketingRequests(request, env) {
     // ============================================
 
     if (method === "POST" && pathname === "/api/leads") {
-        // ... (rest of logic checked, no changes needed inside blocks)
         try {
             const data = await request.json();
-            const { restaurant_id, campaign_id, type, contact_value, name, consent_given, source, metadata } = data;
+            const { restaurant_id, campaign_id, type, contact_value, name, consent_given, source, metadata, session_id, visitor_id, save_method } = data;
 
             if (!restaurant_id || !type || !contact_value) {
                 return createResponse({ success: false, message: "Missing required fields" }, 400);
@@ -97,12 +96,14 @@ export async function handleMarketingRequests(request, env) {
                 return createResponse({ success: false, message: "Invalid type" }, 400);
             }
 
-            const id = crypto.randomUUID();
+            const leadId = crypto.randomUUID();
+
+            // 1. Save the lead
             await env.DB.prepare(
                 `INSERT INTO marketing_leads (id, restaurant_id, campaign_id, type, contact_value, source, consent_given, metadata)
                  VALUES (?, ?, ?, ?, ?, ?, ?, ?)`
             ).bind(
-                id,
+                leadId,
                 restaurant_id,
                 campaign_id || null,
                 type,
@@ -112,7 +113,71 @@ export async function handleMarketingRequests(request, env) {
                 metadata ? JSON.stringify(metadata) : null
             ).run();
 
-            return createResponse({ success: true, message: "Lead saved successfully" });
+            // 2. Create a claim with magic link (for WhatsApp save)
+            let claimData = null;
+            if (campaign_id) {
+                const claimId = crypto.randomUUID();
+                const magicToken = crypto.randomUUID().replace(/-/g, '').substring(0, 16);
+                const expiresAt = new Date(Date.now() + 20 * 24 * 60 * 60 * 1000).toISOString(); // 20 days
+
+                // Ensure we have a session_id (required by DB schema)
+                const claimSessionId = session_id || `anon_${crypto.randomUUID().substring(0, 8)}`;
+
+                await env.DB.prepare(`
+                    INSERT INTO campaign_claims (id, restaurant_id, campaign_id, session_id, customer_contact, magic_link_token, status, expires_at, visitor_id, save_method, source, created_at)
+                    VALUES (?, ?, ?, ?, ?, ?, 'active', ?, ?, ?, ?, CURRENT_TIMESTAMP)
+                `).bind(
+                    claimId,
+                    restaurant_id,
+                    campaign_id,
+                    claimSessionId,
+                    contact_value,
+                    magicToken,
+                    expiresAt,
+                    visitor_id || null,
+                    save_method || 'direct',
+                    source || 'welcome_modal'
+                ).run();
+
+
+                // 3. Track the event
+                const eventId = crypto.randomUUID();
+                await env.DB.prepare(`
+                    INSERT INTO campaign_events (id, campaign_id, claim_id, visitor_id, session_id, restaurant_id, event_type, metadata, created_at)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+                `).bind(
+                    eventId,
+                    campaign_id,
+                    claimId,
+                    visitor_id || null,
+                    session_id || null,
+                    restaurant_id,
+                    type === 'phone' ? 'phone_captured' : 'email_captured',
+                    JSON.stringify({ save_method: save_method || 'direct', source: source || 'welcome_modal' })
+                ).run();
+
+                // Fetch restaurant slug for magic link URL
+                const restaurant = await env.DB.prepare(`SELECT slug FROM restaurants WHERE id = ?`).bind(restaurant_id).first();
+                const baseUrl = 'https://menu.visualtastes.com';
+                const restaurantSlug = restaurant?.slug || 'oferta';
+
+                claimData = {
+                    claim_id: claimId,
+                    magic_link: `${baseUrl}/${restaurantSlug}/oferta/${magicToken}`,
+                    magic_token: magicToken,
+                    expires_at: expiresAt,
+                    expires_in_days: 20,
+                    restaurant_slug: restaurantSlug
+                };
+            }
+
+
+            return createResponse({
+                success: true,
+                message: "Lead saved successfully",
+                lead_id: leadId,
+                ...claimData
+            });
 
         } catch (error) {
             console.error("Error saving lead:", error);
@@ -121,25 +186,145 @@ export async function handleMarketingRequests(request, env) {
     }
 
     // ============================================
+    // LOYALTY / SCRATCH WIN ENDPOINTS
+    // ============================================
+
+    // Claim a prize from Scratch & Win
+    if (method === "POST" && pathname === "/api/loyalty/claim") {
+        try {
+            const data = await request.json();
+            const { session_id, reward_id, campaign_id, contact, restaurant_id, visitor_id } = data;
+
+            if (!reward_id || !campaign_id || !contact || !restaurant_id) {
+                return createResponse({ success: false, message: "Missing required fields" }, 400);
+            }
+
+            // Verify reward exists and is active
+            const reward = await env.DB.prepare(`
+                SELECT cr.*, mc.name as campaign_name, mc.content as campaign_content
+                FROM campaign_rewards cr
+                JOIN marketing_campaigns mc ON cr.campaign_id = mc.id
+                WHERE cr.id = ? AND cr.is_active = 1
+            `).bind(reward_id).first();
+
+            if (!reward) {
+                return createResponse({ success: false, message: "Reward not found or inactive" }, 404);
+            }
+
+            // Check if already claimed in this session (prevent double claims)
+            const existingClaim = await env.DB.prepare(`
+                SELECT id FROM campaign_claims 
+                WHERE session_id = ? AND reward_id = ? AND status != 'expired'
+            `).bind(session_id || 'anonymous', reward_id).first();
+
+            if (existingClaim) {
+                return createResponse({ success: false, message: "Already claimed", already_claimed: true }, 400);
+            }
+
+            // Create claim
+            const claimId = crypto.randomUUID();
+            const magicToken = crypto.randomUUID().replace(/-/g, '').substring(0, 16);
+            const expiresAt = new Date(Date.now() + 20 * 24 * 60 * 60 * 1000).toISOString();
+            const claimSessionId = session_id || `anon_${crypto.randomUUID().substring(0, 8)}`;
+
+            await env.DB.prepare(`
+                INSERT INTO campaign_claims (id, restaurant_id, campaign_id, reward_id, session_id, customer_contact, magic_link_token, status, expires_at, visitor_id, save_method, source, created_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, 'active', ?, ?, 'whatsapp', 'scratch_win', CURRENT_TIMESTAMP)
+            `).bind(
+                claimId,
+                restaurant_id,
+                campaign_id,
+                reward_id,
+                claimSessionId,
+                contact,
+                magicToken,
+                expiresAt,
+                visitor_id || null
+            ).run();
+
+            // Track event
+            await env.DB.prepare(`
+                INSERT INTO campaign_events (id, campaign_id, claim_id, visitor_id, session_id, restaurant_id, event_type, metadata, created_at)
+                VALUES (?, ?, ?, ?, ?, ?, 'prize_claimed', ?, CURRENT_TIMESTAMP)
+            `).bind(
+                crypto.randomUUID(),
+                campaign_id,
+                claimId,
+                visitor_id || null,
+                claimSessionId,
+                restaurant_id,
+                JSON.stringify({ reward_id, reward_name: reward.name, contact_type: contact.includes('@') ? 'email' : 'phone' })
+            ).run();
+
+            // Decrement reward quantity if max_quantity is set
+            if (reward.max_quantity) {
+                await env.DB.prepare(`
+                    UPDATE campaign_rewards 
+                    SET claimed_count = COALESCE(claimed_count, 0) + 1
+                    WHERE id = ?
+                `).bind(reward_id).run();
+            }
+
+            // Construct magic link
+            const restaurant = await env.DB.prepare(`SELECT slug FROM restaurants WHERE id = ?`).bind(restaurant_id).first();
+            const restaurantSlug = restaurant?.slug || 'oferta';
+            const magicLink = `https://menu.visualtastes.com/${restaurantSlug}/oferta/${magicToken}`;
+
+            return createResponse({
+                success: true,
+                message: "Prize claimed successfully",
+                claim_id: claimId,
+                magic_link: magicLink,
+                magic_token: magicToken,
+                expires_at: expiresAt,
+                expires_in_days: 20,
+                reward: {
+                    id: reward.id,
+                    name: reward.name,
+                    description: reward.description
+                }
+            });
+
+        } catch (error) {
+            console.error("Error claiming prize:", error);
+            return createResponse({ success: false, message: error.message }, 500);
+        }
+    }
+
+    // ============================================
     // CAMPAIGNS ENDPOINTS (Admin)
     // ============================================
+
 
     // Get campaigns
     if (method === "GET" && pathname.match(/^\/api\/restaurants\/[^/]+\/campaigns$/)) {
         const restaurantId = pathname.split('/')[3];
         try {
-            const campaigns = await env.DB.prepare(
-                `SELECT * FROM marketing_campaigns WHERE restaurant_id = ? ORDER BY created_at DESC`
-            ).bind(restaurantId).all();
+            const campaigns = await env.DB.prepare(`
+                SELECT 
+                    mc.*,
+                    (SELECT COUNT(*) FROM campaign_claims WHERE campaign_id = mc.id) as total_claims,
+                    (SELECT COUNT(*) FROM campaign_claims WHERE campaign_id = mc.id AND status = 'redeemed') as redeemed_count,
+                    (SELECT COUNT(*) FROM campaign_claims WHERE campaign_id = mc.id AND opened_at IS NOT NULL) as opened_count
+                FROM marketing_campaigns mc 
+                WHERE restaurant_id = ? 
+                ORDER BY created_at DESC
+            `).bind(restaurantId).all();
 
             const results = (campaigns.results || []).map(c => ({
                 ...c,
                 content: c.content ? JSON.parse(c.content) : {},
                 settings: c.settings ? JSON.parse(c.settings) : {},
-                is_active: !!c.is_active
+                is_active: !!c.is_active,
+                stats: {
+                    leads: c.total_claims || 0,
+                    redeemed: c.redeemed_count || 0,
+                    opened: c.opened_count || 0
+                }
             }));
 
             return createResponse({ success: true, campaigns: results });
+
         } catch (error) {
             return createResponse({ success: false, message: error.message }, 500);
         }
@@ -222,6 +407,21 @@ export async function handleMarketingRequests(request, env) {
             const data = await request.json();
             const { id, campaign_id, name, description, probability, max_quantity, image_url, is_active } = data;
 
+            // Validation
+            if (!id && !campaign_id) {
+                return createResponse({ success: false, message: "campaign_id is required for new rewards" }, 400);
+            }
+            if (!name) {
+                return createResponse({ success: false, message: "name is required" }, 400);
+            }
+
+            // Convert undefined to null for D1 compatibility
+            const safeDescription = description ?? null;
+            const safeProbability = probability ?? 0.1;
+            const safeMaxQuantity = max_quantity ?? null;
+            const safeImageUrl = image_url ?? null;
+            const safeIsActive = is_active !== undefined ? (is_active ? 1 : 0) : 1;
+
             if (id) {
                 // Update
                 await env.DB.prepare(`
@@ -229,9 +429,7 @@ export async function handleMarketingRequests(request, env) {
                     SET name = ?, description = ?, probability = ?, max_quantity = ?, image_url = ?, is_active = ?
                     WHERE id = ?
                 `).bind(
-                    name, description, probability, max_quantity, image_url,
-                    is_active !== undefined ? (is_active ? 1 : 0) : 1,
-                    id
+                    name, safeDescription, safeProbability, safeMaxQuantity, safeImageUrl, safeIsActive, id
                 ).run();
                 return createResponse({ success: true, message: "Reward updated" });
             } else {
@@ -239,12 +437,13 @@ export async function handleMarketingRequests(request, env) {
                 const newId = crypto.randomUUID();
                 await env.DB.prepare(`
                     INSERT INTO campaign_rewards (id, campaign_id, name, description, probability, max_quantity, image_url, is_active)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, 1)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
                 `).bind(
-                    newId, campaign_id, name, description, probability, max_quantity, image_url
+                    newId, campaign_id, name, safeDescription, safeProbability, safeMaxQuantity, safeImageUrl, safeIsActive
                 ).run();
                 return createResponse({ success: true, id: newId, message: "Reward created" });
             }
+
         } catch (error) {
             return createResponse({ success: false, message: error.message }, 500);
         }
@@ -344,10 +543,14 @@ export async function handleMarketingRequests(request, env) {
         }
     }
 
-    // Send Notification
-    if (method === "POST" && pathname === "/api/notifications/send") {
+    // Send Notification - supports both /api/notifications/send and /api/restaurants/:id/notifications/send
+    const notifSendMatch = pathname.match(/^\/api\/restaurants\/([^/]+)\/notifications\/send$/);
+    if (method === "POST" && (pathname === "/api/notifications/send" || notifSendMatch)) {
         try {
-            const { restaurant_id, title, message, url, image_url, icon, badge, color, debug } = await request.json();
+            const body = await request.json();
+            // Extract restaurant_id from URL path if available, otherwise from body
+            const restaurant_id = notifSendMatch ? notifSendMatch[1] : body.restaurant_id;
+            const { title, message, url, image_url, icon, badge, color, debug } = body;
 
             // Fetch Restaurant Branding (logo and colors from themes)
             const restaurantQuery = await env.DB.prepare(`
@@ -477,9 +680,240 @@ export async function handleMarketingRequests(request, env) {
             return createResponse({ success: false, message: error.message }, 500);
         }
     }
+    // ============================================
+    // PUBLIC CAMPAIGN ENDPOINTS (Event Landing)
+    // ============================================
+
+    // Get public campaign by ID (for event landing page)
+    if (method === "GET" && pathname.match(/^\/api\/campaigns\/[a-zA-Z0-9-]+$/)) {
+        const campaignId = pathname.split('/').pop();
+        try {
+            const campaign = await env.DB.prepare(`
+                SELECT 
+                    mc.id,
+                    mc.name,
+                    mc.type,
+                    mc.is_active,
+                    mc.content,
+                    mc.start_date,
+                    mc.end_date,
+                    r.id as restaurant_id,
+                    r.name as restaurant_name,
+                    r.slug as restaurant_slug,
+                    r.logo_url as restaurant_logo
+                FROM marketing_campaigns mc
+                JOIN restaurants r ON mc.restaurant_id = r.id
+                WHERE mc.id = ? AND mc.is_active = 1
+            `).bind(campaignId).first();
+
+            if (!campaign) {
+                return createResponse({ success: false, message: "Campaign not found" }, 404);
+            }
+
+            // Parse content JSON
+            let content = {};
+            try {
+                content = campaign.content ? JSON.parse(campaign.content) : {};
+            } catch (e) { }
+
+            return createResponse({
+                success: true,
+                campaign: {
+                    id: campaign.id,
+                    name: campaign.name,
+                    type: campaign.type,
+                    is_active: campaign.is_active,
+                    content: content,
+                    start_date: campaign.start_date,
+                    end_date: campaign.end_date
+                },
+                restaurant: {
+                    id: campaign.restaurant_id,
+                    name: campaign.restaurant_name,
+                    slug: campaign.restaurant_slug,
+                    logo_url: campaign.restaurant_logo
+                }
+            });
+
+        } catch (error) {
+            console.error("Campaign fetch error:", error);
+            return createResponse({ success: false, message: error.message }, 500);
+        }
+    }
+
+    // ============================================
+    // MAGIC LINK ENDPOINTS (Redemption)
+    // ============================================
+
+
+    // Get claim by magic link token (for redemption page)
+    if (method === "GET" && pathname.match(/^\/api\/r\/[a-zA-Z0-9]+$/)) {
+        const token = pathname.split('/').pop();
+        try {
+            // Fetch claim with campaign and reward details
+            const claim = await env.DB.prepare(`
+                SELECT 
+                    cc.id as claim_id,
+                    cc.status,
+                    cc.expires_at,
+                    cc.created_at,
+                    cc.redeemed_at,
+                    cc.opened_at,
+                    cc.customer_contact,
+                    cc.visitor_id,
+                    mc.id as campaign_id,
+                    mc.name as campaign_name,
+                    mc.type as campaign_type,
+                    mc.content as campaign_content,
+                    cr.id as reward_id,
+                    cr.name as reward_name,
+                    cr.description as reward_description,
+                    cr.image_url as reward_image,
+                    r.id as restaurant_id,
+                    r.name as restaurant_name,
+                    r.slug as restaurant_slug,
+                    r.logo_url as restaurant_logo
+                FROM campaign_claims cc
+                JOIN marketing_campaigns mc ON cc.campaign_id = mc.id
+                LEFT JOIN campaign_rewards cr ON cc.reward_id = cr.id
+                JOIN restaurants r ON cc.restaurant_id = r.id
+                WHERE cc.magic_link_token = ?
+            `).bind(token).first();
+
+            if (!claim) {
+                return createResponse({ success: false, message: "Offer not found" }, 404);
+            }
+
+            // Check expiry
+            const isExpired = claim.expires_at && new Date(claim.expires_at) < new Date();
+            const isRedeemed = claim.status === 'redeemed';
+
+            // Track "opened" if first time
+            if (!claim.opened_at) {
+                await env.DB.prepare(`
+                    UPDATE campaign_claims SET opened_at = CURRENT_TIMESTAMP WHERE magic_link_token = ?
+                `).bind(token).run();
+
+                // Track event
+                await env.DB.prepare(`
+                    INSERT INTO campaign_events (id, campaign_id, claim_id, visitor_id, restaurant_id, event_type, created_at)
+                    VALUES (?, ?, ?, ?, ?, 'opened', CURRENT_TIMESTAMP)
+                `).bind(
+                    crypto.randomUUID(),
+                    claim.campaign_id,
+                    claim.claim_id,
+                    claim.visitor_id,
+                    claim.restaurant_id
+                ).run();
+            }
+
+            // Check visitor recurrence (has this visitor claimed before?)
+            let isReturningVisitor = false;
+            if (claim.visitor_id) {
+                const previousClaims = await env.DB.prepare(`
+                    SELECT COUNT(*) as count FROM campaign_claims 
+                    WHERE visitor_id = ? AND id != ? AND restaurant_id = ?
+                `).bind(claim.visitor_id, claim.claim_id, claim.restaurant_id).first();
+                isReturningVisitor = (previousClaims?.count || 0) > 0;
+            }
+
+            // Parse campaign content
+            let content = {};
+            try {
+                content = claim.campaign_content ? JSON.parse(claim.campaign_content) : {};
+            } catch (e) { }
+
+            return createResponse({
+                success: true,
+                claim: {
+                    id: claim.claim_id,
+                    status: isExpired ? 'expired' : claim.status,
+                    is_valid: !isExpired && !isRedeemed,
+                    expires_at: claim.expires_at,
+                    created_at: claim.created_at,
+                    validation_code: token.toUpperCase().substring(0, 8) // Short code for visual validation
+                },
+                campaign: {
+                    id: claim.campaign_id,
+                    name: claim.campaign_name,
+                    type: claim.campaign_type,
+                    title: content.title,
+                    description: content.description,
+                    image_url: content.image_url
+                },
+                reward: claim.reward_id ? {
+                    id: claim.reward_id,
+                    name: claim.reward_name,
+                    description: claim.reward_description,
+                    image_url: claim.reward_image
+                } : null,
+                restaurant: {
+                    id: claim.restaurant_id,
+                    name: claim.restaurant_name,
+                    slug: claim.restaurant_slug,
+                    logo_url: claim.restaurant_logo
+                },
+                is_returning_visitor: isReturningVisitor
+            });
+
+        } catch (error) {
+            console.error("Magic Link Error:", error);
+            return createResponse({ success: false, message: error.message }, 500);
+        }
+    }
+
+    // Redeem a claim (staff validation)
+    if (method === "POST" && pathname.match(/^\/api\/claims\/[a-zA-Z0-9]+\/redeem$/)) {
+        const token = pathname.split('/')[3];
+        try {
+            // Verify claim exists and is valid
+            const claim = await env.DB.prepare(`
+                SELECT id, status, expires_at, campaign_id, visitor_id, restaurant_id
+                FROM campaign_claims WHERE magic_link_token = ?
+            `).bind(token).first();
+
+            if (!claim) {
+                return createResponse({ success: false, message: "Claim not found" }, 404);
+            }
+
+            if (claim.status === 'redeemed') {
+                return createResponse({ success: false, message: "Already redeemed", already_redeemed: true }, 400);
+            }
+
+            const isExpired = claim.expires_at && new Date(claim.expires_at) < new Date();
+            if (isExpired) {
+                return createResponse({ success: false, message: "Offer expired", is_expired: true }, 400);
+            }
+
+            // Mark as redeemed
+            await env.DB.prepare(`
+                UPDATE campaign_claims SET status = 'redeemed', redeemed_at = CURRENT_TIMESTAMP 
+                WHERE id = ?
+            `).bind(claim.id).run();
+
+            // Track event
+            await env.DB.prepare(`
+                INSERT INTO campaign_events (id, campaign_id, claim_id, visitor_id, restaurant_id, event_type, created_at)
+                VALUES (?, ?, ?, ?, ?, 'redeemed', CURRENT_TIMESTAMP)
+            `).bind(
+                crypto.randomUUID(),
+                claim.campaign_id,
+                claim.id,
+                claim.visitor_id,
+                claim.restaurant_id
+            ).run();
+
+            return createResponse({ success: true, message: "Claim redeemed successfully" });
+
+        } catch (error) {
+            console.error("Redeem Error:", error);
+            return createResponse({ success: false, message: error.message }, 500);
+        }
+    }
 
     return null;
 }
+
 
 // ============================================
 // WEB PUSH UTILS (Edge Compatible)

@@ -158,23 +158,43 @@ export async function handleReelsRequests(request, env) {
             const finalTemplateId = reelConfig?.template_id || templateInfo?.id || 'tpl_classic';
             const templateConfig = await buildTemplateConfig(env, finalTemplateId, configOverrides);
 
-            // ✅ 12.5 [NEW] MARKETING CAMPAIGN
-            const activeCampaign = await env.DB.prepare(`
-        SELECT * FROM marketing_campaigns 
-        WHERE restaurant_id = ? AND is_active = TRUE 
-        ORDER BY priority DESC, created_at DESC 
-        LIMIT 1
-      `).bind(restaurant.id).first();
+            // ✅ 12.5 [ENHANCED] MARKETING CAMPAIGNS - Load all active campaign types
+            const allCampaigns = await env.DB.prepare(`
+                SELECT * FROM marketing_campaigns 
+                WHERE restaurant_id = ? AND is_active = TRUE
+                ORDER BY type, priority DESC, created_at DESC
+            `).bind(restaurant.id).all();
 
-            let marketingCampaign = undefined;
-            if (activeCampaign) {
+            // Organize campaigns by type
+            let marketingCampaign = undefined;  // welcome_modal (primary)
+            let scratchWinCampaign = undefined; // scratch_win with display settings
+            let eventCampaigns = [];            // events with show_in_menu
+
+            for (const campaign of (allCampaigns.results || [])) {
                 try {
-                    marketingCampaign = {
-                        id: activeCampaign.id,
-                        type: activeCampaign.type,
-                        content: JSON.parse(activeCampaign.content || '{}'),
-                        settings: JSON.parse(activeCampaign.settings || '{}')
+                    const parsedCampaign = {
+                        id: campaign.id,
+                        name: campaign.name,
+                        type: campaign.type,
+                        content: JSON.parse(campaign.content || '{}'),
+                        settings: JSON.parse(campaign.settings || '{}'),
+                        start_date: campaign.start_date,
+                        end_date: campaign.end_date
                     };
+
+                    if (campaign.type === 'welcome_modal' && !marketingCampaign) {
+                        marketingCampaign = parsedCampaign;
+                    } else if (campaign.type === 'scratch_win' && !scratchWinCampaign) {
+                        // Only include if display_mode is not 'hidden'
+                        if (parsedCampaign.settings?.display_mode && parsedCampaign.settings.display_mode !== 'hidden') {
+                            scratchWinCampaign = parsedCampaign;
+                        }
+                    } else if (campaign.type === 'event') {
+                        // Only include if show_in_menu is true
+                        if (parsedCampaign.settings?.show_in_menu === true) {
+                            eventCampaigns.push(parsedCampaign);
+                        }
+                    }
                 } catch (e) {
                     console.error("Error parsing campaign JSON", e);
                 }
@@ -186,7 +206,16 @@ export async function handleReelsRequests(request, env) {
             `).bind(restaurant.id).first();
             const reservationsEnabled = reservationSettings?.is_enabled === 1;
 
-            // ✅ 12.7 [NEW] GLOBAL TRANSLATIONS
+            // ✅ 12.7 [NEW] DELIVERY SETTINGS
+            const deliverySettings = await env.DB.prepare(`
+                SELECT is_enabled, show_whatsapp, show_phone, custom_whatsapp, custom_phone,
+                       payment_methods, shipping_cost, free_shipping_threshold, minimum_order,
+                       delivery_hours, closed_dates
+                FROM delivery_settings WHERE restaurant_id = ?
+            `).bind(restaurant.id).first();
+            const deliveryEnabled = deliverySettings?.is_enabled === 1;
+
+            // ✅ 12.8 [NEW] GLOBAL TRANSLATIONS
             const globalTranslationsQuery = await env.DB.prepare(`
                 SELECT key_name, label
                 FROM localization_strings
@@ -198,7 +227,7 @@ export async function handleReelsRequests(request, env) {
                 globalTranslations[t.key_name] = t.label;
             });
 
-            // ✅ 12.8 [NEW] GOOGLE RATING STATUS
+            // ✅ 12.9 [NEW] GOOGLE RATING STATUS
             let previousRating = null;
             if (visitorId) {
                 const ratingEntry = await env.DB.prepare(`
@@ -248,8 +277,24 @@ export async function handleReelsRequests(request, env) {
                     textColor: restaurant.text_color || '#FFFFFF',
                     backgroundColor: restaurant.background_color || '#000000',
                 },
-                marketing: marketingCampaign, // [NEW] Include marketing
+                marketing: marketingCampaign, // Welcome modal campaign
+                scratchWin: scratchWinCampaign, // Scratch & Win with visibility settings
+                events: eventCampaigns, // Events with show_in_menu
                 reservationsEnabled: reservationsEnabled, // [NEW] Reservations
+                deliveryEnabled: deliveryEnabled, // [NEW] Delivery enabled flag
+                deliverySettings: deliverySettings ? {
+                    is_enabled: deliverySettings.is_enabled === 1,
+                    show_whatsapp: deliverySettings.show_whatsapp === 1,
+                    show_phone: deliverySettings.show_phone === 1,
+                    whatsapp_number: deliverySettings.custom_whatsapp || restaurant.phone,
+                    phone_number: deliverySettings.custom_phone || restaurant.phone,
+                    payment_methods: deliverySettings.payment_methods ? JSON.parse(deliverySettings.payment_methods) : { cash: true, card: false },
+                    shipping_cost: deliverySettings.shipping_cost || 0,
+                    free_shipping_threshold: deliverySettings.free_shipping_threshold || 0,
+                    minimum_order: deliverySettings.minimum_order || 0,
+                    delivery_hours: deliverySettings.delivery_hours ? JSON.parse(deliverySettings.delivery_hours) : null,
+                    closed_dates: deliverySettings.closed_dates ? JSON.parse(deliverySettings.closed_dates) : []
+                } : null, // [NEW] Full delivery config
                 translations: globalTranslations // [NEW] Global Translations
             };
 
@@ -745,7 +790,27 @@ async function handleLoyaltyScan(request, env) {
 async function handleLoyaltyPlay(request, env) {
     if (request.method !== 'POST') return createResponse('Method not allowed', 405);
     try {
-        const { session_id, campaign_id } = await request.json();
+        const { session_id, campaign_id, visitor_id } = await request.json();
+
+        // FRAUD PREVENTION: Check if visitor has played in last 24 hours
+        if (visitor_id) {
+            const recentPlay = await env.DB.prepare(`
+                SELECT id FROM campaign_events 
+                WHERE campaign_id = ? 
+                  AND visitor_id = ? 
+                  AND event_type = 'game_played'
+                  AND created_at > datetime('now', '-24 hours')
+                LIMIT 1
+            `).bind(campaign_id, visitor_id).first();
+
+            if (recentPlay) {
+                return createResponse({
+                    win: false,
+                    cooldown: true,
+                    message: "Ya has jugado hoy. ¡Vuelve mañana!"
+                });
+            }
+        }
 
         // 1. Get available rewards for this campaign
         const rewards = await env.DB.prepare(`
@@ -768,6 +833,20 @@ async function handleLoyaltyPlay(request, env) {
                 selectedReward = r;
                 break;
             }
+        }
+
+        // 3. Track the play attempt (for fraud prevention)
+        if (visitor_id) {
+            await env.DB.prepare(`
+                INSERT INTO campaign_events (id, campaign_id, visitor_id, session_id, event_type, metadata, created_at)
+                VALUES (?, ?, ?, ?, 'game_played', ?, CURRENT_TIMESTAMP)
+            `).bind(
+                crypto.randomUUID(),
+                campaign_id,
+                visitor_id,
+                session_id || null,
+                JSON.stringify({ won: !!selectedReward, reward_id: selectedReward?.id || null })
+            ).run();
         }
 
         if (selectedReward) {

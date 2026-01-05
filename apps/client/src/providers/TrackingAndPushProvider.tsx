@@ -831,38 +831,64 @@ export function TrackingAndPushProvider({ restaurantId, children }: Props) {
       // VAPID Key (Should be env var, using public key generated earlier)
       const VAPID_PUBLIC_KEY = 'BB34mfUFVy5s-Cnbtu7dB_OhXAx06GRlKKruLbJIbnTefFd0ECHqtcJP4x6r6MN-A3nr4Yl57wZ7iRm16SnSoQw';
 
-      console.log('🔔 [Push] Registering SW...');
-      const registration = await navigator.serviceWorker.register('/sw.js', { scope: '/' });
-      console.log('🔔 [Push] SW Registered:', registration);
+      let registration;
+      try {
+        console.log('🔔 [Push] Registering SW...');
+        registration = await navigator.serviceWorker.register('/sw.js', { scope: '/' });
+        console.log('🔔 [Push] SW Registered:', registration);
+      } catch (swError) {
+        console.error('🔔 [Push] SW Registration Error:', swError);
+        alert('Debug Error: Service Worker registration failed - ' + (swError instanceof Error ? swError.message : String(swError)));
+        return 'error';
+      }
 
-      console.log('🔔 [Push] Waiting for SW ready...');
-      await navigator.serviceWorker.ready;
-      console.log('🔔 [Push] SW Ready. Subscribing using VAPID...');
+      try {
+        console.log('🔔 [Push] Waiting for SW ready...');
+        await navigator.serviceWorker.ready;
+        console.log('🔔 [Push] SW Ready. Subscribing using VAPID...');
+      } catch (readyError) {
+        console.error('🔔 [Push] SW Ready Error:', readyError);
+        alert('Debug Error: Service Worker not ready - ' + (readyError instanceof Error ? readyError.message : String(readyError)));
+        return 'error';
+      }
 
-      const subscription = await registration.pushManager.subscribe({
-        userVisibleOnly: true,
-        applicationServerKey: urlBase64ToUint8Array(VAPID_PUBLIC_KEY)
-      });
-      console.log('🔔 [Push] Subscription object created:', subscription);
+      let subscription;
+      try {
+        subscription = await registration.pushManager.subscribe({
+          userVisibleOnly: true,
+          applicationServerKey: urlBase64ToUint8Array(VAPID_PUBLIC_KEY)
+        });
+        console.log('🔔 [Push] Subscription object created:', subscription);
+      } catch (subError) {
+        console.error('🔔 [Push] Push Subscription Error:', subError);
+        alert('Debug Error: Push subscription failed - ' + (subError instanceof Error ? subError.message : String(subError)) + '\n\nThis usually means:\n1. Push service unavailable\n2. VAPID key issue\n3. Network issue');
+        return 'error';
+      }
 
       // Send to Backend
       const env = detectEnvironment();
       const visitorId = getVisitorId();
 
-      console.log('🔔 [Push] Sending to backend...');
-      await fetch(`${import.meta.env.VITE_API_URL || 'https://visualtasteworker.franciscotortosaestudios.workers.dev'}/api/notifications/subscribe`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-          subscription,
-          restaurant_id: restaurantId,
-          visitor_id: visitorId,
-          device_type: env.devicetype
-        })
-      });
-      console.log('🔔 [Push] Backend registration success');
+      try {
+        console.log('🔔 [Push] Sending to backend...');
+        await fetch(`${import.meta.env.VITE_API_URL || 'https://visualtasteworker.franciscotortosaestudios.workers.dev'}/api/notifications/subscribe`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            subscription,
+            restaurant_id: restaurantId,
+            visitor_id: visitorId,
+            device_type: env.devicetype
+          })
+        });
+        console.log('🔔 [Push] Backend registration success');
+      } catch (backendError) {
+        console.error('🔔 [Push] Backend registration error:', backendError);
+        // Still mark as enabled since the subscription was created
+        console.log('🔔 [Push] Subscription created but backend sync failed');
+      }
 
       setIsPushEnabled(true);
       return 'success';

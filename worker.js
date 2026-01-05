@@ -9,27 +9,41 @@ import { handleDishRequests } from './workerDishes.js';
 import { handleSectionRequests } from './workerSections.js';
 import { handleRestaurantRequests } from './workerRestaurants.js';
 import { handleReelsRequests, handleLoyaltyRequests } from './workerReels.js';
-import { handleMediaRequests } from './workerMedia.optimized.js';
+import { handleMediaRequests } from './workerMedia.js';
 import { handleTracking } from './workerTracking.js';
 import { handleLandingRequests } from './workerLanding.js';
 import { handleLandingAdminRequests } from './workerLandingAdmin.js';
 import { handleMarketingRequests } from './workerMarketing.js';
 import { handleReservationRequests } from './workerReservations.js';
+import { handleDeliveryRequests } from './workerDelivery.js';
 
 
-const corsHeaders = {
-    "Access-Control-Allow-Origin": "*",
-    "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS, PATCH",
-    "Access-Control-Allow-Headers": "Content-Type, Authorization"
-};
+// CORS - Dominios permitidos
+const ALLOWED_ORIGINS = [
+    'https://admin.visualtastes.com',
+    'https://menu.visualtastes.com',
+    'https://visualtastes.com',
+    'http://localhost:5173',  // Dev cliente
+    'http://localhost:5174',  // Dev admin
+    'http://menu.localhost:5173',
+    'http://admin.localhost:5174'
+];
 
-function createResponse(body, status = 200) {
+function getCorsHeaders(request) {
+    const origin = request?.headers?.get('Origin') || '';
+    const allowedOrigin = ALLOWED_ORIGINS.includes(origin) ? origin : ALLOWED_ORIGINS[0];
+    return {
+        "Content-Type": "application/json",
+        "Access-Control-Allow-Origin": allowedOrigin,
+        "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS, PATCH",
+        "Access-Control-Allow-Headers": "Content-Type, Authorization"
+    };
+}
+
+function createResponse(body, status = 200, request = null) {
     return new Response(JSON.stringify(body), {
         status,
-        headers: {
-            "Content-Type": "application/json",
-            ...corsHeaders
-        }
+        headers: getCorsHeaders(request)
     });
 }
 
@@ -38,7 +52,7 @@ export default {
         if (request.method === "OPTIONS") {
             return new Response(null, {
                 status: 204,
-                headers: corsHeaders
+                headers: getCorsHeaders(request)
             });
         }
 
@@ -83,31 +97,36 @@ export default {
                 if (landingResponse) return landingResponse;
             }
 
+            // DELIVERY
+            const deliveryResponse = await handleDeliveryRequests(request.clone(), env);
+            if (deliveryResponse) return deliveryResponse;
+
             // MARKETING (Leads)
-            const marketingResponse = await handleMarketingRequests(request, env);
+            const marketingResponse = await handleMarketingRequests(request.clone(), env);
             if (marketingResponse) return marketingResponse;
 
 
 
             // RESERVATIONS
-            const reservationsResponse = await handleReservationRequests(request, env);
+            const reservationsResponse = await handleReservationRequests(request.clone(), env);
             if (reservationsResponse) return reservationsResponse;
 
             // MEDIA
-            const mediaResponse = await handleMediaRequests(request, env);
+            const mediaResponse = await handleMediaRequests(request.clone(), env);
             if (mediaResponse) return mediaResponse;
 
             // REELS
-            const reelsResponse = await handleReelsRequests(request, env);
+            const reelsResponse = await handleReelsRequests(request.clone(), env);
             if (reelsResponse) return reelsResponse;
 
             // LOYALTY (Client)
-            const loyaltyResponse = await handleLoyaltyRequests(request, env);
+            const loyaltyResponse = await handleLoyaltyRequests(request.clone(), env);
             if (loyaltyResponse) return loyaltyResponse;
 
             // RESTAURANTES (ahora va DESPUÉS de landing)
-            const restaurantResponse = await handleRestaurantRequests(request, env);
+            const restaurantResponse = await handleRestaurantRequests(request.clone(), env);
             if (restaurantResponse) return restaurantResponse;
+
 
             // AUTENTICACIÓN
             const authResponse = await handleAuthRequests(request, env);

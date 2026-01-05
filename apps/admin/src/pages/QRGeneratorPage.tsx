@@ -206,11 +206,12 @@ const QRGeneratorPage: React.FC = () => {
     // --- Effect: Load from URL query ---
     useEffect(() => {
         const params = new URLSearchParams(location.search);
-        const textParam = params.get('text');
-        if (textParam) {
-            setOptions(prev => ({ ...prev, text: textParam }));
+        const urlParam = params.get('url') || params.get('text');
+        if (urlParam) {
+            setOptions(prev => ({ ...prev, text: urlParam }));
         }
     }, [location.search]);
+
 
     // --- Debounce Effect ---
     useEffect(() => {

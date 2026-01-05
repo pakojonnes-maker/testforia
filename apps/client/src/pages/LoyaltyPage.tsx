@@ -75,12 +75,25 @@ export const LoyaltyPage: React.FC = () => {
 
     const playGame = async () => {
         try {
+            const visitorId = localStorage.getItem('vt_visitor_id');
             const res = await fetch(`${API}/api/loyalty/play`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ session_id: sessionId, campaign_id: campaign?.id })
+                body: JSON.stringify({
+                    session_id: sessionId,
+                    campaign_id: campaign?.id,
+                    visitor_id: visitorId
+                })
             });
             const data = await res.json();
+
+            // Handle cooldown (fraud prevention)
+            if (data.cooldown) {
+                setStatus('error');
+                setMessage(data.message || 'Ya has jugado hoy. ¡Vuelve mañana!');
+                return;
+            }
+
             setReward(data.win && data.reward ? data.reward : null);
             setStatus('playing');
         } catch {
@@ -119,24 +132,6 @@ export const LoyaltyPage: React.FC = () => {
         maxWidth: '340px',
         width: '100%',
         boxShadow: '0 20px 60px rgba(0,0,0,0.4)'
-    };
-
-    const prizeContentStyle: React.CSSProperties = {
-        width: '100%',
-        height: '100%',
-        display: 'flex',
-        flexDirection: 'column',
-        alignItems: 'center',
-        justifyContent: 'center',
-        background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-        color: '#fff',
-        padding: '20px',
-        boxSizing: 'border-box'
-    };
-
-    const loseContentStyle: React.CSSProperties = {
-        ...prizeContentStyle,
-        background: 'linear-gradient(135deg, #4a5568 0%, #2d3748 100%)'
     };
 
     const btnStyle: React.CSSProperties = {
@@ -185,20 +180,16 @@ export const LoyaltyPage: React.FC = () => {
                     {campaign?.content?.description || 'Descubre tu premio'}
                 </p>
 
-                <ScratchCard width={280} height={280} onReveal={onScratchComplete}>
-                    {reward ? (
-                        <div style={prizeContentStyle}>
-                            <div style={{ fontSize: '48px', marginBottom: '12px' }}>🎉</div>
-                            <h3 style={{ margin: '0 0 8px', fontSize: '20px' }}>{reward.name}</h3>
-                            <p style={{ margin: 0, fontSize: '14px', opacity: 0.9 }}>{reward.description}</p>
-                        </div>
-                    ) : (
-                        <div style={loseContentStyle}>
-                            <div style={{ fontSize: '48px', marginBottom: '12px' }}>😔</div>
-                            <p style={{ margin: 0, fontSize: '16px' }}>Suerte la próxima</p>
-                        </div>
-                    )}
-                </ScratchCard>
+
+                <ScratchCard
+                    width={300}
+                    height={340}
+                    onReveal={onScratchComplete}
+                    prizeImageUrl={reward?.image_url}
+                    prizeName={reward?.name}
+                    prizeDescription={reward?.description}
+                    isWin={!!reward}
+                />
 
                 <p style={{ marginTop: '24px', fontSize: '12px', opacity: 0.5 }}>
                     Desliza para rascar

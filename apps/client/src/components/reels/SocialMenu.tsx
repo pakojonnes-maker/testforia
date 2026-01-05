@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Box, IconButton, Paper } from '@mui/material';
-import { Menu as MenuIcon, Instagram, LocalOffer, WhatsApp, EventAvailable, Star, Close, Notifications, NotificationsActive } from '@mui/icons-material';
+import { Menu as MenuIcon, Instagram, LocalOffer, WhatsApp, EventAvailable, Star, Close, Notifications, NotificationsActive, TwoWheeler } from '@mui/icons-material';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useDishTracking } from '../../providers/TrackingAndPushProvider';
 
@@ -9,11 +9,14 @@ interface SocialMenuProps {
     onOpenOffer: () => void;
     reservationsEnabled?: boolean;
     onOpenReservation?: () => void;
+    deliveryEnabled?: boolean;
+    onOpenDelivery?: () => void;
     previousRating?: number | null;
+    hidden?: boolean; // ✅ Hide when dish content is expanded
 }
 import RatingModal from '../ui/RatingModal';
 
-const SocialMenu: React.FC<SocialMenuProps> = ({ restaurant, onOpenOffer, reservationsEnabled, onOpenReservation }) => {
+const SocialMenu: React.FC<SocialMenuProps> = ({ restaurant, onOpenOffer, reservationsEnabled, onOpenReservation, deliveryEnabled, onOpenDelivery, hidden = false }) => {
     console.log('SocialMenu restaurant:', restaurant);
     console.log('SocialMenu instagram:', restaurant?.social_media?.instagram || restaurant?.instagram_url || restaurant?.instagram);
     const [isOpen, setIsOpen] = useState(false);
@@ -117,7 +120,12 @@ const SocialMenu: React.FC<SocialMenuProps> = ({ restaurant, onOpenOffer, reserv
                 zIndex: 20,
                 display: 'flex',
                 alignItems: 'center',
-                gap: 1
+                gap: 1,
+                // ✅ Hide when dish content is expanded
+                opacity: hidden ? 0 : 1,
+                visibility: hidden ? 'hidden' : 'visible',
+                pointerEvents: hidden ? 'none' : 'auto',
+                transition: 'opacity 0.3s ease-in-out, visibility 0.3s ease-in-out'
             }}
         >
             <IconButton
@@ -152,6 +160,26 @@ const SocialMenu: React.FC<SocialMenuProps> = ({ restaurant, onOpenOffer, reserv
                                 border: '1px solid rgba(255,255,255,0.1)'
                             }}
                         >
+                            {/* Delivery */}
+                            {deliveryEnabled && onOpenDelivery && (
+                                <IconButton
+                                    size="small"
+                                    onClick={() => {
+                                        onOpenDelivery();
+                                        setIsOpen(false);
+                                    }}
+                                    sx={{
+                                        color: '#fff',
+                                        '&:hover': {
+                                            transform: 'scale(1.1)',
+                                            color: '#6366f1'
+                                        }
+                                    }}
+                                >
+                                    <TwoWheeler fontSize="small" />
+                                </IconButton>
+                            )}
+
                             {/* Reservations */}
                             {reservationsEnabled && onOpenReservation && (
                                 <IconButton

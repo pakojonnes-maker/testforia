@@ -64,7 +64,18 @@ export async function handleReservationRequests(request, env) {
     // PATCH /reservations/:id
     if (method === "PATCH" && pathname.match(/^\/reservations\/[\w-]+$/)) {
         const id = pathname.split('/')[2];
-        return updateReservationStatus(env, id, request);
+        return updateReservation(env, id, request);
+    }
+
+    // NEW: GET /reservations/by-token/:token
+    if (method === "GET" && pathname.match(/^\/reservations\/by-token\/[\w-]+$/)) {
+        const token = pathname.split('/')[3];
+        return getReservationByToken(env, token);
+    }
+
+    // NEW: POST /reservations/cancel-by-token
+    if (method === "POST" && pathname === "/reservations/cancel-by-token") {
+        return cancelReservationByToken(env, request);
     }
     // ❌ IMPORTANTE: Retornar NULL si no es una ruta de reservas
     // para que el worker principal pruebe con el siguiente handler (Reels, Restaurants, etc.)
@@ -378,19 +389,24 @@ async function createReservation(env, request) {
             return createResponse({ success: false, message: "GDPR Consent required" }, 400);
         }
         const id = `res_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+        const magicToken = crypto.randomUUID(); // Generate unique token
         const status = 'pending'; // Default to pending as per user request
+
         await env.DB.prepare(`
             INSERT INTO reservations (
                 id, restaurant_id, client_name, client_email, client_phone,
                 reservation_date, reservation_time, party_size, status,
-                special_requests, occasion, accepted_policy, ip_address
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                special_requests, occasion, accepted_policy, ip_address,
+                magic_link_token
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         `).bind(
             id, body.restaurant_id, body.client_name, body.client_email, body.client_phone,
             body.reservation_date, body.reservation_time, body.party_size, status,
             body.special_requests, body.occasion, body.accepted_policy ? 1 : 0,
-            request.headers.get('CF-Connecting-IP') || 'unknown'
+            request.headers.get('CF-Connecting-IP') || 'unknown',
+            magicToken
         ).run();
+
         // Log it
         await env.DB.prepare(`
             INSERT INTO reservation_logs (id, reservation_id, action, changed_by, reason)
@@ -398,11 +414,73 @@ async function createReservation(env, request) {
         `).bind(
             `log_${Date.now()}`, id, 'created', 'user', 'Online Booking'
         ).run();
-        return createResponse({ success: true, reservation_id: id });
+
+        return createResponse({ success: true, reservation_id: id, magic_token: magicToken });
     } catch (error) {
         return createResponse({ success: false, message: error.message }, 500);
     }
 }
+
+// ============================================
+// NEW: EMAIL & SELF-SERVICE FUNCTIONS
+// ============================================
+
+async function getReservationByToken(env, token) {
+    if (!token) return createResponse({ success: false, message: "Token required" }, 400);
+    try {
+        const reservation = await env.DB.prepare(`
+            SELECT r.*, res.name as restaurant_name, res.slug as restaurant_slug
+            FROM reservations r
+            JOIN restaurants res ON r.restaurant_id = res.id
+            WHERE r.magic_link_token = ?
+        `).bind(token).first();
+
+        if (!reservation) return createResponse({ success: false, message: "Reservation not found" }, 404);
+
+        return createResponse({ success: true, reservation });
+    } catch (error) {
+        return createResponse({ success: false, message: error.message }, 500);
+    }
+}
+
+async function cancelReservationByToken(env, request) {
+    try {
+        const body = await request.json();
+        const { token, reason } = body;
+
+        if (!token) return createResponse({ success: false, message: "Token required" }, 400);
+
+        // Verify existence
+        const reservation = await env.DB.prepare(`SELECT id, restaurant_id, status FROM reservations WHERE magic_link_token = ?`).bind(token).first();
+
+        if (!reservation) return createResponse({ success: false, message: "Reservation not found" }, 404);
+
+        if (['cancelled', 'cancelled_restaurant', 'completed'].includes(reservation.status)) {
+            return createResponse({ success: false, message: "Reservation already processed" }, 400);
+        }
+
+        // Cancel
+        await env.DB.prepare(`
+            UPDATE reservations SET status = 'cancelled_user', cancellation_reason = ?, updated_at = CURRENT_TIMESTAMP
+            WHERE id = ?
+        `).bind(reason || "Cancelled by user via link", reservation.id).run();
+
+        // Log
+        await env.DB.prepare(`
+            INSERT INTO reservation_logs (id, reservation_id, action, changed_by, previous_state, new_state, reason)
+            VALUES (?, ?, ?, ?, ?, ?, ?)
+        `).bind(
+            `log_${Date.now()}`, reservation.id, 'status_change', 'client_token', reservation.status, 'cancelled_user', reason || "Self-service cancellation"
+        ).run();
+
+        return createResponse({ success: true, message: "Reservation cancelled" });
+
+    } catch (error) {
+        return createResponse({ success: false, message: error.message }, 500);
+    }
+}
+
+
 async function joinWaitlist(env, request) {
     try {
         const body = await request.json();
@@ -516,21 +594,42 @@ async function getReservationLogs(env, params) {
         return createResponse({ success: false, message: error.message }, 500);
     }
 }
-async function updateReservationStatus(env, id, request) {
+async function updateReservation(env, id, request) {
     try {
         const body = await request.json();
-        const { status, cancellation_reason } = body;
+        // Extract allowed fields\n        const { status, cancellation_reason, date, time, party_size, special_requests, client_name, client_email, client_phone, admin_notes, table_assignment } = body;
+
+        // Build Dynamic Query
+        let queryParts = ["updated_at = CURRENT_TIMESTAMP"];
+        let params = [];
+
+        if (status) { queryParts.push("status = ?"); params.push(status); }
+        if (cancellation_reason !== undefined) { queryParts.push("cancellation_reason = ?"); params.push(cancellation_reason); }
+        if (date) { queryParts.push("reservation_date = ?"); params.push(date); }
+        if (time) { queryParts.push("reservation_time = ?"); params.push(time); }
+        if (party_size) { queryParts.push("party_size = ?"); params.push(party_size); }
+        if (special_requests !== undefined) { queryParts.push("special_requests = ?"); params.push(special_requests); }
+        if (client_name) { queryParts.push("client_name = ?"); params.push(client_name); }
+        if (client_email) { queryParts.push("client_email = ?"); params.push(client_email); }
+        if (client_phone) { queryParts.push("client_phone = ?"); params.push(client_phone); }
+        if (admin_notes !== undefined) { queryParts.push("admin_notes = ?"); params.push(admin_notes); }
+        if (table_assignment !== undefined) { queryParts.push("table_assignment = ?"); params.push(table_assignment); }
+
+        params.push(id); // Where ID
+
+        const sql = `UPDATE reservations SET ${queryParts.join(", ")} WHERE id = ?`;
+
+        await env.DB.prepare(sql).bind(...params).run();
+
+        // Log activity
+        const action = status ? 'status_change' : 'update_details';
         await env.DB.prepare(`
-            UPDATE reservations SET status = ?, cancellation_reason = ?, updated_at = CURRENT_TIMESTAMP
-            WHERE id = ?
-        `).bind(status, cancellation_reason || null, id).run();
-        // Log
-        await env.DB.prepare(`
-            INSERT INTO reservation_logs (id, reservation_id, action, changed_by, new_state)
-            VALUES (?, ?, ?, ?, ?)
+            INSERT INTO reservation_logs (id, reservation_id, action, changed_by, new_state, reason)
+            VALUES (?, ?, ?, ?, ?, ?)
         `).bind(
-            `log_${Date.now()}`, id, 'status_change', 'admin', status
+            `log_${Date.now()}`, id, action, 'admin', status || 'details_updated', 'Admin Update'
         ).run();
+
         return createResponse({ success: true });
     } catch (error) {
         return createResponse({ success: false, message: error.message }, 500);

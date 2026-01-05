@@ -1,7 +1,9 @@
 import { useState, useEffect } from 'react';
 import { Outlet, useNavigate, Link, useLocation } from 'react-router-dom';
+import { useQuery } from '@tanstack/react-query';
 import { useAuth } from '../../contexts/AuthContext';
 import { useIdleDetection } from '../../hooks/useIdleDetection';
+import { apiClient } from '../../lib/apiClient';
 import {
   AppBar,
   Box,
@@ -14,7 +16,6 @@ import {
   Toolbar,
   Typography,
   Avatar,
-  Menu,
   MenuItem,
   Divider,
   useMediaQuery,
@@ -32,34 +33,79 @@ import type { SelectChangeEvent } from '@mui/material';
 
 import {
   Menu as MenuIcon,
-
   Restaurant as RestaurantIcon,
   MenuBook as DishesIcon,
   Settings as SettingsIcon,
-  Logout as LogoutIcon,
   BarChart as StatsIcon,
   Campaign as CampaignIcon,
   Web as WebIcon,
   Person as PersonIcon,
-  Notifications as NotificationsIcon,
   QrCode as QrCodeIcon,
   EventAvailable,
+  Key as KeyIcon,
+  Logout as LogoutIcon,
+  Visibility as VisibilityIcon,
+  VisibilityOff as VisibilityOffIcon,
+  TwoWheeler,
 } from '@mui/icons-material';
+import {
+  Menu,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogActions,
+  Button,
+  TextField,
+  InputAdornment,
+  Alert as AlertComponent,
+  CircularProgress,
+} from '@mui/material';
 import { RestaurantSelectorDialog } from '../common/RestaurantSelectorDialog';
 
 const drawerWidth = 240;
 
 export default function DashboardLayout() {
-  const { user, logout, switchRestaurant } = useAuth();
+  const { user, logout, switchRestaurant, currentRestaurant } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('md'));
 
   const [mobileOpen, setMobileOpen] = useState(false);
-  const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null);
   const [showIdleWarning, setShowIdleWarning] = useState(false);
   const [restaurantDialogOpen, setRestaurantDialogOpen] = useState(false);
+
+  // User menu state
+  const [userMenuAnchor, setUserMenuAnchor] = useState<null | HTMLElement>(null);
+  const [changePasswordOpen, setChangePasswordOpen] = useState(false);
+  const [passwordForm, setPasswordForm] = useState({
+    currentPassword: '',
+    newPassword: '',
+    confirmPassword: ''
+  });
+  const [showCurrentPassword, setShowCurrentPassword] = useState(false);
+  const [showNewPassword, setShowNewPassword] = useState(false);
+  const [passwordLoading, setPasswordLoading] = useState(false);
+  const [passwordError, setPasswordError] = useState<string | null>(null);
+  const [passwordSuccess, setPasswordSuccess] = useState(false);
+
+  // ✅ Query para obtener reservas pendientes (polling cada 5 minutos)
+  const { data: pendingReservations = [] } = useQuery({
+    queryKey: ['pending-reservations', currentRestaurant?.id],
+    queryFn: async () => {
+      if (!currentRestaurant?.id) return [];
+      const response = await apiClient.getReservationsList(currentRestaurant.id);
+      if (response?.success && Array.isArray(response.reservations)) {
+        return response.reservations.filter((r: any) => r.status === 'pending');
+      }
+      return [];
+    },
+    enabled: !!currentRestaurant?.id,
+    refetchInterval: 5 * 60 * 1000, // 5 minutos
+    staleTime: 4 * 60 * 1000, // 4 minutos
+  });
+
+  const pendingCount = pendingReservations.length;
 
   // ✅ Detección de inactividad global - Aplicable a todo el admin
   const { isIdle, timeUntilLogout } = useIdleDetection({
@@ -91,23 +137,63 @@ export default function DashboardLayout() {
     setMobileOpen(!mobileOpen);
   };
 
-  const handleProfileMenuOpen = (event: React.MouseEvent<HTMLElement>) => {
-    setAnchorEl(event.currentTarget);
-  };
-
-  const handleProfileMenuClose = () => {
-    setAnchorEl(null);
-  };
-
-  const handleLogout = () => {
-    handleProfileMenuClose();
-    logout();
-    navigate('/login');
-  };
-
   const handleRestaurantChange = (event: SelectChangeEvent<string>) => {
     const restaurantId = event.target.value;
     switchRestaurant(restaurantId);
+  };
+
+  // Navegar a reservas al hacer clic en el icono de pendientes
+  const handlePendingReservationsClick = () => {
+    navigate('/reservations');
+  };
+
+  // User menu handlers
+  const handleUserMenuOpen = (event: React.MouseEvent<HTMLElement>) => {
+    setUserMenuAnchor(event.currentTarget);
+  };
+
+  const handleUserMenuClose = () => {
+    setUserMenuAnchor(null);
+  };
+
+  const handleOpenChangePassword = () => {
+    handleUserMenuClose();
+    setPasswordForm({ currentPassword: '', newPassword: '', confirmPassword: '' });
+    setPasswordError(null);
+    setPasswordSuccess(false);
+    setChangePasswordOpen(true);
+  };
+
+  const handleChangePassword = async () => {
+    if (passwordForm.newPassword !== passwordForm.confirmPassword) {
+      setPasswordError('Las contraseñas no coinciden');
+      return;
+    }
+    if (passwordForm.newPassword.length < 6) {
+      setPasswordError('La nueva contraseña debe tener al menos 6 caracteres');
+      return;
+    }
+
+    try {
+      setPasswordLoading(true);
+      setPasswordError(null);
+      await apiClient.changePassword(passwordForm.currentPassword, passwordForm.newPassword);
+      setPasswordSuccess(true);
+      setTimeout(() => {
+        setChangePasswordOpen(false);
+        setPasswordSuccess(false);
+      }, 2000);
+    } catch (err: any) {
+      setPasswordError(err.response?.data?.message || err.message || 'Error al cambiar contraseña');
+    } finally {
+      setPasswordLoading(false);
+    }
+  };
+
+  const onLogout = () => {
+    handleUserMenuClose();
+    logout();
+    navigate('/login');
   };
 
   // Verificar si hay múltiples restaurantes disponibles
@@ -150,6 +236,11 @@ export default function DashboardLayout() {
       text: 'Reservas',
       icon: <EventAvailable />,
       path: '/reservations'
+    },
+    {
+      text: 'Delivery',
+      icon: <TwoWheeler />,
+      path: '/delivery'
     },
     {
       text: 'Configuración',
@@ -342,66 +433,68 @@ export default function DashboardLayout() {
             )}
           </Box>
 
-          <Box sx={{ display: 'flex', alignItems: 'center' }}>
-            <Tooltip title="Notificaciones">
-              <IconButton color="inherit" sx={{ mr: 1 }}>
-                <Badge badgeContent={3} color="error">
-                  <NotificationsIcon />
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+            <Tooltip title={pendingCount > 0 ? `${pendingCount} reservas pendientes` : 'Sin reservas pendientes'}>
+              <IconButton
+                color="inherit"
+                onClick={handlePendingReservationsClick}
+                sx={{
+                  animation: pendingCount > 0 ? 'pulse 2s infinite' : 'none',
+                  '@keyframes pulse': {
+                    '0%': { transform: 'scale(1)' },
+                    '50%': { transform: 'scale(1.1)' },
+                    '100%': { transform: 'scale(1)' },
+                  }
+                }}
+              >
+                <Badge
+                  badgeContent={pendingCount}
+                  color="warning"
+                  max={99}
+                >
+                  <EventAvailable sx={{ color: pendingCount > 0 ? '#f59e0b' : 'inherit' }} />
                 </Badge>
               </IconButton>
             </Tooltip>
 
-            <IconButton
-              size="large"
-              edge="end"
-              aria-label="account of current user"
-              aria-haspopup="true"
-              onClick={handleProfileMenuOpen}
-              color="inherit"
-            >
-              {user?.photo_url ? (
+            {/* User Profile Menu */}
+            <Tooltip title="Mi cuenta">
+              <IconButton
+                color="inherit"
+                onClick={handleUserMenuOpen}
+                sx={{ ml: 1 }}
+              >
                 <Avatar
-                  src={user.photo_url}
-                  alt={user?.name || "Usuario"}
+                  src={user?.photo_url}
+                  alt={user?.display_name || user?.email}
                   sx={{ width: 32, height: 32 }}
-                />
-              ) : (
-                <Avatar sx={{ width: 32, height: 32, bgcolor: 'primary.dark' }}>
-                  {user?.name?.charAt(0) || 'U'}
+                >
+                  <PersonIcon />
                 </Avatar>
-              )}
-            </IconButton>
+              </IconButton>
+            </Tooltip>
+            <Menu
+              anchorEl={userMenuAnchor}
+              open={Boolean(userMenuAnchor)}
+              onClose={handleUserMenuClose}
+              anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}
+              transformOrigin={{ vertical: 'top', horizontal: 'right' }}
+            >
+              <Box sx={{ px: 2, py: 1 }}>
+                <Typography variant="subtitle2">{user?.display_name || 'Usuario'}</Typography>
+                <Typography variant="caption" color="text.secondary">{user?.email}</Typography>
+              </Box>
+              <Divider />
+              <MenuItem onClick={handleOpenChangePassword}>
+                <ListItemIcon><KeyIcon fontSize="small" /></ListItemIcon>
+                <ListItemText>Cambiar Contraseña</ListItemText>
+              </MenuItem>
+              <MenuItem onClick={onLogout}>
+                <ListItemIcon><LogoutIcon fontSize="small" /></ListItemIcon>
+                <ListItemText>Cerrar Sesión</ListItemText>
+              </MenuItem>
+            </Menu>
           </Box>
-
-          <Menu
-            anchorEl={anchorEl}
-            open={Boolean(anchorEl)}
-            onClose={handleProfileMenuClose}
-            PaperProps={{
-              elevation: 0,
-              sx: {
-                overflow: 'visible',
-                filter: 'drop-shadow(0px 2px 8px rgba(0,0,0,0.32))',
-                mt: 1.5,
-              },
-            }}
-            transformOrigin={{ horizontal: 'right', vertical: 'top' }}
-            anchorOrigin={{ horizontal: 'right', vertical: 'bottom' }}
-          >
-            <MenuItem onClick={handleProfileMenuClose}>
-              <ListItemIcon>
-                <PersonIcon fontSize="small" />
-              </ListItemIcon>
-              Mi perfil
-            </MenuItem>
-            <Divider />
-            <MenuItem onClick={handleLogout}>
-              <ListItemIcon>
-                <LogoutIcon fontSize="small" />
-              </ListItemIcon>
-              Cerrar sesión
-            </MenuItem>
-          </Menu>
         </Toolbar>
       </AppBar>
 
@@ -472,6 +565,80 @@ export default function DashboardLayout() {
           ⚠️ Sesión inactiva. Se cerrará en {timeUntilLogout} segundos. Mueve el ratón para continuar.
         </MuiAlert>
       </Snackbar>
+
+      {/* Change Password Dialog */}
+      <Dialog open={changePasswordOpen} onClose={() => setChangePasswordOpen(false)} maxWidth="sm" fullWidth>
+        <DialogTitle sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+          <KeyIcon color="primary" />
+          Cambiar Mi Contraseña
+        </DialogTitle>
+        <DialogContent>
+          {passwordError && (
+            <AlertComponent severity="error" sx={{ mb: 2 }}>
+              {passwordError}
+            </AlertComponent>
+          )}
+          {passwordSuccess && (
+            <AlertComponent severity="success" sx={{ mb: 2 }}>
+              ¡Contraseña actualizada correctamente!
+            </AlertComponent>
+          )}
+          <Box display="flex" flexDirection="column" gap={2} mt={1}>
+            <TextField
+              label="Contraseña Actual"
+              type={showCurrentPassword ? 'text' : 'password'}
+              fullWidth
+              value={passwordForm.currentPassword}
+              onChange={(e) => setPasswordForm({ ...passwordForm, currentPassword: e.target.value })}
+              InputProps={{
+                endAdornment: (
+                  <InputAdornment position="end">
+                    <IconButton onClick={() => setShowCurrentPassword(!showCurrentPassword)} edge="end">
+                      {showCurrentPassword ? <VisibilityOffIcon /> : <VisibilityIcon />}
+                    </IconButton>
+                  </InputAdornment>
+                )
+              }}
+            />
+            <TextField
+              label="Nueva Contraseña"
+              type={showNewPassword ? 'text' : 'password'}
+              fullWidth
+              value={passwordForm.newPassword}
+              onChange={(e) => setPasswordForm({ ...passwordForm, newPassword: e.target.value })}
+              helperText="Mínimo 6 caracteres"
+              InputProps={{
+                endAdornment: (
+                  <InputAdornment position="end">
+                    <IconButton onClick={() => setShowNewPassword(!showNewPassword)} edge="end">
+                      {showNewPassword ? <VisibilityOffIcon /> : <VisibilityIcon />}
+                    </IconButton>
+                  </InputAdornment>
+                )
+              }}
+            />
+            <TextField
+              label="Confirmar Nueva Contraseña"
+              type="password"
+              fullWidth
+              value={passwordForm.confirmPassword}
+              onChange={(e) => setPasswordForm({ ...passwordForm, confirmPassword: e.target.value })}
+              error={passwordForm.confirmPassword !== '' && passwordForm.newPassword !== passwordForm.confirmPassword}
+              helperText={passwordForm.confirmPassword !== '' && passwordForm.newPassword !== passwordForm.confirmPassword ? 'Las contraseñas no coinciden' : ''}
+            />
+          </Box>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setChangePasswordOpen(false)} disabled={passwordLoading}>Cancelar</Button>
+          <Button
+            onClick={handleChangePassword}
+            variant="contained"
+            disabled={passwordLoading || !passwordForm.currentPassword || !passwordForm.newPassword || !passwordForm.confirmPassword}
+          >
+            {passwordLoading ? <CircularProgress size={20} /> : 'Cambiar Contraseña'}
+          </Button>
+        </DialogActions>
+      </Dialog>
     </Box>
   );
 }

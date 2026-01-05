@@ -20,9 +20,20 @@ import {
     TextField,
     MenuItem,
     Alert,
-    CircularProgress
+    CircularProgress,
+    Tooltip,
+    InputAdornment
 } from '@mui/material';
-import { Add as AddIcon, Delete as DeleteIcon, Person as PersonIcon } from '@mui/icons-material';
+import {
+    Add as AddIcon,
+    Delete as DeleteIcon,
+    Person as PersonIcon,
+    Key as KeyIcon,
+    ContentCopy as CopyIcon,
+    Visibility as VisibilityIcon,
+    VisibilityOff as VisibilityOffIcon,
+    Warning as WarningIcon
+} from '@mui/icons-material';
 import { apiClient } from '../lib/apiClient';
 import { useAuth } from '../contexts/AuthContext';
 
@@ -47,9 +58,22 @@ const UsersPage: React.FC = () => {
     const [users, setUsers] = useState<User[]>([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
+    const [successMessage, setSuccessMessage] = useState<string | null>(null);
+
+    // Add user dialog
     const [openDialog, setOpenDialog] = useState(false);
     const [newUser, setNewUser] = useState({ email: '', name: '', role: 'staff' });
     const [actionLoading, setActionLoading] = useState(false);
+
+    // Password reveal dialog
+    const [credentialsDialog, setCredentialsDialog] = useState(false);
+    const [generatedCredentials, setGeneratedCredentials] = useState<{
+        email: string;
+        password: string;
+        isReset?: boolean;
+    } | null>(null);
+    const [showPassword, setShowPassword] = useState(false);
+    const [copied, setCopied] = useState(false);
 
     useEffect(() => {
         if (currentRestaurant?.id) {
@@ -73,12 +97,48 @@ const UsersPage: React.FC = () => {
         try {
             setActionLoading(true);
             setError(null);
-            await apiClient.addRestaurantUser(currentRestaurant.id, newUser);
+            const response = await apiClient.addRestaurantUser(currentRestaurant.id, newUser);
+
+            // If we got a generated password, show it in the credentials dialog
+            if (response.generatedPassword) {
+                setGeneratedCredentials({
+                    email: newUser.email,
+                    password: response.generatedPassword,
+                    isReset: false
+                });
+                setCredentialsDialog(true);
+            } else {
+                setSuccessMessage('Usuario existente añadido al restaurante');
+            }
+
             await loadUsers();
             setOpenDialog(false);
             setNewUser({ email: '', name: '', role: 'staff' });
         } catch (err: any) {
             setError(err.response?.data?.message || err.message || 'Error al añadir usuario');
+        } finally {
+            setActionLoading(false);
+        }
+    };
+
+    const handleResetPassword = async (user: User) => {
+        if (!window.confirm(`¿Estás seguro de que quieres resetear la contraseña de ${user.display_name || user.email}?`)) return;
+
+        try {
+            setActionLoading(true);
+            setError(null);
+            const response = await apiClient.resetUserPassword(currentRestaurant.id, user.id);
+
+            if (response.generatedPassword) {
+                setGeneratedCredentials({
+                    email: user.email,
+                    password: response.generatedPassword,
+                    isReset: true
+                });
+                setCredentialsDialog(true);
+            }
+        } catch (err: any) {
+            setError(err.response?.data?.message || err.message || 'Error al resetear contraseña');
         } finally {
             setActionLoading(false);
         }
@@ -92,11 +152,28 @@ const UsersPage: React.FC = () => {
             setError(null);
             await apiClient.removeRestaurantUser(currentRestaurant.id, userId);
             await loadUsers();
+            setSuccessMessage('Usuario eliminado correctamente');
         } catch (err: any) {
             setError(err.response?.data?.message || err.message || 'Error al eliminar usuario');
         } finally {
             setActionLoading(false);
         }
+    };
+
+    const handleCopyCredentials = async () => {
+        if (!generatedCredentials) return;
+
+        const text = `Email: ${generatedCredentials.email}\nContraseña: ${generatedCredentials.password}`;
+        await navigator.clipboard.writeText(text);
+        setCopied(true);
+        setTimeout(() => setCopied(false), 2000);
+    };
+
+    const handleCloseCredentialsDialog = () => {
+        setCredentialsDialog(false);
+        setGeneratedCredentials(null);
+        setShowPassword(false);
+        setCopied(false);
     };
 
     const getRoleLabel = (role: string) => {
@@ -135,6 +212,12 @@ const UsersPage: React.FC = () => {
             {error && (
                 <Alert severity="error" sx={{ mb: 3 }} onClose={() => setError(null)}>
                     {error}
+                </Alert>
+            )}
+
+            {successMessage && (
+                <Alert severity="success" sx={{ mb: 3 }} onClose={() => setSuccessMessage(null)}>
+                    {successMessage}
                 </Alert>
             )}
 
@@ -177,14 +260,26 @@ const UsersPage: React.FC = () => {
                                     />
                                 </TableCell>
                                 <TableCell align="right">
-                                    <IconButton
-                                        color="error"
-                                        onClick={() => handleDeleteUser(user.id)}
-                                        disabled={actionLoading}
-                                        size="small"
-                                    >
-                                        <DeleteIcon />
-                                    </IconButton>
+                                    <Tooltip title="Resetear contraseña">
+                                        <IconButton
+                                            color="warning"
+                                            onClick={() => handleResetPassword(user)}
+                                            disabled={actionLoading}
+                                            size="small"
+                                        >
+                                            <KeyIcon />
+                                        </IconButton>
+                                    </Tooltip>
+                                    <Tooltip title="Eliminar usuario">
+                                        <IconButton
+                                            color="error"
+                                            onClick={() => handleDeleteUser(user.id)}
+                                            disabled={actionLoading}
+                                            size="small"
+                                        >
+                                            <DeleteIcon />
+                                        </IconButton>
+                                    </Tooltip>
                                 </TableCell>
                             </TableRow>
                         ))}
@@ -199,6 +294,7 @@ const UsersPage: React.FC = () => {
                 </Table>
             </TableContainer>
 
+            {/* Add User Dialog */}
             <Dialog open={openDialog} onClose={() => setOpenDialog(false)} maxWidth="sm" fullWidth>
                 <DialogTitle>Añadir Nuevo Usuario</DialogTitle>
                 <DialogContent>
@@ -239,6 +335,73 @@ const UsersPage: React.FC = () => {
                         disabled={!newUser.email || actionLoading}
                     >
                         {actionLoading ? 'Añadiendo...' : 'Añadir'}
+                    </Button>
+                </DialogActions>
+            </Dialog>
+
+            {/* Credentials Reveal Dialog */}
+            <Dialog
+                open={credentialsDialog}
+                onClose={handleCloseCredentialsDialog}
+                maxWidth="sm"
+                fullWidth
+            >
+                <DialogTitle sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                    <KeyIcon color="warning" />
+                    {generatedCredentials?.isReset
+                        ? 'Contraseña Reseteada'
+                        : 'Usuario Creado'}
+                </DialogTitle>
+                <DialogContent>
+                    <Alert severity="warning" sx={{ mb: 3 }} icon={<WarningIcon />}>
+                        <strong>¡Importante!</strong> Guarda estas credenciales.
+                        La contraseña no se volverá a mostrar.
+                    </Alert>
+
+                    <Box display="flex" flexDirection="column" gap={2}>
+                        <TextField
+                            label="Email"
+                            value={generatedCredentials?.email || ''}
+                            fullWidth
+                            InputProps={{ readOnly: true }}
+                        />
+                        <TextField
+                            label="Contraseña"
+                            type={showPassword ? 'text' : 'password'}
+                            value={generatedCredentials?.password || ''}
+                            fullWidth
+                            InputProps={{
+                                readOnly: true,
+                                endAdornment: (
+                                    <InputAdornment position="end">
+                                        <IconButton
+                                            onClick={() => setShowPassword(!showPassword)}
+                                            edge="end"
+                                        >
+                                            {showPassword ? <VisibilityOffIcon /> : <VisibilityIcon />}
+                                        </IconButton>
+                                    </InputAdornment>
+                                )
+                            }}
+                        />
+                    </Box>
+
+                    <Typography variant="body2" color="text.secondary" sx={{ mt: 2 }}>
+                        Comparte estas credenciales con el usuario de forma segura
+                        (en persona, WhatsApp, etc.). El usuario puede cambiar su
+                        contraseña desde su perfil después del primer login.
+                    </Typography>
+                </DialogContent>
+                <DialogActions>
+                    <Button
+                        onClick={handleCopyCredentials}
+                        startIcon={<CopyIcon />}
+                        color={copied ? 'success' : 'primary'}
+                    >
+                        {copied ? '¡Copiado!' : 'Copiar Credenciales'}
+                    </Button>
+                    <Button onClick={handleCloseCredentialsDialog} variant="contained">
+                        Cerrar
                     </Button>
                 </DialogActions>
             </Dialog>

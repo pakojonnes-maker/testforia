@@ -20,6 +20,7 @@ const AnalyticsPage = lazy(() => import('./pages/AnalyticsPage'));
 const UsersPage = lazy(() => import('./pages/UsersPage'));
 const QRGeneratorPage = lazy(() => import('./pages/QRGeneratorPage'));
 const ReservationsPage = lazy(() => import('./pages/ReservationsPage'));
+const DeliveryPage = lazy(() => import('./pages/DeliveryPage'));
 
 
 // Componente para proteger rutas
@@ -115,6 +116,14 @@ function App() {
             element={
               <Suspense fallback={<LinearProgress />}>
                 <ReservationsPage />
+              </Suspense>
+            }
+          />
+          <Route
+            path="delivery"
+            element={
+              <Suspense fallback={<LinearProgress />}>
+                <DeliveryPage />
               </Suspense>
             }
           />

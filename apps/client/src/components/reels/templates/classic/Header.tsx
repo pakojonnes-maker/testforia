@@ -25,6 +25,7 @@ interface HeaderProps {
   onLanguageChange: (languageCode: string) => void;
   onClose?: () => void;
   showMenu?: boolean;
+  hidden?: boolean; // ✅ Hide header when dish content is expanded
 }
 
 // ✅ FALLBACK: Emojis si las banderas SVG fallan
@@ -139,7 +140,8 @@ const ClassicHeader: React.FC<HeaderProps> = ({
   languages = [],
   currentLanguage,
   onLanguageChange,
-  showMenu = true
+  showMenu = true,
+  hidden = false
 }) => {
   const { t } = useTranslation();
   const [languageMenuAnchor, setLanguageMenuAnchor] = useState<null | HTMLElement>(null);
@@ -225,14 +227,19 @@ const ClassicHeader: React.FC<HeaderProps> = ({
           background: `linear-gradient(180deg, ${hexToRgba(colors.background, 0.9)} 0%, ${hexToRgba(colors.background, 0.7)} 85%, transparent 100%)`,
           backdropFilter: 'blur(10px)',
           WebkitBackdropFilter: 'blur(10px)',
-          pt: { xs: 1.25, sm: 1.25 }, // ✅ Reduced top padding (10px)
-          pb: 1.25, // ✅ Reduced bottom padding (10px)
-          px: { xs: 2.5, sm: 3 }, // ✅ Adjusted padding: smaller on mobile but safe
+          pt: { xs: 1.25, sm: 1.25 },
+          pb: 1.25,
+          px: { xs: 2.5, sm: 3 },
           transform: 'translateZ(0)',
           willChange: 'transform',
           minHeight: '80px',
           display: 'flex',
-          alignItems: 'center'
+          alignItems: 'center',
+          // ✅ Hide when dish content is expanded
+          opacity: hidden ? 0 : 1,
+          visibility: hidden ? 'hidden' : 'visible',
+          pointerEvents: hidden ? 'none' : 'auto',
+          transition: 'opacity 0.3s ease-in-out, visibility 0.3s ease-in-out'
         }}
       >
         {/* ✅ CONTENEDOR PRINCIPAL - 3 COLUMNAS */}

@@ -355,6 +355,15 @@ export const apiClient = {
     },
     async joinWaitlist(data: any) {
       return (await baseApiClient.client.post('/reservations/waitlist', data)).data;
+    },
+    async getByToken(token: string) {
+      return (await baseApiClient.client.get(`/reservations/by-token/${token}`)).data;
+    },
+    async cancelByToken(token: string, reason?: string) {
+      return (await baseApiClient.client.post('/reservations/cancel-by-token', { token, reason })).data;
+    },
+    async updateReservation(id: string, data: any) {
+      return (await baseApiClient.client.patch(`/reservations/${id}`, data)).data;
     }
   },
 

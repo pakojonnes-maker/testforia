@@ -96,11 +96,15 @@ const EVENT_HANDLERS = {
     'cart_item_quantity': {},
     'cart_shown_to_staff': {},
     'cart_abandoned': {},
-    // ✅ NEW: Heartbeat for session duration tracking
+    // ✅ Heartbeat for session duration tracking
     'heartbeat': {
         // Heartbeat events update session duration on-the-fly
         // Value is the cumulative duration in seconds
-    }
+    },
+    // ✅ Delivery events for analytics
+    'click_delivery': {},           // User clicked delivery icon in menu
+    'delivery_order_initiated': {}, // User clicked "Send to WhatsApp" button
+    'delivery_call_clicked': {}     // User clicked "Call restaurant" button
 };
 
 // ============================================

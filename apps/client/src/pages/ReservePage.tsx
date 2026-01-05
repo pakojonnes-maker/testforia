@@ -1,5 +1,5 @@
-import React, { useState, useEffect, useMemo } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import {
     Box, Typography, Button, TextField, IconButton, Grid,
     Chip, CircularProgress, Alert, Checkbox, FormControlLabel,
@@ -8,7 +8,7 @@ import {
 import {
     ArrowBack, AccessTime, Person, CalendarMonth,
     CheckCircle, WbSunny, Nightlight, Phone, Email,
-    Comment, RestaurantMenu
+    Comment, RestaurantMenu, Cancel
 } from '@mui/icons-material';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useReelsConfig } from '../hooks/useReelsConfig';
@@ -16,7 +16,6 @@ import apiClient from '../lib/apiClient';
 import { useRestaurant } from '../contexts/RestaurantContext';
 import LanguageSwitcher from '../components/reels/LanguageSwitcher';
 import CalendarModal from '../components/ui/CalendarModal';
-import { useCallback } from 'react';
 
 // --- Types ---
 type TimeSlot = string | {
@@ -25,7 +24,20 @@ type TimeSlot = string | {
     remaining_capacity?: number;
 };
 
-type Step = 'party' | 'date' | 'time' | 'details' | 'confirmation' | 'waitlist';
+type Step = 'party' | 'date' | 'time' | 'details' | 'confirmation' | 'waitlist' | 'status';
+
+interface ExistingReservation {
+    id: string;
+    client_name: string;
+    client_email: string;
+    reservation_date: string;
+    reservation_time: string;
+    party_size: number;
+    status: string;
+    restaurant_name?: string;
+    restaurant_slug?: string;
+    cancellation_reason?: string;
+}
 
 type DayStatus = 'open' | 'closed' | 'limited';
 
@@ -37,6 +49,7 @@ interface CalendarDay {
 
 const ReservePage: React.FC = () => {
     const params = useParams<{ slug: string }>();
+    const [searchParams] = useSearchParams();
     const navigate = useNavigate();
     const { restaurant } = useRestaurant();
     const isMobile = useMediaQuery('(max-width:600px)');
@@ -80,6 +93,38 @@ const ReservePage: React.FC = () => {
     });
 
     const [fieldErrors, setFieldErrors] = useState<{ [key: string]: string }>({});
+
+    // Management State
+    const [existingReservation, setExistingReservation] = useState<ExistingReservation | null>(null);
+    const [cancelReason, setCancelReason] = useState("");
+    const [isCancelling, setIsCancelling] = useState(false);
+
+    // Check for Magic Token
+    useEffect(() => {
+        const token = searchParams.get('token');
+        if (token) {
+            setLoading(true);
+            apiClient.reservations.getByToken(token)
+                .then(data => {
+                    if (data.success && data.reservation) {
+                        setExistingReservation(data.reservation);
+                        setStep('status');
+                        // Ensure config loads for the correct restaurant if slug is missing
+                        if (!slug && data.reservation.restaurant_slug) {
+                            // This might require a redirect or context update, but for now we rely on the component handling it visually
+                            // ideally we would navigate to /r/:slug/reserve?token=... but we are already here
+                        }
+                    } else {
+                        setError(t('reserve_invalid_token', "Enlace inválido o expirado"));
+                    }
+                })
+                .catch(err => {
+                    console.error(err);
+                    setError(t('reserve_error_load', "Error al cargar la reserva"));
+                })
+                .finally(() => setLoading(false));
+        }
+    }, [searchParams]);
 
     const [availableSlots, setAvailableSlots] = useState<TimeSlot[]>([]);
 
@@ -647,17 +692,42 @@ const ReservePage: React.FC = () => {
         </Box>
     );
 
+    const handleCancelReservation = async () => {
+        if (!existingReservation || !searchParams.get('token')) return;
+        setIsCancelling(true);
+        try {
+            const res = await apiClient.reservations.cancelByToken(searchParams.get('token')!, cancelReason || "Cancelled by client");
+            if (res.success) {
+                // Refresh data
+                const token = searchParams.get('token');
+                const data = await apiClient.reservations.getByToken(token!);
+                if (data.success) setExistingReservation(data.reservation);
+                setCancelReason("");
+            } else {
+                setError(res.message);
+            }
+        } catch (err: any) {
+            setError(err.message);
+        } finally {
+            setIsCancelling(false);
+        }
+    };
+
     const renderConfirmation = () => (
         <Box textAlign="center" py={10} component={motion.div} initial={{ opacity: 0, scale: 0.8 }} animate={{ opacity: 1, scale: 1 }}>
             <Box sx={{ position: 'relative', display: 'inline-block' }}>
                 <motion.div animate={{ scale: [1, 1.2, 1] }} transition={{ repeat: Infinity, duration: 2 }}>
-                    <CheckCircle sx={{ fontSize: 80, color: brandColors.accent }} />
+                    <CheckCircle sx={{ fontSize: 80, color: '#4CAF50' }} />
                 </motion.div>
-                <Box sx={{ position: 'absolute', inset: 0, borderRadius: '50%', boxShadow: `0 0 30px ${brandColors.accent}60` }} />
+                <Box sx={{ position: 'absolute', inset: 0, borderRadius: '50%', boxShadow: `0 0 30px #4CAF5060` }} />
             </Box>
             <Typography variant="h4" sx={{ fontFamily: brandColors.fontFamily, mt: 3, mb: 1 }}>{t('reserve_req_sent_title', '¡Petición Enviada!')}</Typography>
-            <Typography variant="body1" sx={{ opacity: 0.6, mb: 5, maxWidth: 300, mx: 'auto' }}>
-                {t('reserve_req_sent_msg', 'El restaurante se pondrá en contacto contigo brevemente para confirmar.')}
+            <Typography variant="body1" sx={{ opacity: 0.6, mb: 3, maxWidth: 300, mx: 'auto', lineHeight: 1.6 }}>
+                {t('reserve_req_sent_msg', 'Te hemos enviado un email con los detalles. El restaurante confirmará tu mesa brevemente.')}
+            </Typography>
+
+            <Typography variant="caption" sx={{ display: 'block', mb: 5, opacity: 0.5 }}>
+                Revisa tu bandeja de entrada (y spam)
             </Typography>
 
             <Button
@@ -675,6 +745,89 @@ const ReservePage: React.FC = () => {
             </Button>
         </Box>
     );
+
+    const renderStatusStep = () => {
+        if (!existingReservation) return null;
+        const isCancelled = ['cancelled', 'cancelled_user', 'cancelled_restaurant'].includes(existingReservation.status);
+        const isPast = new Date(existingReservation.reservation_date + 'T' + existingReservation.reservation_time) < new Date();
+
+        return (
+            <Box sx={{ width: '100%', maxWidth: 400, textAlign: 'center' }}>
+                <Box sx={{ mb: 4, p: 3, borderRadius: 4, bgcolor: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.1)' }}>
+                    {isCancelled ? (
+                        <Cancel sx={{ fontSize: 60, color: '#ff6b6b', mb: 2 }} />
+                    ) : (
+                        <CheckCircle sx={{ fontSize: 60, color: '#4CAF50', mb: 2 }} />
+                    )}
+
+                    <Typography variant="h5" sx={{ fontFamily: brandColors.fontFamily, mb: 1 }}>
+                        {isCancelled ? "Reserva Cancelada" : "Reserva Confirmada"}
+                    </Typography>
+
+                    <Typography variant="body2" sx={{ opacity: 0.6, mb: 3 }}>
+                        {existingReservation.restaurant_name}
+                    </Typography>
+
+                    <Box display="flex" justifyContent="center" gap={4} mb={3}>
+                        <Box>
+                            <Typography variant="caption" sx={{ opacity: 0.5, display: 'block' }}>FECHA</Typography>
+                            <Typography variant="h6">{new Date(existingReservation.reservation_date).toLocaleDateString()}</Typography>
+                        </Box>
+                        <Box>
+                            <Typography variant="caption" sx={{ opacity: 0.5, display: 'block' }}>HORA</Typography>
+                            <Typography variant="h6">{existingReservation.reservation_time}</Typography>
+                        </Box>
+                        <Box>
+                            <Typography variant="caption" sx={{ opacity: 0.5, display: 'block' }}>PERSONAS</Typography>
+                            <Typography variant="h6">{existingReservation.party_size}</Typography>
+                        </Box>
+                    </Box>
+
+                    {isCancelled && existingReservation.cancellation_reason && (
+                        <Alert severity="error" sx={{ bgcolor: 'rgba(255,0,0,0.1)', color: '#ffaaaa', mb: 2 }}>
+                            {existingReservation.cancellation_reason}
+                        </Alert>
+                    )}
+                </Box>
+
+                {!isCancelled && !isPast && (
+                    <Box component={motion.div} layout>
+                        {!isCancelling ? (
+                            <Button
+                                color="error"
+                                onClick={() => setIsCancelling(true)}
+                                sx={{ opacity: 0.7, '&:hover': { opacity: 1 } }}
+                            >
+                                Cancelar Reserva
+                            </Button>
+                        ) : (
+                            <Box sx={{ p: 2, borderRadius: 2, bgcolor: 'rgba(0,0,0,0.2)', border: '1px solid #333' }}>
+                                <Typography variant="body2" sx={{ mb: 2 }}>¿Seguro que quieres cancelar?</Typography>
+                                <Box display="flex" gap={2} justifyContent="center">
+                                    <Button size="small" variant="outlined" color="inherit" onClick={() => setIsCancelling(false)}>Volver</Button>
+                                    <Button size="small" variant="contained" color="error" onClick={handleCancelReservation}>Sí, Cancelar</Button>
+                                </Box>
+                            </Box>
+                        )}
+                    </Box>
+                )}
+
+                <Box mt={4}>
+                    <Button
+                        variant="contained"
+                        onClick={handleReturnToReels}
+                        sx={{
+                            bgcolor: brandColors.primary, color: '#fff',
+                            py: 1.5, px: 4, borderRadius: 8,
+                            boxShadow: `0 8px 16px -4px ${brandColors.primary}60`
+                        }}
+                    >
+                        Ir al Menú
+                    </Button>
+                </Box>
+            </Box>
+        );
+    };
 
     if (configLoading || !reelConfig) return <Box sx={{ height: '100svh', bgcolor: '#000', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><CircularProgress /></Box>;
 
@@ -707,7 +860,7 @@ const ReservePage: React.FC = () => {
 
             {/* Step Progress Line */}
             <AnimatePresence>
-                {step !== 'confirmation' && (
+                {step !== 'confirmation' && step !== 'status' && (
                     <Box sx={{ width: '100%', px: 4, mb: 2, zIndex: 10, display: 'flex', gap: 0.5 }}>
                         {['party', 'date', 'time', 'details'].map((s) => {
                             const isActive = step === s;
@@ -721,9 +874,9 @@ const ReservePage: React.FC = () => {
             </AnimatePresence>
 
 
-            {/* Summary Pills - Only show after first step */}
+            {/* Summary Pills - Only show after first step and if not status */}
             <AnimatePresence>
-                {step !== 'party' && step !== 'confirmation' && (
+                {step !== 'party' && step !== 'confirmation' && step !== 'status' && (
                     <motion.div initial={{ opacity: 0, y: -20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}
                         style={{ display: 'flex', justifyContent: 'center', gap: 10, paddingBottom: 20, zIndex: 10 }}>
                         <Chip icon={<Person style={{ color: brandColors.background }} />} label={partySize}
@@ -758,6 +911,7 @@ const ReservePage: React.FC = () => {
                             {step === 'details' && renderDetailsStep()}
                             {step === 'waitlist' && renderWaitlistStep()}
                             {step === 'confirmation' && renderConfirmation()}
+                            {step === 'status' && renderStatusStep()}
                         </Box>
                     </motion.div>
                 </AnimatePresence>

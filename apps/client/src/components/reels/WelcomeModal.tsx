@@ -50,12 +50,24 @@ const WelcomeModal: React.FC<WelcomeModalProps> = ({ open, onClose, restaurant, 
     const [loading, setLoading] = useState(false);
     const [success, setSuccess] = useState(false);
     const [error, setError] = useState('');
-    const [showPrivacy, setShowPrivacy] = useState(false); // ✅ State Modal
+    const [showPrivacy, setShowPrivacy] = useState(false);
+
+    // Claim data for WhatsApp save
+    const [claimData, setClaimData] = useState<{
+        magic_link?: string;
+        expires_at?: string;
+        validation_code?: string;
+    } | null>(null);
+
 
     if (!campaign) return null;
 
-    // Extract config from campaign
-    const { content, settings } = campaign;
+    // Extract config from campaign - handle both parsed object and JSON string
+    const rawContent = campaign.content;
+    const content = typeof rawContent === 'string' ? JSON.parse(rawContent || '{}') : (rawContent || {});
+    const rawSettings = campaign.settings;
+    const settings = typeof rawSettings === 'string' ? JSON.parse(rawSettings || '{}') : (rawSettings || {});
+
     const title = content?.title || `${t('welcome_title_prefix', '¡Bienvenido a ')}${restaurant?.name}!`;
     const description = content?.description || t('welcome_description_default', 'Únete a nuestra comunidad para recibir ofertas exclusivas y novedades.');
     const imageUrl = content?.image_url;
@@ -63,6 +75,34 @@ const WelcomeModal: React.FC<WelcomeModalProps> = ({ open, onClose, restaurant, 
     const showForm = settings?.show_capture_form !== false; // Default true
     const showEmail = settings?.show_email !== false; // Default true
     const showPhone = settings?.show_phone !== false; // Default true
+
+
+    // Format expiry date for display
+    const formatExpiryDate = (isoDate: string) => {
+        const date = new Date(isoDate);
+        return date.toLocaleDateString(undefined, {
+            day: 'numeric',
+            month: 'long',
+            year: 'numeric'
+        });
+    };
+
+    // Generate WhatsApp message with translations
+    const generateWhatsAppUrl = () => {
+        if (!claimData?.magic_link) return '';
+
+        const expiryFormatted = claimData.expires_at ? formatExpiryDate(claimData.expires_at) : '';
+
+        const message = encodeURIComponent(
+            `🎁 *${restaurant?.name}*\n\n` +
+            `${title}\n` +
+            `${description}\n\n` +
+            `📅 ${t('valid_until', 'Válido hasta')}: ${expiryFormatted}\n` +
+            `🔗 ${t('open_offer', 'Ver oferta')}: ${claimData.magic_link}`
+        );
+
+        return `https://wa.me/?text=${message}`;
+    };
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -75,23 +115,45 @@ const WelcomeModal: React.FC<WelcomeModalProps> = ({ open, onClose, restaurant, 
             return;
         }
 
+        // Phone validation
+        const phoneRegex = /^\+?[0-9]{9,15}$/;
+        if (phone && !phoneRegex.test(phone.replace(/\s/g, ''))) {
+            setError(t('error_invalid_phone', 'Formato de teléfono inválido (ej: +34612345678)'));
+            return;
+        }
+
+        // Email validation
+        const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+        if (email && !emailRegex.test(email)) {
+            setError(t('error_invalid_email', 'Formato de email inválido'));
+            return;
+        }
+
         setLoading(true);
         setError('');
+
 
         try {
             const type = email ? 'email' : 'phone';
             const value = email || phone;
+
+            // Get session and visitor IDs from localStorage
+            const sessionId = localStorage.getItem('vt_session_id');
+            const visitorId = localStorage.getItem('vt_visitor_id');
 
             const response = await fetch(`${API_URL}/api/leads`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                     restaurant_id: restaurant.id,
-                    campaign_id: campaign.id, // Link to campaign
+                    campaign_id: campaign.id,
                     type,
                     contact_value: value,
                     consent_given: true,
-                    source: 'welcome_modal'
+                    source: 'welcome_modal',
+                    session_id: sessionId,
+                    visitor_id: visitorId,
+                    save_method: 'whatsapp'
                 })
             });
 
@@ -99,11 +161,16 @@ const WelcomeModal: React.FC<WelcomeModalProps> = ({ open, onClose, restaurant, 
 
             if (data.success) {
                 setSuccess(true);
+                // Store claim data for WhatsApp save
+                if (data.magic_link) {
+                    setClaimData({
+                        magic_link: data.magic_link,
+                        expires_at: data.expires_at,
+                        validation_code: data.magic_token?.toUpperCase()?.substring(0, 8)
+                    });
+                }
                 // Save to local storage that user has subscribed
                 localStorage.setItem(`subscribed_${restaurant.id}`, 'true');
-                setTimeout(() => {
-                    onClose();
-                }, 2000);
             } else {
                 setError(data.message || t('error_save_generic', 'Error al guardar'));
             }
@@ -115,6 +182,8 @@ const WelcomeModal: React.FC<WelcomeModalProps> = ({ open, onClose, restaurant, 
     };
 
     if (success) {
+        const whatsAppUrl = generateWhatsAppUrl();
+
         return (
             <Dialog
                 open={open}
@@ -124,7 +193,7 @@ const WelcomeModal: React.FC<WelcomeModalProps> = ({ open, onClose, restaurant, 
                         borderRadius: 3,
                         bgcolor: '#1a1a1a',
                         color: 'white',
-                        maxWidth: '350px',
+                        maxWidth: '380px',
                         m: 2
                     }
                 }}
@@ -134,13 +203,54 @@ const WelcomeModal: React.FC<WelcomeModalProps> = ({ open, onClose, restaurant, 
                     <Typography variant="h5" gutterBottom sx={{ fontWeight: 'bold' }}>
                         {t('success_title', '¡Gracias!')}
                     </Typography>
-                    <Typography variant="body1" sx={{ opacity: 0.8 }}>
-                        {t('success_message', 'Tus datos se han guardado correctamente. ¡Disfruta de tu oferta!')}
+                    <Typography variant="body2" sx={{ opacity: 0.8, mb: 3 }}>
+                        {t('success_message', 'Tus datos se han guardado correctamente.')}
                     </Typography>
+
+                    {claimData?.expires_at && (
+                        <Typography variant="caption" sx={{ display: 'block', opacity: 0.6, mb: 2 }}>
+                            📅 {t('valid_until', 'Válido hasta')}: {formatExpiryDate(claimData.expires_at)}
+                        </Typography>
+                    )}
+
+                    {whatsAppUrl && (
+                        <Button
+                            component="a"
+                            href={whatsAppUrl}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            variant="contained"
+                            fullWidth
+                            sx={{
+                                bgcolor: '#25D366',
+                                color: 'white',
+                                fontWeight: 'bold',
+                                py: 1.5,
+                                mb: 2,
+                                borderRadius: 2,
+                                '&:hover': { bgcolor: '#1DA851' }
+                            }}
+                            onClick={() => {
+                                // Track WhatsApp save event
+                                localStorage.setItem(`whatsapp_saved_${campaign.id}`, 'true');
+                            }}
+                        >
+                            📱 {t('save_to_whatsapp', 'Guardar en WhatsApp')}
+                        </Button>
+                    )}
+
+                    <Button
+                        onClick={onClose}
+                        variant="text"
+                        sx={{ color: 'rgba(255,255,255,0.5)', fontSize: '0.85rem' }}
+                    >
+                        {t('button_close', 'Cerrar')}
+                    </Button>
                 </Box>
             </Dialog>
         )
     }
+
 
     return (
         <Dialog

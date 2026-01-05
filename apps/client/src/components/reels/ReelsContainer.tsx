@@ -25,6 +25,10 @@ import { Fab, Zoom, Badge } from '@mui/material';
 import SocialMenu from './SocialMenu';
 import ViewModeToggle from './ViewModeToggle';
 import WelcomeModal from './WelcomeModal';
+import FloatingLauncher from '../marketing/FloatingLauncher';
+import DeliveryModal from '../delivery/DeliveryModal';
+// EventBanner ready but requires section-level integration
+// import _EventBanner from '../marketing/EventBanner';
 
 // CSS
 // @ts-ignore
@@ -151,6 +155,8 @@ const ReelsContainer: React.FC<ReelsContainerProps> = React.memo(({
   const [currentDishIndex, setCurrentDishIndex] = useState(initialDishIndex);
   const [welcomeModalOpen, setWelcomeModalOpen] = useState(false);
   const [muted, setMuted] = useState(true);
+  const [isDishExpanded, setIsDishExpanded] = useState(false); // ✅ Track dish expansion for UI hiding
+  const [deliveryModalOpen, setDeliveryModalOpen] = useState(false); // ✅ Delivery modal state
   // const [showFavorites, setShowFavorites] = useState(false); // NEW: Favorites Modal State
 
   // Extract marketing campaign
@@ -158,6 +164,26 @@ const ReelsContainer: React.FC<ReelsContainerProps> = React.memo(({
     console.log('🔍 [ReelsContainer] Extracting marketing campaign from config:', reelConfig?.marketing);
     return reelConfig?.marketing;
   }, [reelConfig]);
+
+  // Extract Scratch & Win campaign (if visible in menu)
+  const scratchWinCampaign = useMemo(() => {
+    return (reelConfig as any)?.scratchWin;
+  }, [reelConfig]);
+
+  // ✅ Extract delivery settings from config
+  const deliveryConfig = useMemo(() => {
+    return (reelConfig as any)?.deliverySettings || null;
+  }, [reelConfig]);
+
+  // ✅ Check if delivery is enabled
+  const deliveryEnabled = useMemo(() => {
+    return deliveryConfig?.is_enabled || false;
+  }, [deliveryConfig]);
+
+  // Extract visible Event campaigns (ready for future integration)
+  // const eventCampaigns = useMemo(() => {
+  //   return (reelConfig as any)?.events || [];
+  // }, [reelConfig]);
 
   // Auto-open Welcome Modal
   useEffect(() => {
@@ -244,6 +270,12 @@ const ReelsContainer: React.FC<ReelsContainerProps> = React.memo(({
     console.log('📅 [ReelsContainer] Opening reservation page');
     navigate(`/reserve/${restaurantSlug}`);
   }, [navigate, restaurantSlug]);
+
+  // ✅ Handler for opening delivery modal
+  const handleOpenDelivery = useCallback(() => {
+    console.log('🛵 [ReelsContainer] Opening delivery modal');
+    setDeliveryModalOpen(true);
+  }, []);
 
   // Tracking helpers
   const trackCartCreated = useCallback(async (newCartId: string) => {
@@ -843,6 +875,7 @@ const ReelsContainer: React.FC<ReelsContainerProps> = React.memo(({
             currentLanguage={currentLanguage}
             onLanguageChange={handleLanguageChange}
             onClose={onClose}
+            hidden={isDishExpanded}
           />
 
           <SocialMenu
@@ -850,7 +883,28 @@ const ReelsContainer: React.FC<ReelsContainerProps> = React.memo(({
             onOpenOffer={handleOpenOffer}
             reservationsEnabled={reelConfig?.reservationsEnabled}
             onOpenReservation={handleOpenReservation}
+            deliveryEnabled={deliveryEnabled}
+            onOpenDelivery={handleOpenDelivery}
             previousRating={(reelConfig as any)?.userStatus?.previousRating}
+            hidden={isDishExpanded}
+          />
+
+          {/* ✅ Delivery Modal */}
+          <DeliveryModal
+            open={deliveryModalOpen}
+            onClose={() => setDeliveryModalOpen(false)}
+            cartItems={cart.map(item => ({
+              id: item.dishId,
+              name: item.name,
+              quantity: item.quantity,
+              price: item.price
+            }))}
+            cartTotal={getTotalPrice()}
+            deliveryConfig={deliveryConfig}
+            restaurantName={reelConfig.restaurant?.name || ''}
+            restaurantId={reelConfig.restaurant?.id}
+            currentLanguage={currentLanguage}
+            isAvailable={deliveryConfig?.is_enabled}
           />
 
           <ViewModeToggle
@@ -860,6 +914,7 @@ const ReelsContainer: React.FC<ReelsContainerProps> = React.memo(({
               secondary: reelConfig.restaurant?.branding?.secondaryColor || '#4ECDC4',
               accent: reelConfig.restaurant?.branding?.accent_color || reelConfig.restaurant?.branding?.accentColor
             }}
+            hidden={isDishExpanded}
           />
 
           <WelcomeModal
@@ -879,7 +934,12 @@ const ReelsContainer: React.FC<ReelsContainerProps> = React.memo(({
                 zIndex: 15,
                 display: 'flex',
                 flexDirection: 'column',
-                gap: 0.8
+                gap: 0.8,
+                // ✅ Hide when dish content is expanded
+                opacity: isDishExpanded ? 0 : 1,
+                visibility: isDishExpanded ? 'hidden' : 'visible',
+                pointerEvents: isDishExpanded ? 'none' : 'auto',
+                transition: 'opacity 0.3s ease-in-out, visibility 0.3s ease-in-out'
               }}
             >
               {Array.from({ length: Math.min(currentDishes.length, 12) }).map((_, index) => (
@@ -1297,6 +1357,7 @@ const ReelsContainer: React.FC<ReelsContainerProps> = React.memo(({
                             cartItemCount={cart.find(i => i.dishId === dish.id)?.quantity || 0}
                             onOpenCart={handleOpenCartDrawer}
                             totalCartItems={getTotalItems()}
+                            onExpandChange={setIsDishExpanded}
                           />
                         </SwiperSlide>
                       ))}
@@ -1372,6 +1433,14 @@ const ReelsContainer: React.FC<ReelsContainerProps> = React.memo(({
               onSectionChange={handleSectionChange}
               config={reelConfig}
               currentLanguage={currentLanguage}
+            />
+          )}
+
+          {/* Scratch & Win Floating Launcher */}
+          {scratchWinCampaign && (
+            <FloatingLauncher
+              campaign={scratchWinCampaign}
+              restaurantSlug={reelConfig?.restaurant?.slug}
             />
           )}
         </TranslationProvider>

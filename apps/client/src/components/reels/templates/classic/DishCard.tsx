@@ -69,6 +69,7 @@ interface DishCardProps {
   totalCartItems?: number;
   muted?: boolean;
   onMuteToggle?: () => void;
+  onExpandChange?: (expanded: boolean) => void; // ✅ Callback to notify parent when content is expanded/collapsed
 }
 
 const ClassicDishCard: React.FC<DishCardProps> = ({
@@ -80,7 +81,8 @@ const ClassicDishCard: React.FC<DishCardProps> = ({
   onAddToCart,
   cartItemCount,
   onOpenCart,
-  totalCartItems = 0
+  totalCartItems = 0,
+  onExpandChange
 }) => {
   const { t } = useTranslation();
   const { viewDish, favoriteDish, trackDishViewDuration, trackMediaError, isFavorited } = useDishTracking();
@@ -246,8 +248,12 @@ const ClassicDishCard: React.FC<DishCardProps> = ({
   }, [isPlaying, isVideo]);
 
   const toggleDetails = useCallback(() => {
-    setShowDetails(prev => !prev);
-  }, []);
+    setShowDetails(prev => {
+      const newState = !prev;
+      onExpandChange?.(newState);
+      return newState;
+    });
+  }, [onExpandChange]);
 
   // Componente: Icono de alérgeno
   const AllergenIcon: React.FC<{ allergen: Allergen; size?: number }> = ({ allergen, size = 24 }) => {
@@ -498,7 +504,12 @@ const ClassicDishCard: React.FC<DishCardProps> = ({
           display: 'flex',
           flexDirection: 'column',
           gap: { xs: 1.5, sm: 2 }, // ✅ Reduced gap
-          zIndex: 10
+          zIndex: 10,
+          // ✅ Hide when content is expanded
+          opacity: showDetails ? 0 : 1,
+          visibility: showDetails ? 'hidden' : 'visible',
+          pointerEvents: showDetails ? 'none' : 'auto',
+          transition: 'opacity 0.3s ease-in-out, visibility 0.3s ease-in-out'
         }}
       >
         {/* Botón Favorito */}
@@ -861,19 +872,42 @@ const ClassicDishCard: React.FC<DishCardProps> = ({
 
       {/* Información del plato */}
       <Box
+        onClick={(e) => {
+          // Stop propagation when expanded to prevent Swiper from intercepting
+          if (showDetails) {
+            e.stopPropagation();
+          }
+        }}
+        onTouchStart={(e) => {
+          // Prevent touch events from reaching Swiper when expanded
+          if (showDetails) {
+            e.stopPropagation();
+          }
+        }}
+        onTouchMove={(e) => {
+          // Prevent touch move from triggering Swiper
+          if (showDetails) {
+            e.stopPropagation();
+          }
+        }}
         sx={{
           position: 'absolute',
-          bottom: 10, // ✅ Force mobile positioning
+          bottom: 10,
           left: 0,
-          right: 75, // ✅ Force mobile positioning
-          width: '90%',
-          zIndex: 5,
-          p: 2, // ✅ Force mobile padding
-          maxHeight: showDetails ? '60vh' : 'auto',
+          right: showDetails ? 10 : 75, // ✅ Full width when expanded
+          width: showDetails ? '95%' : '90%',
+          zIndex: showDetails ? 50 : 5, // ✅ Higher z-index when expanded
+          p: 2,
+          maxHeight: showDetails ? '75vh' : 'auto', // ✅ More space for reading
           overflowY: showDetails ? 'auto' : 'visible',
+          overscrollBehavior: 'contain', // ✅ Prevent scroll chaining
+          touchAction: showDetails ? 'pan-y' : 'auto', // ✅ Isolate vertical touch
           WebkitOverflowScrolling: 'touch',
           scrollbarWidth: 'none',
-          '&::-webkit-scrollbar': { display: 'none' }
+          '&::-webkit-scrollbar': { display: 'none' },
+          // ✅ Performance optimizations
+          willChange: showDetails ? 'scroll-position' : 'auto',
+          transform: 'translateZ(0)',
         }}
       >
         <motion.div
@@ -1012,32 +1046,30 @@ const ClassicDishCard: React.FC<DishCardProps> = ({
             {description}
           </Typography>
 
-          {(description.length > 100 || dish?.allergens?.length > 0) && (
+          {/* ✅ "Ver más" button - only when collapsed */}
+          {!showDetails && (description.length > 100 || dish?.allergens?.length > 0) && (
             <Box
               onClick={toggleDetails}
               sx={{
                 display: 'flex',
                 alignItems: 'center',
-                justifyContent: 'center', // Centrado
+                justifyContent: 'center',
                 cursor: 'pointer',
-
                 fontWeight: 500,
                 fontSize: { xs: '0.8rem', sm: '0.9rem' },
-                mb: showDetails ? 2 : 0,
-                width: '100%', // Ancho completo para centrar
+                width: '100%',
                 '&:hover': { opacity: 0.8 },
                 color: colors.accent,
                 fontFamily: '"Fraunces", serif'
               }}
             >
               <Typography variant="body2" sx={{ mr: 0.5, color: colors.accent, fontFamily: '"Fraunces", serif' }}>
-                {showDetails ? t('see_less', 'Ver menos') : t('see_more', 'Ver más')}
+                {t('see_more', 'Ver más')}
               </Typography>
               <ExpandLess
                 sx={{
                   fontSize: 16,
-                  transform: showDetails ? 'rotate(0deg)' : 'rotate(180deg)',
-                  transition: 'transform 0.3s ease'
+                  transform: 'rotate(180deg)',
                 }}
               />
             </Box>
@@ -1190,6 +1222,46 @@ const ClassicDishCard: React.FC<DishCardProps> = ({
                     </Box>
                   </Box>
                 )}
+
+                {/* ✅ "Ver menos" button - at the END of all content, like Instagram */}
+                <Box
+                  onClick={toggleDetails}
+                  sx={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    cursor: 'pointer',
+                    fontWeight: 500,
+                    fontSize: { xs: '0.85rem', sm: '0.95rem' },
+                    mt: 2,
+                    mb: 1,
+                    py: 1.5,
+                    width: '100%',
+                    bgcolor: 'rgba(255,255,255,0.08)',
+                    borderRadius: 2,
+                    border: `1px solid ${colors.accent}40`,
+                    '&:hover': {
+                      opacity: 0.9,
+                      bgcolor: 'rgba(255,255,255,0.12)'
+                    },
+                    '&:active': {
+                      transform: 'scale(0.98)'
+                    },
+                    color: colors.accent,
+                    fontFamily: '"Fraunces", serif',
+                    transition: 'all 0.2s ease'
+                  }}
+                >
+                  <Typography variant="body2" sx={{ mr: 0.5, color: colors.accent, fontFamily: '"Fraunces", serif', fontWeight: 600 }}>
+                    {t('see_less', 'Ver menos')}
+                  </Typography>
+                  <ExpandLess
+                    sx={{
+                      fontSize: 18,
+                      transform: 'rotate(0deg)',
+                    }}
+                  />
+                </Box>
               </motion.div>
             )}
           </AnimatePresence>

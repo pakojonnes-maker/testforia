@@ -10,12 +10,14 @@ interface ViewModeToggleProps {
         secondary: string;
         accent?: string;
     };
+    hidden?: boolean; // ✅ Hide when dish content is expanded
 }
 
 const ViewModeToggle: React.FC<ViewModeToggleProps> = ({
     viewMode,
     onViewModeChange,
-    colors
+    colors,
+    hidden = false
 }) => {
     // Use accent color if available, otherwise fallback to secondary
     const activeColor = colors.accent || colors.secondary || '#4ECDC4';
@@ -28,7 +30,12 @@ const ViewModeToggle: React.FC<ViewModeToggleProps> = ({
                 right: 16,
                 zIndex: 20,
                 display: 'flex',
-                alignItems: 'center'
+                alignItems: 'center',
+                // ✅ Hide when dish content is expanded
+                opacity: hidden ? 0 : 1,
+                visibility: hidden ? 'hidden' : 'visible',
+                pointerEvents: hidden ? 'none' : 'auto',
+                transition: 'opacity 0.3s ease-in-out, visibility 0.3s ease-in-out'
             }}
         >
             <motion.div

@@ -14,7 +14,29 @@
 // - GET /restaurants/:id/dashboard/pulse
 // ===========================================================================
 
-import { verifyJWT, JWT_SECRET } from './workerAuthentication.js';
+import { verifyJWT } from './workerAuthentication.js';
+
+// CORS - Dominios permitidos
+const ALLOWED_ORIGINS = [
+  'https://admin.visualtastes.com',
+  'https://menu.visualtastes.com',
+  'https://visualtastes.com',
+  'http://localhost:5173',
+  'http://localhost:5174',
+  'http://menu.localhost:5173',
+  'http://admin.localhost:5174'
+];
+
+function getCorsHeaders(request) {
+  const origin = request?.headers?.get('Origin') || '';
+  const allowedOrigin = ALLOWED_ORIGINS.includes(origin) ? origin : ALLOWED_ORIGINS[0];
+  return {
+    "Content-Type": "application/json",
+    "Access-Control-Allow-Origin": allowedOrigin,
+    "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS",
+    "Access-Control-Allow-Headers": "Content-Type, Authorization",
+  };
+}
 
 /**
  * Main request handler for dashboard analytics
@@ -43,8 +65,8 @@ export async function handleDashboardRequests(request, env) {
   // Extract and verify JWT token
   const token = authHeader.substring(7); // Remove "Bearer " prefix
 
-  // Use the imported verifyJWT
-  const userData = await verifyJWT(token, JWT_SECRET);
+  // Use env.JWT_SECRET (configurado en Cloudflare Dashboard)
+  const userData = await verifyJWT(token, env.JWT_SECRET);
 
   if (!userData) {
     return createResponse({ success: false, message: "Token inválido o expirado" }, 401);
@@ -594,14 +616,11 @@ function convertToMinutes(timeStr) {
  * @param {number} status - HTTP status code
  * @returns {Response} HTTP response
  */
-function createResponse(data, status = 200) {
+function createResponse(data, status = 200, request = null) {
   return new Response(JSON.stringify(data), {
     status,
     headers: {
-      "Content-Type": "application/json",
-      "Access-Control-Allow-Origin": "*",
-      "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS",
-      "Access-Control-Allow-Headers": "Content-Type, Authorization",
+      ...getCorsHeaders(request),
       "Cache-Control": status === 200 ? "public, max-age=60" : "no-cache"
     },
   });

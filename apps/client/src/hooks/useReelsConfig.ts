@@ -48,6 +48,8 @@ interface RestaurantConfig {
   config: Record<string, any>;
   marketing?: any;
   reservationsEnabled?: boolean;
+  deliveryEnabled?: boolean; // ✅ NEW
+  deliverySettings?: any;    // ✅ NEW - Full delivery config
   translations?: Record<string, string>; // ✅ Global translations
 }
 
@@ -93,6 +95,8 @@ async function fetchReelsData(slug: string, language = 'es'): Promise<Restaurant
     config: data.config || {},
     marketing: data.marketing, // ✅ Include marketing data
     reservationsEnabled: data.reservationsEnabled, // ✅ Include reservations status
+    deliveryEnabled: data.deliveryEnabled, // ✅ NEW: Delivery enabled
+    deliverySettings: data.deliverySettings, // ✅ NEW: Full delivery config
     translations: data.translations // ✅ Include global translations
   };
 }

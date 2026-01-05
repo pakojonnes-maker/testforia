@@ -10,9 +10,35 @@
 // CONFIGURATION
 // ===========================================================================
 
-export const JWT_SECRET = 'YOUR_SECRET_KEY_HERE_CHANGE_IN_PRODUCTION'; // ⚠️ CHANGE THIS!
+// JWT_SECRET ahora se lee desde env (configurado en Cloudflare Dashboard)
+// Ver: Workers & Pages > visualtasteworker > Configuración > Variables y secretos
 export const JWT_ALGORITHM = 'HS256';
 export const JWT_EXPIRATION = '7d'; // 7 days
+
+// CORS - Dominios permitidos
+const ALLOWED_ORIGINS = [
+    'https://admin.visualtastes.com',
+    'https://menu.visualtastes.com',
+    'https://visualtastes.com',
+    'http://localhost:5173',  // Dev cliente
+    'http://localhost:5174',  // Dev admin
+    'http://menu.localhost:5173',
+    'http://admin.localhost:5174'
+];
+
+/**
+ * Obtener headers CORS con origen validado
+ */
+function getCorsHeaders(request) {
+    const origin = request?.headers?.get('Origin') || '';
+    const allowedOrigin = ALLOWED_ORIGINS.includes(origin) ? origin : ALLOWED_ORIGINS[0];
+    return {
+        'Content-Type': 'application/json',
+        'Access-Control-Allow-Origin': allowedOrigin,
+        'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
+        'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+    };
+}
 
 // Password Hashing Configuration
 const PBKDF2_ITERATIONS = 100000;
@@ -24,11 +50,26 @@ const PBKDF2_HASH_ALGO = 'SHA-256';
 // ===========================================================================
 
 /**
+ * Generate a secure random password
+ * @param {number} length - Password length (default 12)
+ * @returns {string} - Random alphanumeric password
+ */
+export function generateSecurePassword(length = 12) {
+    const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789';
+    const randomValues = crypto.getRandomValues(new Uint8Array(length));
+    let password = '';
+    for (let i = 0; i < length; i++) {
+        password += chars[randomValues[i] % chars.length];
+    }
+    return password;
+}
+
+/**
  * Hash a password using PBKDF2
  * @param {string} password 
  * @returns {Promise<string>} Format: "salt_hex:hash_hex"
  */
-async function hashPassword(password) {
+export async function hashPassword(password) {
     const encoder = new TextEncoder();
     const salt = crypto.getRandomValues(new Uint8Array(PBKDF2_SALT_SIZE));
     const keyMaterial = await crypto.subtle.importKey(
@@ -168,12 +209,17 @@ function base64UrlDecode(base64Url) {
 // AUTHENTICATION MIDDLEWARE
 // ===========================================================================
 
-async function authenticateRequest(request) {
+/**
+ * Autenticar request usando JWT_SECRET desde env de Cloudflare
+ * @param {Request} request 
+ * @param {Object} env - Entorno de Cloudflare con JWT_SECRET
+ */
+async function authenticateRequest(request, env) {
     const authHeader = request.headers.get('Authorization');
     if (!authHeader || !authHeader.startsWith('Bearer ')) return null;
 
     const token = authHeader.substring(7);
-    return await verifyJWT(token, JWT_SECRET);
+    return await verifyJWT(token, env.JWT_SECRET);
 }
 
 // ===========================================================================
@@ -240,7 +286,7 @@ async function handleLogin(request, env) {
             email: user.email,
             is_superadmin: isSuperAdmin,
             restaurants: restaurants.map(r => r.id)
-        }, JWT_SECRET);
+        }, env.JWT_SECRET);
 
         await env.DB.prepare(
             `UPDATE users SET last_login = CURRENT_TIMESTAMP WHERE id = ?`
@@ -268,7 +314,7 @@ async function handleLogin(request, env) {
 }
 
 async function handleGetCurrentUser(request, env) {
-    const userData = await authenticateRequest(request);
+    const userData = await authenticateRequest(request, env);
 
     if (!userData) {
         return createResponse(
@@ -332,7 +378,7 @@ async function handleGetCurrentUser(request, env) {
 }
 
 async function handleRegister(request, env) {
-    const userData = await authenticateRequest(request);
+    const userData = await authenticateRequest(request, env);
 
     if (!userData) {
         return createResponse(
@@ -394,15 +440,80 @@ async function handleRegister(request, env) {
     }
 }
 
-function createResponse(data, status = 200) {
+async function handleChangePassword(request, env) {
+    const userData = await authenticateRequest(request, env);
+
+    if (!userData) {
+        return createResponse(
+            { success: false, message: 'No autorizado' },
+            401
+        );
+    }
+
+    try {
+        const { currentPassword, newPassword } = await request.json();
+
+        if (!currentPassword || !newPassword) {
+            return createResponse(
+                { success: false, message: 'Se requiere contraseña actual y nueva' },
+                400
+            );
+        }
+
+        if (newPassword.length < 6) {
+            return createResponse(
+                { success: false, message: 'La nueva contraseña debe tener al menos 6 caracteres' },
+                400
+            );
+        }
+
+        // Get current user and verify current password
+        const user = await env.DB.prepare(`
+            SELECT id, password_hash FROM users WHERE id = ? LIMIT 1
+        `).bind(userData.userId).first();
+
+        if (!user) {
+            return createResponse(
+                { success: false, message: 'Usuario no encontrado' },
+                404
+            );
+        }
+
+        // Verify current password
+        const isValidPassword = await verifyPassword(currentPassword, user.password_hash);
+        if (!isValidPassword) {
+            return createResponse(
+                { success: false, message: 'La contraseña actual es incorrecta' },
+                401
+            );
+        }
+
+        // Hash and save new password
+        const newPasswordHash = await hashPassword(newPassword);
+        await env.DB.prepare(`
+            UPDATE users SET password_hash = ? WHERE id = ?
+        `).bind(newPasswordHash, user.id).run();
+
+        console.log(`[Auth] Password changed for user ${userData.userId}`);
+
+        return createResponse({
+            success: true,
+            message: 'Contraseña actualizada correctamente'
+        });
+
+    } catch (error) {
+        console.error('[Auth] Change password error:', error);
+        return createResponse(
+            { success: false, message: 'Error interno del servidor' },
+            500
+        );
+    }
+}
+
+function createResponse(data, status = 200, request = null) {
     return new Response(JSON.stringify(data), {
         status,
-        headers: {
-            'Content-Type': 'application/json',
-            'Access-Control-Allow-Origin': '*',
-            'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
-            'Access-Control-Allow-Headers': 'Content-Type, Authorization',
-        },
+        headers: getCorsHeaders(request),
     });
 }
 
@@ -422,11 +533,8 @@ export async function handleAuthRequests(request, env) {
     // Handle CORS preflight
     if (request.method === 'OPTIONS') {
         return new Response(null, {
-            headers: {
-                'Access-Control-Allow-Origin': '*',
-                'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
-                'Access-Control-Allow-Headers': 'Content-Type, Authorization',
-            },
+            status: 204,
+            headers: getCorsHeaders(request),
         });
     }
 
@@ -440,6 +548,11 @@ export async function handleAuthRequests(request, env) {
 
     if (url.pathname === '/auth/register' && request.method === 'POST') {
         return await handleRegister(request, env);
+    }
+
+    // Change own password endpoint
+    if (url.pathname === '/auth/me/password' && request.method === 'PUT') {
+        return await handleChangePassword(request, env);
     }
 
     return null; // Return null if not an auth request

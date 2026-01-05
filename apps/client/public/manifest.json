@@ -1,20 +1,39 @@
 {
+    "id": "visualtaste-pwa",
     "name": "VisualTaste",
     "short_name": "VisualTaste",
-    "start_url": "/",
+    "description": "Descubre el menú con vídeos exclusivos, ofertas VIP y reservas instantáneas",
+    "start_url": "/?utm_source=homescreen",
+    "scope": "/",
     "display": "standalone",
+    "orientation": "portrait",
     "background_color": "#000000",
     "theme_color": "#000000",
+    "categories": [
+        "food",
+        "lifestyle",
+        "entertainment"
+    ],
     "icons": [
         {
             "src": "/logo.png",
             "sizes": "192x192",
-            "type": "image/png"
+            "type": "image/png",
+            "purpose": "any"
         },
         {
             "src": "/logo.png",
             "sizes": "512x512",
-            "type": "image/png"
+            "type": "image/png",
+            "purpose": "any"
+        },
+        {
+            "src": "/logo.png",
+            "sizes": "180x180",
+            "type": "image/png",
+            "purpose": "any"
         }
-    ]
+    ],
+    "screenshots": [],
+    "prefer_related_applications": false
 }

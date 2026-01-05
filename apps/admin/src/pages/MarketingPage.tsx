@@ -1,72 +1,92 @@
+// apps/admin/src/pages/MarketingPage.tsx
+// Complete rewrite with modern dark theme and neon effects
+
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+
 import { useAuth } from '../contexts/AuthContext';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { apiClient } from '../lib/apiClient';
 import {
-  Container,
+  Box,
   Typography,
+  Paper,
   Grid,
   Card,
   CardContent,
-  CardActions,
   Button,
-  Box,
-  TextField,
-  FormControl,
-  InputLabel,
-  Select,
-  MenuItem,
   Chip,
   IconButton,
-  Table,
-  TableBody,
-  TableCell,
-  TableContainer,
-  TableHead,
-  TableRow,
+  TextField,
   Dialog,
   DialogTitle,
   DialogContent,
   DialogActions,
-  LinearProgress,
-  Tabs,
-  Tab,
-  CircularProgress,
-  Alert,
-  Snackbar,
-  Paper,
-  Stack,
+  FormControl,
+  InputLabel,
+  Select,
+  MenuItem,
   Switch,
   FormControlLabel,
+  Stack,
   Divider,
-  Tooltip
+  Alert,
+  CircularProgress,
+  alpha,
+  Tabs,
+  Tab,
+  Snackbar,
+  LinearProgress
 } from '@mui/material';
 import {
+  Campaign as CampaignIcon,
   Add as AddIcon,
   Edit as EditIcon,
   Delete as DeleteIcon,
-  Notifications as NotificationsIcon,
-  Campaign as CampaignIcon,
-  Discount as DiscountIcon,
   QrCode as QrCodeIcon,
-  Image as ImageIcon,
-  ColorLens as ColorIcon
+  Notifications as NotificationsIcon,
+  Event as EventIcon,
+  CardGiftcard as GiftIcon,
+  Celebration as CelebrationIcon,
+  Person as PersonIcon,
+  DateRange as DateIcon,
+  CheckCircle as CheckIcon,
+  Send as SendIcon
 } from '@mui/icons-material';
-import { NotificationPreview } from '../components/marketing/NotificationPreview';
 
-// --- Interfaces ---
+
+// ============================================
+// INTERFACES
+// ============================================
 
 interface Campaign {
   id: string;
   restaurant_id: string;
   name: string;
-  type: 'scratch_win' | 'welcome_modal' | 'unknown';
+  type: 'scratch_win' | 'welcome_modal' | 'event';
   is_active: boolean;
-  content: any;
+  content: {
+    title?: string;
+    description?: string;
+    image_url?: string;
+    location?: string;
+  };
+  settings?: {
+    show_email?: boolean;
+    show_phone?: boolean;
+    auto_open?: boolean;
+    delay?: number;
+  };
   start_date?: string;
   end_date?: string;
+  created_at?: string;
+  stats?: {
+    leads: number;
+    redeemed: number;
+    opened: number;
+  };
 }
+
 
 interface Reward {
   id: string;
@@ -75,578 +95,1061 @@ interface Reward {
   description: string;
   probability: number;
   max_quantity: number | null;
+  claimed_count?: number;
   image_url?: string;
   is_active: boolean;
 }
 
-interface StaffQR {
-  id: string; // The QR ID
-  restaurant_id: string;
-  assigned_staff_id?: string;
-  staff_name?: string;
-  role?: string;
-  created_at: string;
-}
+// ============================================
+// THEME COLORS
+// ============================================
 
-interface StaffMember {
-  id: string; // Changed from user_id to match API
-  display_name: string;
-  role: string;
-}
+const COLORS = {
+  scratch: '#f59e0b',      // Amber for Scratch & Win
+  welcome: '#6366f1',      // Indigo for Welcome Modal
+  event: '#ec4899',        // Pink for Events
+  success: '#22c55e',
+  danger: '#ef4444',
+  purple: '#8b5cf6',
+  cyan: '#14b8a6',
+};
 
-// --- Component ---
+const CAMPAIGN_CONFIG = {
+  scratch_win: {
+    label: 'Rasca y Gana',
+    emoji: '🎰',
+    color: COLORS.scratch,
+    icon: GiftIcon,
+    description: 'Los clientes rascan para ganar premios'
+  },
+  welcome_modal: {
+    label: 'Bienvenida',
+    emoji: '👋',
+    color: COLORS.welcome,
+    icon: CampaignIcon,
+    description: 'Captura leads al entrar al menú'
+  },
+  event: {
+    label: 'Evento',
+    emoji: '🎉',
+    color: COLORS.event,
+    icon: EventIcon,
+    description: 'Promoción con código QR'
+  },
+};
+
+// ============================================
+// COMPONENT
+// ============================================
 
 const MarketingPage: React.FC = () => {
   const { currentRestaurant } = useAuth();
   const restaurantId = currentRestaurant?.id;
-  const navigate = useNavigate();
   const queryClient = useQueryClient();
+  const navigate = useNavigate();
+
+  // State
   const [activeTab, setActiveTab] = useState(0);
-  const [snackbar, setSnackbar] = useState<any>({ open: false, message: '', severity: 'success' });
-
-  // --- QUERY: Campaigns ---
-  const { data: campaigns, isLoading: isLoadingCampaigns } = useQuery<Campaign[]>({
-    queryKey: ['campaigns', restaurantId],
-    queryFn: async () => {
-      const res = await apiClient.client.get(`/api/restaurants/${restaurantId}/campaigns`);
-      return res.data.campaigns;
-    },
-    enabled: !!restaurantId
+  const [snackbar, setSnackbar] = useState<{ open: boolean; message: string; severity: 'success' | 'error' }>({
+    open: false, message: '', severity: 'success'
   });
 
-  // --- QUERY: Staff QRs ---
-  const { data: staffQrs, isLoading: isLoadingQrs } = useQuery<StaffQR[]>({
-    queryKey: ['staff-qrs', restaurantId],
-    queryFn: async () => {
-      const res = await apiClient.client.get(`/api/restaurants/${restaurantId}/staff-qrs`);
-      return res.data.qrs;
-    },
-    enabled: !!restaurantId
-  });
-
-  // --- QUERY: Staff List ---
-  const { data: staffList } = useQuery<StaffMember[]>({
-    queryKey: ['staff', restaurantId],
-    queryFn: async () => {
-      const res = await apiClient.client.get(`/restaurants/${restaurantId}/users`); // endpoint is /users not /staff
-      return res.data.users || [];
-    },
-    enabled: !!restaurantId
-  });
-
-  // --- STATE: Dialogs ---
-  const [openCampaignDialog, setOpenCampaignDialog] = useState(false);
-  const [openRewardDialog, setOpenRewardDialog] = useState(false);
-  const [openQrDialog, setOpenQrDialog] = useState(false);
-
+  // Dialog states
+  const [campaignDialog, setCampaignDialog] = useState(false);
+  const [rewardDialog, setRewardDialog] = useState(false);
   const [selectedCampaign, setSelectedCampaign] = useState<Campaign | null>(null);
-  const [rewards, setRewards] = useState<Reward[]>([]); // Should be a query really
-  const [editingReward, setEditingReward] = useState<Partial<Reward>>({});
-  const [selectedStaffForQR, setSelectedStaffForQR] = useState<string>('');
+  const [rewards, setRewards] = useState<Reward[]>([]);
 
-  // --- STATE: Forms ---
-  const [campaignForm, setCampaignForm] = useState<Partial<Campaign>>({ type: 'scratch_win', is_active: true });
+  // Form states
+  const [campaignForm, setCampaignForm] = useState<Partial<Campaign>>({
+    type: 'welcome_modal',
+    is_active: true,
+    content: {},
+    settings: { show_email: true, show_phone: true }
+  });
+  const [rewardForm, setRewardForm] = useState<Partial<Reward>>({
+    probability: 0.1,
+    is_active: true
+  });
 
-  // Notification Form Enhanced
+  // Push notification state
+  const [pushEnabled, setPushEnabled] = useState(true);
   const [notificationForm, setNotificationForm] = useState({
     title: '',
     message: '',
     url: '',
-    image_url: '', // Big Picture
-    icon_url: '',  // Small Icon (override)
-    badge: '',
-    color: '#D4AF37' // Default Gold-ish like the logo
+    image_url: ''
+  });
+  const [isSending, setIsSending] = useState(false);
+  const [qrUrl, setQrUrl] = useState(''); // For QR generator prefill
+
+
+  // ============================================
+  // QUERIES
+  // ============================================
+
+  const { data: campaigns, isLoading } = useQuery<Campaign[]>({
+    queryKey: ['campaigns', restaurantId],
+    queryFn: async () => {
+      const res = await apiClient.client.get(`/api/restaurants/${restaurantId}/campaigns`);
+      return res.data.campaigns || [];
+    },
+    enabled: !!restaurantId
   });
 
-  const [isSendingNotification, setIsSendingNotification] = useState(false);
-  const [pushEnabled, setPushEnabled] = useState(true);
+  // ============================================
+  // EFFECTS
+  // ============================================
 
-  // Sync pushEnabled with restaurant settings
   useEffect(() => {
     if (currentRestaurant?.features) {
-      // Default to true if undefined
-      const enabled = currentRestaurant.features.push_notifications_enabled !== false;
-      setPushEnabled(enabled);
+      setPushEnabled(currentRestaurant.features.push_notifications_enabled !== false);
     }
   }, [currentRestaurant]);
 
-  const handleTogglePush = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const newValue = e.target.checked;
-    setPushEnabled(newValue);
-
-    try {
-      await apiClient.client.put(`/restaurants/${restaurantId}`, {
-        features: {
-          ...currentRestaurant?.features,
-          push_notifications_enabled: newValue
-        }
-      });
-      setSnackbar({ open: true, message: `Captación ${newValue ? 'activada' : 'desactivada'}`, severity: 'success' });
-
-      // Optimistically update context or invalidate query if needed
-      // Assuming useAuth.currentRestaurant updates automatically or on refresh
-    } catch (error) {
-      console.error('Error updating push settings:', error);
-      setPushEnabled(!newValue); // Revert
-      setSnackbar({ open: true, message: 'Error al actualizar configuración', severity: 'error' });
-    }
-  };
-
-  // Auto-populate default icon based on branding
-  useEffect(() => {
-    if (currentRestaurant?.id && !notificationForm.icon_url) {
-      // Construct default URL (assuming CDN pattern mentioned by user)
-      const defaultIcon = `https://visualtastes.com/mediabucket/restaurants/${currentRestaurant.slug || currentRestaurant.id}/branding/logo.png`;
-      // We don't set it in state to allow placeholder behavior, but we use it for preview
-    }
-  }, [currentRestaurant]);
-
-  // Derived icon for preview/sending
-  const effectiveIcon = notificationForm.icon_url ||
-    (currentRestaurant ? `https://pub-4543787a2a164b88931ebc1274d6f830.r2.dev/restaurants/${currentRestaurant.slug}/branding/logo.png` : '');
-  // Using generic r2 dev url or the one user mentioned 'mediabucket' if that's a mapped domain? 
-  // User said: mediabucket/restaurants/id/branding/logo.png
-  // I should probably ask or use a safe guess. Let's use the pattern from the user request strictly if possible, 
-  // but without the domain I might guess. 'mediabucket' sounds like a folder in bucket.
-  // Let's assume relative or absolute if I knew the domain. 
-  // Wait, the user provided a screenshot "mediabucket / restaurants / ...". 
-  // I will use a relative path if deployed or a constructed absolute path.
-  // For now let's try to assume a standard R2 public URL format if we know it, or just use a placeholder text if unknown.
-  // I will use a smart generic default for now.
-
-  const finalIconUrl = notificationForm.icon_url || `https://pub-4543787a2a164b88931ebc1274d6f830.r2.dev/restaurants/${currentRestaurant?.id}/branding/logo.png`;
-
-
-  // --- Handlers ---
-  const handleTabChange = (_: any, val: number) => setActiveTab(val);
+  // ============================================
+  // HANDLERS
+  // ============================================
 
   const handleEditCampaign = async (campaign: Campaign) => {
     setSelectedCampaign(campaign);
-    setCampaignForm({ ...campaign });
-    setOpenCampaignDialog(true);
+    setCampaignForm({
+      ...campaign,
+      content: typeof campaign.content === 'string'
+        ? JSON.parse(campaign.content)
+        : campaign.content || {}
+    });
+    setCampaignDialog(true);
     // Load rewards
-    loadRewards(campaign.id);
+    try {
+      const res = await apiClient.client.get(`/api/campaigns/${campaign.id}/rewards`);
+      setRewards(res.data.rewards || []);
+    } catch (e) {
+      setRewards([]);
+    }
   };
 
-  const loadRewards = async (campaignId: string) => {
-    const res = await apiClient.client.get(`/api/campaigns/${campaignId}/rewards`);
-    setRewards(res.data.rewards || []);
+  const handleNewCampaign = () => {
+    setSelectedCampaign(null);
+    setCampaignForm({ type: 'welcome_modal', is_active: true, content: {} });
+    setRewards([]);
+    setCampaignDialog(true);
   };
 
   const handleSaveCampaign = async () => {
-    const url = selectedCampaign
-      ? `/api/campaigns/${selectedCampaign.id}`
-      : `/api/campaigns`;
+    // Date validation for event campaigns
+    if (campaignForm.type === 'event' && campaignForm.start_date && campaignForm.end_date) {
+      if (new Date(campaignForm.end_date) < new Date(campaignForm.start_date)) {
+        setSnackbar({ open: true, message: 'La fecha de fin no puede ser anterior a la de inicio', severity: 'error' });
+        return;
+      }
+    }
 
-    const method = selectedCampaign ? 'put' : 'post';
+    try {
+      const url = selectedCampaign
+        ? `/api/campaigns/${selectedCampaign.id}`
+        : `/api/campaigns`;
+      const method = selectedCampaign ? 'put' : 'post';
 
-    await apiClient.client[method](url, { ...campaignForm, restaurant_id: restaurantId });
+      await apiClient.client[method](url, {
+        ...campaignForm,
+        restaurant_id: restaurantId,
+        content: JSON.stringify(campaignForm.content || {}),
+        settings: JSON.stringify(campaignForm.settings || {})
+      });
 
-    queryClient.invalidateQueries({ queryKey: ['campaigns'] });
-    setOpenCampaignDialog(false);
-    setSnackbar({ open: true, message: 'Campaña guardada', severity: 'success' });
+      queryClient.invalidateQueries({ queryKey: ['campaigns'] });
+      setCampaignDialog(false);
+      setSnackbar({ open: true, message: 'Campaña guardada ✅', severity: 'success' });
+    } catch (error: any) {
+      setSnackbar({ open: true, message: error.message || 'Error al guardar', severity: 'error' });
+    }
+  };
+
+  const handleDeleteCampaign = async (id: string) => {
+    if (!confirm('¿Eliminar esta campaña?')) return;
+    try {
+      await apiClient.client.delete(`/api/campaigns/${id}`);
+      queryClient.invalidateQueries({ queryKey: ['campaigns'] });
+      setSnackbar({ open: true, message: 'Campaña eliminada', severity: 'success' });
+    } catch (error: any) {
+      setSnackbar({ open: true, message: 'Error al eliminar', severity: 'error' });
+    }
   };
 
   const handleSaveReward = async () => {
     if (!selectedCampaign) return;
-    await apiClient.client.post(`/api/rewards`, {
-      ...editingReward,
-      campaign_id: selectedCampaign.id,
-      restaurant_id: restaurantId
-    });
-    loadRewards(selectedCampaign.id);
-    setOpenRewardDialog(false);
+    try {
+      await apiClient.client.post(`/api/rewards`, {
+        ...rewardForm,
+        campaign_id: selectedCampaign.id,
+        restaurant_id: restaurantId
+      });
+      const res = await apiClient.client.get(`/api/campaigns/${selectedCampaign.id}/rewards`);
+      setRewards(res.data.rewards || []);
+      setRewardDialog(false);
+      setRewardForm({ probability: 0.1, is_active: true });
+      setSnackbar({ open: true, message: 'Premio añadido ✅', severity: 'success' });
+    } catch (error: any) {
+      setSnackbar({ open: true, message: 'Error al guardar premio', severity: 'error' });
+    }
   };
 
   const handleDeleteReward = async (id: string) => {
-    if (!confirm('¿Borrar premio?')) return;
-    await apiClient.client.delete(`/api/rewards/${id}`);
-    if (selectedCampaign) loadRewards(selectedCampaign.id);
+    if (!selectedCampaign) return;
+    try {
+      await apiClient.client.delete(`/api/rewards/${id}`);
+      setRewards(rewards.filter(r => r.id !== id));
+    } catch (error: any) {
+      setSnackbar({ open: true, message: 'Error al eliminar', severity: 'error' });
+    }
   };
 
-  const handleCreateStaffQR = async () => {
-    if (!selectedStaffForQR) {
-      setSnackbar({ open: true, message: 'Selecciona un camarero', severity: 'warning' });
-      return;
+  const handleTogglePush = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const newValue = e.target.checked;
+    setPushEnabled(newValue);
+    try {
+      await apiClient.client.put(`/restaurants/${restaurantId}`, {
+        features: { ...currentRestaurant?.features, push_notifications_enabled: newValue }
+      });
+      setSnackbar({ open: true, message: `Captación ${newValue ? 'activada' : 'desactivada'}`, severity: 'success' });
+    } catch (error) {
+      setPushEnabled(!newValue);
+      setSnackbar({ open: true, message: 'Error al actualizar', severity: 'error' });
     }
-
-    await apiClient.client.post(`/api/staff/assign-qr`, { restaurant_id: restaurantId, staff_id: selectedStaffForQR });
-    queryClient.invalidateQueries({ queryKey: ['staff-qrs'] });
-    setOpenQrDialog(false);
-    setSnackbar({ open: true, message: 'QR Generado exitosamente', severity: 'success' });
-  };
-
-  const handlePrintQR = (qrId: string) => {
-    const slug = currentRestaurant?.slug || 'unknown';
-
-    // Smart Local Dev Logic
-    let baseUrl = 'https://menu.visualtastes.com';
-    if (window.location.hostname.includes('localhost')) {
-      const adminPort = window.location.port;
-      // If Admin is 5173, Client is likely 5174. If Admin is 5174, Client is likely 5173.
-      const defaultLocal = adminPort === '5173' ? 'http://localhost:5174' : 'http://localhost:5173';
-      baseUrl = import.meta.env.VITE_CLIENT_URL || defaultLocal;
-    }
-
-    // Semantic URL: https://menu.visualtastes.com/{slug}/loyalty?c={qrId}
-    const url = `${baseUrl}/${slug}/loyalty?c=${qrId}`;
-
-    navigate(`/qr-generator?text=${encodeURIComponent(url)}`);
   };
 
   const handleSendNotification = async () => {
-    if (!notificationForm.title || !notificationForm.message) {
-      setSnackbar({ open: true, message: 'Título y Mensaje son obligatorios', severity: 'warning' });
-      return;
-    }
-
-    if (!confirm('¿Estás seguro de enviar esta notificación a TODOS tus visitantes suscritos?')) {
-      return;
-    }
-
-    setIsSendingNotification(true);
+    if (!notificationForm.title || !notificationForm.message) return;
+    setIsSending(true);
     try {
-      const payload = {
-        restaurant_id: restaurantId,
-        debug: true, // Enable Debug Mode
-        ...notificationForm,
-        icon: finalIconUrl, // Send computed default if empty
-      };
-
-      const res = await apiClient.client.post('/api/notifications/send', payload);
-
-      if (res.data.debug_info) {
-        console.group("📨 NOTIFICATION DEBUG LOGS");
-        console.table(res.data.debug_info);
-        // Fallback for copy-paste or if table is empty/truncated
-        console.log("RAW LOGS:", JSON.stringify(res.data.debug_info, null, 2));
-        console.groupEnd();
-      }
-
-      const count = res.data.sent_count || 0;
-      setSnackbar({ open: true, message: `Notificación enviada a ${count} dispositivos`, severity: 'success' });
-      setNotificationForm({ title: '', message: '', url: '', image_url: '', icon_url: '', badge: '', color: '#D4AF37' });
+      await apiClient.client.post(`/api/restaurants/${restaurantId}/notifications/send`, notificationForm);
+      setSnackbar({ open: true, message: 'Notificación enviada 📲', severity: 'success' });
+      setNotificationForm({ title: '', message: '', url: '', image_url: '' });
     } catch (error: any) {
-      console.error('Error sending notification:', error);
-      setSnackbar({ open: true, message: error.message || 'Error al enviar', severity: 'error' });
+      setSnackbar({ open: true, message: 'Error al enviar', severity: 'error' });
     } finally {
-      setIsSendingNotification(false);
+      setIsSending(false);
     }
   };
 
-  return (
-    <Container maxWidth="lg">
-      <Typography variant="h4" gutterBottom>Marketing & Loyalty</Typography>
+  const getCampaignStats = (campaign: Campaign) => {
 
-      <Paper sx={{ mb: 4 }}>
-        <Tabs value={activeTab} onChange={handleTabChange}>
-          <Tab icon={<CampaignIcon />} label="Campañas" />
-          <Tab icon={<QrCodeIcon />} label="Códigos QR Staff" />
-          <Tab icon={<NotificationsIcon />} label="Notificaciones Push" />
-        </Tabs>
+    return campaign.stats || { leads: 0, redeemed: 0, opened: 0 };
+  };
 
-        {/* --- TAB 0: CAMPAIGNS --- */}
-        {activeTab === 0 && (
-          <Box p={3}>
-            <Box display="flex" justifyContent="space-between" mb={2}>
-              <Typography variant="h6">Mis Campañas</Typography>
-              <Button variant="contained" startIcon={<AddIcon />} onClick={() => {
-                setSelectedCampaign(null);
-                setCampaignForm({ type: 'scratch_win', is_active: true });
-                setOpenCampaignDialog(true);
-                setRewards([]);
+
+  // ============================================
+  // RENDER HELPERS
+  // ============================================
+
+  const renderCampaignCard = (campaign: Campaign) => {
+    const config = CAMPAIGN_CONFIG[campaign.type] || CAMPAIGN_CONFIG.welcome_modal;
+    const Icon = config.icon;
+    const stats = getCampaignStats(campaign);
+
+    return (
+      <Card
+        key={campaign.id}
+        sx={{
+          background: `linear-gradient(135deg, ${alpha(config.color, 0.12)} 0%, ${alpha(config.color, 0.03)} 100%)`,
+          border: `1px solid ${alpha(config.color, 0.2)}`,
+          borderRadius: 3,
+          transition: 'all 0.3s ease',
+          '&:hover': {
+            transform: 'translateY(-4px)',
+            boxShadow: `0 16px 40px ${alpha(config.color, 0.25)}`,
+            borderColor: alpha(config.color, 0.4),
+          }
+        }}
+      >
+        <CardContent sx={{ p: 3 }}>
+          {/* Header */}
+          <Box display="flex" justifyContent="space-between" alignItems="flex-start" mb={2}>
+            <Box display="flex" alignItems="center" gap={1.5}>
+              <Box sx={{
+                p: 1.25,
+                borderRadius: 2,
+                bgcolor: alpha(config.color, 0.15),
+                color: config.color,
+                display: 'flex',
+                boxShadow: `0 4px 12px ${alpha(config.color, 0.2)}`
               }}>
-                Nueva Campaña
-              </Button>
+                <Icon sx={{ fontSize: 24 }} />
+              </Box>
+              <Box>
+                <Typography variant="h6" sx={{ fontWeight: 700, color: 'white', lineHeight: 1.2 }}>
+                  {campaign.name}
+                </Typography>
+                <Typography variant="caption" sx={{ color: alpha('#fff', 0.5) }}>
+                  {config.emoji} {config.label}
+                </Typography>
+              </Box>
             </Box>
-
-            {isLoadingCampaigns ? <LinearProgress /> : (
-              <Grid container spacing={2}>
-                {campaigns?.map(c => (
-                  <Grid item xs={12} md={6} key={c.id}>
-                    <Card variant="outlined">
-                      <CardContent>
-                        <Box display="flex" justifyContent="space-between">
-                          <Typography variant="h6">{c.name}</Typography>
-                          <Chip label={c.is_active ? 'Activa' : 'Inactiva'} color={c.is_active ? 'success' : 'default'} size="small" />
-                        </Box>
-                        <Typography variant="body2" color="text.secondary">Tipo: {c.type}</Typography>
-                      </CardContent>
-                      <CardActions>
-                        <Button size="small" startIcon={<EditIcon />} onClick={() => handleEditCampaign(c)}>Editar / Premios</Button>
-                      </CardActions>
-                    </Card>
-                  </Grid>
-                ))}
-              </Grid>
-            )}
+            <Chip
+              size="small"
+              label={campaign.is_active ? 'Activa' : 'Inactiva'}
+              sx={{
+                bgcolor: campaign.is_active ? alpha(COLORS.success, 0.15) : alpha('#666', 0.15),
+                color: campaign.is_active ? COLORS.success : '#888',
+                fontWeight: 600,
+                fontSize: '0.7rem'
+              }}
+            />
           </Box>
-        )}
 
-        {/* --- TAB 1: STAFF QRS --- */}
-        {activeTab === 1 && (
-          <Box p={3}>
-            <Box display="flex" justifyContent="space-between" mb={2}>
-              <Typography variant="h6">Códigos QR de Camareros</Typography>
-              <Button variant="contained" startIcon={<AddIcon />} onClick={() => setOpenQrDialog(true)}>
-                Generar Nuevo QR
-              </Button>
+          {/* Content Preview */}
+          {campaign.content?.title && (
+            <Typography variant="body2" sx={{ color: alpha('#fff', 0.7), mb: 2, fontSize: '0.85rem' }}>
+              "{campaign.content.title}"
+            </Typography>
+          )}
+
+          {/* Event dates */}
+          {campaign.type === 'event' && campaign.start_date && (
+            <Box display="flex" alignItems="center" gap={0.5} mb={2}>
+              <DateIcon sx={{ fontSize: 14, color: config.color }} />
+              <Typography variant="caption" sx={{ color: alpha('#fff', 0.5) }}>
+                {new Date(campaign.start_date).toLocaleDateString()}
+                {campaign.end_date && ` - ${new Date(campaign.end_date).toLocaleDateString()}`}
+              </Typography>
             </Box>
+          )}
 
-            {isLoadingQrs ? <LinearProgress /> : (
-              <TableContainer>
-                <Table>
-                  <TableHead>
-                    <TableRow>
-                      <TableCell>Staff / ID</TableCell>
-                      <TableCell>Rol</TableCell>
-                      <TableCell>QR ID</TableCell>
-                      <TableCell>Creado</TableCell>
-                      <TableCell>Acciones</TableCell>
-                    </TableRow>
-                  </TableHead>
-                  <TableBody>
-                    {staffQrs?.map(qr => {
-                      const slug = currentRestaurant?.slug || 'unknown';
-
-                      let baseUrl = 'https://menu.visualtastes.com';
-                      if (window.location.hostname.includes('localhost')) {
-                        const adminPort = window.location.port;
-                        const defaultLocal = adminPort === '5173' ? 'http://localhost:5174' : 'http://localhost:5173';
-                        baseUrl = import.meta.env.VITE_CLIENT_URL || defaultLocal;
-                      }
-
-                      const testUrl = `${baseUrl}/${slug}/loyalty?c=${qr.id}`;
-
-                      return (
-                        <TableRow key={qr.id}>
-                          <TableCell>{qr.staff_name || 'Sin asignar'}</TableCell>
-                          <TableCell>{qr.role || '-'}</TableCell>
-                          <TableCell>{qr.id}</TableCell>
-                          <TableCell>{new Date(qr.created_at).toLocaleDateString()}</TableCell>
-                          <TableCell>
-                            <Stack direction="row" spacing={1}>
-                              <Button size="small" variant="outlined" startIcon={<QrCodeIcon />} onClick={() => handlePrintQR(qr.id)}>Imprimir</Button>
-                              <Button size="small" href={testUrl} target="_blank">Probar</Button>
-                            </Stack>
-                          </TableCell>
-                        </TableRow>
-                      );
-                    })}
-                  </TableBody>
-                </Table>
-              </TableContainer>
-            )}
-          </Box>
-        )}
-
-        {/* --- TAB 2: PUSH NOTIFICATIONS --- */}
-        {activeTab === 2 && (
-          <Box p={3}>
-
-            <Box display="flex" justifyContent="space-between" alignItems="center" mb={3}>
-              <Typography variant="h6">Enviar Notificación Push</Typography>
-              <FormControlLabel
-                control={<Switch checked={pushEnabled} onChange={handleTogglePush} />}
-                label="Captación de Suscriptores Activa"
-              />
-            </Box>
-
-            <Alert severity="info" sx={{ mb: 3 }}>
-              Envía mensajes directos a los visitantes que han aceptado recibir notificaciones.
-              Usuarios iOS recibirán la notificación si han instalado la PWA.
-            </Alert>
-
-            <Grid container spacing={3}>
-              <Grid item xs={12} md={6}>
-                <Stack spacing={3}>
-                  <TextField
-                    label="Título"
-                    fullWidth
-                    value={notificationForm.title}
-                    onChange={e => setNotificationForm({ ...notificationForm, title: e.target.value })}
-                    placeholder="Ej: Oferta de Cena 2x1"
-                  />
-                  <TextField
-                    label="Mensaje"
-                    fullWidth
-                    multiline
-                    rows={3}
-                    value={notificationForm.message}
-                    onChange={e => setNotificationForm({ ...notificationForm, message: e.target.value })}
-                    placeholder="Ej: Solo por hoy, ven y disfruta..."
-                  />
-                  <TextField
-                    label="URL de Destino (Opcional)"
-                    fullWidth
-                    value={notificationForm.url}
-                    onChange={e => setNotificationForm({ ...notificationForm, url: e.target.value })}
-                    placeholder="Ej: /restaurant-slug/offer"
-                    helperText="Deja vacío para abrir la página principal"
-                  />
-
-                  {/* Visual Options */}
-                  <Typography variant="subtitle2" sx={{ mt: 1 }}>Apariencia</Typography>
-                  <Stack direction="row" spacing={2}>
-                    <TextField
-                      label="Override Icon URL"
-                      fullWidth
-                      size="small"
-                      value={notificationForm.icon_url}
-                      onChange={e => setNotificationForm({ ...notificationForm, icon_url: e.target.value })}
-                      helperText="Vacío = Logo Restaurante"
-                      InputProps={{ startAdornment: <ImageIcon color="action" sx={{ mr: 1, fontSize: 20 }} /> }}
-                    />
-                    <TextField
-                      label="Accent Color"
-                      type="color"
-                      sx={{ width: 100 }}
-                      size="small"
-                      value={notificationForm.color}
-                      onChange={e => setNotificationForm({ ...notificationForm, color: e.target.value })}
-                      InputProps={{ startAdornment: <ColorIcon color="action" sx={{ mr: 1, fontSize: 20 }} /> }}
-                    />
-                  </Stack>
-                  <TextField
-                    label="Hero Image URL (Big Picture)"
-                    fullWidth
-                    size="small"
-                    value={notificationForm.image_url}
-                    onChange={e => setNotificationForm({ ...notificationForm, image_url: e.target.value })}
-                    helperText="Imagen grande expandible"
-                    InputProps={{ startAdornment: <ImageIcon color="action" sx={{ mr: 1, fontSize: 20 }} /> }}
-                  />
-
-                  <Button
-                    variant="contained"
-                    color="primary"
-                    size="large"
-                    startIcon={isSendingNotification ? <CircularProgress size={20} color="inherit" /> : <NotificationsIcon />}
-                    onClick={handleSendNotification}
-                    disabled={isSendingNotification}
-                  >
-                    {isSendingNotification ? 'Enviando...' : 'Enviar Notificación'}
-                  </Button>
-                </Stack>
-              </Grid>
-
-              <Grid item xs={12} md={6}>
-                <Card variant="outlined" sx={{ height: '100%', bgcolor: '#f5f5f5' }}>
-                  <CardContent>
-                    <Typography variant="subtitle2" gutterBottom>Vista Previa (Aproximada)</Typography>
-
-                    <Box sx={{ my: 4, display: 'flex', justifyContent: 'center' }}>
-                      <NotificationPreview
-                        title={notificationForm.title}
-                        message={notificationForm.message}
-                        icon={finalIconUrl}
-                        image={notificationForm.image_url}
-                        color={notificationForm.color}
-                        appName={currentRestaurant?.name || 'Restaurante'}
-                      />
-                    </Box>
-                  </CardContent>
-                </Card>
-              </Grid>
+          {/* Stats Grid */}
+          <Divider sx={{ borderColor: alpha('#fff', 0.08), my: 2 }} />
+          <Grid container spacing={1} mb={2}>
+            <Grid item xs={4}>
+              <Box textAlign="center" p={1} bgcolor={alpha('#fff', 0.03)} borderRadius={2}>
+                <Typography variant="h6" color="white" fontWeight={700}>
+                  {stats.leads}
+                </Typography>
+                <Typography variant="caption" color="text.secondary" sx={{ fontSize: '0.65rem' }}>
+                  LEADS
+                </Typography>
+              </Box>
             </Grid>
-          </Box>
-        )}
+            <Grid item xs={4}>
+              <Box textAlign="center" p={1} bgcolor={alpha('#fff', 0.03)} borderRadius={2}>
+                <Typography variant="h6" color={COLORS.cyan} fontWeight={700}>
+                  {stats.opened}
+                </Typography>
+                <Typography variant="caption" color="text.secondary" sx={{ fontSize: '0.65rem' }}>
+                  ABIERTOS
+                </Typography>
+              </Box>
+            </Grid>
+            <Grid item xs={4}>
+              <Box textAlign="center" p={1} bgcolor={alpha('#fff', 0.03)} borderRadius={2}>
+                <Typography variant="h6" color={COLORS.success} fontWeight={700}>
+                  {stats.redeemed}
+                </Typography>
+                <Typography variant="caption" color="text.secondary" sx={{ fontSize: '0.65rem' }}>
+                  CANJEADOS
+                </Typography>
+              </Box>
+            </Grid>
+          </Grid>
 
+          {/* Actions */}
+          <Box display="flex" gap={1} flexWrap="wrap">
+
+            <Button
+              size="small"
+              startIcon={<EditIcon />}
+              onClick={() => handleEditCampaign(campaign)}
+              sx={{
+                color: config.color,
+                borderColor: alpha(config.color, 0.3),
+                '&:hover': { bgcolor: alpha(config.color, 0.1) }
+              }}
+              variant="outlined"
+            >
+              Editar
+            </Button>
+
+            {campaign.type === 'event' && (
+              <Button
+                size="small"
+                startIcon={<QrCodeIcon />}
+                onClick={() => {
+                  const eventUrl = `https://menu.visualtastes.com/${currentRestaurant?.slug || 'evento'}/evento/${campaign.id}`;
+                  navigate(`/qr-generator?url=${encodeURIComponent(eventUrl)}`);
+                }}
+                sx={{ color: alpha('#fff', 0.7) }}
+              >
+                Generar QR
+              </Button>
+            )}
+
+            {campaign.type === 'scratch_win' && (
+              <Button
+                size="small"
+                startIcon={<QrCodeIcon />}
+                onClick={() => {
+                  const loyaltyUrl = `https://menu.visualtastes.com/${currentRestaurant?.slug}/loyalty/${campaign.id}`;
+                  navigate(`/qr-generator?url=${encodeURIComponent(loyaltyUrl)}`);
+                }}
+                sx={{ color: config.color }}
+              >
+                Generar QR
+              </Button>
+            )}
+
+
+            <IconButton
+              size="small"
+              onClick={() => handleDeleteCampaign(campaign.id)}
+              sx={{ color: alpha(COLORS.danger, 0.7), ml: 'auto' }}
+            >
+              <DeleteIcon fontSize="small" />
+            </IconButton>
+          </Box>
+        </CardContent>
+      </Card>
+    );
+  };
+
+  // ============================================
+  // MAIN RENDER
+  // ============================================
+
+  if (!restaurantId) {
+    return (
+      <Box p={4} textAlign="center">
+        <Typography color="text.secondary">Selecciona un restaurante</Typography>
+      </Box>
+    );
+  }
+
+  return (
+    <Box sx={{ p: { xs: 2, md: 4 } }}>
+      {/* Header */}
+      <Box display="flex" justifyContent="space-between" alignItems="center" mb={4}>
+        <Box>
+          <Typography variant="h4" sx={{ fontWeight: 800, mb: 0.5 }}>
+            🎯 Marketing & Campañas
+          </Typography>
+          <Typography variant="body2" color="text.secondary">
+            Gestiona campañas, notificaciones y captación de leads
+          </Typography>
+        </Box>
+        <Button
+          variant="contained"
+          startIcon={<AddIcon />}
+          onClick={handleNewCampaign}
+          sx={{
+            bgcolor: COLORS.purple,
+            px: 3,
+            py: 1.25,
+            borderRadius: 2,
+            fontWeight: 600,
+            boxShadow: `0 8px 24px ${alpha(COLORS.purple, 0.35)}`,
+            '&:hover': {
+              bgcolor: alpha(COLORS.purple, 0.85),
+              boxShadow: `0 12px 32px ${alpha(COLORS.purple, 0.45)}`
+            }
+          }}
+        >
+          Nueva Campaña
+        </Button>
+      </Box>
+
+      {/* Tabs */}
+      <Paper sx={{
+        bgcolor: alpha('#1a1a2e', 0.6),
+        backdropFilter: 'blur(8px)',
+        borderRadius: 3,
+        border: `1px solid ${alpha('#fff', 0.05)}`,
+        mb: 3
+      }}>
+        <Tabs
+          value={activeTab}
+          onChange={(_, v) => setActiveTab(v)}
+          sx={{
+            '& .MuiTab-root': {
+              fontWeight: 600,
+              textTransform: 'none',
+              minHeight: 56
+            }
+          }}
+        >
+          <Tab icon={<CampaignIcon />} label="Campañas" iconPosition="start" />
+          <Tab icon={<NotificationsIcon />} label="Push Notifications" iconPosition="start" />
+        </Tabs>
       </Paper>
 
-      {/* --- DIALOG: Assign QR --- */}
-      <Dialog open={openQrDialog} onClose={() => setOpenQrDialog(false)}>
-        <DialogTitle>Generar QR para Camarero</DialogTitle>
-        <DialogContent>
-          <Typography variant="body2" color="text.secondary" paragraph>
-            Selecciona un miembro del staff para asignar un nuevo código QR de lealtad.
-            Este código servirá para que los clientes jueguen y los premios se atribuyan a este camarero.
-          </Typography>
-          <FormControl fullWidth margin="dense">
-            <InputLabel>Camarero</InputLabel>
-            <Select
-              value={selectedStaffForQR}
-              label="Camarero"
-              onChange={(e) => setSelectedStaffForQR(e.target.value)}
-            >
-              {staffList?.map(staff => (
-                <MenuItem key={staff.id} value={staff.id}>
-                  {staff.display_name} ({staff.role})
-                </MenuItem>
+      {/* Tab Content */}
+      {activeTab === 0 && (
+        <Box>
+          {isLoading ? (
+            <LinearProgress sx={{ borderRadius: 1 }} />
+          ) : campaigns && campaigns.length > 0 ? (
+            <Grid container spacing={3}>
+              {campaigns.map(c => (
+                <Grid item xs={12} md={6} lg={4} key={c.id}>
+                  {renderCampaignCard(c)}
+                </Grid>
               ))}
-            </Select>
-          </FormControl>
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={() => setOpenQrDialog(false)}>Cancelar</Button>
-          <Button variant="contained" onClick={handleCreateStaffQR}>Generar</Button>
-        </DialogActions>
-      </Dialog>
+            </Grid>
+          ) : (
+            <Paper sx={{
+              p: 6,
+              textAlign: 'center',
+              bgcolor: alpha('#1a1a2e', 0.4),
+              borderRadius: 3,
+              border: `1px dashed ${alpha('#fff', 0.1)}`
+            }}>
+              <CelebrationIcon sx={{ fontSize: 64, color: alpha('#fff', 0.15), mb: 2 }} />
+              <Typography variant="h6" color="text.secondary" gutterBottom>
+                Sin campañas activas
+              </Typography>
+              <Typography variant="body2" color="text.secondary" sx={{ mb: 3, maxWidth: 400, mx: 'auto' }}>
+                Crea tu primera campaña para captar leads, hacer promociones o fidelizar clientes
+              </Typography>
+              <Button
+                variant="outlined"
+                startIcon={<AddIcon />}
+                onClick={handleNewCampaign}
+                sx={{ borderColor: alpha('#fff', 0.2), color: 'white' }}
+              >
+                Crear campaña
+              </Button>
+            </Paper>
+          )}
+        </Box>
+      )}
 
-      {/* --- DIALOG: Campaign --- */}
-      <Dialog open={openCampaignDialog} onClose={() => setOpenCampaignDialog(false)} maxWidth="md" fullWidth>
-        <DialogTitle>{selectedCampaign ? 'Editar Campaña' : 'Nueva Campaña'}</DialogTitle>
-        <DialogContent>
-          <Stack spacing={2} mt={1}>
-            <TextField label="Nombre" fullWidth value={campaignForm.name || ''} onChange={e => setCampaignForm({ ...campaignForm, name: e.target.value })} />
+      {activeTab === 1 && (
+        <Grid container spacing={3}>
+          <Grid item xs={12} md={6}>
+            <Paper sx={{
+              p: 3,
+              bgcolor: alpha('#1a1a2e', 0.6),
+              borderRadius: 3,
+              border: `1px solid ${alpha(COLORS.cyan, 0.15)}`
+            }}>
+              <Box display="flex" justifyContent="space-between" alignItems="center" mb={3}>
+                <Typography variant="h6" sx={{ fontWeight: 700 }}>
+                  📲 Enviar Notificación
+                </Typography>
+                <FormControlLabel
+                  control={<Switch checked={pushEnabled} onChange={handleTogglePush} color="success" />}
+                  label={<Typography variant="caption">Captación activa</Typography>}
+                />
+              </Box>
+
+              <Stack spacing={2}>
+                <TextField
+                  fullWidth
+                  label="Título"
+                  value={notificationForm.title}
+                  onChange={e => setNotificationForm({ ...notificationForm, title: e.target.value })}
+                  placeholder="¡Nueva oferta especial!"
+                  InputLabelProps={{ shrink: true }}
+                />
+                <TextField
+                  fullWidth
+                  label="Mensaje"
+                  value={notificationForm.message}
+                  onChange={e => setNotificationForm({ ...notificationForm, message: e.target.value })}
+                  placeholder="Descubre nuestro nuevo plato..."
+                  multiline
+                  rows={3}
+                  InputLabelProps={{ shrink: true }}
+                />
+                <TextField
+                  fullWidth
+                  label="URL de destino (opcional)"
+                  value={notificationForm.url}
+                  onChange={e => setNotificationForm({ ...notificationForm, url: e.target.value })}
+                  placeholder="https://..."
+                  InputLabelProps={{ shrink: true }}
+                />
+                <TextField
+                  fullWidth
+                  label="URL de imagen (opcional)"
+                  value={notificationForm.image_url}
+                  onChange={e => setNotificationForm({ ...notificationForm, image_url: e.target.value })}
+                  placeholder="https://...imagen.jpg"
+                  helperText="Imagen grande que aparecerá en la notificación"
+                  InputLabelProps={{ shrink: true }}
+                />
+                <Button
+                  fullWidth
+                  variant="contained"
+                  startIcon={isSending ? <CircularProgress size={18} /> : <SendIcon />}
+                  onClick={handleSendNotification}
+                  disabled={isSending || !notificationForm.title || !notificationForm.message}
+                  sx={{
+                    bgcolor: COLORS.cyan,
+                    py: 1.5,
+                    fontWeight: 600,
+                    '&:hover': { bgcolor: alpha(COLORS.cyan, 0.85) }
+                  }}
+                >
+                  {isSending ? 'Enviando...' : 'Enviar a suscriptores'}
+                </Button>
+              </Stack>
+            </Paper>
+          </Grid>
+
+          <Grid item xs={12} md={6}>
+            <Paper sx={{
+              p: 3,
+              bgcolor: alpha('#1a1a2e', 0.6),
+              borderRadius: 3,
+              border: `1px solid ${alpha('#fff', 0.05)}`,
+              height: '100%'
+            }}>
+              <Typography variant="h6" sx={{ fontWeight: 700, mb: 2 }}>
+                ℹ️ Cómo funciona
+              </Typography>
+              <Stack spacing={2}>
+                <Box display="flex" gap={2}>
+                  <Box sx={{ p: 1, borderRadius: 2, bgcolor: alpha(COLORS.welcome, 0.1), color: COLORS.welcome }}>
+                    <PersonIcon />
+                  </Box>
+                  <Box>
+                    <Typography variant="subtitle2">Captación automática</Typography>
+                    <Typography variant="caption" color="text.secondary">
+                      Los usuarios que acepten recibir notificaciones se suscriben automáticamente
+                    </Typography>
+                  </Box>
+                </Box>
+                <Box display="flex" gap={2}>
+                  <Box sx={{ p: 1, borderRadius: 2, bgcolor: alpha(COLORS.success, 0.1), color: COLORS.success }}>
+                    <CheckIcon />
+                  </Box>
+                  <Box>
+                    <Typography variant="subtitle2">Sin spam</Typography>
+                    <Typography variant="caption" color="text.secondary">
+                      Envía notificaciones relevantes para mantener a tus clientes informados
+                    </Typography>
+                  </Box>
+                </Box>
+                <Box display="flex" gap={2}>
+                  <Box sx={{ p: 1, borderRadius: 2, bgcolor: alpha(COLORS.event, 0.1), color: COLORS.event }}>
+                    <CelebrationIcon />
+                  </Box>
+                  <Box>
+                    <Typography variant="subtitle2">Resultados</Typography>
+                    <Typography variant="caption" color="text.secondary">
+                      Las notificaciones push tienen mayor tasa de apertura que emails
+                    </Typography>
+                  </Box>
+                </Box>
+              </Stack>
+            </Paper>
+          </Grid>
+        </Grid>
+      )}
+
+      {/* ============================================ */}
+      {/* CAMPAIGN DIALOG */}
+      {/* ============================================ */}
+      <Dialog
+        open={campaignDialog}
+        onClose={() => setCampaignDialog(false)}
+        maxWidth="md"
+        fullWidth
+        PaperProps={{
+          sx: {
+            bgcolor: '#1a1a2e',
+            backgroundImage: 'none',
+            borderRadius: 3
+          }
+        }}
+      >
+        <DialogTitle sx={{
+          borderBottom: `1px solid ${alpha('#fff', 0.05)}`,
+          pb: 2
+        }}>
+          <Box display="flex" alignItems="center" gap={2}>
+            <CampaignIcon sx={{ color: COLORS.purple }} />
+            <Typography variant="h6" sx={{ fontWeight: 700 }}>
+              {selectedCampaign ? 'Editar Campaña' : 'Nueva Campaña'}
+            </Typography>
+          </Box>
+        </DialogTitle>
+        <DialogContent sx={{ mt: 2 }}>
+          <Stack spacing={3}>
+            {/* Basic Info */}
+            <TextField
+              fullWidth
+              label="Nombre de la campaña"
+              value={campaignForm.name || ''}
+              onChange={e => setCampaignForm({ ...campaignForm, name: e.target.value })}
+              placeholder="Ej: Promoción Verano 2024"
+              InputLabelProps={{ shrink: true }}
+            />
+
             <FormControl fullWidth>
-              <InputLabel>Tipo</InputLabel>
-              <Select value={campaignForm.type || 'scratch_win'} label="Tipo" onChange={e => setCampaignForm({ ...campaignForm, type: e.target.value as any })}>
-                <MenuItem value="scratch_win">Rasca y Gana (Scratch)</MenuItem>
-                <MenuItem value="welcome_modal">Modal de Bienvenida</MenuItem>
+              <InputLabel>Tipo de campaña</InputLabel>
+              <Select
+                value={campaignForm.type || 'welcome_modal'}
+                label="Tipo de campaña"
+                onChange={e => setCampaignForm({
+                  ...campaignForm,
+                  type: e.target.value as Campaign['type']
+                })}
+              >
+                {Object.entries(CAMPAIGN_CONFIG).map(([key, cfg]) => (
+                  <MenuItem key={key} value={key}>
+                    <Box display="flex" alignItems="center" gap={1.5}>
+                      <span>{cfg.emoji}</span>
+                      <Box>
+                        <Typography variant="body2">{cfg.label}</Typography>
+                        <Typography variant="caption" color="text.secondary">
+                          {cfg.description}
+                        </Typography>
+                      </Box>
+                    </Box>
+                  </MenuItem>
+                ))}
               </Select>
             </FormControl>
-            <FormControlLabel control={<Switch checked={campaignForm.is_active} onChange={e => setCampaignForm({ ...campaignForm, is_active: e.target.checked })} />} label="Activa" />
 
-            <Divider />
-            <Typography variant="h6">Premios (Rewards)</Typography>
-            {selectedCampaign ? (
-              <Box>
-                {rewards.map(r => (
-                  <Box key={r.id} display="flex" justifyContent="space-between" alignItems="center" p={1} borderBottom="1px solid #eee">
-                    <Box>
-                      <Typography variant="subtitle2">{r.name} ({r.probability * 100}%)</Typography>
-                      <Typography variant="caption">{r.description}</Typography>
-                    </Box>
-                    <Box>
-                      <IconButton size="small" onClick={() => { setEditingReward(r); setOpenRewardDialog(true); }}><EditIcon /></IconButton>
-                      <IconButton size="small" color="error" onClick={() => handleDeleteReward(r.id)}><DeleteIcon /></IconButton>
-                    </Box>
-                  </Box>
-                ))}
-                <Button startIcon={<AddIcon />} size="small" onClick={() => { setEditingReward({}); setOpenRewardDialog(true); }}>Agregar Premio</Button>
-              </Box>
-            ) : (
-              <Typography color="text.secondary">Guarda la campaña para añadir premios.</Typography>
+            <FormControlLabel
+              control={
+                <Switch
+                  checked={campaignForm.is_active}
+                  onChange={e => setCampaignForm({ ...campaignForm, is_active: e.target.checked })}
+                  color="success"
+                />
+              }
+              label="Campaña activa"
+            />
+
+            <Divider sx={{ borderColor: alpha('#fff', 0.05) }} />
+
+            {/* Content Section */}
+            <Typography variant="subtitle2" sx={{ color: alpha('#fff', 0.5), display: 'flex', alignItems: 'center', gap: 1 }}>
+              <GiftIcon fontSize="small" /> Contenido de la oferta
+            </Typography>
+
+            <TextField
+              fullWidth
+              label="Título de la oferta"
+              value={campaignForm.content?.title || ''}
+              onChange={e => setCampaignForm({
+                ...campaignForm,
+                content: { ...campaignForm.content, title: e.target.value }
+              })}
+              placeholder="¡10% de descuento en tu próxima visita!"
+              InputLabelProps={{ shrink: true }}
+            />
+
+            <TextField
+              fullWidth
+              label="Descripción"
+              value={campaignForm.content?.description || ''}
+              onChange={e => setCampaignForm({
+                ...campaignForm,
+                content: { ...campaignForm.content, description: e.target.value }
+              })}
+              placeholder="Describe los beneficios..."
+              multiline
+              rows={2}
+              InputLabelProps={{ shrink: true }}
+            />
+
+            <TextField
+              fullWidth
+              label="URL de imagen (opcional)"
+              value={campaignForm.content?.image_url || ''}
+              onChange={e => setCampaignForm({
+                ...campaignForm,
+                content: { ...campaignForm.content, image_url: e.target.value }
+              })}
+              placeholder="https://..."
+              InputLabelProps={{ shrink: true }}
+            />
+
+            {/* Event-specific */}
+            {campaignForm.type === 'event' && (
+              <>
+                <Divider sx={{ borderColor: alpha('#fff', 0.05) }} />
+                <Typography variant="subtitle2" sx={{ color: alpha('#fff', 0.5), display: 'flex', alignItems: 'center', gap: 1 }}>
+                  <DateIcon fontSize="small" /> Detalles del evento
+                </Typography>
+
+                <Box display="flex" gap={2}>
+                  <TextField
+                    fullWidth
+                    type="date"
+                    label="Fecha inicio"
+                    value={campaignForm.start_date?.split('T')[0] || ''}
+                    onChange={e => setCampaignForm({ ...campaignForm, start_date: e.target.value })}
+                    InputLabelProps={{ shrink: true }}
+                  />
+                  <TextField
+                    fullWidth
+                    type="date"
+                    label="Fecha fin"
+                    value={campaignForm.end_date?.split('T')[0] || ''}
+                    onChange={e => setCampaignForm({ ...campaignForm, end_date: e.target.value })}
+                    InputLabelProps={{ shrink: true }}
+                  />
+                </Box>
+
+                <TextField
+                  fullWidth
+                  label="Ubicación"
+                  value={campaignForm.content?.location || ''}
+                  onChange={e => setCampaignForm({
+                    ...campaignForm,
+                    content: { ...campaignForm.content, location: e.target.value }
+                  })}
+                  placeholder="Terraza, Salón VIP..."
+                  InputLabelProps={{ shrink: true }}
+                />
+              </>
+            )}
+
+            {/* Welcome Modal Settings */}
+            {campaignForm.type === 'welcome_modal' && (
+              <>
+                <Divider sx={{ borderColor: alpha('#fff', 0.05) }} />
+                <Typography variant="subtitle2" sx={{ color: alpha('#fff', 0.5), display: 'flex', alignItems: 'center', gap: 1 }}>
+                  ⚙️ Configuración del formulario
+                </Typography>
+                <Box display="flex" gap={2}>
+                  <FormControlLabel
+                    control={
+                      <Switch
+                        checked={campaignForm.settings?.show_email !== false}
+                        onChange={e => setCampaignForm({
+                          ...campaignForm,
+                          settings: { ...campaignForm.settings, show_email: e.target.checked }
+                        })}
+                        color="primary"
+                      />
+                    }
+                    label="Mostrar Email"
+                  />
+                  <FormControlLabel
+                    control={
+                      <Switch
+                        checked={campaignForm.settings?.show_phone !== false}
+                        onChange={e => setCampaignForm({
+                          ...campaignForm,
+                          settings: { ...campaignForm.settings, show_phone: e.target.checked }
+                        })}
+                        color="primary"
+                      />
+                    }
+                    label="Mostrar Teléfono"
+                  />
+                </Box>
+              </>
+            )}
+
+            {/* Scratch & Win Display Settings */}
+            {campaignForm.type === 'scratch_win' && (
+              <>
+                <Divider sx={{ borderColor: alpha('#fff', 0.05) }} />
+                <Typography variant="subtitle2" sx={{ color: alpha('#fff', 0.5), display: 'flex', alignItems: 'center', gap: 1 }}>
+                  📍 Visibilidad en el menú
+                </Typography>
+                <FormControl fullWidth size="small">
+                  <Select
+                    value={campaignForm.settings?.display_mode || 'hidden'}
+                    onChange={e => setCampaignForm({
+                      ...campaignForm,
+                      settings: { ...campaignForm.settings, display_mode: e.target.value }
+                    })}
+                  >
+                    <MenuItem value="hidden">🔒 Solo QR físico (El camarero trae el QR)</MenuItem>
+                    <MenuItem value="fab">🎁 Botón flotante en el menú</MenuItem>
+                    <MenuItem value="timer">⏱️ Aparece tras 2 min viendo el menú</MenuItem>
+                  </Select>
+                </FormControl>
+                <Typography variant="caption" sx={{ color: alpha('#fff', 0.4), mt: -1 }}>
+                  {campaignForm.settings?.display_mode === 'hidden'
+                    ? 'Ideal para después de la cena. El camarero entrega un QR exclusivo.'
+                    : campaignForm.settings?.display_mode === 'fab'
+                      ? 'Un botón "🎁 Juega" aparece en la esquina del menú.'
+                      : 'Aparece automáticamente para usuarios que "esperan" viendo el menú.'}
+                </Typography>
+              </>
+            )}
+
+            {/* Event Display Settings */}
+            {campaignForm.type === 'event' && (
+              <>
+                <Divider sx={{ borderColor: alpha('#fff', 0.05) }} />
+                <Typography variant="subtitle2" sx={{ color: alpha('#fff', 0.5), display: 'flex', alignItems: 'center', gap: 1 }}>
+                  📍 Visibilidad en el menú
+                </Typography>
+                <FormControlLabel
+                  control={
+                    <Switch
+                      checked={campaignForm.settings?.show_in_menu === true}
+                      onChange={e => setCampaignForm({
+                        ...campaignForm,
+                        settings: { ...campaignForm.settings, show_in_menu: e.target.checked }
+                      })}
+                      color="secondary"
+                    />
+                  }
+                  label="Mostrar banner en el menú digital"
+                />
+                <Typography variant="caption" sx={{ color: alpha('#fff', 0.4), mt: -1 }}>
+                  {campaignForm.settings?.show_in_menu
+                    ? 'Los clientes verán este evento al navegar por el menú.'
+                    : 'El evento solo será visible mediante el QR de promoción.'}
+                </Typography>
+              </>
+            )}
+
+            {/* Rewards Section (for Scratch & Win) */}
+            {selectedCampaign && campaignForm.type === 'scratch_win' && (
+              <>
+                <Divider sx={{ borderColor: alpha('#fff', 0.05) }} />
+                <Box display="flex" justifyContent="space-between" alignItems="center">
+                  <Typography variant="subtitle2" sx={{ color: alpha('#fff', 0.5), display: 'flex', alignItems: 'center', gap: 1 }}>
+                    <GiftIcon fontSize="small" /> Premios ({rewards.length})
+                  </Typography>
+                  <Button
+                    size="small"
+                    startIcon={<AddIcon />}
+                    onClick={() => {
+                      setRewardForm({ probability: 0.1, is_active: true });
+                      setRewardDialog(true);
+                    }}
+                    sx={{ color: COLORS.scratch }}
+                  >
+                    Añadir premio
+                  </Button>
+                </Box>
+
+                <Stack spacing={1}>
+                  {rewards.map(r => (
+                    <Paper
+                      key={r.id}
+                      sx={{
+                        p: 2,
+                        bgcolor: alpha(COLORS.scratch, 0.08),
+                        border: `1px solid ${alpha(COLORS.scratch, 0.15)}`,
+                        borderRadius: 2,
+                        display: 'flex',
+                        justifyContent: 'space-between',
+                        alignItems: 'center'
+                      }}
+                    >
+                      <Box>
+                        <Typography variant="subtitle2">{r.name}</Typography>
+                        <Typography variant="caption" color="text.secondary">
+                          {(r.probability * 100).toFixed(0)}% probabilidad
+                          {r.max_quantity && ` • ${r.claimed_count || 0}/${r.max_quantity} canjeados`}
+                        </Typography>
+                      </Box>
+                      <IconButton
+                        size="small"
+                        onClick={() => handleDeleteReward(r.id)}
+                        sx={{ color: alpha(COLORS.danger, 0.7) }}
+                      >
+                        <DeleteIcon fontSize="small" />
+                      </IconButton>
+                    </Paper>
+                  ))}
+                  {rewards.length === 0 && (
+                    <Typography variant="caption" color="text.secondary" textAlign="center" py={2}>
+                      Añade premios para el juego
+                    </Typography>
+                  )}
+                </Stack>
+              </>
             )}
           </Stack>
         </DialogContent>
-        <DialogActions>
-          <Button onClick={() => setOpenCampaignDialog(false)}>Cancelar</Button>
-          <Button variant="contained" onClick={handleSaveCampaign}>Guardar</Button>
+        <DialogActions sx={{ p: 3, borderTop: `1px solid ${alpha('#fff', 0.05)}` }}>
+          <Button onClick={() => setCampaignDialog(false)} sx={{ color: alpha('#fff', 0.5) }}>
+            Cancelar
+          </Button>
+          <Button
+            variant="contained"
+            onClick={handleSaveCampaign}
+            sx={{
+              bgcolor: COLORS.purple,
+              px: 4,
+              '&:hover': { bgcolor: alpha(COLORS.purple, 0.85) }
+            }}
+          >
+            {selectedCampaign ? 'Guardar cambios' : 'Crear campaña'}
+          </Button>
         </DialogActions>
       </Dialog>
 
-      {/* --- DIALOG: Reward --- */}
-      <Dialog open={openRewardDialog} onClose={() => setOpenRewardDialog(false)}>
-        <DialogTitle>Premio</DialogTitle>
+      {/* ============================================ */}
+      {/* REWARD DIALOG */}
+      {/* ============================================ */}
+      <Dialog
+        open={rewardDialog}
+        onClose={() => setRewardDialog(false)}
+        PaperProps={{
+          sx: { bgcolor: '#1a1a2e', backgroundImage: 'none', borderRadius: 3 }
+        }}
+      >
+        <DialogTitle>🎁 Nuevo Premio</DialogTitle>
         <DialogContent>
-          <Stack spacing={2} mt={1} minWidth={300}>
-            <TextField label="Nombre" fullWidth value={editingReward.name || ''} onChange={e => setEditingReward({ ...editingReward, name: e.target.value })} />
-            <TextField label="Descripción" fullWidth value={editingReward.description || ''} onChange={e => setEditingReward({ ...editingReward, description: e.target.value })} />
-            <TextField label="Probabilidad (0.0 - 1.0)" type="number" fullWidth value={editingReward.probability || 0} onChange={e => setEditingReward({ ...editingReward, probability: parseFloat(e.target.value) })} />
-            <TextField label="Cantidad Máxima" type="number" fullWidth value={editingReward.max_quantity || 0} onChange={e => setEditingReward({ ...editingReward, max_quantity: parseInt(e.target.value) })} />
-            <TextField label="Image URL" fullWidth value={editingReward.image_url || ''} onChange={e => setEditingReward({ ...editingReward, image_url: e.target.value })} />
+          <Stack spacing={2} sx={{ mt: 1, minWidth: 300 }}>
+            <TextField
+              fullWidth
+              label="Nombre del premio"
+              value={rewardForm.name || ''}
+              onChange={e => setRewardForm({ ...rewardForm, name: e.target.value })}
+              placeholder="Café gratis"
+              InputLabelProps={{ shrink: true }}
+            />
+            <TextField
+              fullWidth
+              label="Descripción"
+              value={rewardForm.description || ''}
+              onChange={e => setRewardForm({ ...rewardForm, description: e.target.value })}
+              placeholder="Un café de cualquier tamaño"
+              InputLabelProps={{ shrink: true }}
+            />
+            <TextField
+              fullWidth
+              type="number"
+              label="Probabilidad (%)"
+              value={(rewardForm.probability || 0) * 100}
+              onChange={e => setRewardForm({ ...rewardForm, probability: Number(e.target.value) / 100 })}
+              inputProps={{ min: 1, max: 100 }}
+              InputLabelProps={{ shrink: true }}
+            />
+            <TextField
+              fullWidth
+              type="number"
+              label="Cantidad máxima (vacío = ilimitado)"
+              value={rewardForm.max_quantity || ''}
+              onChange={e => setRewardForm({ ...rewardForm, max_quantity: e.target.value ? Number(e.target.value) : null })}
+              InputLabelProps={{ shrink: true }}
+            />
           </Stack>
         </DialogContent>
-        <DialogActions>
-          <Button onClick={() => setOpenRewardDialog(false)}>Cancelar</Button>
-          <Button variant="contained" onClick={handleSaveReward}>Guardar</Button>
+        <DialogActions sx={{ p: 2 }}>
+          <Button onClick={() => setRewardDialog(false)}>Cancelar</Button>
+          <Button variant="contained" onClick={handleSaveReward} sx={{ bgcolor: COLORS.scratch }}>
+            Añadir premio
+          </Button>
         </DialogActions>
       </Dialog>
 
-      <Snackbar open={snackbar.open} autoHideDuration={3000} onClose={() => setSnackbar({ ...snackbar, open: false })} message={snackbar.message} />
-    </Container>
+      {/* Snackbar */}
+      <Snackbar
+        open={snackbar.open}
+        autoHideDuration={3000}
+        onClose={() => setSnackbar({ ...snackbar, open: false })}
+        anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
+      >
+        <Alert severity={snackbar.severity} variant="filled">
+          {snackbar.message}
+        </Alert>
+      </Snackbar>
+    </Box>
   );
 };
 

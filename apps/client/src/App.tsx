@@ -16,6 +16,8 @@ const NotFoundPage = React.lazy(() => import('./pages/NotFoundPage'));
 const PrivacyPolicyPage = React.lazy(() => import('./pages/PrivacyPolicyPage'));
 const ReservePage = React.lazy(() => import('./pages/ReservePage'));
 const LoyaltyPage = React.lazy(() => import('./pages/LoyaltyPage').then(module => ({ default: module.LoyaltyPage })));
+const RedemptionPage = React.lazy(() => import('./pages/RedemptionPage'));
+const EventLandingPage = React.lazy(() => import('./pages/EventLandingPage'));
 
 // ✅ Tema personalizado adaptable
 const createCustomTheme = (primaryColor?: string, secondaryColor?: string) => createTheme({
@@ -58,14 +60,19 @@ function App() {
     let isLegacyReels = false;
 
     // Lógica para extraer slug
-    if (path === '/') {
+    // Check for magic link redemption first (16-char alphanumeric token)
+    const redemptionMatch = path.match(/^\/r\/([a-zA-Z0-9]{16})$/);
+    if (redemptionMatch) {
+      // This is a magic link, not a restaurant slug
+      slug = null;
+    } else if (path === '/') {
       slug = null;
     } else if (path.startsWith('/legal/')) {
       slug = null;
     } else if (path.startsWith('/reserve/')) {
       slug = path.split('/')[2];
     } else if (path.startsWith('/r/')) {
-      // Legacy Format: /r/slug
+      // Legacy Format: /r/slug (restaurant reels)
       isLegacyReels = true;
       slug = path.split('/')[2];
     } else {
@@ -86,7 +93,17 @@ function App() {
     if (path.startsWith('/reserve/')) return 'reserve';
     if (path.startsWith('/loyalty/') || path.startsWith('/l/') || path.match(/^\/[^/]+\/loyalty/)) return 'loyalty';
 
+    // Magic link redemption - two formats:
+    // 1. Legacy: /r/{16-char-token}
+    // 2. New: /{slug}/oferta/{16-char-token}
+    if (path.match(/^\/r\/[a-zA-Z0-9]{16}$/)) return 'redemption';
+    if (path.match(/^\/[^/]+\/oferta\/[a-zA-Z0-9]{16}$/)) return 'redemption';
+
+    // Event landing page: /{slug}/evento/{campaignId}
+    if (path.match(/^\/[^/]+\/evento\/[^/]+$/)) return 'event';
+
     if (!slug) return 'notfound';
+
 
     // REGLAS DE ENRUTAMIENTO:
 
@@ -99,6 +116,7 @@ function App() {
     if (isLegacyReels || path.includes('/section/') || path.includes('/dish/')) {
       return 'reels';
     }
+
 
     // Caso C: Default en dominio principal -> LANDING (Marketing)
     return 'landing';
@@ -197,6 +215,15 @@ function App() {
     if (currentPage === 'loyalty') {
       return <LoyaltyPage />;
     }
+
+    if (currentPage === 'redemption') {
+      return <RedemptionPage />;
+    }
+
+    if (currentPage === 'event') {
+      return <EventLandingPage />;
+    }
+
 
     // --- LOGICA REELS VIEW ---
     // Note: We don't return GlobalLoader here if loading is true, 

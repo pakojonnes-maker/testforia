@@ -689,6 +689,159 @@ export async function handleAnalyticsRequests(request, env) {
             return createResponse({ success: false, message: String(err?.message ?? err) }, 500);
         }
     }
+    // /analytics/campaigns: Campaign performance statistics
+    if (request.method === "GET" && (url.pathname === "/analytics/campaigns" || url.pathname === "/analytics/campaigns/")) {
+        const authHeader = request.headers.get("Authorization");
+        if (!authHeader || !authHeader.startsWith("Bearer ")) {
+            return createResponse({ success: false, message: "No autorizado" }, 401);
+        }
+        const params = new URLSearchParams(url.search);
+        const restaurantId = params.get("restaurant_id");
+        const fromParam = params.get("from");
+        const toParam = params.get("to");
+        const timeRange = params.get("time_range") ?? "month"; // Default to month for campaigns
+        if (!restaurantId) {
+            return createResponse({ success: false, message: "restaurant_id requerido" }, 400);
+        }
+        const now = new Date();
+        const to = (toParam && toParam !== "") ? toParam : isoDate(now);
+        const from = (fromParam && fromParam !== "") ? fromParam : computeFrom(timeRange, now);
+        const fromTs = from + 'T00:00:00';
+        const toTs = to + 'T23:59:59';
+        try {
+            // 1) Summary KPIs
+            const [leadsStats, claimsStats, campaignCount] = await Promise.all([
+                // Total leads captured
+                env.DB.prepare(
+                    `SELECT 
+                        COUNT(*) as total_leads,
+                        SUM(CASE WHEN type = 'email' THEN 1 ELSE 0 END) as email_leads,
+                        SUM(CASE WHEN type = 'phone' THEN 1 ELSE 0 END) as phone_leads
+                     FROM marketing_leads
+                     WHERE restaurant_id = ? AND created_at BETWEEN ? AND ?`
+                ).bind(restaurantId, fromTs, toTs).first(),
+                // Claims stats (opened, redeemed)
+                env.DB.prepare(
+                    `SELECT 
+                        COUNT(*) as total_claims,
+                        SUM(CASE WHEN opened_at IS NOT NULL THEN 1 ELSE 0 END) as opened_count,
+                        SUM(CASE WHEN status = 'redeemed' THEN 1 ELSE 0 END) as redeemed_count,
+                        SUM(CASE WHEN status = 'expired' THEN 1 ELSE 0 END) as expired_count
+                     FROM campaign_claims
+                     WHERE restaurant_id = ? AND created_at BETWEEN ? AND ?`
+                ).bind(restaurantId, fromTs, toTs).first(),
+                // Active campaigns
+                env.DB.prepare(
+                    `SELECT 
+                        COUNT(*) as total,
+                        SUM(CASE WHEN is_active = 1 THEN 1 ELSE 0 END) as active
+                     FROM marketing_campaigns
+                     WHERE restaurant_id = ?`
+                ).bind(restaurantId).first()
+            ]);
+
+            const summary = {
+                total_leads: leadsStats?.total_leads || 0,
+                email_leads: leadsStats?.email_leads || 0,
+                phone_leads: leadsStats?.phone_leads || 0,
+                total_claims: claimsStats?.total_claims || 0,
+                opened_count: claimsStats?.opened_count || 0,
+                redeemed_count: claimsStats?.redeemed_count || 0,
+                expired_count: claimsStats?.expired_count || 0,
+                active_campaigns: campaignCount?.active || 0,
+                total_campaigns: campaignCount?.total || 0,
+                conversion_rate: (claimsStats?.opened_count || 0) > 0
+                    ? ((claimsStats?.redeemed_count || 0) / (claimsStats?.opened_count || 0) * 100).toFixed(1)
+                    : 0,
+                open_rate: (claimsStats?.total_claims || 0) > 0
+                    ? ((claimsStats?.opened_count || 0) / (claimsStats?.total_claims || 0) * 100).toFixed(1)
+                    : 0
+            };
+
+            // 2) Time series - leads per day
+            const timeseries = await env.DB.prepare(
+                `SELECT 
+                    DATE(created_at) as date,
+                    COUNT(*) as leads,
+                    SUM(CASE WHEN type = 'email' THEN 1 ELSE 0 END) as emails,
+                    SUM(CASE WHEN type = 'phone' THEN 1 ELSE 0 END) as phones
+                 FROM marketing_leads
+                 WHERE restaurant_id = ? AND created_at BETWEEN ? AND ?
+                 GROUP BY DATE(created_at)
+                 ORDER BY date ASC`
+            ).bind(restaurantId, fromTs, toTs).all();
+
+            // 3) Campaign breakdown
+            const campaigns = await env.DB.prepare(
+                `SELECT 
+                    mc.id,
+                    mc.name,
+                    mc.type,
+                    mc.is_active,
+                    mc.created_at,
+                    (SELECT COUNT(*) FROM marketing_leads ml WHERE ml.campaign_id = mc.id AND ml.created_at BETWEEN ? AND ?) as leads,
+                    (SELECT COUNT(*) FROM campaign_claims cc WHERE cc.campaign_id = mc.id AND cc.created_at BETWEEN ? AND ?) as claims,
+                    (SELECT COUNT(*) FROM campaign_claims cc WHERE cc.campaign_id = mc.id AND cc.opened_at IS NOT NULL AND cc.created_at BETWEEN ? AND ?) as opened,
+                    (SELECT COUNT(*) FROM campaign_claims cc WHERE cc.campaign_id = mc.id AND cc.status = 'redeemed' AND cc.created_at BETWEEN ? AND ?) as redeemed
+                 FROM marketing_campaigns mc
+                 WHERE mc.restaurant_id = ?
+                 ORDER BY leads DESC, mc.created_at DESC`
+            ).bind(fromTs, toTs, fromTs, toTs, fromTs, toTs, fromTs, toTs, restaurantId).all();
+
+            // 4) Channel breakdown (email vs phone)
+            const channelBreakdown = {
+                email: leadsStats?.email_leads || 0,
+                phone: leadsStats?.phone_leads || 0
+            };
+
+            // 5) Save method breakdown (WhatsApp vs Direct)
+            const saveMethodStats = await env.DB.prepare(
+                `SELECT 
+                    COALESCE(save_method, 'direct') as method,
+                    COUNT(*) as count
+                 FROM campaign_claims
+                 WHERE restaurant_id = ? AND created_at BETWEEN ? AND ?
+                 GROUP BY save_method`
+            ).bind(restaurantId, fromTs, toTs).all();
+
+            const saveMethodBreakdown = (saveMethodStats.results || []).reduce((acc, row) => {
+                acc[row.method] = row.count;
+                return acc;
+            }, {});
+
+            // 6) Event type breakdown (for insights)
+            const eventBreakdown = await env.DB.prepare(
+                `SELECT 
+                    event_type,
+                    COUNT(*) as count
+                 FROM campaign_events
+                 WHERE restaurant_id = ? AND created_at BETWEEN ? AND ?
+                 GROUP BY event_type
+                 ORDER BY count DESC`
+            ).bind(restaurantId, fromTs, toTs).all();
+
+            return createResponse({
+                success: true,
+                range: { from, to },
+                summary,
+                timeseries: timeseries.results ?? [],
+                campaigns: (campaigns.results ?? []).map(c => ({
+                    ...c,
+                    conversion_rate: (c.opened || 0) > 0
+                        ? ((c.redeemed || 0) / (c.opened || 0) * 100).toFixed(1)
+                        : 0
+                })),
+                breakdowns: {
+                    channels: channelBreakdown,
+                    saveMethods: saveMethodBreakdown,
+                    events: eventBreakdown.results ?? []
+                }
+            });
+        } catch (err) {
+            console.error("Analytics campaigns error:", err);
+            return createResponse({ success: false, message: String(err?.message ?? err) }, 500);
+        }
+    }
     // No es ruta de analytics
     return null;
 }
