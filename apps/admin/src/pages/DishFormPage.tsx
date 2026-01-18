@@ -55,7 +55,7 @@ const dishSchema = z.object({
   is_new: z.boolean().default(false),
   is_featured: z.boolean().default(false),
   has_half_portion: z.boolean().default(false),
-  half_price: z.number().optional(),
+  half_price: z.number().nullable().optional(),
 
   // Traducciones básicas (solo español)
   translations: z.object({
@@ -82,7 +82,10 @@ export default function DishFormPage() {
   const navigate = useNavigate();
   const { currentRestaurant } = useAuth();
   const queryClient = useQueryClient();
-  const restaurantId = currentRestaurant?.id;
+  // Fallback: get restaurantId from localStorage if not in context
+  const restaurantId = currentRestaurant?.id ??
+    JSON.parse(localStorage.getItem('current_restaurant') || 'null')?.id ??
+    undefined;
   const isEditMode = Boolean(id);
 
   // Theme y responsive
@@ -175,15 +178,17 @@ export default function DishFormPage() {
   // Mutación para guardar el plato
   const saveMutation = useMutation({
     mutationFn: (data: DishFormData) => {
+      // Transformar null a undefined para half_price (compatibilidad con API)
       const dishData = {
         ...data,
-        restaurant_id: restaurantId
+        restaurant_id: restaurantId,
+        half_price: data.half_price ?? undefined // Convierte null a undefined
       };
 
       if (isEditMode && id) {
-        return apiClient.updateDish(id, dishData);
+        return apiClient.updateDish(id, dishData as any);
       } else {
-        return apiClient.createDish(dishData);
+        return apiClient.createDish(dishData as any);
       }
     },
     onSuccess: (response) => {
@@ -237,7 +242,19 @@ export default function DishFormPage() {
   });
 
   const handleSaveDish = (data: DishFormData) => {
+    console.log('[DishFormPage] handleSaveDish called with data:', data);
+    console.log('[DishFormPage] isEditMode:', isEditMode, 'id:', id);
     saveMutation.mutate(data);
+  };
+
+  // Handler para errores de validación
+  const onValidationError = (validationErrors: any) => {
+    console.error('[DishFormPage] Validation errors:', validationErrors);
+    setSnackbar({
+      open: true,
+      message: 'Por favor, corrige los errores del formulario',
+      severity: 'error'
+    });
   };
 
   const handleDeleteDish = () => {
@@ -316,7 +333,11 @@ export default function DishFormPage() {
           <Button
             variant="contained"
             startIcon={<SaveIcon />}
-            onClick={handleSubmit(handleSaveDish)}
+            onClick={() => {
+              console.log('[DishFormPage] Save button clicked');
+              console.log('[DishFormPage] Form errors:', errors);
+              handleSubmit(handleSaveDish, onValidationError)();
+            }}
             disabled={saveMutation.isPending}
             size={isMobile ? "small" : "medium"}
           >

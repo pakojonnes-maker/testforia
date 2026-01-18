@@ -2,7 +2,7 @@
   font-family: 'Roboto', system-ui, Avenir, Helvetica, Arial, sans-serif;
   line-height: 1.5;
   font-weight: 400;
-  
+
   color-scheme: dark;
   color: rgba(255, 255, 255, 0.87);
   background-color: #000000;
@@ -33,19 +33,33 @@ body {
   flex-direction: column;
 }
 
-/* Para la experiencia de reels */
+/* Para la experiencia de reels - Prevenir scroll del body */
+html.reels-mode,
 body.reels-mode {
-  overscroll-behavior: none;
-  touch-action: pan-y;
+  overflow: hidden !important;
+  overscroll-behavior: none !important;
+  position: fixed !important;
+  width: 100% !important;
+  height: 100% !important;
+  height: 100svh !important;
+  touch-action: none !important;
   background-color: black;
+}
+
+body.reels-mode #root {
+  overflow: hidden !important;
+  height: 100% !important;
+  height: 100svh !important;
 }
 
 .swiper-container {
   width: 100%;
   height: 100%;
+  touch-action: none;
 }
 
 .swiper-slide {
   overflow: hidden;
   position: relative;
+  touch-action: none;
 }

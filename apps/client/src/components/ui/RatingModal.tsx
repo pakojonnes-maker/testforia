@@ -30,9 +30,7 @@ const RatingModal: React.FC<RatingModalProps> = ({ open, onClose, onSubmit, goog
         }
     }, [open, previousRating]);
 
-    const handleRatingClick = (newValue: number) => {
-        setRating(newValue);
-    };
+
 
     const handleSubmit = () => {
         if (rating === 0) return;
@@ -109,16 +107,21 @@ const RatingModal: React.FC<RatingModalProps> = ({ open, onClose, onSubmit, goog
                                 {[1, 2, 3, 4, 5].map((star) => (
                                     <IconButton
                                         key={star}
-                                        onClick={() => handleRatingClick(star)}
+                                        onPointerDown={() => {
+                                            setRating(star);
+                                            setHover(-1);
+                                        }}
                                         onMouseEnter={() => setHover(star)}
                                         onMouseLeave={() => setHover(-1)}
                                         sx={{
                                             p: 0.5,
-                                            transform: (hover !== -1 ? hover >= star : rating >= star) ? 'scale(1.1)' : 'scale(1)',
-                                            transition: 'transform 0.2s'
+                                            transform: (hover >= star || (hover === -1 && rating >= star)) ? 'scale(1.1)' : 'scale(1)',
+                                            transition: 'transform 0.2s',
+                                            // Prevent touch delay on mobile
+                                            touchAction: 'manipulation'
                                         }}
                                     >
-                                        {(hover !== -1 ? hover >= star : rating >= star) ? (
+                                        {(hover >= star || (hover === -1 && rating >= star)) ? (
                                             <Star sx={{ fontSize: 32, color: '#FFD700' }} />
                                         ) : (
                                             <StarBorder sx={{ fontSize: 32, color: 'rgba(255,255,255,0.3)' }} />

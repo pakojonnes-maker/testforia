@@ -32,13 +32,16 @@ const LanguageSwitcher: React.FC<LanguageSwitcherProps> = ({
   const getFlagUrl = (languageCode: string) => {
     const API_URL = import.meta.env.VITE_API_URL || "https://visualtasteworker.franciscotortosaestudios.workers.dev";
 
+    // Map language codes (ISO 639-1) to country codes (ISO 3166-1) for available flags
+    // Map language codes (ISO 639-1) to country codes (ISO 3166-1) for available flags
     const fileMap: Record<string, string> = {
-      'ar': 'ae',    // Emirates flag for Arabic
-      'ja': 'jp',
-      'bn': 'bd',
-      'hi': 'in',
-      'kr': 'kr',
-      'cn': 'cn',
+      'ar': 'ae',    // Arabic → UAE
+      'ca': 'es-ct', // Catalan → Catalonia
+      'en': 'gb',    // English → UK
+      'ja': 'jp',    // Japanese → Japan
+      'ko': 'kr',    // Korean → South Korea
+      'uk': 'ua',    // Ukrainian → Ukraine
+      'zh': 'cn',    // Chinese → China
     };
 
     const fileName = fileMap[languageCode] || languageCode.toLowerCase();
@@ -47,8 +50,8 @@ const LanguageSwitcher: React.FC<LanguageSwitcherProps> = ({
 
   const flagEmojiMap: { [key: string]: string } = {
     'es': '🇪🇸', 'en': '🇬🇧', 'fr': '🇫🇷', 'de': '🇩🇪', 'it': '🇮🇹',
-    'pt': '🇵🇹', 'ca': '🏴󠁥󠁳󠁣󠁴󠁿', 'kr': '🇰🇷', 'ja': '🇯🇵', 'bn': '🇧🇩',
-    'ar': '🇸🇦', 'ru': '🇷🇺', 'ua': '🇺🇦', 'cn': '🇨🇳', 'in': '🇮🇳'
+    'pt': '🇵🇹', 'ca': '🏴󠁥󠁳󠁣󠁴󠁿', 'ko': '🇰🇷', 'ja': '🇯🇵',
+    'ar': '🇸🇦', 'ru': '🇷🇺', 'uk': '🇺🇦', 'zh': '🇨🇳'
   };
 
   const FlagIcon: React.FC<{ languageCode: string; size?: number; showFallback?: boolean; }> = ({

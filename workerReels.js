@@ -45,23 +45,12 @@ export async function handleReelsRequests(request, env) {
       `).bind(restaurant.id).first();
 
             // ✅ 3. PARSEAR config_overrides Y APLICAR JERARQUÍA
-            let customColors = null;
             let configOverrides = {};
 
             if (reelConfig?.config_overrides) {
                 try {
                     configOverrides = JSON.parse(reelConfig.config_overrides);
-
-                    // ✅ CORREGIDO: Leer campos con prefijo reel_
-                    if (configOverrides.reel_primary_color) {
-                        customColors = {
-                            primary: configOverrides.reel_primary_color,
-                            secondary: configOverrides.reel_secondary_color,
-                            text: configOverrides.reel_text_color,
-                            background: configOverrides.reel_background_color
-                        };
-                        console.log('[Reels] ✅ Using custom reel colors:', customColors);
-                    }
+                    console.log('[Reels] ✅ Loaded config_overrides:', Object.keys(configOverrides));
                 } catch (e) {
                     console.warn('[Reels] Error parsing config_overrides:', e);
                 }
@@ -69,11 +58,11 @@ export async function handleReelsRequests(request, env) {
 
             // ✅ 4. CONSTRUIR BRANDING CON JERARQUÍA: reel colors > theme colors > defaults
             const branding = {
-                primary_color: customColors?.primary || restaurant.primary_color || '#FF6B6B',
-                secondary_color: customColors?.secondary || restaurant.secondary_color || '#4ECDC4',
-                accent_color: restaurant.accent_color || '#FF8C42', // Solo de theme (no hay reel_accent_color)
-                text_color: customColors?.text || restaurant.text_color || '#FFFFFF',
-                background_color: customColors?.background || restaurant.background_color || '#000000',
+                primary_color: configOverrides.reel_primary_color || restaurant.primary_color || '#FF6B6B',
+                secondary_color: configOverrides.reel_secondary_color || restaurant.secondary_color || '#4ECDC4',
+                accent_color: configOverrides.reel_accent_color || restaurant.accent_color || '#FF8C42',
+                text_color: configOverrides.reel_text_color || restaurant.text_color || '#FFFFFF',
+                background_color: configOverrides.reel_background_color || restaurant.background_color || '#000000',
                 font_family: configOverrides.font_family || restaurant.font_family || 'Inter, sans-serif',
                 font_accent: configOverrides.font_accent || restaurant.font_accent || 'serif'
             };
@@ -270,6 +259,7 @@ export async function handleReelsRequests(request, env) {
                     is_premium: reelConfig?.template_is_premium || templateInfo?.is_premium || false
                 },
                 config: templateConfig,
+                overrides: configOverrides, // ✅ All reel color overrides (reel_* prefixed)
                 theme: {
                     fontFamily: restaurant.font_family || 'Inter, sans-serif',
                     fontAccent: restaurant.font_accent || 'serif',

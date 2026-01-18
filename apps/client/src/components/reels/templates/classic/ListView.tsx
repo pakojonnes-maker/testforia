@@ -1,9 +1,42 @@
-import React, { useState, useRef, useEffect } from 'react';
-import { Box, Typography, IconButton } from '@mui/material';
-import { Add, Remove, Favorite, FavoriteBorder, AddShoppingCart } from '@mui/icons-material';
+import React, { useState, useRef, useEffect, useCallback } from 'react';
+import { Box, Typography, IconButton, Tooltip } from '@mui/material';
+import { Add, Remove, Favorite, FavoriteBorder, AddShoppingCart, ShoppingCart } from '@mui/icons-material';
 import { motion } from 'framer-motion';
 import { useDishTracking } from '../../../../providers/TrackingAndPushProvider';
+import { useDishViewTracking } from '../../../../hooks/useDishViewTracking';
 import { useTranslation } from '../../../../contexts/TranslationContext';
+import type { Allergen } from '../../../../lib/apiClient';
+
+// Helper para obtener nombre del alérgeno (traducido)
+const getAllergenName = (allergen: Allergen, currentLanguage: string = 'es'): string => {
+    const translatedName = allergen.translations?.name?.[currentLanguage];
+    if (translatedName) return translatedName;
+    if (allergen.name) return allergen.name;
+    let displayName = allergen.id;
+    if (displayName.startsWith('allergen_')) {
+        displayName = displayName.substring(9);
+    }
+    if (displayName.endsWith('.svg')) {
+        displayName = displayName.slice(0, -4);
+    }
+    return displayName.charAt(0).toUpperCase() + displayName.slice(1).toLowerCase();
+};
+
+// Helper para obtener URL del icono de alérgeno
+const getAllergenIconUrl = (allergen: Allergen): string => {
+    const API_URL = import.meta.env.VITE_API_URL || "https://visualtasteworker.franciscotortosaestudios.workers.dev";
+    if (allergen.icon_url && allergen.icon_url.startsWith('http')) {
+        return allergen.icon_url;
+    }
+    if (allergen.icon_url) {
+        return `${API_URL}/media/System/allergens/${allergen.icon_url}`;
+    }
+    let filename = allergen.id;
+    if (!filename.endsWith('.svg')) {
+        filename += '.svg';
+    }
+    return `${API_URL}/media/System/allergens/${filename}`;
+};
 
 // ======================================================================
 // DISH LIST ITEM COMPONENT - DESIGN "PREMIUM EDITORIAL"
@@ -11,6 +44,7 @@ import { useTranslation } from '../../../../contexts/TranslationContext';
 
 interface DishListItemProps {
     dish: any;
+    sectionId: string;
     currentLanguage: string;
     colors: any;
     onAddToCart: (dish: any, quantity: number, portion?: 'full' | 'half', price?: number) => void;
@@ -23,6 +57,7 @@ interface DishListItemProps {
 
 const DishListItem: React.FC<DishListItemProps> = ({
     dish,
+    sectionId,
     currentLanguage,
     colors,
     onAddToCart,
@@ -37,17 +72,79 @@ const DishListItem: React.FC<DishListItemProps> = ({
     const { favoriteDish, isFavorited } = useDishTracking();
     const [isFavorite, setIsFavorite] = useState(false);
 
-    // Video Transition State
-    const [videoStarted, setVideoStarted] = useState(false);
+    // ✅ Track dish view when visible for 1.5s
+    const { ref: trackingRef } = useDishViewTracking({
+        dishId: dish?.id,
+        sectionId,
+        threshold: 0.5,
+        minVisibleTime: 1500,
+        enabled: !!dish?.id
+    });
+
+    // Media info (declared early for use in hooks)
+    const dishName = dish?.translations?.name?.[currentLanguage] || dish?.name || t('dish_untitled', 'Plato');
+    const description = dish?.translations?.description?.[currentLanguage] || dish?.description || '';
+    const media = dish?.media?.[0];
+    const mediaUrl = media?.url;
+    const isVideo = media?.type === 'video' || mediaUrl?.endsWith('.mp4');
+
+    // ✅ Video-First Loading Pattern
+    const [videoReady, setVideoReady] = useState(false);
+    const [showFallbackImage, setShowFallbackImage] = useState(false);
+    const [videoError, setVideoError] = useState(false);
+    const videoLoadTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
     const videoRef = useRef<HTMLVideoElement>(null);
 
-    // Reset video state when activity changes (or if recycled)
+    // Reset video state when dish changes or activity changes
     useEffect(() => {
-        if (!isActive) {
-            setVideoStarted(false);
+        setVideoReady(false);
+        setShowFallbackImage(false);
+        setVideoError(false);
+        if (videoLoadTimeoutRef.current) {
+            clearTimeout(videoLoadTimeoutRef.current);
+            videoLoadTimeoutRef.current = null;
         }
-    }, [isActive]);
+    }, [dish?.id, isActive]);
+
+    // ✅ Video-First: Start timeout when video should play
+    useEffect(() => {
+        if (!isVideo || !isActive) {
+            if (videoLoadTimeoutRef.current) {
+                clearTimeout(videoLoadTimeoutRef.current);
+                videoLoadTimeoutRef.current = null;
+            }
+            return;
+        }
+
+        videoLoadTimeoutRef.current = setTimeout(() => {
+            if (!videoReady) {
+                setShowFallbackImage(true);
+            }
+        }, 500);
+
+        return () => {
+            if (videoLoadTimeoutRef.current) {
+                clearTimeout(videoLoadTimeoutRef.current);
+                videoLoadTimeoutRef.current = null;
+            }
+        };
+    }, [isVideo, isActive, videoReady]);
+
+    // Handle video ready
+    const handleVideoReady = useCallback(() => {
+        setVideoReady(true);
+        setShowFallbackImage(false);
+        if (videoLoadTimeoutRef.current) {
+            clearTimeout(videoLoadTimeoutRef.current);
+            videoLoadTimeoutRef.current = null;
+        }
+    }, []);
+
+    const handleVideoError = useCallback(() => {
+        setVideoError(true);
+        setShowFallbackImage(true);
+    }, []);
 
     useEffect(() => {
         if (dish?.id) {
@@ -62,12 +159,6 @@ const DishListItem: React.FC<DishListItemProps> = ({
         favoriteDish(dish.id, newState);
     };
 
-    const dishName = dish?.translations?.name?.[currentLanguage] || dish?.name || t('dish_untitled', 'Plato');
-    const description = dish?.translations?.description?.[currentLanguage] || dish?.description || '';
-    const media = dish?.media?.[0];
-    const mediaUrl = media?.url;
-    const isVideo = media?.type === 'video' || mediaUrl?.endsWith('.mp4');
-
     // Animation direction based on index
     const initialX = index % 2 === 0 ? '-20px' : '20px'; // Reduced movement for list view
 
@@ -79,6 +170,7 @@ const DishListItem: React.FC<DishListItemProps> = ({
 
     return (
         <motion.div
+            ref={trackingRef as any}
             initial={{ opacity: 0, x: initialX }}
             whileInView={{ opacity: 1, x: 0 }}
             viewport={{ once: true, margin: "-50px" }}
@@ -113,7 +205,7 @@ const DishListItem: React.FC<DishListItemProps> = ({
                 <Box
                     sx={{
                         position: 'relative',
-                        bgcolor: 'rgba(20,20,20,0.85)',
+                        bgcolor: '#1A1A1A',
                         borderRadius: 3,
                         backdropFilter: 'blur(30px)',
                         border: `1px solid ${colors.secondary}40`,
@@ -122,14 +214,14 @@ const DishListItem: React.FC<DishListItemProps> = ({
                         flexDirection: 'row',
                         zIndex: 1,
                         boxShadow: `0 4px 16px rgba(0,0,0,0.2)`,
-                        minHeight: '140px'
+                        minHeight: '200px'
                     }}
                 >
                     {/* Left: Video/Image Container */}
                     <Box sx={{
                         position: 'relative',
-                        width: '130px',
-                        minWidth: '130px',
+                        width: '187px',
+                        minWidth: '187px',
                         bgcolor: '#000',
                         display: 'flex',
                         alignItems: 'center',
@@ -139,48 +231,48 @@ const DishListItem: React.FC<DishListItemProps> = ({
                     }}>
                         {mediaUrl ? (
                             <>
-                                {/* ✅ Render Video ONLY if Active */}
-                                {isActive && isVideo ? (
+                                {/* ✅ Video-First: Render Video ONLY if Active and no error */}
+                                {isActive && isVideo && !videoError ? (
                                     <video
                                         ref={videoRef}
                                         src={mediaUrl}
                                         playsInline
                                         muted
-                                        autoPlay // Controlled by mount
+                                        autoPlay
                                         loop
-                                        // poster={media?.thumbnail_url} // Removed for custom overlay
-                                        onPlaying={() => setVideoStarted(true)}
-                                        onTimeUpdate={(e) => {
-                                            if (e.currentTarget.currentTime > 0.1 && !videoStarted) {
-                                                setVideoStarted(true);
-                                            }
-                                        }}
+                                        preload="auto"
+                                        onCanPlayThrough={handleVideoReady}
+                                        onError={handleVideoError}
                                         style={{
                                             width: '100%',
                                             height: '100%',
-                                            objectFit: 'cover'
+                                            objectFit: 'cover',
+                                            opacity: videoReady ? 1 : 0, // Start invisible, fade in when ready
+                                            transition: 'opacity 0.3s ease-in'
                                         }}
                                     />
                                 ) : null}
 
-                                {/* ✅ Custom Overlay for Smooth Transition & Inactive State */}
-                                <Box
-                                    component="img"
-                                    src={media?.thumbnail_url || mediaUrl}
-                                    alt={dishName}
-                                    sx={{
-                                        position: 'absolute',
-                                        inset: 0,
-                                        width: '100%',
-                                        height: '100%',
-                                        objectFit: 'cover',
-                                        zIndex: 2,
-                                        opacity: (isActive && videoStarted) ? 0 : 1, // Fade out only when playing
-                                        transition: 'opacity 0.5s ease-out',
-                                        pointerEvents: 'none',
-                                        willChange: 'opacity'
-                                    }}
-                                />
+                                {/* ✅ Fallback Image: Only shown if not active, timeout, or error */}
+                                {(!isActive || !isVideo || showFallbackImage || videoError) && (
+                                    <Box
+                                        component="img"
+                                        src={media?.thumbnail_url || mediaUrl}
+                                        alt={dishName}
+                                        sx={{
+                                            position: isActive && isVideo && !videoError ? 'absolute' : 'relative',
+                                            inset: 0,
+                                            width: '100%',
+                                            height: '100%',
+                                            objectFit: 'cover',
+                                            zIndex: 2,
+                                            opacity: (isActive && videoReady && !videoError) ? 0 : 1,
+                                            transition: 'opacity 0.3s ease-out',
+                                            pointerEvents: 'none',
+                                            willChange: 'opacity'
+                                        }}
+                                    />
+                                )}
                             </>
                         ) : (
                             <Box sx={{ p: 2, textAlign: 'center' }}>
@@ -229,7 +321,7 @@ const DishListItem: React.FC<DishListItemProps> = ({
                                     sx={{
                                         color: colors.text,
                                         fontFamily: '"Fraunces", serif',
-                                        fontWeight: 700,
+                                        fontWeight: 300,
                                         fontSize: '1.1rem',
                                         lineHeight: 1.2,
                                         mb: 0.5
@@ -265,6 +357,42 @@ const DishListItem: React.FC<DishListItemProps> = ({
                                 >
                                     {description}
                                 </Typography>
+                            )}
+
+                            {/* Allergen Icons */}
+                            {dish?.allergens && dish.allergens.length > 0 && (
+                                <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75, flexWrap: 'wrap', mb: 1 }}>
+                                    {dish.allergens.slice(0, 5).map((allergen: Allergen) => (
+                                        <Tooltip
+                                            key={allergen.id}
+                                            title={getAllergenName(allergen, currentLanguage)}
+                                            arrow
+                                            placement="top"
+                                        >
+                                            <Box
+                                                component="img"
+                                                src={getAllergenIconUrl(allergen)}
+                                                alt={getAllergenName(allergen, currentLanguage)}
+                                                sx={{
+                                                    width: 20,
+                                                    height: 20,
+                                                    objectFit: 'contain',
+                                                    opacity: 0.85,
+                                                    transition: 'transform 0.2s, opacity 0.2s',
+                                                    '&:hover': {
+                                                        transform: 'scale(1.15)',
+                                                        opacity: 1
+                                                    }
+                                                }}
+                                            />
+                                        </Tooltip>
+                                    ))}
+                                    {dish.allergens.length > 5 && (
+                                        <Typography sx={{ fontSize: '0.7rem', color: 'rgba(255,255,255,0.5)' }}>
+                                            +{dish.allergens.length - 5}
+                                        </Typography>
+                                    )}
+                                </Box>
                             )}
                         </Box>
 
@@ -380,7 +508,8 @@ interface ListViewProps {
     cart: any[];
     activeSectionId?: string;
     onDishClick: (dish: any) => void;
-    onActiveSectionChange?: (sectionIndex: number) => void; // ✅ Callback for sync
+    onActiveSectionChange?: (sectionIndex: number) => void;
+    onOpenCart?: () => void;
 }
 
 const ListView: React.FC<ListViewProps> = ({
@@ -391,7 +520,8 @@ const ListView: React.FC<ListViewProps> = ({
     cart,
     activeSectionId,
     onDishClick,
-    onActiveSectionChange
+    onActiveSectionChange,
+    onOpenCart
 }) => {
     const { t } = useTranslation();
     const branding = config?.restaurant?.branding || {};
@@ -405,6 +535,10 @@ const ListView: React.FC<ListViewProps> = ({
 
     const [activeDishId, setActiveDishId] = useState<string | null>(null);
     const sectionRefs = useRef<{ [key: string]: HTMLDivElement | null }>({});
+
+    // Calculate cart totals
+    const totalPrice = cart.reduce((acc, item) => acc + (item.price * item.quantity), 0);
+    const totalItems = cart.reduce((acc, item) => acc + item.quantity, 0);
 
     // Track if strict scrolling is needed (prevent loop)
     const lastReportedSectionRef = useRef<string | null>(null);
@@ -478,11 +612,14 @@ const ListView: React.FC<ListViewProps> = ({
 
     return (
         <Box
+            data-allow-scroll
+            className="allow-scroll"
             sx={{
                 width: '100%',
                 height: '100%',
                 overflowY: 'auto',
                 overflowX: 'hidden',
+                touchAction: 'pan-y',  // Allow vertical touch scroll
                 pt: '120px', // ✅ Increased from 60px to 120px to prevent header cut-off
                 pb: '120px',
                 px: 2,
@@ -538,6 +675,7 @@ const ListView: React.FC<ListViewProps> = ({
                                         key={dish.id}
                                         index={idx}
                                         dish={dish}
+                                        sectionId={section.id}
                                         currentLanguage={currentLanguage}
                                         colors={colors}
                                         onAddToCart={onAddToCart}
@@ -552,6 +690,102 @@ const ListView: React.FC<ListViewProps> = ({
                     );
                 })}
             </Box >
+
+            {/* Cart Total Bar - Fixed Bottom */}
+            {cart.length > 0 && onOpenCart && (
+                <Box
+                    onClick={onOpenCart}
+                    sx={{
+                        position: 'fixed',
+                        bottom: 0,
+                        left: '50%',
+                        transform: 'translateX(-50%)',
+                        width: '100%',
+                        maxWidth: '430px',
+                        zIndex: 100,
+                        cursor: 'pointer',
+                    }}
+                >
+                    {/* Main Bar Container */}
+                    <Box sx={{
+                        position: 'relative',
+                        bgcolor: 'rgba(15,15,15,0.95)',
+                        backdropFilter: 'blur(20px)',
+                        borderTop: `3px solid ${colors.accent || colors.secondary}`,
+                        px: 2.5,
+                        py: 1.5,
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'space-between',
+                        transition: 'background-color 0.2s',
+                        '&:hover': {
+                            bgcolor: 'rgba(25,25,25,0.95)'
+                        }
+                    }}>
+                        {/* Text Content */}
+                        <Box>
+                            <Typography
+                                component="div"
+                                sx={{
+                                    display: 'flex',
+                                    alignItems: 'baseline',
+                                    gap: 0.75
+                                }}
+                            >
+                                <Box component="span" sx={{
+                                    color: '#fff',
+                                    fontWeight: 600,
+                                    fontSize: '1.1rem'
+                                }}>
+                                    Total:
+                                </Box>
+                                <Box component="span" sx={{
+                                    color: colors.accent || colors.secondary,
+                                    fontWeight: 700,
+                                    fontSize: '1.2rem',
+                                    fontFamily: '"Fraunces", serif'
+                                }}>
+                                    €{totalPrice.toFixed(2)}
+                                </Box>
+                            </Typography>
+                            <Typography sx={{
+                                color: colors.accent || colors.secondary,
+                                fontSize: '0.85rem',
+                                fontWeight: 500,
+                                mt: 0.25
+                            }}>
+                                {totalItems} {totalItems === 1 ? 'Item' : 'Items'}
+                            </Typography>
+                        </Box>
+
+                        {/* Spacer for button area */}
+                        <Box sx={{ width: 60 }} />
+                    </Box>
+
+                    {/* Floating Cart Button - Protruding Above */}
+                    <Box sx={{
+                        position: 'absolute',
+                        right: 16,
+                        top: -20, // Protrude above the bar
+                        width: 56,
+                        height: 56,
+                        borderRadius: '50%',
+                        background: `linear-gradient(145deg, #FFD700 0%, ${colors.accent || '#FFC100'} 50%, #DAA520 100%)`,
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        boxShadow: '0 4px 15px rgba(0,0,0,0.4), inset 0 1px 2px rgba(255,255,255,0.3)',
+                        zIndex: 2,
+                        transition: 'transform 0.2s, box-shadow 0.2s',
+                        '&:hover': {
+                            transform: 'scale(1.05)',
+                            boxShadow: '0 6px 20px rgba(0,0,0,0.5), inset 0 1px 2px rgba(255,255,255,0.3)'
+                        }
+                    }}>
+                        <ShoppingCart sx={{ color: '#000', fontSize: 26 }} />
+                    </Box>
+                </Box>
+            )}
         </Box >
     );
 };

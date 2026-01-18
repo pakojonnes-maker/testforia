@@ -4,7 +4,7 @@ import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react'
 import { Box, Typography } from '@mui/material';
 import { useNavigate } from 'react-router-dom';
 import { Swiper, SwiperSlide } from 'swiper/react';
-import { Virtual } from 'swiper/modules';
+import { Virtual, Mousewheel } from 'swiper/modules';
 import type { Swiper as SwiperType } from 'swiper';
 
 // Hooks y contextos
@@ -20,8 +20,7 @@ import ClassicHeader from './templates/classic/Header';
 import ClassicListView from './templates/classic/ListView';
 import ClassicDishDetailModal from './templates/classic/DishDetailModal';
 
-import { ShoppingCart, Favorite } from '@mui/icons-material';
-import { Fab, Zoom, Badge } from '@mui/material';
+import { ShoppingCart } from '@mui/icons-material';
 import SocialMenu from './SocialMenu';
 import ViewModeToggle from './ViewModeToggle';
 import WelcomeModal from './WelcomeModal';
@@ -79,13 +78,15 @@ interface CartItem {
 }
 
 const UI_CONFIG = {
-  SWIPER_SPEED: 300,
-  SWIPER_RESISTANCE_RATIO: 0.65,
-  TOUCH_RATIO: 1,
-  THRESHOLD: 5,
-  LONG_SWIPES: false,
+  SWIPER_SPEED: 400,             // ✅ Standard snappy speed (Instagram style)
+  SWIPER_RESISTANCE_RATIO: 0.85, // ✅ High resistance at edges (Rubber band effect)
+  TOUCH_RATIO: 1,                // ✅ 1:1 Touch response (Immediate)
+  THRESHOLD: 5,                  // ✅ Standard threshold
+  LONG_SWIPES: false,            // Disable long swipes - only 1 slide at a time
+  LONG_SWIPES_RATIO: 0.25,       // Even if long swipes trigger, move min distance
   FOLLOW_FINGER: true,
-  SHORT_SWIPES: true
+  SHORT_SWIPES: true,
+  FREE_MODE_MOMENTUM_RATIO: 0.5  // ✅ Standard momentum
 } as const;
 
 // ======================================================================
@@ -240,6 +241,9 @@ const ReelsContainer: React.FC<ReelsContainerProps> = React.memo(({
   const lastUpdateRef = useRef<number>(0);
   const isClickNavigationRef = useRef<boolean>(false);
   const currentSectionIndexRef = useRef<number>(initialSectionIndex);
+  const isHorizontalTransitioningRef = useRef<boolean>(false); // ✅ Lock for horizontal scroll
+  const isVerticalTransitioningRef = useRef<boolean>(false);   // ✅ Lock for vertical scroll
+  const currentDishIndexRef = useRef<number>(initialDishIndex); // ✅ Track dish index for clamp
   // ✅ NUEVO: Refs para tracking de tiempo en sección
   const sectionDishesViewedRef = useRef<Set<string>>(new Set());
 
@@ -561,6 +565,43 @@ const ReelsContainer: React.FC<ReelsContainerProps> = React.memo(({
     currentSectionIndexRef.current = currentSectionIndex;
   }, [currentSectionIndex]);
 
+  // ✅ EFFECT: Bloquear scroll del body cuando se monta el componente de reels
+  useEffect(() => {
+    // Agregar clase al montar
+    document.documentElement.classList.add('reels-mode');
+    document.body.classList.add('reels-mode');
+
+    // Guardar el scroll position actual
+    const scrollY = window.scrollY;
+
+    // Prevenir scroll en cualquier touchmove fuera del swiper
+    const preventDefaultScroll = (e: TouchEvent) => {
+      // Solo prevenir si no es dentro de un elemento scrollable permitido
+      const target = e.target as HTMLElement;
+      // Allow scroll in: Swiper, elements with data-allow-scroll, allow-scroll class,
+      // MUI Drawer/Dialog papers (for cart drawer, modals, etc.)
+      if (!target.closest('.swiper') &&
+        !target.closest('[data-allow-scroll]') &&
+        !target.closest('.allow-scroll') &&
+        !target.closest('.MuiDrawer-paper') &&
+        !target.closest('.MuiDialog-paper')) {
+        e.preventDefault();
+      }
+    };
+
+    document.addEventListener('touchmove', preventDefaultScroll, { passive: false });
+
+    return () => {
+      // Remover clase al desmontar
+      document.documentElement.classList.remove('reels-mode');
+      document.body.classList.remove('reels-mode');
+      document.removeEventListener('touchmove', preventDefaultScroll);
+
+      // Restaurar scroll position
+      window.scrollTo(0, scrollY);
+    };
+  }, []);
+
   useEffect(() => {
     if (currentSection?.id) {
       setCurrentSection(currentSection.id);
@@ -673,22 +714,39 @@ const ReelsContainer: React.FC<ReelsContainerProps> = React.memo(({
     }, UI_CONFIG.SWIPER_SPEED + 100);
   }, [reelConfig?.sections, setCurrentSection]);
 
-  const handleDishChange = useCallback((newIndex: number, sectionIndex: number) => {
+  const handleDishChange = useCallback((newIndex: number, sectionIndex: number, swiperInstance?: SwiperType) => {
     if (sectionIndex !== currentSectionIndex) return;
 
-    const now = Date.now();
-    if (now - lastUpdateRef.current < 50) return;
-    lastUpdateRef.current = now;
+    const prevIndex = currentDishIndexRef.current;
+    const maxIndex = currentDishes.length - 1;
 
-    if (newIndex === currentDishIndex ||
-      newIndex < 0 ||
-      newIndex >= currentDishes.length) {
+    // ✅ Force single-slide movement: clamp to ±1 from previous
+    let targetIndex = newIndex;
+    if (newIndex > prevIndex + 1) {
+      targetIndex = Math.min(prevIndex + 1, maxIndex);
+    } else if (newIndex < prevIndex - 1) {
+      targetIndex = Math.max(prevIndex - 1, 0);
+    }
+
+    // Validate bounds
+    if (targetIndex < 0 || targetIndex > maxIndex || targetIndex === prevIndex) {
+      // If we need to correct position, do it
+      if (swiperInstance && targetIndex !== newIndex) {
+        swiperInstance.slideTo(targetIndex, 400, false);
+      }
       return;
     }
 
-    console.log(`🍽️ [ReelsContainer] Dish change: ${currentDishIndex} → ${newIndex}`);
-    setCurrentDishIndex(newIndex);
-  }, [currentDishIndex, currentDishes.length, currentSectionIndex]);
+    console.log(`🍽️ [ReelsContainer] Dish: prev=${prevIndex}, requested=${newIndex}, target=${targetIndex}`);
+
+    // Correct swiper position if needed
+    if (swiperInstance && targetIndex !== newIndex) {
+      swiperInstance.slideTo(targetIndex, 400, false);
+    }
+
+    currentDishIndexRef.current = targetIndex;
+    setCurrentDishIndex(targetIndex);
+  }, [currentDishes.length, currentSectionIndex]);
 
   const toggleMuted = useCallback(() => {
     setMuted(prev => !prev);
@@ -705,15 +763,22 @@ const ReelsContainer: React.FC<ReelsContainerProps> = React.memo(({
 
   const swiperConfigs = useMemo(() => ({
     vertical: {
-      modules: [Virtual],
+      modules: [Virtual, Mousewheel],
       direction: 'vertical' as const,
       slidesPerView: 1,
+      slidesPerGroup: 1,          // ✅ Only move 1 slide per gesture
       spaceBetween: 0,
       touchRatio: UI_CONFIG.TOUCH_RATIO,
       threshold: UI_CONFIG.THRESHOLD,
       shortSwipes: UI_CONFIG.SHORT_SWIPES,
       longSwipes: UI_CONFIG.LONG_SWIPES,
+      longSwipesRatio: UI_CONFIG.LONG_SWIPES_RATIO,
       followFinger: UI_CONFIG.FOLLOW_FINGER,
+      touchReleaseOnEdges: false, // ✅ Don't release to parent scroll
+      touchEventsTarget: 'container' as const, // ✅ Capture touch on container
+      edgeSwipeDetection: true,   // ✅ Better edge detection
+      edgeSwipeThreshold: 50,
+      touchStartPreventDefault: false, // ✅ Allow some native behavior
       virtual: {
         enabled: true,
         addSlidesBefore: 1,
@@ -728,6 +793,14 @@ const ReelsContainer: React.FC<ReelsContainerProps> = React.memo(({
       cssMode: false,
       freeMode: false,
       centeredSlides: true,
+      preventInteractionOnTransition: true, // ✅ Block new gestures during animation
+      mousewheel: {               // ✅ Mouse/trackpad wheel control
+        forceToAxis: true,
+        sensitivity: 1,           // ✅ Standard sensitivity
+        thresholdDelta: 50,       // ✅ Standard threshold
+        thresholdTime: 300,       // ✅ Standard debounce
+        releaseOnEdges: false     // ✅ Don't release to page scroll
+      },
       lazy: {
         enabled: true,
         loadPrevNext: true,
@@ -736,26 +809,45 @@ const ReelsContainer: React.FC<ReelsContainerProps> = React.memo(({
       }
     },
     horizontal: {
-      modules: [Virtual],
+      modules: [Virtual, Mousewheel],
       direction: 'horizontal' as const,
       slidesPerView: 1,
+      slidesPerGroup: 1,
       spaceBetween: 0,
-      touchRatio: UI_CONFIG.TOUCH_RATIO,
-      threshold: UI_CONFIG.THRESHOLD,
-      shortSwipes: UI_CONFIG.SHORT_SWIPES,
-      longSwipes: UI_CONFIG.LONG_SWIPES,
-      followFinger: UI_CONFIG.FOLLOW_FINGER,
+      // ✅ MITIGATION: Aggressive sensitivity reduction
+      touchRatio: 0.4,            // Much lower than 1 - reduces swipe momentum
+      threshold: 25,              // High threshold - requires very intentional swipe
+      shortSwipes: true,
+      longSwipes: false,          // Completely disabled
+      longSwipesRatio: 0.05,      // Virtually impossible to trigger
+      longSwipesMs: 50,           // Very short window
+      followFinger: true,
+      touchReleaseOnEdges: false,
+      touchEventsTarget: 'container' as const,
+      edgeSwipeDetection: true,
+      edgeSwipeThreshold: 50,
+      touchStartPreventDefault: false,
+      freeMode: false,
+      watchSlidesProgress: true,
       virtual: {
         enabled: true,
         cache: true
       },
-      speed: UI_CONFIG.SWIPER_SPEED,
+      speed: 450,                 // Slightly slower to feel more controlled
       allowTouchMove: true,
       simulateTouch: true,
       resistance: true,
-      resistanceRatio: UI_CONFIG.SWIPER_RESISTANCE_RATIO,
+      resistanceRatio: 0.92,      // High resistance at edges
       cssMode: false,
       centeredSlides: true,
+      preventInteractionOnTransition: true,
+      mousewheel: {
+        forceToAxis: true,
+        sensitivity: 0.5,         // Reduced mouse sensitivity too
+        thresholdDelta: 80,       // Higher threshold for wheel
+        thresholdTime: 400,
+        releaseOnEdges: false
+      },
       lazy: {
         enabled: true,
         loadPrevNext: true,
@@ -854,12 +946,13 @@ const ReelsContainer: React.FC<ReelsContainerProps> = React.memo(({
           position: 'relative',
           background: brandColor,
           overflow: 'hidden',
+          overscrollBehavior: 'none', // ✅ Prevent overscroll bounce
+          touchAction: 'none', // ✅ Prevent native scroll - let Swiper handle it
           userSelect: 'none',
           WebkitUserSelect: 'none',
           transform: 'translateZ(0)',
           backfaceVisibility: 'hidden',
           WebkitBackfaceVisibility: 'hidden',
-          WebkitOverflowScrolling: 'touch',
           boxShadow: '0 0 50px rgba(0,0,0,0.5)', // ✅ Shadow to pop out
           zIndex: 1 // ✅ Ensure it's above the pattern
         }}
@@ -950,11 +1043,11 @@ const ReelsContainer: React.FC<ReelsContainerProps> = React.memo(({
                     height: index === currentDishIndex ? { xs: 24, sm: 28 } : { xs: 8, sm: 10 },
                     borderRadius: 2,
                     bgcolor: index === currentDishIndex
-                      ? reelConfig.restaurant?.branding?.primaryColor || '#FF6B6B'
+                      ? reelConfig.restaurant?.branding?.accent_color || reelConfig.restaurant?.branding?.accentColor || '#FFC100'
                       : 'rgba(255,255,255,0.4)',
                     transition: 'all 0.4s cubic-bezier(0.4, 0, 0.2, 1)',
                     boxShadow: index === currentDishIndex
-                      ? `0 0 8px ${reelConfig.restaurant?.branding?.primaryColor || '#FF6B6B'}40`
+                      ? `0 0 8px ${reelConfig.restaurant?.branding?.accent_color || reelConfig.restaurant?.branding?.accentColor || '#FFC100'}40`
                       : 'none'
                   }}
                 />
@@ -973,79 +1066,6 @@ const ReelsContainer: React.FC<ReelsContainerProps> = React.memo(({
                   +{currentDishes.length - 12}
                 </Typography>
               )}
-            </Box>
-          )}
-
-          {/* LIST VIEW Global Side Actions (Heart + Cart) */}
-          {viewMode === 'list' && (
-            <Box
-              sx={{
-                position: 'fixed',
-                right: 16,
-                top: '50%',
-                transform: 'translateY(-50%)', // Center vertically
-                display: 'flex',
-                flexDirection: 'column',
-                gap: 3,
-                zIndex: 20, // High z-index to float above content
-                alignItems: 'center'
-              }}
-            >
-              {/* Global Heart (Likes) */}
-              <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 0.5 }}>
-                <IconButton
-                  // onClick={() => setShowFavorites(true)} // Open Favorites Modal
-                  sx={{
-                    bgcolor: 'rgba(0,0,0,0.6)',
-                    backdropFilter: 'blur(10px)',
-                    color: '#fff',
-                    width: 48, // Slightly smaller/standard size
-                    height: 48,
-                    borderRadius: '50%',
-                    border: '1px solid rgba(255,255,255,0.2)',
-                    transition: 'transform 0.2s',
-                    '&:hover': {
-                      bgcolor: 'rgba(255,255,255,0.2)',
-                      transform: 'scale(1.1)'
-                    }
-                  }}
-                >
-                  <Favorite sx={{ fontSize: 24 }} />
-                </IconButton>
-                <Typography variant="caption" sx={{ color: '#fff', textShadow: '0 2px 4px rgba(0,0,0,0.8)', fontSize: '0.7rem', fontWeight: 600 }}>
-                  {t('likes_label', 'Likes')}
-                </Typography>
-              </Box>
-
-              {/* Global Cart */}
-              <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 0.5 }}>
-                <Badge badgeContent={cart.reduce((acc, item) => acc + item.quantity, 0)} color="secondary"
-                  sx={{ '& .MuiBadge-badge': { fontWeight: 'bold' } }}
-                >
-                  <IconButton
-                    onClick={() => setOpenCartDrawer(true)}
-                    sx={{
-                      bgcolor: 'rgba(0,0,0,0.6)',
-                      backdropFilter: 'blur(10px)',
-                      color: '#fff',
-                      width: 48,
-                      height: 48,
-                      borderRadius: '50%',
-                      border: '1px solid rgba(255,255,255,0.2)',
-                      transition: 'transform 0.2s',
-                      '&:hover': {
-                        bgcolor: 'rgba(255,255,255,0.2)',
-                        transform: 'scale(1.1)'
-                      }
-                    }}
-                  >
-                    <ShoppingCart sx={{ fontSize: 24 }} />
-                  </IconButton>
-                </Badge>
-                <Typography variant="caption" sx={{ color: '#fff', textShadow: '0 2px 4px rgba(0,0,0,0.8)', fontSize: '0.7rem', fontWeight: 600 }}>
-                  {t('menu_label', 'Menú')}
-                </Typography>
-              </Box>
             </Box>
           )}
 
@@ -1281,11 +1301,15 @@ const ReelsContainer: React.FC<ReelsContainerProps> = React.memo(({
           {viewMode === 'reels' ? (
             <Box
               sx={{
-                position: 'relative',
-                height: '100svh',
-                width: '100%', // ✅ Changed from 100vw to 100% to respect container width
-                pt: '80px',
-                pb: '90px'
+                position: 'absolute',
+                top: '80px',           // Below header
+                left: 0,
+                right: 0,
+                bottom: '90px',        // Above section bar
+                width: '100%',
+                overflow: 'hidden',    // Prevent any overflow issues
+                touchAction: 'none',   // ✅ Prevent native scroll
+                overscrollBehavior: 'contain' // ✅ Contain overscroll
               }}
             >
               {/* ✅ HORIZONTAL SWIPER CON onSwiper */}
@@ -1296,20 +1320,49 @@ const ReelsContainer: React.FC<ReelsContainerProps> = React.memo(({
                   console.log('🎯 [Horizontal Swiper] onSwiper executed, ref assigned:', !!swiper);
                 }}
                 initialSlide={currentSectionIndex}
+                onSlideChangeTransitionStart={() => {
+                  isHorizontalTransitioningRef.current = true;
+                }}
+                onSlideChangeTransitionEnd={() => {
+                  isHorizontalTransitioningRef.current = false;
+                }}
                 onSlideChange={(swiper) => {
-                  if (!isClickNavigationRef.current) {
-                    const newIndex = swiper.activeIndex;
-                    console.log(`🎯 [Horizontal Swiper] Slide changed via SWIPE to: ${newIndex}`);
-                    if (newIndex !== currentSectionIndex) {
-                      setCurrentSectionIndex(newIndex);
-                      setCurrentDishIndex(0);
-                      const section = reelConfig?.sections?.[newIndex];
-                      if (section) {
-                        setCurrentSection(section.id);
-                      }
+                  // Skip if triggered by click navigation (handled separately)
+                  if (isClickNavigationRef.current) {
+                    console.log(`🎯 [Horizontal] Click navigation, skipping`);
+                    return;
+                  }
+
+                  const newIndex = swiper.activeIndex;
+                  const prevIndex = currentSectionIndexRef.current;
+                  const maxIndex = (reelConfig?.sections?.length || 1) - 1;
+
+                  // ✅ Clamp to ±1 slide movement
+                  let targetIndex = newIndex;
+                  if (newIndex > prevIndex + 1) {
+                    targetIndex = Math.min(prevIndex + 1, maxIndex);
+                  } else if (newIndex < prevIndex - 1) {
+                    targetIndex = Math.max(prevIndex - 1, 0);
+                  }
+
+                  console.log(`🎯 [Horizontal] prev=${prevIndex}, new=${newIndex}, target=${targetIndex}`);
+
+                  // ✅ Correct position if needed (runCallbacks=false prevents recursion!)
+                  if (targetIndex !== newIndex) {
+                    console.log(`🎯 [Horizontal] CORRECTING: ${newIndex} → ${targetIndex}`);
+                    swiper.slideTo(targetIndex, 300, false);
+                  }
+
+                  // ✅ ALWAYS update state to match corrected position (no early return!)
+                  if (targetIndex !== prevIndex) {
+                    currentSectionIndexRef.current = targetIndex;
+                    currentDishIndexRef.current = 0;
+                    setCurrentSectionIndex(targetIndex);
+                    setCurrentDishIndex(0);
+                    const section = reelConfig?.sections?.[targetIndex];
+                    if (section) {
+                      setCurrentSection(section.id);
                     }
-                  } else {
-                    console.log(`🎯 [Horizontal Swiper] Slide changed via CLICK (ignoring onSlideChange)`);
                   }
                 }}
                 style={{
@@ -1331,8 +1384,14 @@ const ReelsContainer: React.FC<ReelsContainerProps> = React.memo(({
                         console.log(`🎯 [Vertical Swiper ${sectionIdx}] onSwiper executed`);
                       }}
                       initialSlide={sectionIdx === initialSectionIndex ? initialDishIndex : 0}
+                      onSlideChangeTransitionStart={() => {
+                        isVerticalTransitioningRef.current = true;
+                      }}
+                      onSlideChangeTransitionEnd={() => {
+                        isVerticalTransitioningRef.current = false;
+                      }}
                       onSlideChange={(swiper) => {
-                        handleDishChange(swiper.activeIndex, sectionIdx);
+                        handleDishChange(swiper.activeIndex, sectionIdx, swiper);
                       }}
                       style={{
                         height: '100%',
@@ -1374,37 +1433,14 @@ const ReelsContainer: React.FC<ReelsContainerProps> = React.memo(({
               onAddToCart={addToCart}
               cart={cart}
               activeSectionId={currentSection?.id}
-              onActiveSectionChange={handleSectionChange} // ✅ Sync scroll from list to parent
+              onActiveSectionChange={handleSectionChange}
+              onOpenCart={handleOpenCartDrawer}
               onDishClick={(dish) => {
                 setSelectedDish(dish);
                 setIsDetailOpen(true);
               }}
             />
           )}
-
-          {/* Global Cart FAB for List View */}
-          <Zoom in={viewMode === 'list' && getTotalItems() > 0}>
-            <Fab
-              color="primary"
-              aria-label="cart"
-              onClick={handleOpenCartDrawer}
-              sx={{
-                position: 'fixed',
-                bottom: Object.keys(reelConfig?.sections || {}).length > 1 ? 90 : 30,
-                right: 30,
-                zIndex: 1000,
-                bgcolor: reelConfig.restaurant?.branding?.accent_color || reelConfig.restaurant?.branding?.accentColor || reelConfig.restaurant?.branding?.secondaryColor || '#4ECDC4',
-                '&:hover': {
-                  bgcolor: reelConfig.restaurant?.branding?.accent_color || reelConfig.restaurant?.branding?.accentColor || reelConfig.restaurant?.branding?.secondaryColor || '#4ECDC4',
-                  filter: 'brightness(1.1)'
-                }
-              }}
-            >
-              <Badge badgeContent={getTotalItems()} color="secondary">
-                <ShoppingCart />
-              </Badge>
-            </Fab>
-          </Zoom>
 
           {/* Dish Detail Modal */}
           {viewMode === 'list' && (

@@ -1,43 +1,27 @@
-import { verifyJWT } from './workerAuthentication.js';
-
 // ===========================================================================
 // CLOUDFLARE WORKER - SECTIONS API
 // ===========================================================================
+// La autenticación y CORS se manejan centralizadamente en worker.js
+// ===========================================================================
 
-// CORS - Dominios permitidos
-const ALLOWED_ORIGINS = [
-    'https://admin.visualtastes.com',
-    'https://menu.visualtastes.com',
-    'https://visualtastes.com',
-    'http://localhost:5173',
-    'http://localhost:5174',
-    'http://menu.localhost:5173',
-    'http://admin.localhost:5174'
-];
+import { verifyJWT } from './workerAuthentication.js';
 
-function getCorsHeaders(request) {
-    const origin = request?.headers?.get('Origin') || '';
-    const allowedOrigin = ALLOWED_ORIGINS.includes(origin) ? origin : ALLOWED_ORIGINS[0];
-    return {
-        "Content-Type": "application/json",
-        "Access-Control-Allow-Origin": allowedOrigin,
-        "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS",
-        "Access-Control-Allow-Headers": "Content-Type, Authorization",
-    };
-}
-
-function createResponse(body, status = 200, request = null) {
+function createResponse(body, status = 200) {
     return new Response(JSON.stringify(body), {
         status,
-        headers: getCorsHeaders(request)
+        headers: { "Content-Type": "application/json" }
     });
 }
 
+// Helper function for authentication (used within this module)
 async function authenticateRequest(request, env) {
     const authHeader = request.headers.get('Authorization');
-    if (!authHeader || !authHeader.startsWith('Bearer ')) return null;
-    const token = authHeader.substring(7);
-    return await verifyJWT(token, env.JWT_SECRET);
+    if (!authHeader?.startsWith('Bearer ')) return null;
+    try {
+        return await verifyJWT(authHeader.substring(7), env.JWT_SECRET);
+    } catch (e) {
+        return null;
+    }
 }
 
 export async function handleSectionRequests(request, env) {
@@ -153,7 +137,7 @@ export async function handleSectionRequests(request, env) {
         const restaurantId = url.pathname.split('/')[2];
         const includeDishes = url.searchParams.get('include_dishes') === 'true';
         // ✅ Detectar si es contexto admin (tiene JWT válido)
-        const userData = await authenticateRequest(request);
+        const userData = await authenticateRequest(request, env);
         const isAdmin = !!userData;
         return await getSectionsForRestaurant(restaurantId, env, includeDishes, isAdmin);
     }
@@ -169,7 +153,7 @@ export async function handleSectionRequests(request, env) {
         }
 
         // ✅ Detectar si es contexto admin (tiene JWT válido)
-        const userData = await authenticateRequest(request);
+        const userData = await authenticateRequest(request, env);
         const isAdmin = !!userData;
         return await getSectionsForRestaurant(restaurantId, env, includeDishes, isAdmin);
     }
@@ -177,7 +161,7 @@ export async function handleSectionRequests(request, env) {
     // Endpoint para manejar secciones (crear/actualizar) - REQUIERE AUTENTICACIÓN
     if ((request.method === "POST" || request.method === "PUT") && url.pathname.match(/^\/sections(\/[\w_-]+)?$/)) {
         // ✅ Verificar autenticación
-        const userData = await authenticateRequest(request);
+        const userData = await authenticateRequest(request, env);
         if (!userData) {
             return createResponse({ success: false, message: "No autorizado" }, 401);
         }
@@ -316,7 +300,7 @@ export async function handleSectionRequests(request, env) {
     // Endpoint para eliminar una sección - REQUIERE AUTENTICACIÓN
     if (request.method === "DELETE" && url.pathname.match(/^\/sections\/[\w-]+$/)) {
         // ✅ Verificar autenticación
-        const userData = await authenticateRequest(request);
+        const userData = await authenticateRequest(request, env);
         if (!userData) {
             return createResponse({ success: false, message: "No autorizado" }, 401);
         }
@@ -503,11 +487,4 @@ async function getSectionsForRestaurant(restaurantId, env, includeDishes = false
             message: "Error en el servidor: " + dbError.message
         }, 500);
     }
-}
-
-export function createResponse(data, status = 200, request = null) {
-    return new Response(JSON.stringify(data), {
-        status,
-        headers: getCorsHeaders(request),
-    });
 }

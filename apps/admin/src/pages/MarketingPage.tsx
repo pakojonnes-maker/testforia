@@ -213,11 +213,20 @@ const MarketingPage: React.FC = () => {
 
   const handleEditCampaign = async (campaign: Campaign) => {
     setSelectedCampaign(campaign);
+
+    // Parse content and settings if they come as JSON strings
+    const parsedContent = typeof campaign.content === 'string'
+      ? JSON.parse(campaign.content)
+      : campaign.content || {};
+
+    const parsedSettings = typeof campaign.settings === 'string'
+      ? JSON.parse(campaign.settings)
+      : campaign.settings || {};
+
     setCampaignForm({
       ...campaign,
-      content: typeof campaign.content === 'string'
-        ? JSON.parse(campaign.content)
-        : campaign.content || {}
+      content: parsedContent,
+      settings: parsedSettings
     });
     setCampaignDialog(true);
     // Load rewards

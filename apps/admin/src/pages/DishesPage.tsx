@@ -621,7 +621,6 @@ export default function DishesPage() {
                   Filtrar
                 </Button>
                 <Button
-                  startIcon={<SortIcon />}
                   variant="outlined"
                   size="small"
                   onClick={(e) => handleSortClick(e as any)}
@@ -697,75 +696,132 @@ export default function DishesPage() {
               )}
             </Grid>
           ) : (
-            // Tabla lista en desktop
-            <TableContainer component={Paper} sx={{ borderRadius: 2, overflow: 'hidden' }}>
-              <Table>
-                <TableHead sx={{ bgcolor: 'background.default' }}>
-                  <TableRow>
-                    <TableCell width="30%">Nombre</TableCell>
-                    <TableCell width="40%">Descripción</TableCell>
-                    <TableCell align="right">Precio</TableCell>
-                    <TableCell align="center">Estado</TableCell>
-                    <TableCell align="center">Vistas</TableCell>
-                    <TableCell align="right">Acciones</TableCell>
-                  </TableRow>
-                </TableHead>
-                <TableBody>
+            // Vista lista mobile-first
+            <Box>
+              {/* Vista móvil - Cards compactas */}
+              {isMobile ? (
+                <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.5 }}>
                   {sortedAndFilteredDishes.map((dish: any) => (
-                    <TableRow key={dish.id} hover>
-                      <TableCell component="th" scope="row">
-                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
-                          <Avatar
-                            src={getDishDisplayImage(dish)}
-                            alt={dish?.translations?.name?.es}
-                            variant="rounded" sx={{ width: 40, height: 40 }}
-                          >
-                            <RestaurantIcon />
-                          </Avatar>
-                          <Typography variant="body2" fontWeight={600} noWrap>
-                            {dish?.translations?.name?.es || 'Sin nombre'}
-                          </Typography>
-                        </Box>
-                      </TableCell>
-                      <TableCell>
-
-                        <Typography variant="body2" sx={{
-                          overflow: 'hidden', textOverflow: 'ellipsis', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', lineHeight: '1.3em', maxHeight: '2.6em',
-                        }}>
-                          {dish?.translations?.description?.es || 'Sin descripción'}
+                    <Paper
+                      key={dish.id}
+                      sx={{
+                        p: 1.5,
+                        borderRadius: 2,
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: 1.5,
+                        cursor: 'pointer',
+                        '&:hover': { bgcolor: 'action.hover' },
+                        '&:active': { bgcolor: 'action.selected' }
+                      }}
+                      onClick={() => handleEditDish(dish.id)}
+                    >
+                      <Avatar
+                        src={getDishDisplayImage(dish)}
+                        alt={dish?.translations?.name?.es}
+                        variant="rounded"
+                        sx={{ width: 56, height: 56, flexShrink: 0 }}
+                      >
+                        <RestaurantIcon />
+                      </Avatar>
+                      <Box sx={{ flex: 1, minWidth: 0 }}>
+                        <Typography variant="subtitle2" fontWeight={600} noWrap>
+                          {dish?.translations?.name?.es || 'Sin nombre'}
                         </Typography>
-                      </TableCell>
-                      <TableCell align="right">{Number(dish?.price || 0).toFixed(2)}</TableCell>
-                      <TableCell align="center">
-                        {dish?.status === 'active'
-                          ? <Chip label="Activo" size="small" color="success" variant="outlined" />
-                          : <Chip label={dish?.status === 'outofstock' ? 'Agotado' : dish?.status === 'hidden' ? 'Oculto' : 'Inactivo'} size="small" color="error" variant="outlined" />}
-                      </TableCell>
-                      <TableCell align="center">
-                        <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 0.5 }}>
-                          <VisibilityIcon fontSize="small" color="action" />
-                          <Typography variant="body2">{dish?.viewcount || 0}</Typography>
+                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mt: 0.5 }}>
+                          <Typography variant="body2" color="primary" fontWeight={600}>
+                            {Number(dish?.price || 0).toFixed(2)} €
+                          </Typography>
+                          <Chip
+                            label={dish?.status === 'active' ? 'Activo' : 'Inactivo'}
+                            size="small"
+                            color={dish?.status === 'active' ? 'success' : 'error'}
+                            variant="outlined"
+                            sx={{ height: 20, fontSize: '0.65rem' }}
+                          />
                         </Box>
-                      </TableCell>
-                      <TableCell align="right">
-                        <Button size="small" variant="outlined" onClick={() => handleEditDish(dish.id)} startIcon={<EditIcon />} sx={{ mr: 1 }}>Editar</Button>
-                        <IconButton size="small" color="error" onClick={() => handleOpenDeleteDialog(dish)}><DeleteIcon /></IconButton>
-                      </TableCell>
-                    </TableRow>
-                  ))
-                  }
-                  {
-                    filteredCount === 0 && (
+                      </Box>
+                      <Box sx={{ display: 'flex', alignItems: 'center' }}>
+                        <IconButton
+                          size="small"
+                          color="error"
+                          onClick={(e) => { e.stopPropagation(); handleOpenDeleteDialog(dish); }}
+                          sx={{ p: 0.5 }}
+                        >
+                          <DeleteIcon fontSize="small" />
+                        </IconButton>
+                      </Box>
+                    </Paper>
+                  ))}
+                  {filteredCount === 0 && (
+                    <Paper sx={{ p: 4, textAlign: 'center', borderRadius: 2 }}>
+                      <Typography variant="body2" color="text.secondary">
+                        No se encontraron platos.
+                      </Typography>
+                    </Paper>
+                  )}
+                </Box>
+              ) : (
+                // Vista desktop - Tabla completa
+                <TableContainer component={Paper} sx={{ borderRadius: 2, overflow: 'hidden' }}>
+                  <Table>
+                    <TableHead sx={{ bgcolor: 'background.default' }}>
                       <TableRow>
-                        <TableCell colSpan={6} align="center" sx={{ py: 3 }}>
-                          No se encontraron platos.
-                        </TableCell>
+                        <TableCell width="35%">Nombre</TableCell>
+                        <TableCell width="40%">Descripción</TableCell>
+                        <TableCell align="right">Precio</TableCell>
+                        <TableCell align="center">Estado</TableCell>
+                        <TableCell align="right">Acciones</TableCell>
                       </TableRow>
-                    )
-                  }
-                </TableBody >
-              </Table >
-            </TableContainer >
+                    </TableHead>
+                    <TableBody>
+                      {sortedAndFilteredDishes.map((dish: any) => (
+                        <TableRow key={dish.id} hover sx={{ cursor: 'pointer' }} onClick={() => handleEditDish(dish.id)}>
+                          <TableCell component="th" scope="row">
+                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
+                              <Avatar
+                                src={getDishDisplayImage(dish)}
+                                alt={dish?.translations?.name?.es}
+                                variant="rounded" sx={{ width: 40, height: 40 }}
+                              >
+                                <RestaurantIcon />
+                              </Avatar>
+                              <Typography variant="body2" fontWeight={600} noWrap>
+                                {dish?.translations?.name?.es || 'Sin nombre'}
+                              </Typography>
+                            </Box>
+                          </TableCell>
+                          <TableCell>
+                            <Typography variant="body2" sx={{
+                              overflow: 'hidden', textOverflow: 'ellipsis', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', lineHeight: '1.3em', maxHeight: '2.6em',
+                            }}>
+                              {dish?.translations?.description?.es || 'Sin descripción'}
+                            </Typography>
+                          </TableCell>
+                          <TableCell align="right">{Number(dish?.price || 0).toFixed(2)} €</TableCell>
+                          <TableCell align="center">
+                            {dish?.status === 'active'
+                              ? <Chip label="Activo" size="small" color="success" variant="outlined" />
+                              : <Chip label={dish?.status === 'outofstock' ? 'Agotado' : dish?.status === 'hidden' ? 'Oculto' : 'Inactivo'} size="small" color="error" variant="outlined" />}
+                          </TableCell>
+                          <TableCell align="right" onClick={(e) => e.stopPropagation()}>
+                            <Button size="small" variant="outlined" onClick={() => handleEditDish(dish.id)} startIcon={<EditIcon />} sx={{ mr: 1 }}>Editar</Button>
+                            <IconButton size="small" color="error" onClick={() => handleOpenDeleteDialog(dish)}><DeleteIcon /></IconButton>
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                      {filteredCount === 0 && (
+                        <TableRow>
+                          <TableCell colSpan={5} align="center" sx={{ py: 3 }}>
+                            No se encontraron platos.
+                          </TableCell>
+                        </TableRow>
+                      )}
+                    </TableBody>
+                  </Table>
+                </TableContainer>
+              )}
+            </Box>
           )}
         </Box >
       )}
@@ -777,26 +833,7 @@ export default function DishesPage() {
       }
 
 
-      {/* FABs móviles (UNO solo, sin duplicado) */}
-      <Zoom in={!sectionOrderMode}>
-        <Fab
-          color="primary" aria-label="add"
-          sx={{ position: 'fixed', bottom: 16, right: 16, display: { xs: 'flex', sm: 'none' }, zIndex: (t) => t.zIndex.appBar + 2 }}
-          onClick={() => navigate('/dishes/new')}
-        >
-          <AddIcon />
-        </Fab>
-      </Zoom>
-
-      <Zoom in={!sectionOrderMode}>
-        <Fab
-          color="secondary" aria-label="section-order"
-          sx={{ position: 'fixed', bottom: 16, right: 76, display: { xs: 'flex', sm: 'none' }, zIndex: (t) => t.zIndex.appBar + 2 }}
-          onClick={() => setSectionOrderMode(true)}
-        >
-          <SectionOrderIcon />
-        </Fab>
-      </Zoom>
+      {/* FABs eliminados - la navegación ahora es a través del header */}
 
       {/* Scroll to top en móvil/desktop */}
       <Zoom in={!sectionOrderMode && trigger}>

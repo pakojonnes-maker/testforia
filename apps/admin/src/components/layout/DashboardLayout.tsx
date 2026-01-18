@@ -199,55 +199,85 @@ export default function DashboardLayout() {
   // Verificar si hay múltiples restaurantes disponibles
   const hasMultipleRestaurants = user?.restaurants && user.restaurants.length > 1;
 
-  // Actualización de items del menú lateral
-  const menuItems = [
+  // Actualización de items del menú lateral con feature keys
+  const allMenuItems = [
     {
       text: 'Estadísticas',
       icon: <StatsIcon />,
-      path: '/'
+      path: '/',
+      featureKey: 'statistics'
     },
     {
       text: 'Platos',
       icon: <DishesIcon />,
-      path: '/dishes'
+      path: '/dishes',
+      featureKey: 'menu'
     },
-
     {
       text: 'Marketing',
       icon: <CampaignIcon />,
-      path: '/marketing'
+      path: '/marketing',
+      featureKey: 'marketing'
     },
     {
       text: 'Web',
       icon: <WebIcon />,
-      path: '/admin/landing'
+      path: '/admin/landing',
+      featureKey: 'website'
     },
     {
       text: 'Usuarios',
       icon: <PersonIcon />,
-      path: '/users'
+      path: '/users',
+      featureKey: 'users'
     },
     {
       text: 'Generador QR',
       icon: <QrCodeIcon />,
-      path: '/qr-generator'
+      path: '/qr-generator',
+      featureKey: 'qr_generator'
     },
     {
       text: 'Reservas',
       icon: <EventAvailable />,
-      path: '/reservations'
+      path: '/reservations',
+      featureKey: 'reservations'
     },
     {
       text: 'Delivery',
       icon: <TwoWheeler />,
-      path: '/delivery'
+      path: '/delivery',
+      featureKey: 'delivery'
     },
     {
       text: 'Configuración',
       icon: <SettingsIcon />,
-      path: '/settings'
+      path: '/settings',
+      featureKey: null // Always visible for owners/admins
     },
   ];
+
+  // Parse features from current restaurant (may be JSON string or object)
+  const getFeatures = () => {
+    if (!currentRestaurant?.features) return {};
+    if (typeof currentRestaurant.features === 'string') {
+      try {
+        return JSON.parse(currentRestaurant.features);
+      } catch {
+        return {};
+      }
+    }
+    return currentRestaurant.features;
+  };
+
+  // Filter menu items based on restaurant features
+  // Super admins see all items, features default to enabled if not explicitly set to false
+  const menuItems = allMenuItems.filter(item => {
+    if (!item.featureKey) return true; // Items without featureKey always visible
+    if (user?.is_superadmin) return true; // Super admins see everything
+    const features = getFeatures();
+    return features[item.featureKey] !== false; // Default to enabled
+  });
 
   const drawer = (
     <div>

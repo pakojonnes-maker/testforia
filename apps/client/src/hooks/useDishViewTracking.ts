@@ -4,6 +4,7 @@ import { useDishTracking } from '../providers/TrackingAndPushProvider';
 
 interface UseDishViewTrackingOptions {
   dishId: string;
+  sectionId?: string;
   threshold?: number;
   minVisibleTime?: number;
   enabled?: boolean;
@@ -11,6 +12,7 @@ interface UseDishViewTrackingOptions {
 
 export function useDishViewTracking({
   dishId,
+  sectionId,
   threshold = 0.5,
   minVisibleTime = 1500,
   enabled = true
@@ -39,14 +41,14 @@ export function useDishViewTracking({
         entries.forEach((entry) => {
           if (entry.isIntersecting && entry.intersectionRatio >= threshold) {
             console.debug('👁️ [useDishViewTracking] Plato visible:', dishId);
-            
+
             // Iniciar timer
             timerRef.current = window.setTimeout(() => {
               if (!hasTrackedRef.current && isReady()) {
-                console.log('✅ [useDishViewTracking] Registrando vista:', dishId);
-                viewDish(dishId);
+                console.log('✅ [useDishViewTracking] Registrando vista:', dishId, 'sectionId:', sectionId);
+                viewDish(dishId, sectionId);
                 hasTrackedRef.current = true;
-                
+
                 // Cleanup observer después de trackear
                 if (observerRef.current) {
                   observerRef.current.disconnect();

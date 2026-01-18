@@ -208,26 +208,44 @@ async function getRestaurantStyling(env, restaurantId) {
       WHERE restaurant_id = ?
     `).bind(restaurantId).first();
 
+        // Default colors - each independent, no fallbacks to other colors
         let customColors = {
             primary: '#FF6B6B',
             secondary: '#4ECDC4',
-            text: '#2C3E50',
-            background: '#FFFFFF'
+            accent: '#FF8C42',
+            text: '#FFFFFF',
+            background: '#000000',
+            sectionIconActive: '#4ECDC4',
+            sectionIconInactive: '#FFFFFF99',
+            sectionTextActive: '#FFFFFF',
+            sectionTextInactive: '#FFFFFFBF',
+            cardOverlay: '#000000CC',
+            buttonHover: '#FFFFFF33',
+            // New: Header colors
+            headerTitle: '#FFFFFF',
+            headerSubtitle: '#FFC100'
         };
 
         if (config?.config_overrides) {
             try {
                 const overrides = JSON.parse(config.config_overrides);
 
-                // ✅ CORREGIDO: Leer campos con prefijo reel_
-                if (overrides.reel_primary_color) {
-                    customColors = {
-                        primary: overrides.reel_primary_color || customColors.primary,
-                        secondary: overrides.reel_secondary_color || customColors.secondary,
-                        text: overrides.reel_text_color || customColors.text,
-                        background: overrides.reel_background_color || customColors.background
-                    };
-                }
+                // Read all reel_ prefixed colors, maintain independence
+                customColors = {
+                    primary: overrides.reel_primary_color || customColors.primary,
+                    secondary: overrides.reel_secondary_color || customColors.secondary,
+                    accent: overrides.reel_accent_color || customColors.accent,
+                    text: overrides.reel_text_color || customColors.text,
+                    background: overrides.reel_background_color || customColors.background,
+                    sectionIconActive: overrides.reel_section_icon_active || customColors.sectionIconActive,
+                    sectionIconInactive: overrides.reel_section_icon_inactive || customColors.sectionIconInactive,
+                    sectionTextActive: overrides.reel_section_text_active || customColors.sectionTextActive,
+                    sectionTextInactive: overrides.reel_section_text_inactive || customColors.sectionTextInactive,
+                    cardOverlay: overrides.reel_card_overlay || customColors.cardOverlay,
+                    buttonHover: overrides.reel_button_hover || customColors.buttonHover,
+                    headerTitle: overrides.reel_header_title || customColors.headerTitle,
+                    headerSubtitle: overrides.reel_header_subtitle || customColors.headerSubtitle
+                };
             } catch (parseError) {
                 console.error('[Styling GET] Parse error:', parseError);
             }
@@ -239,6 +257,7 @@ async function getRestaurantStyling(env, restaurantId) {
         return createResponse({ success: false, message: error.message }, 500);
     }
 }
+
 
 async function updateRestaurantStyling(env, restaurantId, request) {
     try {
@@ -257,13 +276,27 @@ async function updateRestaurantStyling(env, restaurantId, request) {
             }
         }
 
-        // ✅ CORREGIDO: Usar prefijo reel_ para evitar conflictos
+        // Save ALL reel color fields with reel_ prefix
         const newReelColors = {
-            reel_primary_color: body.primary || body.primary_color,
-            reel_secondary_color: body.secondary || body.secondary_color,
-            reel_text_color: body.text || body.text_color,
-            reel_background_color: body.background || body.background_color
+            reel_primary_color: body.primary,
+            reel_secondary_color: body.secondary,
+            reel_accent_color: body.accent,
+            reel_text_color: body.text,
+            reel_background_color: body.background,
+            reel_section_icon_active: body.sectionIconActive,
+            reel_section_icon_inactive: body.sectionIconInactive,
+            reel_section_text_active: body.sectionTextActive,
+            reel_section_text_inactive: body.sectionTextInactive,
+            reel_card_overlay: body.cardOverlay,
+            reel_button_hover: body.buttonHover,
+            reel_header_title: body.headerTitle,
+            reel_header_subtitle: body.headerSubtitle
         };
+
+        // Remove undefined values to not overwrite with null
+        Object.keys(newReelColors).forEach(key => {
+            if (newReelColors[key] === undefined) delete newReelColors[key];
+        });
 
         const mergedOverrides = { ...currentOverrides, ...newReelColors };
         const configJson = JSON.stringify(mergedOverrides);
@@ -689,7 +722,20 @@ async function updateRestaurant(env, restaurantId, request) {
             return createResponse({ success: false, message: "Restaurant not found" }, 404);
         }
 
-        let newFeatures = restaurant.features ? JSON.parse(restaurant.features) : {};
+        // Parse existing features safely (may be null, empty string, JSON string, or already parsed)
+        let newFeatures = {};
+        if (restaurant.features) {
+            try {
+                if (typeof restaurant.features === 'string') {
+                    newFeatures = JSON.parse(restaurant.features);
+                } else if (typeof restaurant.features === 'object') {
+                    newFeatures = restaurant.features;
+                }
+            } catch (e) {
+                console.warn('[Restaurant PUT] Could not parse existing features:', e.message);
+                newFeatures = {};
+            }
+        }
         if (body.features) {
             // Merge/Patch features
             newFeatures = { ...newFeatures, ...body.features };

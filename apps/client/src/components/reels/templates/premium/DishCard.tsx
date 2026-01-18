@@ -46,8 +46,11 @@ const PremiumDishCard: React.FC<DishCardProps> = ({
   const { ref: inViewRef, inView } = useInView({ threshold: 0.7 });
   const videoRef = useRef<HTMLVideoElement>(null);
   const [showDetails, setShowDetails] = useState(false);
-  const [, setVideoLoaded] = useState(false);
+  // ✅ Video-First Loading Pattern
+  const [videoReady, setVideoReady] = useState(false);
+  const [showFallbackImage, setShowFallbackImage] = useState(false);
   const [videoError, setVideoError] = useState(false);
+  const videoLoadTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // ✅ FIX: Refs for duration tracking to avoid closure issues
   const viewStartTimeRef = useRef<number | null>(null);
@@ -69,7 +72,42 @@ const PremiumDishCard: React.FC<DishCardProps> = ({
   const glassmorphism = config.config.glassmorphism !== false;
   const blurIntensity = config.config.blur_intensity || 20;
 
-  // Auto-play logic (igual que Classic)
+  // ✅ Reset video state when dish changes
+  useEffect(() => {
+    setVideoReady(false);
+    setShowFallbackImage(false);
+    setVideoError(false);
+    if (videoLoadTimeoutRef.current) {
+      clearTimeout(videoLoadTimeoutRef.current);
+      videoLoadTimeoutRef.current = null;
+    }
+  }, [dish?.id]);
+
+  // ✅ Video-First: Start timeout when video should play
+  useEffect(() => {
+    if (!isVideo || !isActive || !inView) {
+      if (videoLoadTimeoutRef.current) {
+        clearTimeout(videoLoadTimeoutRef.current);
+        videoLoadTimeoutRef.current = null;
+      }
+      return;
+    }
+
+    videoLoadTimeoutRef.current = setTimeout(() => {
+      if (!videoReady) {
+        setShowFallbackImage(true);
+      }
+    }, 500);
+
+    return () => {
+      if (videoLoadTimeoutRef.current) {
+        clearTimeout(videoLoadTimeoutRef.current);
+        videoLoadTimeoutRef.current = null;
+      }
+    };
+  }, [isVideo, isActive, inView, videoReady]);
+
+  // Auto-play logic
   useEffect(() => {
     if (!videoRef.current || !isVideo || videoError) return;
     const video = videoRef.current;
@@ -77,7 +115,10 @@ const PremiumDishCard: React.FC<DishCardProps> = ({
       video.currentTime = 0;
       video.play().catch(() => {
         video.muted = true;
-        video.play().catch(console.warn);
+        video.play().catch(() => {
+          setVideoError(true);
+          setShowFallbackImage(true);
+        });
       });
     } else {
       video.pause();
@@ -161,34 +202,92 @@ const PremiumDishCard: React.FC<DishCardProps> = ({
           zIndex: 1
         }}
       >
-        {isVideo ? (
-          <video
-            ref={videoRef}
-            src={media?.url}
-            poster={media?.thumbnail_url}
-            loop
-            muted={muted}
-            playsInline
-            onLoadedData={() => setVideoLoaded(true)}
-            onError={() => setVideoError(true)}
-            style={{
-              width: '100%',
-              height: '100%',
-              objectFit: 'cover',
-              filter: 'saturate(110%) brightness(105%)'
-            }}
-          />
+        {isVideo && !videoError ? (
+          <>
+            {/* ✅ Video-First: starts invisible, fades in when ready */}
+            <video
+              ref={videoRef}
+              src={media?.url}
+              loop
+              muted={muted}
+              playsInline
+              preload={isActive ? 'auto' : 'metadata'}
+              onCanPlayThrough={() => {
+                setVideoReady(true);
+                setShowFallbackImage(false);
+                if (videoLoadTimeoutRef.current) {
+                  clearTimeout(videoLoadTimeoutRef.current);
+                  videoLoadTimeoutRef.current = null;
+                }
+              }}
+              onError={() => {
+                setVideoError(true);
+                setShowFallbackImage(true);
+              }}
+              style={{
+                width: '100%',
+                height: '100%',
+                objectFit: 'cover',
+                filter: 'saturate(110%) brightness(105%)',
+                opacity: videoReady ? 1 : 0,
+                transition: 'opacity 0.3s ease-in'
+              }}
+            />
+
+            {/* ✅ Fallback Image: Only shown if timeout or error */}
+            {showFallbackImage && (
+              <img
+                src={media?.thumbnail_url || media?.url || '/placeholder.jpg'}
+                alt={dishName}
+                style={{
+                  position: 'absolute',
+                  top: 0,
+                  left: 0,
+                  width: '100%',
+                  height: '100%',
+                  objectFit: 'cover',
+                  filter: 'saturate(110%) brightness(105%)',
+                  opacity: videoReady ? 0 : 1,
+                  transition: 'opacity 0.3s ease-out',
+                  pointerEvents: 'none'
+                }}
+              />
+            )}
+          </>
         ) : (
-          <img
-            src={media?.url || '/placeholder.jpg'}
-            alt={dishName}
-            style={{
-              width: '100%',
-              height: '100%',
-              objectFit: 'cover',
-              filter: 'saturate(110%) brightness(105%)'
-            }}
-          />
+          /* ✅ Image-only display with blurred background for better mobile viewing */
+          <Box sx={{ position: 'relative', width: '100%', height: '100%' }}>
+            {/* Blurred background layer - fills empty space aesthetically */}
+            <img
+              src={media?.url || '/placeholder.jpg'}
+              alt=""
+              aria-hidden="true"
+              style={{
+                position: 'absolute',
+                top: 0,
+                left: 0,
+                width: '100%',
+                height: '100%',
+                objectFit: 'cover',
+                filter: 'blur(30px) brightness(0.4) saturate(110%)',
+                transform: 'scale(1.1)', // Prevent blur edge artifacts
+                zIndex: 0
+              }}
+            />
+            {/* Main image - fully visible without cropping */}
+            <img
+              src={media?.url || '/placeholder.jpg'}
+              alt={dishName}
+              style={{
+                position: 'relative',
+                width: '100%',
+                height: '100%',
+                objectFit: 'contain', // ✅ Show full image without cropping
+                filter: 'saturate(110%) brightness(105%)',
+                zIndex: 1
+              }}
+            />
+          </Box>
         )}
 
         {/* Premium gradient overlay with radial */}

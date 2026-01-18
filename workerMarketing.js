@@ -80,11 +80,56 @@ export async function handleMarketingRequests(request, env) {
     }
 
     // ============================================
+    // RATE LIMITING HELPER
+    // ============================================
+    async function checkRateLimit(ip, env, limit = 5, windowSeconds = 60) {
+        const key = `ratelimit:leads:${ip}`;
+        const now = Math.floor(Date.now() / 1000);
+
+        // Try KV first (preferred for rate limiting)
+        if (env.RATE_LIMIT_KV) {
+            try {
+                const data = await env.RATE_LIMIT_KV.get(key, { type: 'json' });
+                if (data && data.windowStart > now - windowSeconds) {
+                    if (data.count >= limit) {
+                        return { allowed: false, remaining: 0, resetIn: windowSeconds - (now - data.windowStart) };
+                    }
+                    await env.RATE_LIMIT_KV.put(key, JSON.stringify({ count: data.count + 1, windowStart: data.windowStart }), { expirationTtl: windowSeconds });
+                    return { allowed: true, remaining: limit - data.count - 1 };
+                } else {
+                    await env.RATE_LIMIT_KV.put(key, JSON.stringify({ count: 1, windowStart: now }), { expirationTtl: windowSeconds });
+                    return { allowed: true, remaining: limit - 1 };
+                }
+            } catch (e) {
+                console.warn('[RateLimit] KV error, allowing request:', e.message);
+                return { allowed: true, remaining: limit }; // Fail open
+            }
+        }
+
+        // Fallback: simple in-memory (per-isolate, not persistent - only basic protection)
+        console.warn('[RateLimit] No KV binding, rate limiting disabled');
+        return { allowed: true, remaining: limit };
+    }
+
+    // ============================================
     // LEADS ENDPOINTS
     // ============================================
 
     if (method === "POST" && pathname === "/api/leads") {
         try {
+            // Rate limiting: 5 requests per IP per minute
+            const clientIP = request.headers.get('CF-Connecting-IP') || request.headers.get('X-Forwarded-For')?.split(',')[0] || 'unknown';
+            const rateCheck = await checkRateLimit(clientIP, env, 5, 60);
+
+            if (!rateCheck.allowed) {
+                console.log(`[RateLimit] Blocked IP ${clientIP} on /api/leads`);
+                return createResponse({
+                    success: false,
+                    message: "Too many requests. Please try again later.",
+                    retry_after: rateCheck.resetIn
+                }, 429);
+            }
+
             const data = await request.json();
             const { restaurant_id, campaign_id, type, contact_value, name, consent_given, source, metadata, session_id, visitor_id, save_method } = data;
 
@@ -831,6 +876,7 @@ export async function handleMarketingRequests(request, env) {
                     is_valid: !isExpired && !isRedeemed,
                     expires_at: claim.expires_at,
                     created_at: claim.created_at,
+                    redeemed_at: claim.redeemed_at || null,
                     validation_code: token.toUpperCase().substring(0, 8) // Short code for visual validation
                 },
                 campaign: {
@@ -862,9 +908,10 @@ export async function handleMarketingRequests(request, env) {
         }
     }
 
-    // Redeem a claim (staff validation)
-    if (method === "POST" && pathname.match(/^\/api\/claims\/[a-zA-Z0-9]+\/redeem$/)) {
-        const token = pathname.split('/')[3];
+    // Redeem a claim (staff validation) - supports both /api/claims/:token/redeem and /api/r/:token/redeem
+    const redeemMatch = pathname.match(/^\/api\/(claims|r)\/([a-zA-Z0-9]+)\/redeem$/);
+    if (method === "POST" && redeemMatch) {
+        const token = redeemMatch[2];
         try {
             // Verify claim exists and is valid
             const claim = await env.DB.prepare(`
@@ -885,11 +932,12 @@ export async function handleMarketingRequests(request, env) {
                 return createResponse({ success: false, message: "Offer expired", is_expired: true }, 400);
             }
 
-            // Mark as redeemed
+            // Mark as redeemed with explicit timestamp
+            const redeemedAt = new Date().toISOString();
             await env.DB.prepare(`
-                UPDATE campaign_claims SET status = 'redeemed', redeemed_at = CURRENT_TIMESTAMP 
+                UPDATE campaign_claims SET status = 'redeemed', redeemed_at = ? 
                 WHERE id = ?
-            `).bind(claim.id).run();
+            `).bind(redeemedAt, claim.id).run();
 
             // Track event
             await env.DB.prepare(`
@@ -903,7 +951,11 @@ export async function handleMarketingRequests(request, env) {
                 claim.restaurant_id
             ).run();
 
-            return createResponse({ success: true, message: "Claim redeemed successfully" });
+            return createResponse({
+                success: true,
+                message: "Claim redeemed successfully",
+                redeemed_at: redeemedAt
+            });
 
         } catch (error) {
             console.error("Redeem Error:", error);

@@ -98,3 +98,23 @@
 - **DRY (Don't Repeat Yourself)**: Extract common logic (like `jsonResponse`) into utility files.
 - **Comments**: Comment *why* complex logic exists, not *what* it does.
 - **Proactive Refactoring**: If you see legacy code (e.g., `any` types in `App.tsx`), proactively suggest granular refactors to fix it.
+
+## 8. Localization & Languages
+The application supports the following **13 ACTIVE** languages only. Use this list for all translation contexts:
+- **Spanish (`es`)**: Source of Truth.
+- **English (`en`)**: International fallback.
+- **French (`fr`)**
+- **German (`de`)**
+- **Italian (`it`)**
+- **Portuguese (`pt`)**
+- **Catalan (`ca`)**: Manual translation required (Region: `es-ct`).
+- **Arabic (`ar`)**: RTL layout, Flag: `ae` (UAE).
+- **Russian (`ru`)**
+- **Ukrainian (`uk`)**: Flag: `ua`.
+- **Chinese (`zh`)**: Flag: `cn`.
+- **Japanese (`ja`)**: Flag: `jp`.
+- **Korean (`ko`)**: Flag: `kr`.
+
+**IMPORTANT:**
+- **Obsolete Languages**: `nl`, `sv`, `pl`, `tr`, `hi`, `bn` have been REMOVED. Do not suggest or use them.
+- **Flag Mapping**: Frontend maps `zh`->`cn`, `ko`->`kr`, `uk`->`ua`, `ar`->`ae`. Ensure code respects this mapping.

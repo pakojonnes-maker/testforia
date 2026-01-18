@@ -264,7 +264,7 @@ async function handleLogin(request, env) {
 
         if (isSuperAdmin) {
             const allRestaurants = await env.DB.prepare(`
-                SELECT id, name, slug, 'owner' as role
+                SELECT id, name, slug, 'owner' as role, features
                 FROM restaurants
                 WHERE is_active = TRUE
                 ORDER BY name ASC
@@ -272,7 +272,7 @@ async function handleLogin(request, env) {
             restaurants = allRestaurants.results;
         } else {
             const staffRestaurants = await env.DB.prepare(`
-                SELECT r.id, r.name, r.slug, rs.role
+                SELECT r.id, r.name, r.slug, rs.role, r.features
                 FROM restaurant_staff rs
                 JOIN restaurants r ON rs.restaurant_id = r.id
                 WHERE rs.user_id = ? AND rs.is_active = TRUE
@@ -341,7 +341,7 @@ async function handleGetCurrentUser(request, env) {
 
         if (isSuperAdmin) {
             const allRestaurants = await env.DB.prepare(`
-                SELECT id, name, slug, 'owner' as role
+                SELECT id, name, slug, 'owner' as role, features
                 FROM restaurants
                 WHERE is_active = TRUE
                 ORDER BY name ASC
@@ -349,7 +349,7 @@ async function handleGetCurrentUser(request, env) {
             restaurants = allRestaurants.results;
         } else {
             const staffRestaurants = await env.DB.prepare(`
-                SELECT r.id, r.name, r.slug, rs.role
+                SELECT r.id, r.name, r.slug, rs.role, r.features
                 FROM restaurant_staff rs
                 JOIN restaurants r ON rs.restaurant_id = r.id
                 WHERE rs.user_id = ? AND rs.is_active = TRUE

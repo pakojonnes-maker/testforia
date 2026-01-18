@@ -30,6 +30,7 @@ import {
   Share,
   Save,
   Store,
+  AdminPanelSettings,
 } from '@mui/icons-material';
 import { useAuth } from '../contexts/AuthContext';
 import { apiClient } from '../lib/apiClient';
@@ -59,17 +60,18 @@ interface RestaurantData {
   tripadvisor_url: string;
 }
 
-type TabValue = 'info' | 'location' | 'services' | 'social';
+type TabValue = 'info' | 'location' | 'services' | 'social' | 'features';
 
 const neonColors = {
   info: '#6366f1',      // Purple
   location: '#22c55e',  // Green
   services: '#f59e0b',  // Amber
   social: '#ec4899',    // Pink
+  features: '#ef4444',  // Red - Super Admin
 };
 
 export default function ConfigurationPage() {
-  const { currentRestaurant } = useAuth();
+  const { currentRestaurant, user } = useAuth();
   const queryClient = useQueryClient();
   const restaurantId = currentRestaurant?.id;
   const theme = useTheme();
@@ -78,6 +80,19 @@ export default function ConfigurationPage() {
   const [activeTab, setActiveTab] = useState<TabValue>('info');
   const [formData, setFormData] = useState<RestaurantData | null>(null);
   const [hasChanges, setHasChanges] = useState(false);
+
+  // Feature flags state (Super Admin only)
+  const [featureFlags, setFeatureFlags] = useState<Record<string, boolean>>({
+    statistics: true,
+    menu: true,
+    marketing: true,
+    website: true,
+    users: true,
+    qr_generator: true,
+    reservations: true,
+    delivery: true,
+  });
+  const [featuresChanged, setFeaturesChanged] = useState(false);
 
   // Query: Obtener datos del restaurante
   const { data: restaurantResponse, isLoading, error } = useQuery({
@@ -115,6 +130,19 @@ export default function ConfigurationPage() {
         tripadvisor_url: r.tripadvisor_url || ''
       });
       setHasChanges(false);
+
+      // Load feature flags from restaurant
+      let parsedFeatures = {};
+      if (r.features) {
+        try {
+          parsedFeatures = typeof r.features === 'string' ? JSON.parse(r.features) : r.features;
+        } catch { /* ignore parse errors */ }
+      }
+      setFeatureFlags(prev => ({
+        ...prev,
+        ...parsedFeatures,
+      }));
+      setFeaturesChanged(false);
     }
   }, [restaurantResponse]);
 
@@ -153,6 +181,28 @@ export default function ConfigurationPage() {
       setHasChanges(false);
     },
   });
+
+  // Mutation: Save feature flags (Super Admin only)
+  const featuresMutation = useMutation({
+    mutationFn: async (features: Record<string, boolean>) => {
+      return apiClient.updateRestaurant(restaurantId!, { features });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['restaurant-settings', restaurantId] });
+      // Also invalidate current user to refresh restaurant features in context
+      queryClient.invalidateQueries({ queryKey: ['current-user'] });
+      setFeaturesChanged(false);
+    },
+  });
+
+  const toggleFeature = (key: string) => {
+    setFeatureFlags(prev => ({ ...prev, [key]: !prev[key] }));
+    setFeaturesChanged(true);
+  };
+
+  const handleSaveFeatures = () => {
+    featuresMutation.mutate(featureFlags);
+  };
 
   const updateField = (field: keyof RestaurantData, value: string | boolean | number) => {
     setFormData(prev => prev ? { ...prev, [field]: value } : null);
@@ -269,6 +319,15 @@ export default function ConfigurationPage() {
           <Tab icon={<LocationOn sx={{ mr: 1 }} />} iconPosition="start" label="Localización" value="location" />
           <Tab icon={<Wifi sx={{ mr: 1 }} />} iconPosition="start" label="Servicios" value="services" />
           <Tab icon={<Share sx={{ mr: 1 }} />} iconPosition="start" label="Redes Sociales" value="social" />
+          {user?.is_superadmin && (
+            <Tab
+              icon={<AdminPanelSettings sx={{ mr: 1 }} />}
+              iconPosition="start"
+              label="Funcionalidades"
+              value="features"
+              sx={{ color: neonColors.features }}
+            />
+          )}
         </Tabs>
         <Divider sx={{ mt: '-1px' }} />
       </Box>
@@ -661,6 +720,122 @@ export default function ConfigurationPage() {
                   />
                 </Grid>
               </Grid>
+            </CardContent>
+          </Card>
+        )}
+
+        {/* Funcionalidades (Super Admin Only) */}
+        {activeTab === 'features' && user?.is_superadmin && (
+          <Card
+            elevation={0}
+            sx={{
+              background: `linear-gradient(135deg, ${alpha(neonColors.features, 0.08)} 0%, ${alpha(neonColors.features, 0.02)} 100%)`,
+              border: `1px solid ${alpha(neonColors.features, 0.15)}`,
+              transition: 'all 0.25s ease',
+              '&:hover': {
+                borderColor: alpha(neonColors.features, 0.3),
+                boxShadow: `0 8px 24px ${alpha(neonColors.features, 0.15)}`,
+              }
+            }}
+          >
+            <CardHeader
+              title="Control de Funcionalidades"
+              subheader="Activa o desactiva secciones del panel de administración para este restaurante"
+              titleTypographyProps={{ variant: 'h6', fontWeight: 700, color: neonColors.features }}
+              avatar={
+                <Box sx={{
+                  p: 1,
+                  borderRadius: 2,
+                  bgcolor: alpha(neonColors.features, 0.12),
+                  boxShadow: `0 2px 8px ${alpha(neonColors.features, 0.2)}`
+                }}>
+                  <AdminPanelSettings sx={{ color: neonColors.features }} />
+                </Box>
+              }
+              action={
+                <Button
+                  variant="contained"
+                  size="small"
+                  startIcon={featuresMutation.isPending ? <CircularProgress size={16} color="inherit" /> : <Save />}
+                  onClick={handleSaveFeatures}
+                  disabled={!featuresChanged || featuresMutation.isPending}
+                  sx={{
+                    bgcolor: neonColors.features,
+                    '&:hover': { bgcolor: alpha(neonColors.features, 0.85) },
+                    mt: 1,
+                    mr: 1,
+                  }}
+                >
+                  Guardar
+                </Button>
+              }
+            />
+            <CardContent>
+              {featuresMutation.isSuccess && (
+                <Alert severity="success" sx={{ mb: 3 }}>
+                  ✅ Funcionalidades actualizadas correctamente
+                </Alert>
+              )}
+              {featuresMutation.isError && (
+                <Alert severity="error" sx={{ mb: 3 }}>
+                  ❌ Error al guardar: {(featuresMutation.error as Error)?.message}
+                </Alert>
+              )}
+              <Grid container spacing={2}>
+                {[
+                  { key: 'statistics', label: 'Estadísticas', desc: 'Dashboard de analytics y KPIs', icon: '📊' },
+                  { key: 'menu', label: 'Platos', desc: 'Gestión de menú y platos', icon: '🍽️' },
+                  { key: 'marketing', label: 'Marketing', desc: 'Campañas y captación de leads', icon: '📣' },
+                  { key: 'website', label: 'Web', desc: 'Landing page del restaurante', icon: '🌐' },
+                  { key: 'users', label: 'Usuarios', desc: 'Gestión de staff y permisos', icon: '👥' },
+                  { key: 'qr_generator', label: 'Generador QR', desc: 'Creación de códigos QR', icon: '📱' },
+                  { key: 'reservations', label: 'Reservas', desc: 'Sistema de reservas online', icon: '📅' },
+                  { key: 'delivery', label: 'Delivery', desc: 'Pedidos a domicilio', icon: '🛵' },
+                ].map((feature) => (
+                  <Grid item xs={12} sm={6} md={4} key={feature.key}>
+                    <Box
+                      sx={{
+                        display: 'flex',
+                        justifyContent: 'space-between',
+                        alignItems: 'center',
+                        p: 2.5,
+                        borderRadius: 3,
+                        bgcolor: featureFlags[feature.key] ? alpha('#22c55e', 0.08) : alpha('#ef4444', 0.05),
+                        border: '1px solid',
+                        borderColor: featureFlags[feature.key] ? alpha('#22c55e', 0.3) : alpha('#ef4444', 0.2),
+                        transition: 'all 0.3s ease',
+                      }}
+                    >
+                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
+                        <Typography variant="h5" sx={{ lineHeight: 1 }}>{feature.icon}</Typography>
+                        <Box>
+                          <Typography variant="subtitle2" fontWeight={700}>
+                            {feature.label}
+                          </Typography>
+                          <Typography variant="caption" color="text.secondary">
+                            {feature.desc}
+                          </Typography>
+                        </Box>
+                      </Box>
+                      <Switch
+                        checked={featureFlags[feature.key] !== false}
+                        onChange={() => toggleFeature(feature.key)}
+                        sx={{
+                          '& .MuiSwitch-switchBase.Mui-checked': {
+                            color: '#22c55e',
+                          },
+                          '& .MuiSwitch-switchBase.Mui-checked + .MuiSwitch-track': {
+                            backgroundColor: '#22c55e',
+                          },
+                        }}
+                      />
+                    </Box>
+                  </Grid>
+                ))}
+              </Grid>
+              <Alert severity="warning" sx={{ mt: 3 }}>
+                ⚠️ <strong>Nota:</strong> Desactivar una funcionalidad la ocultará del menú lateral para todos los usuarios de este restaurante (excepto Super Admins).
+              </Alert>
             </CardContent>
           </Card>
         )}

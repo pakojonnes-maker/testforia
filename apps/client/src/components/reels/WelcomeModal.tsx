@@ -76,6 +76,9 @@ const WelcomeModal: React.FC<WelcomeModalProps> = ({ open, onClose, restaurant, 
     const showEmail = settings?.show_email !== false; // Default true
     const showPhone = settings?.show_phone !== false; // Default true
 
+    // If no contact fields are enabled, treat as informative-only campaign
+    const isInformativeOnly = !showEmail && !showPhone;
+
 
     // Format expiry date for display
     const formatExpiryDate = (isoDate: string) => {
@@ -115,16 +118,20 @@ const WelcomeModal: React.FC<WelcomeModalProps> = ({ open, onClose, restaurant, 
             return;
         }
 
+        // Input sanitization: trim and enforce max lengths
+        const sanitizedEmail = email.trim().substring(0, 254); // RFC 5321 max length
+        const sanitizedPhone = phone.trim().replace(/[^\d+\s-]/g, '').substring(0, 20);
+
         // Phone validation
         const phoneRegex = /^\+?[0-9]{9,15}$/;
-        if (phone && !phoneRegex.test(phone.replace(/\s/g, ''))) {
+        if (sanitizedPhone && !phoneRegex.test(sanitizedPhone.replace(/[\s-]/g, ''))) {
             setError(t('error_invalid_phone', 'Formato de teléfono inválido (ej: +34612345678)'));
             return;
         }
 
         // Email validation
         const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-        if (email && !emailRegex.test(email)) {
+        if (sanitizedEmail && !emailRegex.test(sanitizedEmail)) {
             setError(t('error_invalid_email', 'Formato de email inválido'));
             return;
         }
@@ -134,8 +141,8 @@ const WelcomeModal: React.FC<WelcomeModalProps> = ({ open, onClose, restaurant, 
 
 
         try {
-            const type = email ? 'email' : 'phone';
-            const value = email || phone;
+            const type = sanitizedEmail ? 'email' : 'phone';
+            const value = sanitizedEmail || sanitizedPhone;
 
             // Get session and visitor IDs from localStorage
             const sessionId = localStorage.getItem('vt_session_id');
@@ -310,7 +317,7 @@ const WelcomeModal: React.FC<WelcomeModalProps> = ({ open, onClose, restaurant, 
                     </Typography>
                 </Box>
 
-                {showForm ? (
+                {showForm && !isInformativeOnly ? (
                     <Box component="form" onSubmit={handleSubmit} sx={{ px: 3, display: 'flex', flexDirection: 'column', gap: 2 }}>
                         {showEmail && (
                             <TextField
@@ -403,25 +410,7 @@ const WelcomeModal: React.FC<WelcomeModalProps> = ({ open, onClose, restaurant, 
                             {loading ? t('button_saving', 'Guardando...') : t('button_get_offer', 'Obtener Oferta')}
                         </Button>
                     </Box>
-                ) : (
-                    <Box sx={{ px: 3 }}>
-                        <Button
-                            onClick={onClose}
-                            variant="contained"
-                            sx={{
-                                bgcolor: '#FFD700',
-                                color: 'black',
-                                fontWeight: 'bold',
-                                py: 1.5,
-                                borderRadius: 2,
-                                width: '100%',
-                                '&:hover': { bgcolor: '#FFC000' }
-                            }}
-                        >
-                            {t('button_understood', 'Entendido')}
-                        </Button>
-                    </Box>
-                )}
+                ) : null}
             </DialogContent>
 
             {/* ✅ Sub-Modal de Privacidad */}
@@ -447,7 +436,11 @@ const WelcomeModal: React.FC<WelcomeModalProps> = ({ open, onClose, restaurant, 
                             <Close />
                         </IconButton>
                     </Box>
-                    <Box sx={{ maxHeight: '60vh', overflowY: 'auto', pr: 1 }}>
+                    <Box
+                        data-allow-scroll
+                        className="allow-scroll"
+                        sx={{ maxHeight: '60vh', overflowY: 'auto', pr: 1, touchAction: 'pan-y' }}
+                    >
                         <PrivacyContent />
                     </Box>
                     <Box sx={{ mt: 3, textAlign: 'center' }}>

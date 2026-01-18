@@ -46,6 +46,7 @@ interface RestaurantConfig {
     isPremium: boolean;
   } | null;
   config: Record<string, any>;
+  overrides?: Record<string, any>; // ✅ Reel-specific color overrides (reel_* prefixed keys)
   marketing?: any;
   reservationsEnabled?: boolean;
   deliveryEnabled?: boolean; // ✅ NEW
@@ -93,6 +94,7 @@ async function fetchReelsData(slug: string, language = 'es'): Promise<Restaurant
     languages: data.languages,
     template: data.template,
     config: data.config || {},
+    overrides: data.overrides || {}, // ✅ NEW: Reel color overrides (reel_* prefixed)
     marketing: data.marketing, // ✅ Include marketing data
     reservationsEnabled: data.reservationsEnabled, // ✅ Include reservations status
     deliveryEnabled: data.deliveryEnabled, // ✅ NEW: Delivery enabled
@@ -125,7 +127,8 @@ function getDefaultConfig(): RestaurantConfig {
       description: 'Default template',
       isPremium: false
     },
-    config: {}
+    config: {},
+    overrides: {} // ✅ Default empty overrides
   };
 }
 

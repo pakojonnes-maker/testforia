@@ -90,16 +90,23 @@ const ClassicDishCard: React.FC<DishCardProps> = ({
   const [isFavorite, setIsFavorite] = useState(() => isFavorited(dish.id));
   const [showDetails, setShowDetails] = useState(false);
   const [isPlaying, setIsPlaying] = useState(false);
-  const [, setVideoLoaded] = useState(false);
-  const [videoStarted, setVideoStarted] = useState(false); // ✅ Track if video playback truly started
+  // ✅ Video-First Loading Pattern
+  const [videoReady, setVideoReady] = useState(false); // Video can play without buffering
+  const [showFallbackImage, setShowFallbackImage] = useState(false); // Only show if timeout/error
   const [videoError, setVideoError] = useState(false);
+  const videoLoadTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [allergenImageErrors, setAllergenImageErrors] = useState<Set<string>>(new Set());
 
   // ✅ Reset video state when dish changes (essential for reused lists/swipers)
   useEffect(() => {
-    setVideoStarted(false);
+    setVideoReady(false);
+    setShowFallbackImage(false);
     setIsPlaying(false);
     setVideoError(false);
+    if (videoLoadTimeoutRef.current) {
+      clearTimeout(videoLoadTimeoutRef.current);
+      videoLoadTimeoutRef.current = null;
+    }
   }, [dish?.id]);
 
   // Estados del carrito
@@ -162,6 +169,32 @@ const ClassicDishCard: React.FC<DishCardProps> = ({
     setAllergenImageErrors(prev => new Set(prev).add(allergenId));
   }, []);
 
+  // ✅ Video-First: Start timeout when video should play, cancel if ready
+  useEffect(() => {
+    if (!isVideo || !isActive || !inView) {
+      // Clear timeout if not active/visible
+      if (videoLoadTimeoutRef.current) {
+        clearTimeout(videoLoadTimeoutRef.current);
+        videoLoadTimeoutRef.current = null;
+      }
+      return;
+    }
+
+    // Start 500ms timeout - if video not ready, show fallback
+    videoLoadTimeoutRef.current = setTimeout(() => {
+      if (!videoReady) {
+        setShowFallbackImage(true);
+      }
+    }, 500);
+
+    return () => {
+      if (videoLoadTimeoutRef.current) {
+        clearTimeout(videoLoadTimeoutRef.current);
+        videoLoadTimeoutRef.current = null;
+      }
+    };
+  }, [isVideo, isActive, inView, videoReady]);
+
   // Auto-play con pausa al hacer clic en el video
   useEffect(() => {
     if (!videoRef.current || !isVideo || videoError) return;
@@ -176,6 +209,7 @@ const ClassicDishCard: React.FC<DishCardProps> = ({
       }).catch((error) => {
         console.error('❌ [DishCard] Error reproduciendo video:', error);
         setVideoError(true);
+        setShowFallbackImage(true); // Show image on play error
         trackMediaError(dish.id, 'video_play_failed', media?.url);
       });
     } else {
@@ -415,61 +449,93 @@ const ClassicDishCard: React.FC<DishCardProps> = ({
           cursor: isVideo ? 'pointer' : 'default'
         }}
       >
-        {isVideo ? (
+        {isVideo && !videoError ? (
           <>
+            {/* ✅ Video-First: Video starts invisible, fades in when ready */}
             <video
               ref={videoRef}
               src={media?.url}
-              /* poster={media?.thumbnail_url} // Removed to prevent native ghost image */
               loop
               muted
               playsInline
-              onLoadedData={() => setVideoLoaded(true)}
-              onPlaying={() => setVideoStarted(true)} // ✅ Trigger fade out
-              onTimeUpdate={(e) => {
-                // Fallback: if video advances > 0.1s, ensure overlay is gone
-                if (e.currentTarget.currentTime > 0.1 && !videoStarted) {
-                  setVideoStarted(true);
+              preload={isActive ? 'auto' : 'metadata'}
+              onCanPlayThrough={() => {
+                // Video is ready to play without buffering
+                setVideoReady(true);
+                setShowFallbackImage(false); // Hide fallback if it was showing
+                if (videoLoadTimeoutRef.current) {
+                  clearTimeout(videoLoadTimeoutRef.current);
+                  videoLoadTimeoutRef.current = null;
                 }
               }}
-              onError={() => setVideoError(true)}
+              onError={() => {
+                setVideoError(true);
+                setShowFallbackImage(true);
+              }}
               style={{
                 width: '100%',
                 height: '100%',
-                objectFit: 'cover'
+                objectFit: 'cover',
+                opacity: videoReady ? 1 : 0, // Start invisible, fade in when ready
+                transition: 'opacity 0.3s ease-in'
               }}
             />
 
-            {/* ✅ Custom Poster Overlay for Smooth Transition */}
+            {/* ✅ Fallback Image: Only shown if timeout (500ms) or error */}
+            {showFallbackImage && (
+              <Box
+                component="img"
+                src={media?.thumbnail_url || media?.url}
+                alt={dishName}
+                sx={{
+                  position: 'absolute',
+                  inset: 0,
+                  width: '100%',
+                  height: '100%',
+                  objectFit: 'cover',
+                  zIndex: 2,
+                  opacity: videoReady ? 0 : 1, // Fade out when video ready
+                  transition: 'opacity 0.3s ease-out',
+                  pointerEvents: 'none',
+                  willChange: 'opacity'
+                }}
+              />
+            )}
+          </>
+        ) : (
+          /* ✅ Image-only display with blurred background for better mobile viewing */
+          <Box sx={{ position: 'relative', width: '100%', height: '100%' }}>
+            {/* Blurred background layer - fills empty space aesthetically */}
             <Box
               component="img"
-              src={media?.thumbnail_url || media?.url}
-              alt={dishName}
+              src={media?.url || `https://via.placeholder.com/400x600/${colors.primary.replace('#', '')}/ffffff?text=${encodeURIComponent(dishName.substring(0, 10))}`}
+              alt=""
+              aria-hidden="true"
               sx={{
                 position: 'absolute',
                 inset: 0,
                 width: '100%',
                 height: '100%',
                 objectFit: 'cover',
-                zIndex: 2, // Above video
-                opacity: videoStarted ? 0 : 1, // Smooth fade
-                transition: 'opacity 0.5s ease-out',
-                pointerEvents: 'none', // Let clicks pass to video
-                willChange: 'opacity'
+                filter: 'blur(30px) brightness(0.4)',
+                transform: 'scale(1.1)', // Prevent blur edge artifacts
+                zIndex: 0
               }}
             />
-          </>
-        ) : (
-          <Box
-            component="img"
-            src={media?.url || `https://via.placeholder.com/400x600/${colors.primary.replace('#', '')}/ffffff?text=${encodeURIComponent(dishName.substring(0, 10))}`}
-            alt={dishName}
-            sx={{
-              width: '100%',
-              height: '100%',
-              objectFit: 'cover'
-            }}
-          />
+            {/* Main image - fully visible without cropping */}
+            <Box
+              component="img"
+              src={media?.url || `https://via.placeholder.com/400x600/${colors.primary.replace('#', '')}/ffffff?text=${encodeURIComponent(dishName.substring(0, 10))}`}
+              alt={dishName}
+              sx={{
+                position: 'relative',
+                width: '100%',
+                height: '100%',
+                objectFit: 'contain', // ✅ Show full image without cropping
+                zIndex: 1
+              }}
+            />
+          </Box>
         )}
 
         {/* Gradiente expandible */}
@@ -734,7 +800,7 @@ const ClassicDishCard: React.FC<DishCardProps> = ({
                     }
                   }}
                 >
-                  Ración Completa
+                  {t('button_full_portion', 'Ración Completa')}
                   <Typography component="span" sx={{ display: 'block', fontSize: '0.75rem', opacity: 0.8, mt: 0.5 }}>
                     €{(dish.price || 0).toFixed(2)}
                   </Typography>
@@ -758,7 +824,7 @@ const ClassicDishCard: React.FC<DishCardProps> = ({
                     }
                   }}
                 >
-                  Media Ración
+                  {t('button_half_portion', 'Media Ración')}
                   <Typography component="span" sx={{ display: 'block', fontSize: '0.75rem', opacity: 0.8, mt: 0.5 }}>
                     €{(dish.half_price || 0).toFixed(2)}
                   </Typography>
@@ -983,7 +1049,7 @@ const ClassicDishCard: React.FC<DishCardProps> = ({
             <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
               {dish?.isnew && (
                 <Chip
-                  label="Nuevo"
+                  label={t('badge_new', 'Nuevo')}
                   size="small"
                   sx={{
                     bgcolor: colors.primary,
@@ -996,7 +1062,7 @@ const ClassicDishCard: React.FC<DishCardProps> = ({
               )}
               {dish?.isfeatured && (
                 <Chip
-                  label="Destacado"
+                  label={t('badge_featured', 'Destacado')}
                   size="small"
                   sx={{
                     bgcolor: colors.secondary,
@@ -1010,7 +1076,7 @@ const ClassicDishCard: React.FC<DishCardProps> = ({
               {dish?.isvegetarian && (
                 <Chip
                   icon={<Spa sx={{ fontSize: 14 }} />}
-                  label="Vegetariano"
+                  label={t('badge_vegetarian', 'Vegetariano')}
                   size="small"
                   sx={{
                     bgcolor: 'rgba(76, 175, 80, 0.9)',
@@ -1135,7 +1201,7 @@ const ClassicDishCard: React.FC<DishCardProps> = ({
                     <Typography
                       variant="h6"
                       sx={{
-                        color: colors.text,
+                        color: colors.secondary,
                         fontWeight: 600,
                         mb: 2,
                         fontSize: { xs: '1rem', sm: '1.1rem' },
@@ -1146,7 +1212,7 @@ const ClassicDishCard: React.FC<DishCardProps> = ({
                         fontFamily: '"Fraunces", serif'
                       }}
                     >
-                      <Kitchen sx={{ fontSize: 20 }} />
+                      <Kitchen sx={{ fontSize: 20, color: colors.secondary }} />
                       {t('ingredients', 'Ingredientes')}
                     </Typography>
                     <Typography
@@ -1170,7 +1236,7 @@ const ClassicDishCard: React.FC<DishCardProps> = ({
                     <Typography
                       variant="h6"
                       sx={{
-                        color: colors.text,
+                        color: colors.secondary,
                         fontWeight: 600,
                         mb: 2,
                         fontSize: { xs: '1rem', sm: '1.1rem' },
@@ -1181,7 +1247,7 @@ const ClassicDishCard: React.FC<DishCardProps> = ({
                         fontFamily: '"Fraunces", serif'
                       }}
                     >
-                      <Spa sx={{ fontSize: 20 }} />
+                      <Spa sx={{ fontSize: 20, color: colors.secondary }} />
                       {t('allergens', 'Alérgenos')}
                     </Typography>
                     <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1, justifyContent: 'center' }}>

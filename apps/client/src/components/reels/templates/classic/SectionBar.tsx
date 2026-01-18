@@ -1,7 +1,7 @@
-import React, { useCallback, useEffect, useRef, useMemo } from 'react';
+import React, { useCallback, useEffect, useRef, useMemo, useState } from 'react';
 import { Box, Typography } from '@mui/material';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Restaurant } from '@mui/icons-material';
+import { Restaurant, ChevronRight } from '@mui/icons-material';
 import { useTranslation } from '../../../../contexts/TranslationContext';
 
 interface Section {
@@ -34,12 +34,24 @@ const SectionBar: React.FC<SectionBarProps> = ({
   const { t } = useTranslation();
   const scrollRef = useRef<HTMLDivElement>(null);
 
-  const themeColors = useMemo(() => ({
-    primary: config?.restaurant?.branding?.primary_color || '#FF6B6B',
-    secondary: config?.restaurant?.branding?.secondary_color || '#4ECDC4',
-    text: config?.restaurant?.branding?.text_color || '#FFFFFF',
-    background: config?.restaurant?.branding?.background_color || '#000000'
-  }), [config]);
+  // State for scroll indicator
+  const [showRightArrow, setShowRightArrow] = useState(false);
+
+  const themeColors = useMemo(() => {
+    const overrides = config?.overrides || {};
+    const branding = config?.restaurant?.branding || {};
+    return {
+      primary: overrides.reel_primary_color || branding.primary_color || '#FF6B6B',
+      secondary: overrides.reel_secondary_color || branding.secondary_color || '#4ECDC4',
+      text: overrides.reel_text_color || branding.text_color || '#FFFFFF',
+      background: overrides.reel_background_color || branding.background_color || '#000000',
+      // Section bar specific colors - fully independent, no linked fallbacks
+      sectionIconActive: overrides.reel_section_icon_active || '#4ECDC4',
+      sectionIconInactive: overrides.reel_section_icon_inactive || 'rgba(255, 255, 255, 0.6)',
+      sectionTextActive: overrides.reel_section_text_active || '#FFFFFF',
+      sectionTextInactive: overrides.reel_section_text_inactive || 'rgba(255, 255, 255, 0.75)'
+    };
+  }, [config]);
 
 
   const hexToRgba = (hex: string, alpha = 1) => {
@@ -79,6 +91,26 @@ const SectionBar: React.FC<SectionBarProps> = ({
     }
   }, [currentSectionIndex, onSectionChange]);
 
+  // Check if scrolling is needed and update arrow indicator
+  const updateScrollIndicator = useCallback(() => {
+    if (scrollRef.current) {
+      const container = scrollRef.current;
+      const hasMoreOnRight = container.scrollLeft + container.clientWidth < container.scrollWidth - 10;
+      setShowRightArrow(hasMoreOnRight);
+    }
+  }, []);
+
+  // Update scroll indicator on mount and when sections change
+  useEffect(() => {
+    updateScrollIndicator();
+    // Add resize observer for responsive behavior
+    const observer = new ResizeObserver(updateScrollIndicator);
+    if (scrollRef.current) {
+      observer.observe(scrollRef.current);
+    }
+    return () => observer.disconnect();
+  }, [sections.length, updateScrollIndicator]);
+
   useEffect(() => {
     if (scrollRef.current && sections.length > 0 && currentSectionIndex < sections.length) {
       const container = scrollRef.current;
@@ -96,7 +128,9 @@ const SectionBar: React.FC<SectionBarProps> = ({
         });
       }
     }
-  }, [currentSectionIndex, sections.length]);
+    // Update indicator after scroll
+    setTimeout(updateScrollIndicator, 400);
+  }, [currentSectionIndex, sections.length, updateScrollIndicator]);
 
   const SectionIcon: React.FC<{ section: Section; isActive: boolean }> = ({
     section,
@@ -122,7 +156,7 @@ const SectionBar: React.FC<SectionBarProps> = ({
             sx={{
               width: iconSize,
               height: iconSize,
-              backgroundColor: isActive ? themeColors.secondary : 'rgba(255, 255, 255, 0.7)',
+              backgroundColor: isActive ? themeColors.sectionIconActive : themeColors.sectionIconInactive,
               WebkitMaskImage: `url(${iconUrl})`,
               maskImage: `url(${iconUrl})`,
               WebkitMaskSize: 'contain',
@@ -145,7 +179,7 @@ const SectionBar: React.FC<SectionBarProps> = ({
           <Restaurant
             sx={{
               fontSize: iconSize,
-              color: isActive ? themeColors.secondary : 'rgba(255, 255, 255, 0.7)',
+              color: isActive ? themeColors.sectionIconActive : themeColors.sectionIconInactive,
               transition: 'all 0.25s ease-out'
             }}
           />
@@ -176,12 +210,16 @@ const SectionBar: React.FC<SectionBarProps> = ({
     >
       <Box
         ref={scrollRef}
+        data-allow-scroll
+        className="allow-scroll"
+        onScroll={updateScrollIndicator}
         sx={{
           display: 'flex',
           alignItems: 'center',
           width: '100%',
           overflowX: 'auto',
           overflowY: 'hidden',
+          touchAction: 'pan-x',  // Allow horizontal touch scroll
           scrollbarWidth: 'none',
           '&::-webkit-scrollbar': {
             display: 'none'
@@ -258,24 +296,24 @@ const SectionBar: React.FC<SectionBarProps> = ({
                         justifyContent: 'center',
                         position: 'relative',
                         borderRadius: '50%',
-                        border: `2px solid ${isActive ? themeColors.secondary : 'rgba(255, 255, 255, 0.15)'}`,
+                        border: `2px solid ${isActive ? themeColors.sectionIconActive : 'rgba(255, 255, 255, 0.15)'}`,
                         background: isActive
-                          ? `linear-gradient(135deg, ${themeColors.secondary}20, transparent)`
+                          ? `linear-gradient(135deg, ${themeColors.sectionIconActive}20, transparent)`
                           : 'transparent',
                         transition: 'all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1)',
                         boxShadow: isActive
-                          ? `0 0 0 4px ${themeColors.secondary}10, 0 4px 12px ${themeColors.secondary}30`
+                          ? `0 0 0 4px ${themeColors.sectionIconActive}10, 0 4px 12px ${themeColors.sectionIconActive}30`
                           : 'none',
                         '&:hover': {
                           transform: !isActive ? 'rotate(5deg)' : 'none',
-                          borderColor: !isActive ? 'rgba(255, 255, 255, 0.3)' : themeColors.secondary
+                          borderColor: !isActive ? 'rgba(255, 255, 255, 0.3)' : themeColors.sectionIconActive
                         },
                         '&::after': isActive ? {
                           content: '""',
                           position: 'absolute',
                           inset: -8,
                           borderRadius: '50%',
-                          background: `radial-gradient(circle, ${themeColors.secondary}25, transparent 70%)`,
+                          background: `radial-gradient(circle, ${themeColors.sectionIconActive}25, transparent 70%)`,
                           zIndex: -1,
                           animation: 'pulse 2s ease-in-out infinite'
                         } : {}
@@ -309,7 +347,7 @@ const SectionBar: React.FC<SectionBarProps> = ({
                     <Typography
                       component="div"
                       sx={{
-                        color: isActive ? themeColors.text : 'rgba(255, 255, 255, 0.75)',
+                        color: isActive ? themeColors.sectionTextActive : themeColors.sectionTextInactive,
                         fontWeight: isActive ? 600 : 400,
                         fontSize: isActive
                           ? { xs: '0.75rem', sm: '0.813rem' }
@@ -323,7 +361,7 @@ const SectionBar: React.FC<SectionBarProps> = ({
                         letterSpacing: '0.02em',
                         textTransform: 'capitalize',
                         textShadow: isActive
-                          ? `0 1px 3px rgba(0, 0, 0, 0.3), 0 0 8px ${themeColors.secondary}40`
+                          ? `0 1px 3px rgba(0, 0, 0, 0.3), 0 0 8px ${themeColors.sectionIconActive}40`
                           : 'none',
                         ...(shouldScroll ? {
                           animation: 'marquee 8s linear infinite',
@@ -361,8 +399,8 @@ const SectionBar: React.FC<SectionBarProps> = ({
                           width: '60%',
                           height: 3,
                           borderRadius: '2px',
-                          background: `linear-gradient(90deg, transparent, ${themeColors.secondary}, transparent)`,
-                          boxShadow: `0 0 8px ${themeColors.secondary}80`
+                          background: `linear-gradient(90deg, transparent, ${themeColors.sectionIconActive}, transparent)`,
+                          boxShadow: `0 0 8px ${themeColors.sectionIconActive}80`
                         }}
                       />
                     )}
@@ -387,6 +425,49 @@ const SectionBar: React.FC<SectionBarProps> = ({
         })}
       </Box>
 
+      {/* Scroll Right Indicator Arrow */}
+      <AnimatePresence>
+        {showRightArrow && sections.length > 4 && (
+          <motion.div
+            initial={{ opacity: 0, x: 10 }}
+            animate={{ opacity: 1, x: 0 }}
+            exit={{ opacity: 0, x: 10 }}
+            transition={{ duration: 0.2 }}
+            style={{
+              position: 'absolute',
+              right: 8,
+              top: '50%',
+              transform: 'translateY(-50%)',
+              pointerEvents: 'none',
+              zIndex: 10
+            }}
+          >
+            <Box
+              sx={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                bgcolor: 'rgba(0,0,0,0.6)',
+                backdropFilter: 'blur(8px)',
+                borderRadius: '50%',
+                width: 28,
+                height: 28,
+                border: `1px solid ${themeColors.sectionIconActive}40`,
+                boxShadow: `0 0 12px ${themeColors.sectionIconActive}30`
+              }}
+            >
+              <ChevronRight
+                sx={{
+                  color: themeColors.sectionIconActive,
+                  fontSize: 20,
+                  animation: 'bounceRight 1.5s ease-in-out infinite'
+                }}
+              />
+            </Box>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
       {/* Global CSS animations */}
       <style>
         {`
@@ -405,6 +486,15 @@ const SectionBar: React.FC<SectionBarProps> = ({
             }
             100% {
               transform: translateX(-50%);
+            }
+          }
+
+          @keyframes bounceRight {
+            0%, 100% {
+              transform: translateX(0);
+            }
+            50% {
+              transform: translateX(4px);
             }
           }
         `}

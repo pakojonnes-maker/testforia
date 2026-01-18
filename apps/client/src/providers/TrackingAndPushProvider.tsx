@@ -9,8 +9,10 @@ import NotificationsActiveIcon from '@mui/icons-material/NotificationsActive';
 import CloseIcon from '@mui/icons-material/Close';
 
 // INTERNAL COMPONENT: Soft Prompt
-function PushSoftPrompt({ open, onClose, onConfirm }: { open: boolean; onClose: () => void; onConfirm: () => void }) {
+function PushSoftPrompt({ open, onClose, onConfirm, primaryColor }: { open: boolean; onClose: () => void; onConfirm: () => void; primaryColor?: string }) {
   if (!open) return null;
+
+  const accentColor = primaryColor || '#FF6B6B';
 
   return (
     <Modal open={open} onClose={onClose}>
@@ -21,7 +23,7 @@ function PushSoftPrompt({ open, onClose, onConfirm }: { open: boolean; onClose: 
         transform: 'translate(-50%, -50%)',
         width: '90%',
         maxWidth: 400,
-        bgcolor: 'background.paper',
+        bgcolor: '#1a1a1a',
         borderRadius: 4,
         boxShadow: 24,
         p: 3,
@@ -29,7 +31,7 @@ function PushSoftPrompt({ open, onClose, onConfirm }: { open: boolean; onClose: 
         outline: 'none'
       }}>
         <Box display="flex" justifyContent="flex-end">
-          <IconButton onClick={onClose} size="small">
+          <IconButton onClick={onClose} size="small" sx={{ color: 'rgba(255,255,255,0.5)' }}>
             <CloseIcon />
           </IconButton>
         </Box>
@@ -38,7 +40,7 @@ function PushSoftPrompt({ open, onClose, onConfirm }: { open: boolean; onClose: 
           width: 60,
           height: 60,
           borderRadius: '50%',
-          bgcolor: 'primary.main',
+          bgcolor: accentColor,
           color: 'white',
           display: 'flex',
           alignItems: 'center',
@@ -49,12 +51,12 @@ function PushSoftPrompt({ open, onClose, onConfirm }: { open: boolean; onClose: 
           <NotificationsActiveIcon fontSize="large" />
         </Box>
 
-        <Typography variant="h5" component="h2" gutterBottom sx={{ fontWeight: 'bold' }}>
-          🎁 No te pierdas ningún regalo
+        <Typography variant="h5" component="h2" gutterBottom sx={{ fontWeight: 'bold', color: 'white' }}>
+          ¡No te pierdas nada!
         </Typography>
 
-        <Typography variant="body1" color="text.secondary" paragraph>
-          Activa las notificaciones para saber cuándo ganaste premios y recibir ofertas exclusivas.
+        <Typography variant="body1" sx={{ color: 'rgba(255,255,255,0.7)' }} paragraph>
+          Activa las notificaciones para enterarte de las últimas novedades, descuentos y recibir ofertas exclusivas.
         </Typography>
 
         <Box mt={3} display="flex" flexDirection="column" gap={1.5}>
@@ -69,10 +71,13 @@ function PushSoftPrompt({ open, onClose, onConfirm }: { open: boolean; onClose: 
               fontSize: '1rem',
               py: 1.5,
               fontWeight: 'bold',
-              boxShadow: '0 4px 14px 0 rgba(0,0,0,0.2)'
+              bgcolor: accentColor,
+              color: 'white',
+              boxShadow: `0 4px 14px 0 ${accentColor}40`,
+              '&:hover': { bgcolor: accentColor, opacity: 0.9 }
             }}
           >
-            Activar y Ver Oferta
+            Activar notificaciones y ver oferta
           </Button>
 
           <Button
@@ -82,10 +87,11 @@ function PushSoftPrompt({ open, onClose, onConfirm }: { open: boolean; onClose: 
             onClick={onClose}
             sx={{
               textTransform: 'none',
-              color: 'text.secondary'
+              color: 'rgba(255,255,255,0.6)',
+              '&:hover': { color: 'rgba(255,255,255,0.9)', bgcolor: 'transparent' }
             }}
           >
-            Solo Ver Oferta
+            Solo ver oferta
           </Button>
         </Box>
       </Box>
@@ -685,13 +691,21 @@ export function TrackingAndPushProvider({ restaurantId, children }: Props) {
     return () => window.removeEventListener('vt-consent-update', handleConsentUpdate);
   }, [restaurantId, trackerInstance, sessionId]);
 
-  // ✅ HEARTBEAT SYSTEM: Ensures accurate session duration even on abrupt tab close
+  // ✅ HEARTBEAT SYSTEM: With inactivity detection to prevent infinite requests
+  // Pauses heartbeats after 5 minutes of no user interaction
   useEffect(() => {
     if (!sessionId || !tracker || !startedAtRef.current) return;
 
     let sessionEndSent = false;
     let heartbeatInterval: number | null = null;
+    let activityThrottleTimer: number | null = null;
+
     const HEARTBEAT_INTERVAL = 30000; // 30 seconds
+    const IDLE_TIMEOUT = 5 * 60 * 1000; // 5 minutes
+    const ACTIVITY_THROTTLE = 1000; // 1 second - max frequency for activity updates
+
+    let lastActivityTime = Date.now();
+    let isIdle = false;
 
     // Send heartbeat event to update session duration on backend
     const sendHeartbeat = () => {
@@ -707,10 +721,32 @@ export function TrackingAndPushProvider({ restaurantId, children }: Props) {
       });
     };
 
+    // Check if user is idle and manage heartbeat accordingly
+    const checkIdleAndSendHeartbeat = () => {
+      if (sessionEndSent || !tracker) return;
+
+      const now = Date.now();
+      const timeSinceActivity = now - lastActivityTime;
+
+      if (timeSinceActivity >= IDLE_TIMEOUT) {
+        // User is idle - stop heartbeats
+        if (!isIdle) {
+          console.log('💤 [Heartbeat] User idle for 5+ min, pausing heartbeats');
+          isIdle = true;
+          // Send one final heartbeat before pausing
+          sendHeartbeat();
+          stopHeartbeat();
+        }
+      } else {
+        // User is active - send heartbeat
+        sendHeartbeat();
+      }
+    };
+
     // Start heartbeat interval when page is visible
     const startHeartbeat = () => {
       if (heartbeatInterval) return;
-      heartbeatInterval = window.setInterval(sendHeartbeat, HEARTBEAT_INTERVAL);
+      heartbeatInterval = window.setInterval(checkIdleAndSendHeartbeat, HEARTBEAT_INTERVAL);
     };
 
     // Stop heartbeat interval
@@ -718,6 +754,26 @@ export function TrackingAndPushProvider({ restaurantId, children }: Props) {
       if (heartbeatInterval) {
         clearInterval(heartbeatInterval);
         heartbeatInterval = null;
+      }
+    };
+
+    // Throttled activity handler - updates lastActivityTime and resumes heartbeats if idle
+    const handleActivity = () => {
+      // Throttle activity updates to max once per second
+      if (activityThrottleTimer) return;
+
+      activityThrottleTimer = window.setTimeout(() => {
+        activityThrottleTimer = null;
+      }, ACTIVITY_THROTTLE);
+
+      lastActivityTime = Date.now();
+
+      // Resume heartbeats if we were idle
+      if (isIdle && document.visibilityState === 'visible') {
+        console.log('🔄 [Heartbeat] User activity detected, resuming heartbeats');
+        isIdle = false;
+        sendHeartbeat(); // Send immediate heartbeat on resume
+        startHeartbeat();
       }
     };
 
@@ -754,10 +810,24 @@ export function TrackingAndPushProvider({ restaurantId, children }: Props) {
         stopHeartbeat();
         console.log('🔄 [Provider] Tab hidden - sent heartbeat, flushed events');
       } else if (document.visibilityState === 'visible' && !sessionEndSent) {
-        // Resume heartbeats when page becomes visible again
-        startHeartbeat();
+        // Tab visible again - only resume if not idle
+        // If user was idle before hiding, they need to interact to resume
+        if (!isIdle) {
+          startHeartbeat();
+        } else {
+          console.log('💤 [Provider] Tab visible but user was idle - waiting for interaction');
+        }
       }
     };
+
+    // Add activity listeners (passive for scroll to avoid jank)
+    const activityEvents = ['scroll', 'touchstart', 'click', 'keydown'];
+    activityEvents.forEach(event => {
+      const options = event === 'scroll' || event === 'touchstart'
+        ? { passive: true, capture: true }
+        : { capture: true };
+      document.addEventListener(event, handleActivity, options);
+    });
 
     // Send initial heartbeat and start interval
     sendHeartbeat();
@@ -769,6 +839,12 @@ export function TrackingAndPushProvider({ restaurantId, children }: Props) {
 
     return () => {
       stopHeartbeat();
+      if (activityThrottleTimer) {
+        clearTimeout(activityThrottleTimer);
+      }
+      activityEvents.forEach(event => {
+        document.removeEventListener(event, handleActivity, true);
+      });
       window.removeEventListener('beforeunload', handlePageClose);
       window.removeEventListener('pagehide', handlePageClose);
       document.removeEventListener('visibilitychange', handleVisibilityChange);
@@ -902,6 +978,9 @@ export function TrackingAndPushProvider({ restaurantId, children }: Props) {
   // Safe access to restaurant context
   const restaurantContext = useContext(RestaurantContext);
   const restaurantFeatures = restaurantContext?.restaurant?.features || {};
+  const primaryColor = restaurantContext?.restaurant?.branding?.primary_color ||
+    restaurantContext?.restaurant?.branding?.primaryColor ||
+    '#FF6B6B';
 
   const triggerPushPrompt = async (onSuccess?: () => void) => {
     // 1. Check Global Setting
@@ -978,6 +1057,7 @@ export function TrackingAndPushProvider({ restaurantId, children }: Props) {
         open={showSoftPrompt}
         onClose={handleSoftPromptClose}
         onConfirm={handleSoftPromptConfirm}
+        primaryColor={primaryColor}
       />
     </TrackingCtx.Provider>
   );

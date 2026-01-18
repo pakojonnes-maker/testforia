@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
     Box,
     Typography,
@@ -13,6 +13,39 @@ import { Close, Add, Remove, Favorite, FavoriteBorder } from '@mui/icons-materia
 import type { TransitionProps } from '@mui/material/transitions';
 
 import { useTranslation } from '../../../../contexts/TranslationContext';
+import { useDishTracking } from '../../../../providers/TrackingAndPushProvider';
+import type { Allergen } from '../../../../lib/apiClient';
+
+// Helper para obtener nombre del alérgeno (traducido)
+const getAllergenName = (allergen: Allergen, currentLanguage: string = 'es'): string => {
+    const translatedName = allergen.translations?.name?.[currentLanguage];
+    if (translatedName) return translatedName;
+    if (allergen.name) return allergen.name;
+    let displayName = allergen.id;
+    if (displayName.startsWith('allergen_')) {
+        displayName = displayName.substring(9);
+    }
+    if (displayName.endsWith('.svg')) {
+        displayName = displayName.slice(0, -4);
+    }
+    return displayName.charAt(0).toUpperCase() + displayName.slice(1).toLowerCase();
+};
+
+// Helper para obtener URL del icono de alérgeno
+const getAllergenIconUrl = (allergen: Allergen): string => {
+    const API_URL = import.meta.env.VITE_API_URL || "https://visualtasteworker.franciscotortosaestudios.workers.dev";
+    if (allergen.icon_url && allergen.icon_url.startsWith('http')) {
+        return allergen.icon_url;
+    }
+    if (allergen.icon_url) {
+        return `${API_URL}/media/System/allergens/${allergen.icon_url}`;
+    }
+    let filename = allergen.id;
+    if (!filename.endsWith('.svg')) {
+        filename += '.svg';
+    }
+    return `${API_URL}/media/System/allergens/${filename}`;
+};
 
 const Transition = React.forwardRef(function Transition(
     props: TransitionProps & {
@@ -41,17 +74,45 @@ const DishDetailModal: React.FC<DishDetailModalProps> = ({
     onAddToCart
 }) => {
     const { t } = useTranslation();
+    const { viewDish, trackDishViewDuration, favoriteDish, isFavorited } = useDishTracking();
     const [selectedPortion, setSelectedPortion] = useState<'full' | 'half'>('full');
     const [quantity, setQuantity] = useState(1);
     const [isFavorite, setIsFavorite] = useState(false);
+    const openTimeRef = useRef<number | null>(null);
+    const hasTrackedViewRef = useRef(false);
 
-    // Reset states when dish changes or modal opens
+    // ✅ Track view when modal opens, duration when it closes
+    useEffect(() => {
+        if (isOpen && dish?.id) {
+            openTimeRef.current = Date.now();
+            // Track view only once per open
+            if (!hasTrackedViewRef.current) {
+                console.log('✅ [DishDetailModal] Tracking view:', dish.id);
+                viewDish(dish.id);
+                hasTrackedViewRef.current = true;
+            }
+            // Initialize favorite state from tracker
+            setIsFavorite(isFavorited(dish.id));
+        }
+
+        return () => {
+            // Track duration when modal closes
+            if (openTimeRef.current && dish?.id && hasTrackedViewRef.current) {
+                const duration = Math.floor((Date.now() - openTimeRef.current) / 1000);
+                if (duration > 0) {
+                    console.log('✅ [DishDetailModal] Tracking duration:', dish.id, duration, 'seconds');
+                    trackDishViewDuration(dish.id, duration);
+                }
+            }
+        };
+    }, [isOpen, dish?.id, viewDish, trackDishViewDuration, isFavorited]);
+
+    // Reset states when dish changes
     useEffect(() => {
         if (isOpen) {
             setQuantity(1);
             setSelectedPortion('full');
-            // Here you would typically check if dish is favored from a store/context
-            setIsFavorite(false);
+            hasTrackedViewRef.current = false; // Reset for new dish
         }
     }, [isOpen, dish?.id]);
 
@@ -66,7 +127,10 @@ const DishDetailModal: React.FC<DishDetailModalProps> = ({
 
     const handleFavorite = (e: React.MouseEvent) => {
         e.stopPropagation();
-        setIsFavorite(!isFavorite);
+        const newState = !isFavorite;
+        setIsFavorite(newState);
+        favoriteDish(dish.id, newState); // ✅ Sync with tracker/backend
+        console.log('✅ [DishDetailModal] Favorite toggled:', dish.id, newState);
     };
 
     const handleAdd = () => {
@@ -149,7 +213,7 @@ const DishDetailModal: React.FC<DishDetailModalProps> = ({
                     <Typography
                         variant="h5"
                         sx={{
-                            color: colors.primary,
+                            color: colors.accent || colors.secondary,
                             fontFamily: '"Fraunces", serif',
                             fontWeight: 700,
                             fontSize: '1.5rem'
@@ -171,6 +235,58 @@ const DishDetailModal: React.FC<DishDetailModalProps> = ({
                 >
                     {description}
                 </Typography>
+
+                {/* Allergens Section */}
+                {dish?.allergens && dish.allergens.length > 0 && (
+                    <Box sx={{ mb: 3 }}>
+                        <Typography
+                            sx={{
+                                color: colors.accent || colors.secondary,
+                                fontSize: '0.9rem',
+                                fontWeight: 600,
+                                mb: 1.5,
+                                fontFamily: '"Fraunces", serif'
+                            }}
+                        >
+                            {t('allergens', 'Alérgenos')}
+                        </Typography>
+                        <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1.5 }}>
+                            {dish.allergens.map((allergen: Allergen) => (
+                                <Box
+                                    key={allergen.id}
+                                    sx={{
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        gap: 1,
+                                        bgcolor: 'rgba(255,255,255,0.08)',
+                                        borderRadius: 2,
+                                        px: 1.5,
+                                        py: 0.75,
+                                        border: '1px solid rgba(255,255,255,0.1)'
+                                    }}
+                                >
+                                    <Box
+                                        component="img"
+                                        src={getAllergenIconUrl(allergen)}
+                                        alt={getAllergenName(allergen, currentLanguage)}
+                                        sx={{
+                                            width: 22,
+                                            height: 22,
+                                            objectFit: 'contain'
+                                        }}
+                                    />
+                                    <Typography sx={{
+                                        color: 'rgba(255,255,255,0.85)',
+                                        fontSize: '0.85rem',
+                                        fontWeight: 500
+                                    }}>
+                                        {getAllergenName(allergen, currentLanguage)}
+                                    </Typography>
+                                </Box>
+                            ))}
+                        </Box>
+                    </Box>
+                )}
 
                 {/* Portion Selector */}
                 {dish.has_half_portion && (

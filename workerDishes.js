@@ -230,8 +230,14 @@ export async function handleDishRequests(request, env) {
         }
         try {
             const data = await request.json();
-            const isNew = request.method === "POST" || !url.pathname.includes('/');
-            const dishId = isNew ? `dish_${Date.now()}_${Math.random().toString(36).substring(2, 7)}` : url.pathname.split('/').pop();
+            // Fix: Check for PUT method with a dish ID in the path
+            const pathParts = url.pathname.split('/').filter(p => p);
+            const hasDishId = pathParts.length >= 2 && pathParts[0] === 'dishes' && pathParts[1];
+            const isNew = request.method === "POST" && !hasDishId;
+            const dishId = isNew ? `dish_${Date.now()}_${Math.random().toString(36).substring(2, 7)}` : pathParts[1] || url.pathname.split('/').pop();
+
+            console.log(`[Dishes] Save operation - Method: ${request.method}, Path: ${url.pathname}`);
+            console.log(`[Dishes] pathParts: ${JSON.stringify(pathParts)}, hasDishId: ${hasDishId}, isNew: ${isNew}, dishId: ${dishId}`);
             const restaurantId = data.restaurant_id;
             if (!restaurantId) {
                 return createResponse({ success: false, message: "Restaurant ID requerido" }, 400);

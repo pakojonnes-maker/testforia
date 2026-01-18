@@ -487,16 +487,15 @@ async function handleEvents(request, env, ctx) {
             await handleCartEvent(env.DB, cartEvent, session, restaurantId);
         }
 
-        // Phase 4: Background aggregation (non-blocking)
-        const aggregatePromise = Promise.all([
-            aggregateDailyAnalytics(env.DB, restaurantId, today),
-            aggregateCartMetrics(env.DB, restaurantId, today)
-        ]);
-
+        // Phase 4: Background cart metrics aggregation only (lightweight)
+        // NOTE: aggregateDailyAnalytics removed - it was causing massive DB load
+        // by scanning the entire events table on every batch (heartbeats every 30s).
+        // Daily analytics are now calculated on-demand in workerAnalytics.js from
+        // the source tables (sessions, events, dish_daily_metrics, section_daily_metrics).
         if (ctx?.waitUntil) {
-            ctx.waitUntil(aggregatePromise);
+            ctx.waitUntil(aggregateCartMetrics(env.DB, restaurantId, today));
         } else {
-            aggregatePromise.catch(e => console.error('[Events] Aggregation error:', e));
+            aggregateCartMetrics(env.DB, restaurantId, today).catch(e => console.error('[Events] Cart aggregation error:', e));
         }
 
         return jsonResponse({ success: true, processed: processedEvents.length, events: processedEvents });

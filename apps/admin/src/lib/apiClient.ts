@@ -141,7 +141,16 @@ class AdminApiClient {
   }
 
   public async updateDish(id: string, data: UpdateDishData): Promise<any> {
-    return this.invokeBaseMethod('updateDish', id, data);
+    console.log('[apiClient] updateDish called with id:', id);
+    console.log('[apiClient] updateDish data:', JSON.stringify(data, null, 2));
+    try {
+      const result = await this.invokeBaseMethod('updateDish', id, data);
+      console.log('[apiClient] updateDish response:', result);
+      return result;
+    } catch (error) {
+      console.error('[apiClient] updateDish error:', error);
+      throw error;
+    }
   }
 
   public async deleteDish(id: string, restaurantId: string): Promise<any> {
@@ -494,16 +503,8 @@ class AdminApiClient {
     try {
       console.log(`[apiClient] Actualizando styling del restaurante ${restaurantId}`, data);
 
-      // ✅ Transformar estructura para el worker
-      const payload = {
-        primary_color: data.primary || data.primary_color,
-        secondary_color: data.secondary || data.secondary_color,
-        accent_color: data.accent || data.accent_color,
-        text_color: data.text || data.text_color,
-        background_color: data.background || data.background_color
-      };
-
-      const response = await this.baseClient.client.put(`/restaurants/${restaurantId}/styling`, payload);
+      // Send ALL fields directly - backend handles the reel_ prefix
+      const response = await this.baseClient.client.put(`/restaurants/${restaurantId}/styling`, data);
       return response.data;
     } catch (error) {
       console.error('[apiClient] Error al actualizar styling:', error);

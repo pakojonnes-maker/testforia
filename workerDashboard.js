@@ -1,42 +1,9 @@
 // ===========================================================================
 // CLOUDFLARE WORKER - DASHBOARD API
-//=============================================================================
-// Optimized worker for VisualTaste Dashboard analytics endpoints
-// Author: AI Assistant
-// Date: 2025-11-25
-// 
-// Endpoints:
-// - GET /restaurants/:id/analytics/summary?period={1d|7d|30d}
-// - GET /restaurants/:id/analytics/dishes/top?period={7d|30d}&limit=10
-// - GET /restaurants/:id/analytics/qr-breakdown
-// - GET /restaurants/:id/content/health
-// - GET /restaurants/:id/dishes/stagnant?days=7
-// - GET /restaurants/:id/dashboard/pulse
 // ===========================================================================
-
-import { verifyJWT } from './workerAuthentication.js';
-
-// CORS - Dominios permitidos
-const ALLOWED_ORIGINS = [
-  'https://admin.visualtastes.com',
-  'https://menu.visualtastes.com',
-  'https://visualtastes.com',
-  'http://localhost:5173',
-  'http://localhost:5174',
-  'http://menu.localhost:5173',
-  'http://admin.localhost:5174'
-];
-
-function getCorsHeaders(request) {
-  const origin = request?.headers?.get('Origin') || '';
-  const allowedOrigin = ALLOWED_ORIGINS.includes(origin) ? origin : ALLOWED_ORIGINS[0];
-  return {
-    "Content-Type": "application/json",
-    "Access-Control-Allow-Origin": allowedOrigin,
-    "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS",
-    "Access-Control-Allow-Headers": "Content-Type, Authorization",
-  };
-}
+// Endpoints de analytics para el dashboard de admin
+// La autenticación se maneja centralizadamente en worker.js
+// ===========================================================================
 
 /**
  * Main request handler for dashboard analytics
@@ -48,12 +15,6 @@ export async function handleDashboardRequests(request, env) {
   const url = new URL(request.url);
   const pathname = url.pathname;
 
-  // Verify authorization
-  const authHeader = request.headers.get('Authorization');
-  if (!authHeader || !authHeader.startsWith('Bearer ')) {
-    return createResponse({ success: false, message: "No autorizado" }, 401);
-  }
-
   // Extract restaurant ID from path: /restaurants/{id}/...
   const match = pathname.match(/^\/restaurants\/([^/]+)\//);
   if (!match) {
@@ -61,21 +22,6 @@ export async function handleDashboardRequests(request, env) {
   }
 
   const restaurantId = match[1];
-
-  // Extract and verify JWT token
-  const token = authHeader.substring(7); // Remove "Bearer " prefix
-
-  // Use env.JWT_SECRET (configurado en Cloudflare Dashboard)
-  const userData = await verifyJWT(token, env.JWT_SECRET);
-
-  if (!userData) {
-    return createResponse({ success: false, message: "Token inválido o expirado" }, 401);
-  }
-
-  // Verify user has access to this restaurant
-  if (!userData.restaurants || !userData.restaurants.includes(restaurantId)) {
-    return createResponse({ success: false, message: "No autorizado para este restaurante" }, 403);
-  }
 
   try {
     // Route to specific endpoint handlers
@@ -99,7 +45,7 @@ export async function handleDashboardRequests(request, env) {
       return await handleStagnantDishes(env, restaurantId, url);
     }
 
-    // NEW: Pulse endpoint for dashboard overview
+    // Pulse endpoint for dashboard overview
     if (pathname.includes('/pulse')) {
       return await handleDashboardPulse(env, restaurantId);
     }
@@ -611,18 +557,14 @@ function convertToMinutes(timeStr) {
 }
 
 /**
- * Create JSON response with CORS headers
- * @param {Object} data - Response data
- * @param {number} status - HTTP status code
- * @returns {Response} HTTP response
+ * Create JSON response (CORS se añade en worker.js central)
  */
-function createResponse(data, status = 200, request = null) {
+function createResponse(data, status = 200) {
   return new Response(JSON.stringify(data), {
     status,
     headers: {
-      ...getCorsHeaders(request),
+      "Content-Type": "application/json",
       "Cache-Control": status === 200 ? "public, max-age=60" : "no-cache"
     },
   });
 }
-

@@ -37,24 +37,27 @@ const flagEmojiMap: { [key: string]: string } = {
   'it': '🇮🇹',
   'pt': '🇵🇹',
   'ca': '🏴󠁥󠁳󠁣󠁴󠁿',
-  'kr': '🇰🇷',
+  'ko': '🇰🇷',
   'ja': '🇯🇵',
-  'bn': '🇧🇩',
-  'ar': '🇸🇦'
+  'ar': '🇸🇦',
+  'ru': '🇷🇺',
+  'uk': '🇺🇦',
+  'zh': '🇨🇳'
 };
 
 // ✅ Función para obtener URL de bandera desde R2
 const getFlagUrl = (languageCode: string) => {
   const API_URL = import.meta.env.VITE_API_URL || "https://visualtasteworker.franciscotortosaestudios.workers.dev";
 
-  // Mapeo especial para códigos que no coinciden con el nombre del archivo
+  // Map language codes (ISO 639-1) to country codes (ISO 3166-1) for available flags
   const fileMap: Record<string, string> = {
-    'ar': 'ae',    // Árabe parece usar ae.svg (Emiratos)
-    'ja': 'jp',    // Japonés usa jp.svg
-    'bn': 'bd',    // Bengalí usa bd.svg
-    'hi': 'in',    // Hindi usa in.svg
-    'kr': 'kr',    // Coreano
-    'cn': 'cn',    // Chino
+    'ar': 'ae',    // Arabic → UAE
+    'ca': 'es-ct', // Catalan → Catalonia
+    'en': 'gb',    // English → UK
+    'ja': 'jp',    // Japanese → Japan
+    'ko': 'kr',    // Korean → South Korea
+    'uk': 'ua',    // Ukrainian → Ukraine
+    'zh': 'cn',    // Chinese → China
   };
 
   const fileName = fileMap[languageCode] || languageCode.toLowerCase();
@@ -165,14 +168,19 @@ const ClassicHeader: React.FC<HeaderProps> = ({
     return `rgba(${r},${g},${b},${alpha})`;
   };
 
-  // ✅ COLORES CON SNAKE_CASE (con guion bajo) - Coincidir con workerReels
+  // Get reel-specific colors from overrides, with fallback to base branding/theme
+  const overrides = config.overrides || {};
+  const branding = config.restaurant?.branding || {};
+
   const colors = {
-    primary: config.restaurant?.branding?.primary_color || '#FF6B6B',
-    secondary: config.restaurant?.branding?.secondary_color || '#4ECDC4',
-    // ✅ FIX: Allow undefined accent, or fallback to secondary, then default Orange
-    accent: config.restaurant?.branding?.accent_color || config.restaurant?.branding?.accentColor || config.restaurant?.branding?.secondary_color || '#FF8C42',
-    text: config.restaurant?.branding?.text_color || '#FFFFFF',
-    background: config.restaurant?.branding?.background_color || '#000000'
+    primary: overrides.reel_primary_color || branding.primary_color || '#FF6B6B',
+    secondary: overrides.reel_secondary_color || branding.secondary_color || '#4ECDC4',
+    accent: overrides.reel_accent_color || branding.accent_color || branding.accentColor || '#FF8C42',
+    text: overrides.reel_text_color || branding.text_color || '#FFFFFF',
+    background: overrides.reel_background_color || branding.background_color || '#000000',
+    // Header-specific colors
+    headerTitle: overrides.reel_header_title || '#FFFFFF',
+    headerSubtitle: overrides.reel_header_subtitle || overrides.reel_primary_color || branding.primary_color || '#FFC100'
   };
 
   const getSectionName = (section: any) => {
@@ -309,7 +317,7 @@ const ClassicHeader: React.FC<HeaderProps> = ({
               <Typography
                 variant="h5"
                 sx={{
-                  color: colors.text,
+                  color: colors.headerTitle,
                   fontWeight: 700,
                   fontSize: { xs: '1.3rem', sm: '1.5rem' },
                   lineHeight: 1.2,
@@ -339,7 +347,7 @@ const ClassicHeader: React.FC<HeaderProps> = ({
                 <Typography
                   className="marquee-text"
                   sx={{
-                    color: colors.accent || colors.secondary, // ✅ Use accent if available
+                    color: colors.headerSubtitle,
                     fontSize: { xs: '0.75rem', sm: '0.85rem' }, // Reduced font size
                     fontWeight: 400,
                     fontFamily: '"Fraunces", serif',

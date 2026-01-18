@@ -1,6 +1,6 @@
 // apps/client/src/App.tsx - OPTIMIZADO: Lazy Loading & Subdomains
 import React, { useEffect, useState, useMemo, Suspense } from 'react';
-import { useLocation } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { CssBaseline, ThemeProvider, createTheme, Box, CircularProgress, Typography } from '@mui/material';
 import { apiClient } from './lib/apiClient';
 import { TrackingAndPushProvider } from './providers/TrackingAndPushProvider';
@@ -50,7 +50,7 @@ function App() {
   const [error, setError] = useState<string | null>(null);
 
   // ✅ 1. Detectar Subdominio y Slug
-  const { isMenuDomain, slug, isLegacyReels } = useMemo(() => {
+  const { isMenuDomain, slug, isLegacyReels, hasInvalidDeepPath } = useMemo(() => {
     const hostname = window.location.hostname;
     // Detectar si estamos en menu.visualtaste.com (o equivalentes locales/staging)
     const isMenuDomain = hostname.startsWith('menu.');
@@ -58,6 +58,7 @@ function App() {
     const path = location.pathname;
     let slug: string | null = null;
     let isLegacyReels = false;
+    let hasInvalidDeepPath = false;
 
     // Lógica para extraer slug
     // Check for magic link redemption first (16-char alphanumeric token)
@@ -76,12 +77,27 @@ function App() {
       isLegacyReels = true;
       slug = path.split('/')[2];
     } else {
-      // Standard Format: /slug
+      // Standard Format: /slug or /slug/...
       const matches = path.match(/^\/([^\/]+)/);
-      if (matches) slug = matches[1];
+      if (matches) {
+        slug = matches[1];
+        // Check for deep paths that are not valid known patterns
+        // Valid patterns: /{slug}, /{slug}/oferta/{token}, /{slug}/evento/{id}, /{slug}/loyalty
+        // Invalid: /{slug}/dish/{id}, /{slug}/section/{id}, /{slug}/anything-else
+        const pathSegments = path.split('/').filter(Boolean);
+        if (pathSegments.length > 1) {
+          const subPath = pathSegments[1];
+          const validSubPaths = ['oferta', 'evento', 'loyalty'];
+          if (!validSubPaths.includes(subPath)) {
+            // This is an invalid deep path like /xpecado/dish/123
+            hasInvalidDeepPath = true;
+            console.warn(`[App] Invalid deep path detected: ${path}, will redirect to /${slug}`);
+          }
+        }
+      }
     }
 
-    return { isMenuDomain, slug, isLegacyReels };
+    return { isMenuDomain, slug, isLegacyReels, hasInvalidDeepPath };
   }, [location.pathname]);
 
   // ✅ 2. Determinar qué página mostrar
@@ -108,6 +124,8 @@ function App() {
     // REGLAS DE ENRUTAMIENTO:
 
     // Caso A: Dominio "menu." -> SIEMPRE muestra Reels (Menu)
+    // For deep paths like /slug/dish/x or /slug/section/x, we also show reels
+    // but the data loading logic will validate if the dish/section exists
     if (isMenuDomain) {
       return 'reels';
     }
@@ -121,6 +139,15 @@ function App() {
     // Caso C: Default en dominio principal -> LANDING (Marketing)
     return 'landing';
   }, [location.pathname, slug, isMenuDomain, isLegacyReels]);
+
+  // ✅ Redirect invalid deep paths to restaurant root
+  const navigate = useNavigate();
+  useEffect(() => {
+    if (hasInvalidDeepPath && slug) {
+      console.log(`[App] Redirecting invalid deep path to /${slug}`);
+      navigate(`/${slug}`, { replace: true });
+    }
+  }, [hasInvalidDeepPath, slug, navigate]);
 
   // ⭐ Cargar datos del restaurante SOLO para REELS
   useEffect(() => {

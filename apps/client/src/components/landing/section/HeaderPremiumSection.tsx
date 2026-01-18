@@ -79,8 +79,21 @@ const autoContrast = (hex: string): string => {
 const titleCase = (str: string): string =>
   str.replace(/[-_]/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
 
-const getFlagUrl = (code: string): string =>
-  `${MEDIA_BASE_URL}/System/flags/${code.toLowerCase()}.svg`;
+const getFlagUrl = (code: string): string => {
+  // Map language codes (ISO 639-1) to country codes (ISO 3166-1) for available flags
+  const fileMap: Record<string, string> = {
+    'ar': 'ae',    // Arabic → UAE
+    'ca': 'es-ct', // Catalan → Catalonia
+    'en': 'gb',    // English → UK
+    'hi': 'in',    // Hindi → India
+    'ja': 'jp',    // Japanese → Japan
+    'ko': 'kr',    // Korean → South Korea
+    'uk': 'ua',    // Ukrainian → Ukraine
+    'zh': 'cn',    // Chinese → China
+  };
+  const fileName = fileMap[code] || code.toLowerCase();
+  return `${MEDIA_BASE_URL}/System/flags/${fileName}.svg`;
+};
 
 export default function HeaderNav({
   restaurant,

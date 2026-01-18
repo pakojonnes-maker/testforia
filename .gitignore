@@ -38,3 +38,22 @@ out/
 
 # SO/editores
 .DS_Store
+Thumbs.db
+*.swp
+*.swo
+
+# Wrangler (Cloudflare local state)
+.wrangler/
+
+# SQL temporales y scripts de migración
+*.sql
+
+# Scripts de generación temporal
+generate_hash*.js
+
+# Documentación temporal / análisis
+ANALISIS_*.md
+KNOWLEDGE_*.md
+
+# Archivos de propuesta generados
+apps/client/public/proposal.*
