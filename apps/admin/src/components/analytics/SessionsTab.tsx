@@ -17,7 +17,8 @@ import {
     Collapse,
     TablePagination,
     Stack,
-    Divider
+    Grid,
+    Tooltip
 } from '@mui/material';
 import {
     KeyboardArrowDown as KeyboardArrowDownIcon,
@@ -28,15 +29,61 @@ import {
     AccessTime as AccessTimeIcon,
     ShoppingCart as ShoppingCartIcon,
     Favorite as FavoriteIcon,
-    Visibility as VisibilityIcon
+    Visibility as VisibilityIcon,
+    FiberNew as FiberNewIcon,
+    Loop as LoopIcon,
+    Language as LanguageIcon
 } from '@mui/icons-material';
 import { apiClient } from '../../lib/apiClient';
 import { useAuth } from '../../contexts/AuthContext';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
+
 interface SessionsTabProps {
     timeRange: string;
 }
+
+// ✅ NEW: Recurrence badge component
+function RecurrenceBadge({ visitCount }: { visitCount?: number }) {
+    const count = visitCount || 1;
+    if (count <= 1) {
+        return (
+            <Chip
+                icon={<FiberNewIcon sx={{ fontSize: 14 }} />}
+                label="Nueva"
+                size="small"
+                sx={{
+                    bgcolor: 'rgba(34, 197, 94, 0.12)',
+                    color: '#22c55e',
+                    fontWeight: 600,
+                    fontSize: '0.7rem',
+                    height: 24,
+                    border: '1px solid rgba(34, 197, 94, 0.25)',
+                    '& .MuiChip-icon': { color: '#22c55e' }
+                }}
+            />
+        );
+    }
+    return (
+        <Tooltip title={`Este visitante ha venido ${count} veces`} arrow>
+            <Chip
+                icon={<LoopIcon sx={{ fontSize: 14 }} />}
+                label={`x${count}`}
+                size="small"
+                sx={{
+                    bgcolor: 'rgba(139, 92, 246, 0.12)',
+                    color: '#8b5cf6',
+                    fontWeight: 700,
+                    fontSize: '0.7rem',
+                    height: 24,
+                    border: '1px solid rgba(139, 92, 246, 0.25)',
+                    '& .MuiChip-icon': { color: '#8b5cf6' }
+                }}
+            />
+        </Tooltip>
+    );
+}
+
 function SessionRow({ row, defaultOpen = false }: { row: any; defaultOpen?: boolean }) {
     const [open, setOpen] = useState(defaultOpen);
     const getDeviceIcon = (type: string) => {
@@ -73,6 +120,10 @@ function SessionRow({ row, defaultOpen = false }: { row: any; defaultOpen?: bool
                     </Stack>
                 </TableCell>
                 <TableCell>{row.user_name || 'Invitado'}</TableCell>
+                {/* ✅ NEW: Recurrence column */}
+                <TableCell>
+                    <RecurrenceBadge visitCount={row.visit_count} />
+                </TableCell>
                 <TableCell>
                     <Stack direction="row" spacing={1} alignItems="center">
                         {getDeviceIcon(row.device_type)}
@@ -99,24 +150,24 @@ function SessionRow({ row, defaultOpen = false }: { row: any; defaultOpen?: bool
                 </TableCell>
             </TableRow>
             <TableRow>
-                <TableCell style={{ paddingBottom: 0, paddingTop: 0 }} colSpan={7}>
+                <TableCell style={{ paddingBottom: 0, paddingTop: 0 }} colSpan={8}>
                     <Collapse in={open} timeout="auto" unmountOnExit>
                         <Box sx={{ margin: 2 }}>
                             <Typography variant="subtitle2" gutterBottom component="div">
                                 Detalles de la Sesión
                             </Typography>
                             <Grid container spacing={2}>
-                                <Grid item xs={12} md={6}>
+                                <Grid item xs={12} md={4}>
                                     <Typography variant="caption" color="text.secondary" display="block" gutterBottom>
                                         INTERACCIONES
                                     </Typography>
-                                    <Stack direction="row" spacing={2} sx={{ mb: 2 }}>
+                                    <Stack direction="row" spacing={1} sx={{ mb: 2 }} flexWrap="wrap" useFlexGap>
                                         <Chip icon={<VisibilityIcon />} label={`${row.events?.viewdish || 0} Platos vistos`} size="small" />
                                         <Chip icon={<FavoriteIcon />} label={`${row.events?.favorite || 0} Favoritos`} size="small" />
                                         <Chip label={`${row.events?.view_section || 0} Secciones`} size="small" variant="outlined" />
                                     </Stack>
                                 </Grid>
-                                <Grid item xs={12} md={6}>
+                                <Grid item xs={12} md={4}>
                                     <Typography variant="caption" color="text.secondary" display="block" gutterBottom>
                                         PLATOS QUE GUSTARON
                                     </Typography>
@@ -130,6 +181,42 @@ function SessionRow({ row, defaultOpen = false }: { row: any; defaultOpen?: bool
                                         <Typography variant="body2" color="text.secondary">Ninguno</Typography>
                                     )}
                                 </Grid>
+                                {/* ✅ NEW: Session metadata with recurrence context */}
+                                <Grid item xs={12} md={4}>
+                                    <Typography variant="caption" color="text.secondary" display="block" gutterBottom>
+                                        CONTEXTO
+                                    </Typography>
+                                    <Stack spacing={0.5}>
+                                        {row.visit_count > 1 && (
+                                            <Typography variant="body2" sx={{ color: '#8b5cf6' }}>
+                                                🔄 Visita nº {row.visit_count}
+                                            </Typography>
+                                        )}
+                                        {row.language_code && (
+                                            <Stack direction="row" spacing={0.5} alignItems="center">
+                                                <LanguageIcon sx={{ fontSize: 14, color: 'text.secondary' }} />
+                                                <Typography variant="body2" color="text.secondary">
+                                                    {row.language_code.toUpperCase()}
+                                                </Typography>
+                                            </Stack>
+                                        )}
+                                        {row.referrer && (
+                                            <Typography variant="body2" color="text.secondary" noWrap sx={{ maxWidth: 200 }}>
+                                                📎 {row.referrer}
+                                            </Typography>
+                                        )}
+                                        {row.pwa_installed === 1 && (
+                                            <Chip label="PWA" size="small" sx={{
+                                                bgcolor: 'rgba(99, 102, 241, 0.12)',
+                                                color: '#6366f1',
+                                                fontWeight: 600,
+                                                fontSize: '0.65rem',
+                                                height: 20,
+                                                width: 'fit-content'
+                                            }} />
+                                        )}
+                                    </Stack>
+                                </Grid>
                             </Grid>
                         </Box>
                     </Collapse>
@@ -138,7 +225,7 @@ function SessionRow({ row, defaultOpen = false }: { row: any; defaultOpen?: bool
         </React.Fragment>
     );
 }
-import { Grid } from '@mui/material';
+
 export default function SessionsTab({ timeRange }: SessionsTabProps) {
     const { currentRestaurant } = useAuth();
     const [page, setPage] = useState(0);
@@ -163,15 +250,54 @@ export default function SessionsTab({ timeRange }: SessionsTabProps) {
         setRowsPerPage(parseInt(event.target.value, 10));
         setPage(0);
     };
+
+    // ✅ NEW: Calculate recurrence summary from loaded sessions
+    const recurrenceSummary = React.useMemo(() => {
+        if (!data?.data) return null;
+        const sessions = data.data;
+        const newCount = sessions.filter((s: any) => !s.visit_count || s.visit_count <= 1).length;
+        const returningCount = sessions.filter((s: any) => s.visit_count > 1).length;
+        return { newCount, returningCount, total: sessions.length };
+    }, [data?.data]);
+
     if (isLoading && !data) return <Box sx={{ display: 'flex', justifyContent: 'center', p: 4 }}><CircularProgress /></Box>;
     if (error) return <Alert severity="error">Error al cargar sesiones</Alert>;
     return (
         <Card>
             <Box sx={{ p: 3 }}>
                 <Typography variant="h6" gutterBottom>Sesiones de Usuarios</Typography>
-                <Typography variant="body2" color="text.secondary">
-                    Registro detallado de visitas y comportamiento de usuarios.
-                </Typography>
+                <Stack direction="row" spacing={2} alignItems="center">
+                    <Typography variant="body2" color="text.secondary">
+                        Registro detallado de visitas y comportamiento de usuarios.
+                    </Typography>
+                    {/* ✅ NEW: Inline recurrence summary */}
+                    {recurrenceSummary && recurrenceSummary.total > 0 && (
+                        <Stack direction="row" spacing={1}>
+                            <Chip
+                                icon={<FiberNewIcon sx={{ fontSize: 14 }} />}
+                                label={`${recurrenceSummary.newCount} nuevas`}
+                                size="small"
+                                sx={{
+                                    bgcolor: 'rgba(34, 197, 94, 0.08)',
+                                    color: '#22c55e',
+                                    fontSize: '0.7rem',
+                                    '& .MuiChip-icon': { color: '#22c55e' }
+                                }}
+                            />
+                            <Chip
+                                icon={<LoopIcon sx={{ fontSize: 14 }} />}
+                                label={`${recurrenceSummary.returningCount} recurrentes`}
+                                size="small"
+                                sx={{
+                                    bgcolor: 'rgba(139, 92, 246, 0.08)',
+                                    color: '#8b5cf6',
+                                    fontSize: '0.7rem',
+                                    '& .MuiChip-icon': { color: '#8b5cf6' }
+                                }}
+                            />
+                        </Stack>
+                    )}
+                </Stack>
             </Box>
             <TableContainer>
                 <Table>
@@ -180,6 +306,7 @@ export default function SessionsTab({ timeRange }: SessionsTabProps) {
                             <TableCell />
                             <TableCell>Fecha</TableCell>
                             <TableCell>Usuario</TableCell>
+                            <TableCell>Visita</TableCell>
                             <TableCell>Dispositivo</TableCell>
                             <TableCell>Ubicación</TableCell>
                             <TableCell align="right">Duración</TableCell>
@@ -192,7 +319,7 @@ export default function SessionsTab({ timeRange }: SessionsTabProps) {
                         ))}
                         {(!data?.data || data.data.length === 0) && (
                             <TableRow>
-                                <TableCell colSpan={7} align="center" sx={{ py: 4 }}>
+                                <TableCell colSpan={8} align="center" sx={{ py: 4 }}>
                                     <Typography color="text.secondary">No hay sesiones registradas en este periodo</Typography>
                                 </TableCell>
                             </TableRow>

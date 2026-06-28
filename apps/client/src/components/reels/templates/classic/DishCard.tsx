@@ -23,7 +23,8 @@ import {
   Close,
   ShoppingCart,
   AddShoppingCart,
-  Kitchen
+  WarningAmber,
+  FormatListBulleted
 } from '@mui/icons-material';
 
 
@@ -32,7 +33,7 @@ import {
 <AddShoppingCart sx={{ fontSize: { xs: 22, sm: 26 } }} />
 import { useDishTracking } from '../../../../providers/TrackingAndPushProvider';
 import type { Allergen } from '../../../../lib/apiClient';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion } from 'framer-motion';
 import { useTranslation } from '../../../../contexts/TranslationContext';
 import { useInView } from 'react-intersection-observer';
 
@@ -74,6 +75,7 @@ interface DishCardProps {
 
 const ClassicDishCard: React.FC<DishCardProps> = ({
   dish,
+  restaurant,
   section,
   config,
   isActive,
@@ -92,21 +94,14 @@ const ClassicDishCard: React.FC<DishCardProps> = ({
   const [isPlaying, setIsPlaying] = useState(false);
   // ✅ Video-First Loading Pattern
   const [videoReady, setVideoReady] = useState(false); // Video can play without buffering
-  const [showFallbackImage, setShowFallbackImage] = useState(false); // Only show if timeout/error
   const [videoError, setVideoError] = useState(false);
-  const videoLoadTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [allergenImageErrors, setAllergenImageErrors] = useState<Set<string>>(new Set());
 
   // ✅ Reset video state when dish changes (essential for reused lists/swipers)
   useEffect(() => {
     setVideoReady(false);
-    setShowFallbackImage(false);
     setIsPlaying(false);
     setVideoError(false);
-    if (videoLoadTimeoutRef.current) {
-      clearTimeout(videoLoadTimeoutRef.current);
-      videoLoadTimeoutRef.current = null;
-    }
   }, [dish?.id]);
 
   // Estados del carrito
@@ -169,31 +164,7 @@ const ClassicDishCard: React.FC<DishCardProps> = ({
     setAllergenImageErrors(prev => new Set(prev).add(allergenId));
   }, []);
 
-  // ✅ Video-First: Start timeout when video should play, cancel if ready
-  useEffect(() => {
-    if (!isVideo || !isActive || !inView) {
-      // Clear timeout if not active/visible
-      if (videoLoadTimeoutRef.current) {
-        clearTimeout(videoLoadTimeoutRef.current);
-        videoLoadTimeoutRef.current = null;
-      }
-      return;
-    }
-
-    // Start 500ms timeout - if video not ready, show fallback
-    videoLoadTimeoutRef.current = setTimeout(() => {
-      if (!videoReady) {
-        setShowFallbackImage(true);
-      }
-    }, 500);
-
-    return () => {
-      if (videoLoadTimeoutRef.current) {
-        clearTimeout(videoLoadTimeoutRef.current);
-        videoLoadTimeoutRef.current = null;
-      }
-    };
-  }, [isVideo, isActive, inView, videoReady]);
+  // ✅ Thumbnail is always visible from frame 0 (no timeout needed)
 
   // Auto-play con pausa al hacer clic en el video
   useEffect(() => {
@@ -206,10 +177,9 @@ const ClassicDishCard: React.FC<DishCardProps> = ({
       video.muted = true;
       video.play().then(() => {
         setIsPlaying(true);
-      }).catch((error) => {
-        console.error('❌ [DishCard] Error reproduciendo video:', error);
+      }).catch(() => {
+
         setVideoError(true);
-        setShowFallbackImage(true); // Show image on play error
         trackMediaError(dish.id, 'video_play_failed', media?.url);
       });
     } else {
@@ -227,17 +197,14 @@ const ClassicDishCard: React.FC<DishCardProps> = ({
       viewDish(dish.id, section?.id);
       viewStartTimeRef.current = Date.now();
       lastTrackedDishRef.current = dish.id;
-      console.log('⏱️ [DishCard] Iniciando timer de visualización:', dish.id);
+
     }
 
     // Send duration when dish becomes invisible (but not on unmount - handled separately)
     if (!isCurrentlyViewing && viewStartTimeRef.current && lastTrackedDishRef.current) {
       const duration = Math.floor((Date.now() - viewStartTimeRef.current) / 1000);
       if (duration >= 1) {
-        console.log('⏱️ [DishCard] Enviando duración (visibility change):', {
-          dishId: lastTrackedDishRef.current,
-          duration
-        });
+
         trackDishViewDuration(lastTrackedDishRef.current, duration, section?.id);
       }
       viewStartTimeRef.current = null;
@@ -251,10 +218,7 @@ const ClassicDishCard: React.FC<DishCardProps> = ({
       if (viewStartTimeRef.current && lastTrackedDishRef.current) {
         const duration = Math.floor((Date.now() - viewStartTimeRef.current) / 1000);
         if (duration >= 1) {
-          console.log('⏱️ [DishCard] Enviando duración (unmount):', {
-            dishId: lastTrackedDishRef.current,
-            duration
-          });
+
           // Note: trackDishViewDuration captured from closure at mount time
           // This is intentional - we want the function reference, not stale dish data
         }
@@ -428,110 +392,136 @@ const ClassicDishCard: React.FC<DishCardProps> = ({
       ref={inViewRef}
       sx={{
         height: '100%',
-        width: '100%', // ✅ Changed from 100vw to 100% to respect container width
+        width: '100%',
         position: 'relative',
         overflow: 'hidden',
-        bgcolor: '#000',
+        bgcolor: 'transparent', // ✅ Transparent to show pattern from ReelsContainer
         transform: 'translateZ(0)',
-        backfaceVisibility: 'hidden'
+        backfaceVisibility: 'hidden',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        p: { xs: 0, md: 4 } // ✅ Reverted pt and pb as requested, back to centered padding
       }}
     >
-      {/* Media Background con click para pausar */}
+      {/* 🚀 DESKTOP WRAPPER */}
       <Box
-        onClick={handleVideoClick}
         sx={{
-          position: 'absolute',
-          top: 0,
-          left: 0,
-          right: 0,
-          bottom: 0,
-          zIndex: 1,
-          cursor: isVideo ? 'pointer' : 'default'
+          display: 'flex',
+          flexDirection: { xs: 'column', md: 'row' },
+          width: '100%',
+          height: { xs: '100%', md: 'min(65vh, 650px)' }, // ✅ Bulletproof: always 65% of screen, max 650px
+          maxWidth: { xs: '100%', md: '1200px' },
+          alignItems: 'stretch', // ✅ Stretch to fill the fixed height
+          gap: { xs: 0, md: 8 },
+          position: 'relative',
+          bgcolor: { xs: 'transparent', md: colors.primary }, // ✅ Background color specifically for the wrapper
+          borderRadius: { xs: 0, md: 4 }, // ✅ Rounded corners for the card
+          overflow: 'hidden', // ✅ Clip pattern
+          boxShadow: { xs: 'none', md: '0 20px 40px rgba(0,0,0,0.4)' } // ✅ Make it look like a floating card
         }}
       >
+        {/* ✅ Pattern Overlay for Desktop Wrapper */}
+        <Box
+          sx={{
+            position: 'absolute',
+            inset: 0,
+            backgroundImage: `url('${(config?.config as any)?.pattern_url || (config?.config as any)?.background_pattern_url || (restaurant as any)?.assets?.landing_pattern_url || "https://visualtasteworker.franciscotortosaestudios.workers.dev/media/System/landing/patron.png"}')`,
+            backgroundSize: '100%',
+            backgroundRepeat: 'repeat',
+            backgroundPosition: 'center top',
+            opacity: 0.15,
+            mixBlendMode: 'multiply',
+            pointerEvents: 'none',
+            display: { xs: 'none', md: 'block' },
+            zIndex: 0
+          }}
+        />
+        {/* Media Background con click para pausar */}
+        <Box
+          onClick={handleVideoClick}
+          sx={{
+            position: { xs: 'absolute', md: 'relative' },
+            top: 0,
+            left: 0,
+            right: { xs: 0, md: 'auto' },
+            bottom: 0,
+            width: { xs: '100%', md: '50%' }, // ✅ Exact 50% width as requested!
+            height: { xs: '100%', md: '100%' }, // ✅ Take 100% of the fixed 65vh wrapper
+            aspectRatio: 'auto', // ✅ Let it freely fill the 50% width instead of forcing a ratio
+            flexShrink: 0,
+            zIndex: 1,
+            cursor: isVideo ? 'pointer' : 'default',
+            overflow: 'hidden',
+            bgcolor: '#000000', // ✅ Sleek cinematic background for videos
+            borderRadius: { xs: 0, md: 4 }, // 🟢 Rounded edges on PC
+            boxShadow: { xs: 'none', md: '0 24px 60px rgba(0,0,0,0.4)' }
+          }}
+        >
         {isVideo && !videoError ? (
           <>
             {/* ✅ Video-First: Video starts invisible, fades in when ready */}
-            <video
+            <Box
+              component="video"
               ref={videoRef}
               src={media?.url}
               loop
               muted
               playsInline
-              preload={isActive ? 'auto' : 'metadata'}
+              preload={isActive ? 'metadata' : 'none'}
               onCanPlayThrough={() => {
                 // Video is ready to play without buffering
                 setVideoReady(true);
-                setShowFallbackImage(false); // Hide fallback if it was showing
-                if (videoLoadTimeoutRef.current) {
-                  clearTimeout(videoLoadTimeoutRef.current);
-                  videoLoadTimeoutRef.current = null;
-                }
               }}
               onError={() => {
                 setVideoError(true);
-                setShowFallbackImage(true);
               }}
-              style={{
-                width: '100%',
-                height: '100%',
-                objectFit: 'cover',
-                opacity: videoReady ? 1 : 0, // Start invisible, fade in when ready
-                transition: 'opacity 0.3s ease-in'
-              }}
-            />
-
-            {/* ✅ Fallback Image: Only shown if timeout (500ms) or error */}
-            {showFallbackImage && (
-              <Box
-                component="img"
-                src={media?.thumbnail_url || media?.url}
-                alt={dishName}
-                sx={{
-                  position: 'absolute',
-                  inset: 0,
-                  width: '100%',
-                  height: '100%',
-                  objectFit: 'cover',
-                  zIndex: 2,
-                  opacity: videoReady ? 0 : 1, // Fade out when video ready
-                  transition: 'opacity 0.3s ease-out',
-                  pointerEvents: 'none',
-                  willChange: 'opacity'
-                }}
-              />
-            )}
-          </>
-        ) : (
-          /* ✅ Image-only display with blurred background for better mobile viewing */
-          <Box sx={{ position: 'relative', width: '100%', height: '100%' }}>
-            {/* Blurred background layer - fills empty space aesthetically */}
-            <Box
-              component="img"
-              src={media?.url || `https://via.placeholder.com/400x600/${colors.primary.replace('#', '')}/ffffff?text=${encodeURIComponent(dishName.substring(0, 10))}`}
-              alt=""
-              aria-hidden="true"
               sx={{
                 position: 'absolute',
                 inset: 0,
                 width: '100%',
                 height: '100%',
-                objectFit: 'cover',
-                filter: 'blur(30px) brightness(0.4)',
-                transform: 'scale(1.1)', // Prevent blur edge artifacts
-                zIndex: 0
+                objectFit: 'contain', // ✅ Let it fit perfectly without zoom
+                opacity: videoReady ? 1 : 0, // Start invisible, fade in when ready
+                transition: 'opacity 0.3s ease-in',
+                zIndex: 1
               }}
             />
-            {/* Main image - fully visible without cropping */}
+
+            {/* ✅ First frame placeholder: shows actual video frame, fades out when video ready */}
+            <Box
+              component="video"
+              src={`${media?.url}#t=0.1`}
+              preload="metadata"
+              muted
+              playsInline
+              sx={{
+                position: 'absolute',
+                inset: 0,
+                width: '100%',
+                height: '100%',
+                objectFit: 'contain', // ✅ Let it fit perfectly without zoom
+                zIndex: 2,
+                opacity: videoReady ? 0 : 1,
+                transition: 'opacity 0.3s ease-out',
+                pointerEvents: 'none',
+              }}
+            />
+          </>
+        ) : (
+          /* ✅ Image-only display seamlessly filling its half of the card */
+          <Box sx={{ position: 'absolute', inset: 0, width: '100%', height: '100%' }}>
+            {/* Main image - cleanly covers the left half */}
             <Box
               component="img"
               src={media?.url || `https://via.placeholder.com/400x600/${colors.primary.replace('#', '')}/ffffff?text=${encodeURIComponent(dishName.substring(0, 10))}`}
               alt={dishName}
               sx={{
-                position: 'relative',
+                position: 'absolute', // ✅ Force absolute so it doesn't stretch the flex container height!
+                inset: 0,
                 width: '100%',
                 height: '100%',
-                objectFit: 'contain', // ✅ Show full image without cropping
+                objectFit: 'cover', // ✅ Perfect split-card look
                 zIndex: 1
               }}
             />
@@ -551,9 +541,10 @@ const ClassicDishCard: React.FC<DishCardProps> = ({
               : 'linear-gradient(0deg, rgba(0,0,0,0.8) 0%, transparent 30%)',
             zIndex: 3, // Increased z-index to sit above overlay
             transition: 'all 0.4s cubic-bezier(0.4, 0, 0.2, 1)',
-            backdropFilter: showDetails ? 'blur(8px)' : 'none',
-            WebkitBackdropFilter: showDetails ? 'blur(8px)' : 'none',
-            pointerEvents: 'none'
+            backdropFilter: showDetails ? 'blur(4px)' : 'none',
+            WebkitBackdropFilter: showDetails ? 'blur(4px)' : 'none',
+            pointerEvents: 'none',
+            display: { xs: 'block', md: 'none' } // ✅ Hide on PC since we have a split-screen panel
           }}
         />
       </Box>
@@ -564,17 +555,17 @@ const ClassicDishCard: React.FC<DishCardProps> = ({
       <Box
         sx={{
           position: 'absolute',
-          right: { xs: 12, sm: 16 },
-          top: '40%', // ✅ Moved higher (was 50%)
+          right: { xs: 12, sm: 16, md: 32 }, // Center nicely on PC with max-width 500
+          top: { xs: '40%', md: '50%' }, // ✅ Moved higher (was 50%)
           transform: 'translateY(-50%)',
-          display: 'flex',
+          display: { xs: 'flex', md: 'none' }, // ✅ HIDE FLOATING BUTTONS ON PC
           flexDirection: 'column',
           gap: { xs: 1.5, sm: 2 }, // ✅ Reduced gap
-          zIndex: 10,
+          zIndex: 60,
           // ✅ Hide when content is expanded
-          opacity: showDetails ? 0 : 1,
-          visibility: showDetails ? 'hidden' : 'visible',
-          pointerEvents: showDetails ? 'none' : 'auto',
+          opacity: { xs: showDetails ? 0 : 1, md: 1 },
+          visibility: { xs: showDetails ? 'hidden' : 'visible', md: 'visible' },
+          pointerEvents: { xs: showDetails ? 'none' : 'auto', md: 'auto' },
           transition: 'opacity 0.3s ease-in-out, visibility 0.3s ease-in-out'
         }}
       >
@@ -586,7 +577,7 @@ const ClassicDishCard: React.FC<DishCardProps> = ({
               width: { xs: 44, sm: 52 }, // ✅ Reduced size (was 52/60)
               height: { xs: 44, sm: 52 }, // ✅ Reduced size
               bgcolor: 'rgba(255,255,255,0.15)',
-              backdropFilter: 'blur(20px)',
+              backdropFilter: 'blur(10px)',
               border: '1px solid rgba(255,255,255,0.2)',
               color: isFavorite ? colors.primary : colors.text,
               boxShadow: '0 8px 32px rgba(0,0,0,0.3)',
@@ -629,7 +620,7 @@ const ClassicDishCard: React.FC<DishCardProps> = ({
                 width: { xs: 44, sm: 52 }, // ✅ Reduced size
                 height: { xs: 44, sm: 52 }, // ✅ Reduced size
                 bgcolor: colors.accent || colors.secondary,
-                backdropFilter: 'blur(20px)',
+                backdropFilter: 'blur(10px)',
                 border: '1px solid rgba(255,255,255,0.2)',
                 color: '#fff',
                 boxShadow: `0 8px 32px ${colors.accent || colors.secondary}80`,
@@ -680,8 +671,8 @@ const ClassicDishCard: React.FC<DishCardProps> = ({
                 sx={{
                   width: { xs: 44, sm: 52 }, // ✅ Reduced size
                   height: { xs: 44, sm: 52 }, // ✅ Reduced size
-                  bgcolor: 'rgba(255,255,255,0.15)',
-                  backdropFilter: 'blur(20px)',
+                  bgcolor: 'rgba(255,255,255,0.18)',
+                  backdropFilter: 'blur(10px)',
                   border: '1px solid rgba(255,255,255,0.2)',
                   color: '#fff',
                   boxShadow: '0 8px 32px rgba(0,0,0,0.3)',
@@ -711,11 +702,11 @@ const ClassicDishCard: React.FC<DishCardProps> = ({
           fullWidth
           PaperProps={{
             sx: {
-              bgcolor: 'rgba(20,20,20,0.98)',
-              backdropFilter: 'blur(40px)',
+              bgcolor: 'rgba(15,15,15,0.8)', // ✅ Make more transparent for glass effect
+              backdropFilter: 'blur(40px) saturate(150%)',
               borderRadius: 4,
-              border: '1px solid rgba(255,255,255,0.1)',
-              boxShadow: '0 24px 80px rgba(0,0,0,0.5)',
+              border: '1px solid rgba(255,255,255,0.15)',
+              boxShadow: '0 32px 100px rgba(0,0,0,0.6)',
               m: 2
             }
           }}
@@ -741,19 +732,48 @@ const ClassicDishCard: React.FC<DishCardProps> = ({
 
           <DialogContent sx={{ pt: 2 }}>
             {media?.url && (
-              <Box
-                component="img"
-                src={media?.thumbnail_url || media?.url}
-                alt={dishName}
-                sx={{
-                  width: '100%',
-                  height: 200,
-                  objectFit: 'cover',
-                  borderRadius: 3,
-                  mb: 3,
-                  boxShadow: '0 8px 24px rgba(0,0,0,0.3)'
-                }}
-              />
+              media?.thumbnail_url || !isVideo ? (
+                <Box
+                  component="img"
+                  src={media?.thumbnail_url || media?.url}
+                  alt={dishName}
+                  sx={{
+                    width: '100%',
+                    height: 200,
+                    objectFit: 'contain',
+                    bgcolor: '#000',
+                    borderRadius: 3,
+                    mb: 3,
+                    display: 'block',
+                    boxShadow: '0 8px 24px rgba(0,0,0,0.3)'
+                  }}
+                />
+              ) : (
+                <div
+                  style={{
+                    width: '100%',
+                    height: 200,
+                    borderRadius: 12,
+                    marginBottom: 24,
+                    overflow: 'hidden',
+                    backgroundColor: '#000',
+                    boxShadow: '0 8px 24px rgba(0,0,0,0.3)'
+                  }}
+                >
+                  <video
+                    src={`${media.url}#t=0.1`}
+                    preload="metadata"
+                    muted
+                    playsInline
+                    style={{
+                      width: '100%',
+                      height: '100%',
+                      objectFit: 'contain',
+                      display: 'block'
+                    }}
+                  />
+                </div>
+              )
             )}
 
             <Typography variant="h6" sx={{ color: colors.text, fontWeight: 600, mb: 1, fontFamily: '"Fraunces", serif' }}>
@@ -957,55 +977,73 @@ const ClassicDishCard: React.FC<DishCardProps> = ({
           }
         }}
         sx={{
-          position: 'absolute',
-          bottom: 10,
-          left: 0,
-          right: showDetails ? 10 : 75, // ✅ Full width when expanded
-          width: showDetails ? '95%' : '90%',
-          zIndex: showDetails ? 50 : 5, // ✅ Higher z-index when expanded
-          p: 2,
-          maxHeight: showDetails ? '75vh' : 'auto', // ✅ More space for reading
-          overflowY: showDetails ? 'auto' : 'visible',
-          overscrollBehavior: 'contain', // ✅ Prevent scroll chaining
-          touchAction: showDetails ? 'pan-y' : 'auto', // ✅ Isolate vertical touch
+          position: { xs: 'absolute', md: 'relative' },
+          bottom: { xs: 10, md: 0 },
+          left: { xs: 0, md: 'auto' },
+          right: { xs: showDetails ? 10 : 75, md: 0 },
+          width: { xs: showDetails ? '95%' : '90%', md: 'auto' }, // ✅ Auto on PC
+          flex: { xs: 'none', md: 1 }, // ✅ Take remaining space in flex container
+          maxWidth: { xs: '500px', md: 'none' }, // ✅ Unconstrained width on PC
+          zIndex: showDetails ? 50 : 5,
+          p: { xs: 2, md: 0 }, // ✅ Transparent on PC, no padding needed here
+          maxHeight: { xs: showDetails ? '75vh' : 'auto', md: '100%' }, // ✅ Full height on PC
+          overflowY: { xs: showDetails ? 'auto' : 'visible', md: 'auto' },
+          overscrollBehavior: 'contain',
+          touchAction: showDetails ? 'pan-y' : 'auto',
           WebkitOverflowScrolling: 'touch',
           scrollbarWidth: 'none',
           '&::-webkit-scrollbar': { display: 'none' },
-          // ✅ Performance optimizations
           willChange: showDetails ? 'scroll-position' : 'auto',
           transform: 'translateZ(0)',
+          display: 'flex',
+          flexDirection: 'column',
+          justifyContent: { xs: 'flex-end', md: 'flex-start' }, // ✅ Start from top on PC
+          pt: { xs: 0, md: 4 }, // Top padding on PC
+          bgcolor: { xs: 'transparent', md: 'transparent' }, // ✅ Remove glassmorphism on PC
+          backdropFilter: { xs: 'none', md: 'none' },
+          borderLeft: { xs: 'none', md: 'none' },
+          boxShadow: { xs: 'none', md: 'none' }
         }}
       >
         <motion.div
           initial={{ y: 30, opacity: 0 }}
           animate={{ y: 0, opacity: 1 }}
           transition={{ delay: 0.4, type: 'spring', stiffness: 100 }}
+          style={{ display: 'flex', flexDirection: 'column' }} // ✅ Make flex column to allow ordering
         >
+          {/* TITLE */}
           <Typography
             variant="h4"
             sx={{
+              order: { xs: 1, md: 2 },
               color: colors.text,
-              fontWeight: 800,
-              mb: 1,
-              fontSize: '1.25rem', // ✅ Force mobile size
-              textShadow: '0 2px 10px rgba(0,0,0,0.8)',
-              lineHeight: 1.2,
-              fontFamily: '"Fraunces", serif'
+              fontWeight: { xs: 800, md: 600 }, // ✅ More elegant presence
+              mb: 2,
+              fontSize: { xs: '1.5rem', md: '2.8rem' }, // ✅ Not gigantic
+              textShadow: '0 2px 10px rgba(0,0,0,0.6)', // ✅ Strong shadow for readability
+              lineHeight: 1.15,
+              fontFamily: '"Fraunces", "Playfair Display", serif',
+              textTransform: { xs: 'none', md: 'uppercase' },
+              letterSpacing: { xs: '0.02em', md: '0.04em' } // ✅ Elegant tracking
             }}
           >
             {dishName}
           </Typography>
 
-          {dish?.price != null && ( // ✅ Fix: Check for null/undefined to avoid rendering "0"
-            <Box sx={{ display: 'flex', alignItems: 'center', mb: 2, flexWrap: 'wrap', gap: 1 }}>
+          {/* PRICE */}
+          {dish?.price != null && (
+            <Box sx={{ order: { xs: 2, md: 3 }, display: 'flex', alignItems: 'center', mb: { xs: 2, md: 4 }, flexWrap: 'wrap', gap: 1 }}>
               <Typography
                 variant="h5"
                 sx={{
                   color: colors.primary,
                   fontWeight: 700,
-                  fontSize: '1.1rem', // ✅ Force mobile size
-                  textShadow: '0 2px 8px rgba(0,0,0,0.6)',
-                  fontFamily: '"Fraunces", serif'
+                  fontSize: { xs: '1.2rem', md: '1.6rem' },
+                  textShadow: '0 2px 8px rgba(0,0,0,0.8)',
+                  fontFamily: '"Fraunces", serif',
+                  letterSpacing: '0.02em',
+                  m: 0,
+                  p: 0
                 }}
               >
                 €{dish.price.toFixed(2)}
@@ -1031,7 +1069,7 @@ const ClassicDishCard: React.FC<DishCardProps> = ({
                     fontWeight: 700,
                     fontSize: '1.1rem',
                     ml: 0.5,
-                    textShadow: '0 2px 8px rgba(0,0,0,0.6)',
+                    textShadow: '0 2px 8px rgba(0,0,0,0.6)', // ✅ Readability
                     fontFamily: '"Fraunces", serif',
                     display: 'flex',
                     alignItems: 'center',
@@ -1045,7 +1083,88 @@ const ClassicDishCard: React.FC<DishCardProps> = ({
             </Box>
           )}
 
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 2, flexWrap: 'wrap' }}>
+          {/* ✅ Inline Desktop Actions */}
+          <Box sx={{ order: { xs: 3, md: 7 }, display: { xs: 'none', md: 'flex' }, alignItems: 'center', gap: 2, mt: 4, mb: 4, width: '100%' }}>
+            <Button
+              variant="contained"
+              onClick={(e) => {
+                e.stopPropagation();
+                setOpenAddModal(true);
+              }}
+              startIcon={<ShoppingCart />}
+              sx={{
+                bgcolor: 'rgba(255,255,255,0.15)', // ✅ Semi-transparent white
+                backdropFilter: 'blur(10px)', // ✅ Glassmorphism
+                border: '1px solid rgba(255,255,255,0.3)', // ✅ Subtle border to separate from background
+                color: '#fff',
+                maxWidth: '400px', // Nice proportional width
+                width: '100%',
+                py: 2,
+                borderRadius: 2,
+                fontSize: '1.1rem',
+                fontWeight: 600,
+                textTransform: 'none',
+                fontFamily: '"Inter", sans-serif',
+                boxShadow: '0 8px 24px rgba(0,0,0,0.2)',
+                '&:hover': {
+                  bgcolor: 'rgba(255,255,255,0.25)',
+                  border: '1px solid rgba(255,255,255,0.5)',
+                  boxShadow: '0 12px 32px rgba(0,0,0,0.3)',
+                  transform: 'translateY(-2px)'
+                },
+                transition: 'all 0.2s ease-in-out'
+              }}
+            >
+              {t('button_add', 'Agregar')}
+            </Button>
+
+            {/* Desktop Cart Button */}
+            {totalCartItems > 0 && (
+              <Badge
+                badgeContent={totalCartItems}
+                color="error"
+                sx={{
+                  '& .MuiBadge-badge': {
+                    bgcolor: colors.primary,
+                    color: '#fff',
+                    fontWeight: 700,
+                    fontSize: '0.85rem',
+                    minWidth: 24,
+                    height: 24,
+                    border: '2px solid rgba(0,0,0,0.8)',
+                    fontFamily: '"Fraunces", serif'
+                  }
+                }}
+              >
+                <IconButton
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    if (onOpenCart) onOpenCart();
+                  }}
+                  sx={{
+                    width: 52,
+                    height: 52,
+                    bgcolor: 'rgba(255,255,255,0.15)',
+                    backdropFilter: 'blur(10px)',
+                    border: '1px solid rgba(255,255,255,0.3)',
+                    color: '#fff',
+                    boxShadow: '0 8px 24px rgba(0,0,0,0.2)',
+                    '&:hover': {
+                      bgcolor: 'rgba(255,255,255,0.25)',
+                      transform: 'translateY(-2px)',
+                      boxShadow: '0 12px 32px rgba(0,0,0,0.3)'
+                    },
+                    transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)'
+                  }}
+                >
+                  <FormatListBulleted sx={{ fontSize: 26 }} />
+                </IconButton>
+              </Badge>
+            )}
+          </Box>
+
+          {/* BADGES */}
+          <Box sx={{ order: { xs: 4, md: 1 }, display: 'flex', alignItems: 'center', gap: 2, mb: { xs: 2, md: 1 }, flexWrap: 'wrap' }}>
             <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
               {dish?.isnew && (
                 <Chip
@@ -1094,202 +1213,73 @@ const ClassicDishCard: React.FC<DishCardProps> = ({
             )}
           </Box>
 
-          <Typography
-            sx={{
-              color: 'rgba(255,255,255,0.9)',
-              fontSize: { xs: '0.9rem', sm: '1rem' },
-              lineHeight: 1.5,
-              textShadow: '0 1px 4px rgba(0,0,0,0.8)',
-              fontWeight: 400,
+          {/* DESCRIPTION & INLINE INFO */}
+          <Box sx={{ order: { xs: 5, md: 4 }, width: '100%', mb: { xs: 2, md: 4 } }}>
+            <Box sx={{
               display: '-webkit-box',
               WebkitBoxOrient: 'vertical',
-              WebkitLineClamp: showDetails ? 'none' : 2,
-              overflow: showDetails ? 'visible' : 'hidden',
-              mb: 1,
-              fontFamily: '"Fraunces", serif'
-            }}
-          >
-            {description}
-          </Typography>
-
-          {/* ✅ "Ver más" button - only when collapsed */}
-          {!showDetails && (description.length > 100 || dish?.allergens?.length > 0) && (
-            <Box
-              onClick={toggleDetails}
-              sx={{
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                cursor: 'pointer',
-                fontWeight: 500,
-                fontSize: { xs: '0.8rem', sm: '0.9rem' },
-                width: '100%',
-                '&:hover': { opacity: 0.8 },
-                color: colors.accent,
-                fontFamily: '"Fraunces", serif'
-              }}
-            >
-              <Typography variant="body2" sx={{ mr: 0.5, color: colors.accent, fontFamily: '"Fraunces", serif' }}>
-                {t('see_more', 'Ver más')}
-              </Typography>
-              <ExpandLess
+              WebkitLineClamp: { xs: showDetails ? 'none' : 2, md: 'none' },
+              overflow: { xs: showDetails ? 'visible' : 'hidden', md: 'visible' },
+              mb: 2,
+              transition: 'all 0.3s ease'
+            }}>
+              <Typography
                 sx={{
-                  fontSize: 16,
-                  transform: 'rotate(180deg)',
+                  color: 'rgba(255,255,255,0.95)', // ✅ Brighter white
+                  fontSize: { xs: '0.95rem', sm: '1.1rem' },
+                  lineHeight: 1.8, // Better readability
+                  fontWeight: 400,
+                  fontFamily: '"Inter", "Roboto", sans-serif',
+                  letterSpacing: '0.015em',
+                  textShadow: '0 1px 4px rgba(0,0,0,0.6)', // ✅ Readability shadow
+                  mb: 2 // Breathing room
                 }}
-              />
-            </Box>
-          )}
-
-          {/* Sección expandible con información nutricional y alérgenos */}
-          <AnimatePresence>
-            {showDetails && (
-              <motion.div
-                initial={{ opacity: 0, height: 0 }}
-                animate={{ opacity: 1, height: 'auto' }}
-                exit={{ opacity: 0, height: 0 }}
-                transition={{ duration: 0.3, ease: 'easeInOut' }}
-                style={{ overflow: 'hidden' }}
               >
-                {(dish?.calories || dish?.protein) && (
-                  <Box sx={{ mb: 3 }}>
-                    <Typography
-                      variant="h6"
-                      sx={{
-                        color: colors.text,
-                        fontWeight: 600,
-                        mb: 2,
-                        fontSize: { xs: '1rem', sm: '1.1rem' },
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center', // Centrado
-                        gap: 1
-                      }}
-                    >
-                      <LocalDining sx={{ fontSize: 20 }} />
-                      {t('nutritional_info', 'Información Nutricional')}
-                    </Typography>
-                    <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(120px, 1fr))', gap: 2 }}>
-                      {dish?.calories && (
-                        <Box sx={{ textAlign: 'center', p: 2, bgcolor: 'rgba(255,255,255,0.1)', borderRadius: 2 }}>
-                          <Typography variant="h6" sx={{ color: colors.primary, fontWeight: 700 }}>
-                            {dish.calories}
-                          </Typography>
-                          <Typography variant="body2" sx={{ color: 'rgba(255,255,255,0.8)' }}>
-                            {t('calories', 'Calorías')}
-                          </Typography>
-                        </Box>
-                      )}
-                      {dish?.protein && (
-                        <Box sx={{ textAlign: 'center', p: 2, bgcolor: 'rgba(255,255,255,0.1)', borderRadius: 2 }}>
-                          <Typography variant="h6" sx={{ color: colors.secondary, fontWeight: 700 }}>
-                            {dish.protein}g
-                          </Typography>
-                          <Typography variant="body2" sx={{ color: 'rgba(255,255,255,0.8)' }}>
-                            {t('protein', 'Proteína')}
-                          </Typography>
-                        </Box>
-                      )}
+                {description}
+              </Typography>
+
+              {/* INLINE INGREDIENTS AND ALLERGENS (Compact) */}
+              {((dish?.ingredients || dish?.translations?.ingredients?.[currentLanguage]) || (dish?.allergens && dish.allergens.length > 0)) && (
+                <Box sx={{ 
+                  display: 'flex', 
+                  flexDirection: 'column',
+                  gap: 0.5, 
+                  mt: 1,
+                  opacity: 0.85
+                }}>
+                  {/* INGREDIENTS */}
+                  {(dish?.ingredients || dish?.translations?.ingredients?.[currentLanguage]) && (
+                    <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 0.5 }}>
+                      <LocalDining sx={{ fontSize: 16, color: '#f5d587', mt: 0.3 }} />
+                      <Typography sx={{ color: 'rgba(255,255,255,0.9)', fontSize: '0.85rem', fontFamily: '"Inter", sans-serif', textShadow: '0 1px 4px rgba(0,0,0,0.6)' }}>
+                        {dish.ingredients || dish.translations?.ingredients?.[currentLanguage]}
+                      </Typography>
                     </Box>
-                  </Box>
-                )}
+                  )}
 
-
-
-                {(dish?.ingredients || dish?.translations?.ingredients?.[currentLanguage]) && (
-                  <Box sx={{ mb: 3 }}>
-                    <Typography
-                      variant="h6"
-                      sx={{
-                        color: colors.secondary,
-                        fontWeight: 600,
-                        mb: 2,
-                        fontSize: { xs: '1rem', sm: '1.1rem' },
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        gap: 1,
-                        fontFamily: '"Fraunces", serif'
-                      }}
-                    >
-                      <Kitchen sx={{ fontSize: 20, color: colors.secondary }} />
-                      {t('ingredients', 'Ingredientes')}
-                    </Typography>
-                    <Typography
-                      sx={{
-                        color: 'rgba(255,255,255,0.8)',
-                        fontSize: '0.95rem',
-                        lineHeight: 1.6,
-                        textAlign: 'center',
-                        fontFamily: '"Fraunces", serif',
-                        px: 2
-                      }}
-                    >
-                      {dish.ingredients || dish.translations?.ingredients?.[currentLanguage]}
-                    </Typography>
-                  </Box>
-                )}
-
-                {/* Alérgenos */}
-                {dish?.allergens && dish.allergens.length > 0 && (
-                  <Box sx={{ mb: 3 }}>
-                    <Typography
-                      variant="h6"
-                      sx={{
-                        color: colors.secondary,
-                        fontWeight: 600,
-                        mb: 2,
-                        fontSize: { xs: '1rem', sm: '1.1rem' },
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        gap: 1,
-                        fontFamily: '"Fraunces", serif'
-                      }}
-                    >
-                      <Spa sx={{ fontSize: 20, color: colors.secondary }} />
-                      {t('allergens', 'Alérgenos')}
-                    </Typography>
-                    <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1, justifyContent: 'center' }}>
-                      {dish.allergens.map((allergen: any) => (
-                        <Box
-                          key={allergen.id}
-                          sx={{
-                            display: 'flex',
-                            alignItems: 'center',
-                            gap: 1,
-                            bgcolor: 'rgba(255,255,255,0.1)',
-                            px: 1.5,
-                            py: 0.75,
-                            borderRadius: 2,
-                            border: '1px solid rgba(255,255,255,0.1)'
-                          }}
-                        >
-                          <img
-                            src={getAllergenIconUrl(allergen)}
-                            alt={getAllergenName(allergen, currentLanguage)}
-                            style={{ width: 20, height: 20, objectFit: 'contain', filter: 'none' }}
-                            onError={(e) => {
-                              (e.target as HTMLImageElement).style.display = 'none';
-                            }}
-                          />
-                          <Typography
-                            sx={{
-                              color: 'rgba(255,255,255,0.9)',
-                              fontSize: '0.85rem',
-                              fontWeight: 500,
-                              fontFamily: '"Fraunces", serif'
-                            }}
-                          >
-                            {getAllergenName(allergen, currentLanguage)}
+                  {/* ALLERGENS */}
+                  {dish?.allergens && dish.allergens.length > 0 && (
+                    <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 0.5 }}>
+                      <WarningAmber sx={{ fontSize: 16, color: '#f5d587', mt: 0.3 }} />
+                      <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5, alignItems: 'center' }}>
+                        <Typography sx={{ color: 'rgba(255,255,255,0.9)', fontSize: '0.85rem', fontFamily: '"Inter", sans-serif', mr: 0.5, fontWeight: 600, textShadow: '0 1px 4px rgba(0,0,0,0.6)' }}>
+                          {t('allergens', 'Alérgenos:')}
+                        </Typography>
+                        {dish.allergens.map((allergen: any, idx: number) => (
+                          <Typography key={allergen.id} sx={{ color: 'rgba(255,255,255,0.9)', fontSize: '0.85rem', fontFamily: '"Inter", sans-serif', textShadow: '0 1px 4px rgba(0,0,0,0.6)' }}>
+                            {getAllergenName(allergen, currentLanguage)}{idx < dish.allergens.length - 1 ? ', ' : ''}
                           </Typography>
-                        </Box>
-                      ))}
+                        ))}
+                      </Box>
                     </Box>
-                  </Box>
-                )}
+                  )}
+                </Box>
+              )}
+            </Box>
 
-                {/* ✅ "Ver menos" button - at the END of all content, like Instagram */}
+            {/* ✅ "Ver más / Ver menos" button for mobile */}
+            <Box sx={{ display: { xs: 'block', md: 'none' } }}>
+              {(description.length > 100 || (dish?.allergens && dish.allergens.length > 0) || (dish?.ingredients)) && (
                 <Box
                   onClick={toggleDetails}
                   sx={{
@@ -1297,43 +1287,33 @@ const ClassicDishCard: React.FC<DishCardProps> = ({
                     alignItems: 'center',
                     justifyContent: 'center',
                     cursor: 'pointer',
-                    fontWeight: 500,
-                    fontSize: { xs: '0.85rem', sm: '0.95rem' },
-                    mt: 2,
-                    mb: 1,
-                    py: 1.5,
-                    width: '100%',
-                    bgcolor: 'rgba(255,255,255,0.08)',
-                    borderRadius: 2,
-                    border: `1px solid ${colors.accent}40`,
-                    '&:hover': {
-                      opacity: 0.9,
-                      bgcolor: 'rgba(255,255,255,0.12)'
-                    },
-                    '&:active': {
-                      transform: 'scale(0.98)'
-                    },
-                    color: colors.accent,
+                    fontWeight: 600,
+                    fontSize: '0.9rem',
+                    color: colors.primary,
                     fontFamily: '"Fraunces", serif',
-                    transition: 'all 0.2s ease'
+                    mt: 2,
+                    py: 1.5,
+                    px: 2,
+                    border: `1px solid ${colors.primary}40`,
+                    borderRadius: 2,
+                    bgcolor: 'rgba(0,0,0,0.4)',
+                    backdropFilter: 'blur(4px)',
+                    width: '100%',
+                    boxSizing: 'border-box'
                   }}
                 >
-                  <Typography variant="body2" sx={{ mr: 0.5, color: colors.accent, fontFamily: '"Fraunces", serif', fontWeight: 600 }}>
-                    {t('see_less', 'Ver menos')}
+                  <Typography variant="body2" sx={{ mr: 0.5, color: colors.primary, fontFamily: '"Fraunces", serif', fontWeight: 600 }}>
+                    {showDetails ? t('see_less', 'Ver menos') : t('see_more', 'Ver más')}
                   </Typography>
-                  <ExpandLess
-                    sx={{
-                      fontSize: 18,
-                      transform: 'rotate(0deg)',
-                    }}
-                  />
+                  {showDetails ? <ExpandLess sx={{ fontSize: 18, color: colors.primary }} /> : <ExpandLess sx={{ fontSize: 18, color: colors.primary, transform: 'rotate(180deg)' }} />}
                 </Box>
-              </motion.div>
-            )}
-          </AnimatePresence>
+              )}
+            </Box>
+          </Box>
         </motion.div>
       </Box>
-    </Box>
+      </Box>
+    </Box >
   );
 };
 

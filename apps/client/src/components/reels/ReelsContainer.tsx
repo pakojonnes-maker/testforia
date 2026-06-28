@@ -46,8 +46,7 @@ import {
   Drawer,
   List,
   ListItem,
-  Alert,
-  Button
+  Alert
 } from '@mui/material';
 import apiClient from '../../lib/apiClient';
 
@@ -74,11 +73,49 @@ interface CartItem {
   quantity: number;
   portion: 'full' | 'half';
   image?: string;
+  videoUrl?: string;
   addedAt: string;
 }
 
+const MobileSocialMenu = ({ children }: { children: any }) => {
+  const [isOpen, setIsOpen] = useState(false);
+  return (
+    <Box sx={{ display: 'flex', flexDirection: 'row', alignItems: 'center', gap: 1 }}>
+      <IconButton
+        onClick={() => setIsOpen(!isOpen)}
+        sx={{
+          width: 40, height: 40,
+          bgcolor: 'rgba(0,0,0,0.3)',
+          border: '1px solid rgba(255,255,255,0.2)',
+          backdropFilter: 'blur(10px)',
+          color: '#fff',
+          boxShadow: 'none',
+          zIndex: 2,
+          transition: 'all 0.3s ease',
+          transform: isOpen ? 'rotate(45deg)' : 'rotate(0deg)'
+        }}
+      >
+        <Add sx={{ fontSize: 20 }} />
+      </IconButton>
+      
+      <Box sx={{
+          display: 'flex',
+          flexDirection: 'row',
+          alignItems: 'center',
+          gap: 1,
+          overflow: 'hidden',
+          maxWidth: isOpen ? 500 : 0,
+          opacity: isOpen ? 1 : 0,
+          transition: 'all 0.4s cubic-bezier(0.4, 0, 0.2, 1)'
+      }}>
+        {children}
+      </Box>
+    </Box>
+  );
+};
+
 const UI_CONFIG = {
-  SWIPER_SPEED: 400,             // ✅ Standard snappy speed (Instagram style)
+  SWIPER_SPEED: 280,             // ✅ Fast snappy speed for fluid swiping
   SWIPER_RESISTANCE_RATIO: 0.85, // ✅ High resistance at edges (Rubber band effect)
   TOUCH_RATIO: 1,                // ✅ 1:1 Touch response (Immediate)
   THRESHOLD: 5,                  // ✅ Standard threshold
@@ -120,7 +157,7 @@ const ReelsContainer: React.FC<ReelsContainerProps> = React.memo(({
   initialDishIndex = 0,
   onClose
 }) => {
-  console.log('🎬 [ReelsContainer] Fixed Navigation & UI');
+
 
   // ======================================================================
   // HOOKS & STATE
@@ -137,7 +174,7 @@ const ReelsContainer: React.FC<ReelsContainerProps> = React.memo(({
 
   useEffect(() => {
     if (reelConfig) {
-      console.log('🌍 [ReelsContainer] Translations loaded:', Object.keys(reelConfig.translations || {}).length);
+
       // console.log('🌍 [ReelsContainer] Translations content:', reelConfig.translations);
     }
   }, [reelConfig]);
@@ -162,7 +199,7 @@ const ReelsContainer: React.FC<ReelsContainerProps> = React.memo(({
 
   // Extract marketing campaign
   const marketingCampaign = useMemo(() => {
-    console.log('🔍 [ReelsContainer] Extracting marketing campaign from config:', reelConfig?.marketing);
+
     return reelConfig?.marketing;
   }, [reelConfig]);
 
@@ -188,11 +225,7 @@ const ReelsContainer: React.FC<ReelsContainerProps> = React.memo(({
 
   // Auto-open Welcome Modal
   useEffect(() => {
-    console.log('🔍 [ReelsContainer] Checking auto-open conditions:', {
-      hasCampaign: !!marketingCampaign,
-      restaurantId: reelConfig?.restaurant?.id,
-      settings: marketingCampaign?.settings
-    });
+
 
     if (!marketingCampaign || !reelConfig?.restaurant?.id) return;
 
@@ -200,33 +233,34 @@ const ReelsContainer: React.FC<ReelsContainerProps> = React.memo(({
     const isEnabled = marketingCampaign.settings?.auto_open !== false;
     const delay = marketingCampaign.settings?.delay || 1500;
 
-    console.log('🔍 [ReelsContainer] Auto-open enabled:', isEnabled, 'Delay:', delay);
+
 
     if (!isEnabled) return;
 
-    const hasSeenWelcome = localStorage.getItem(`welcome_seen_${reelConfig.restaurant.id}`);
+    // ✅ FIX: Use campaignId instead of restaurantId so new campaigns are shown to returning visitors
+    const hasSeenWelcome = localStorage.getItem(`welcome_seen_${marketingCampaign.id}`);
     const hasSubscribed = localStorage.getItem(`subscribed_${reelConfig.restaurant.id}`);
 
-    console.log('🔍 [ReelsContainer] LocalStorage checks:', { hasSeenWelcome, hasSubscribed });
+
 
     if (!hasSeenWelcome && !hasSubscribed) {
-      console.log('🔍 [ReelsContainer] Scheduling modal open...');
+
       // Delay slightly for better UX
       const timer = setTimeout(() => {
-        console.log('🔍 [ReelsContainer] Opening modal now!');
+
         setWelcomeModalOpen(true);
-        localStorage.setItem(`welcome_seen_${reelConfig.restaurant.id}`, 'true');
+        localStorage.setItem(`welcome_seen_${marketingCampaign.id}`, 'true');
       }, delay);
       return () => clearTimeout(timer);
     } else {
-      console.log('🔍 [ReelsContainer] Modal suppressed (already seen or subscribed)');
+
     }
   }, [reelConfig?.restaurant?.id, marketingCampaign]);
 
   const navigate = useNavigate();
 
   // ✅ FIX: Usar sessionId del TrackingProvider en lugar de crear uno propio
-  const { sessionId: trackingSessionId, triggerPushPrompt } = useTracking();
+  const { sessionId: trackingSessionId } = useTracking();
 
   // Sincronizar con el sessionId del TrackingProvider
   const sessionId = trackingSessionId || undefined;
@@ -252,7 +286,7 @@ const ReelsContainer: React.FC<ReelsContainerProps> = React.memo(({
   // ======================================================================
   const [cart, setCart] = useState<CartItem[]>([]);
   const [cartId, setCartId] = useState<string | null>(null);
-  const [cartCreatedAt, setCartCreatedAt] = useState<string | null>(null);
+
   const [openCartDrawer, setOpenCartDrawer] = useState(false);
 
   // Generar UUID para carrito
@@ -260,24 +294,19 @@ const ReelsContainer: React.FC<ReelsContainerProps> = React.memo(({
     return 'cart_' + Math.random().toString(36).substring(2, 15) + Date.now().toString(36);
   }, []);
 
+  // ✅ FIX: Open offer directly without push prompt interception
   const handleOpenOffer = () => {
-    console.log('🔍 [ReelsContainer] Manual open offer triggered');
-    console.log('🔍 [ReelsContainer] Current campaign state:', marketingCampaign);
-
-    // Check "Soft Prompt" before opening
-    triggerPushPrompt(() => {
-      setWelcomeModalOpen(true);
-    });
+    setWelcomeModalOpen(true);
   };
 
   const handleOpenReservation = useCallback(() => {
-    console.log('📅 [ReelsContainer] Opening reservation page');
+
     navigate(`/reserve/${restaurantSlug}`);
   }, [navigate, restaurantSlug]);
 
   // ✅ Handler for opening delivery modal
   const handleOpenDelivery = useCallback(() => {
-    console.log('🛵 [ReelsContainer] Opening delivery modal');
+
     setDeliveryModalOpen(true);
   }, []);
 
@@ -410,29 +439,7 @@ const ReelsContainer: React.FC<ReelsContainerProps> = React.memo(({
     } catch (error) { console.error('❌ [Tracking] Error opening cart:', error); }
   }, [sessionId, restaurantData.restaurant, cartId, cart]);
 
-  const trackCartShownToStaff = useCallback(async () => {
-    if (!sessionId || !restaurantData.restaurant?.id || !cartId || !cartCreatedAt) return;
-    const timeSpent = Math.floor((Date.now() - new Date(cartCreatedAt).getTime()) / 1000);
-    try {
-      await apiClient.tracking.sendEvents({
-        sessionId: sessionId,
-        restaurantId: restaurantData.restaurant.id,
-        events: [{
-          type: 'cart_shown_to_staff',
-          entityId: cartId,
-          entityType: 'cart',
-          value: JSON.stringify({
-            totalItems: cart.reduce((acc, item) => acc + item.quantity, 0),
-            uniqueDishes: cart.length,
-            totalValue: cart.reduce((acc, item) => acc + (item.price * item.quantity), 0),
-            timeSpentSeconds: timeSpent,
-            items: cart.map(item => ({ dishId: item.dishId, name: item.name, quantity: item.quantity, price: item.price }))
-          }),
-          ts: new Date().toISOString()
-        }]
-      });
-    } catch (error) { console.error('❌ [Tracking] Error showing cart to staff:', error); }
-  }, [sessionId, restaurantData.restaurant, cartId, cartCreatedAt, cart]);
+
 
   // Cart Actions
   const addToCart = useCallback(async (dish: any, quantity: number, portion: 'full' | 'half' = 'full', price?: number) => {
@@ -443,7 +450,7 @@ const ReelsContainer: React.FC<ReelsContainerProps> = React.memo(({
     if (!currentCartId) {
       currentCartId = generateCartId();
       setCartId(currentCartId);
-      setCartCreatedAt(new Date().toISOString());
+
       await trackCartCreated(currentCartId);
     }
 
@@ -456,7 +463,9 @@ const ReelsContainer: React.FC<ReelsContainerProps> = React.memo(({
     }
 
     const media = dish?.media?.[0];
-    const image = media?.thumbnail_url || media?.url;
+    const isVideoMedia = media?.media_type === 'video' || media?.type === 'video' || media?.url?.endsWith('.mp4');
+    const image = media?.thumbnail_url || (!isVideoMedia ? media?.url : undefined);
+    const videoUrl = isVideoMedia ? media?.url : undefined;
 
     // Use provided price or fallback to dish prices
     const itemPrice = price !== undefined ? price : (portion === 'half' ? (dish.half_price || 0) : (dish.price || 0));
@@ -478,6 +487,7 @@ const ReelsContainer: React.FC<ReelsContainerProps> = React.memo(({
         quantity: quantity,
         portion,
         image,
+        videoUrl,
         addedAt: new Date().toISOString()
       };
       updatedCart = [...cart, newItem];
@@ -513,12 +523,7 @@ const ReelsContainer: React.FC<ReelsContainerProps> = React.memo(({
     await trackCartOpened();
   }, [trackCartOpened]);
 
-  const handleShowToStaff = useCallback(async () => {
-    await trackCartShownToStaff();
-    const msg = t('order_registered_alert', '¡Tu pedido ha sido registrado! Consulta con el personal de sala.');
-    alert(msg);
-    setOpenCartDrawer(false);
-  }, [trackCartShownToStaff]);
+
 
   // ======================================================================
   // TRACKING
@@ -589,13 +594,48 @@ const ReelsContainer: React.FC<ReelsContainerProps> = React.memo(({
       }
     };
 
+    // ✅ FIX: Global mouseup to release stuck drag state on nested swipers
+    // This handles the case where cursor leaves the "phone" container
+    const handleGlobalMouseUp = () => {
+      // Force horizontal swiper to recognize mouse release
+      if (horizontalSwiperRef.current) {
+        const swiper = horizontalSwiperRef.current as any;
+        // Always try to release - check various internal states
+        if (swiper.touches?.diff || swiper.animating === false) {
+
+          swiper.slideTo(swiper.activeIndex, 300);
+        }
+      }
+      // Also release vertical swiper
+      if (verticalSwiperRef.current) {
+        const swiper = verticalSwiperRef.current as any;
+        if (swiper.touches?.diff || swiper.animating === false) {
+
+          swiper.slideTo(swiper.activeIndex, 300);
+        }
+      }
+    };
+
+    // ✅ FIX: Prevent native image/video drag behavior
+    const preventDragStart = (e: DragEvent) => {
+      const target = e.target as HTMLElement;
+      if (target.tagName === 'IMG' || target.tagName === 'VIDEO' || target.closest('.swiper')) {
+        e.preventDefault();
+        return false;
+      }
+    };
+
     document.addEventListener('touchmove', preventDefaultScroll, { passive: false });
+    document.addEventListener('mouseup', handleGlobalMouseUp);
+    document.addEventListener('dragstart', preventDragStart);
 
     return () => {
       // Remover clase al desmontar
       document.documentElement.classList.remove('reels-mode');
       document.body.classList.remove('reels-mode');
       document.removeEventListener('touchmove', preventDefaultScroll);
+      document.removeEventListener('mouseup', handleGlobalMouseUp);
+      document.removeEventListener('dragstart', preventDragStart);
 
       // Restaurar scroll position
       window.scrollTo(0, scrollY);
@@ -609,7 +649,7 @@ const ReelsContainer: React.FC<ReelsContainerProps> = React.memo(({
   }, [currentSection?.id, setCurrentSection]);
 
   useEffect(() => {
-    console.log(`🎯 [ReelsContainer] State - Section: ${currentSectionIndex}, Dish: ${currentDishIndex}, Language: ${currentLanguage}`);
+
   }, [currentSectionIndex, currentDishIndex, currentLanguage]);
 
   useEffect(() => {
@@ -675,7 +715,7 @@ const ReelsContainer: React.FC<ReelsContainerProps> = React.memo(({
     const now = Date.now();
 
     if (now - lastUpdateRef.current < 300) {
-      console.log(`⏱️ [ReelsContainer] Debounce activo, ignorando click`);
+
       return;
     }
 
@@ -684,11 +724,11 @@ const ReelsContainer: React.FC<ReelsContainerProps> = React.memo(({
     if (newIndex === current ||
       newIndex < 0 ||
       newIndex >= (reelConfig?.sections?.length || 0)) {
-      console.log(`⚠️ [ReelsContainer] Invalid index or same section: ${newIndex} (current: ${current})`);
+
       return;
     }
 
-    console.log(`📂 [ReelsContainer] 🔥 Section change via CLICK: ${current} → ${newIndex}`);
+
 
     lastUpdateRef.current = now;
     isClickNavigationRef.current = true;
@@ -702,16 +742,13 @@ const ReelsContainer: React.FC<ReelsContainerProps> = React.memo(({
     }
 
     if (horizontalSwiperRef.current) {
-      console.log(`🎯 [ReelsContainer] Moving horizontal swiper to slide: ${newIndex}`);
       horizontalSwiperRef.current.slideTo(newIndex, UI_CONFIG.SWIPER_SPEED, false);
-    } else {
-      console.error(`❌ [ReelsContainer] horizontalSwiperRef.current is NULL!`);
-    }
 
-    setTimeout(() => {
-      isClickNavigationRef.current = false;
-      console.log(`✅ [ReelsContainer] Navigation completed`);
-    }, UI_CONFIG.SWIPER_SPEED + 100);
+
+      setTimeout(() => {
+        isClickNavigationRef.current = false;
+      }, UI_CONFIG.SWIPER_SPEED + 100);
+    }
   }, [reelConfig?.sections, setCurrentSection]);
 
   const handleDishChange = useCallback((newIndex: number, sectionIndex: number, swiperInstance?: SwiperType) => {
@@ -737,7 +774,7 @@ const ReelsContainer: React.FC<ReelsContainerProps> = React.memo(({
       return;
     }
 
-    console.log(`🍽️ [ReelsContainer] Dish: prev=${prevIndex}, requested=${newIndex}, target=${targetIndex}`);
+
 
     // Correct swiper position if needed
     if (swiperInstance && targetIndex !== newIndex) {
@@ -753,7 +790,7 @@ const ReelsContainer: React.FC<ReelsContainerProps> = React.memo(({
   }, []);
 
   const handleLanguageChange = useCallback((languageCode: string) => {
-    console.log(`🌍 [ReelsContainer] Language change: ${currentLanguage} → ${languageCode}`);
+
     setCurrentLanguage(languageCode);
   }, [currentLanguage]);
 
@@ -793,7 +830,7 @@ const ReelsContainer: React.FC<ReelsContainerProps> = React.memo(({
       cssMode: false,
       freeMode: false,
       centeredSlides: true,
-      preventInteractionOnTransition: true, // ✅ Block new gestures during animation
+      preventInteractionOnTransition: false, // ✅ Allow queueing swipes during animation for fluid feel
       mousewheel: {               // ✅ Mouse/trackpad wheel control
         forceToAxis: true,
         sensitivity: 1,           // ✅ Standard sensitivity
@@ -809,23 +846,23 @@ const ReelsContainer: React.FC<ReelsContainerProps> = React.memo(({
       }
     },
     horizontal: {
-      modules: [Virtual, Mousewheel],
+      modules: [Virtual, Mousewheel],  // ✅ Restored Virtual for performance
       direction: 'horizontal' as const,
       slidesPerView: 1,
-      slidesPerGroup: 1,
+      slidesPerGroup: 1,              // ✅ Only 1 section per swipe
       spaceBetween: 0,
-      // ✅ MITIGATION: Aggressive sensitivity reduction
-      touchRatio: 0.4,            // Much lower than 1 - reduces swipe momentum
-      threshold: 25,              // High threshold - requires very intentional swipe
-      shortSwipes: true,
-      longSwipes: false,          // Completely disabled
-      longSwipesRatio: 0.05,      // Virtually impossible to trigger
-      longSwipesMs: 50,           // Very short window
+      // ✅ VERY EASY horizontal swipe - matching vertical sensitivity
+      touchRatio: 1.5,                // ✅ HIGH: amplifies finger movement 
+      threshold: 3,                   // ✅ VERY LOW: starts responding immediately
+      shortSwipes: true,              // ✅ Enable short/quick swipes
+      longSwipes: false,              // ✅ Disabled to prevent multi-section jumps
+      longSwipesRatio: 0.15,          // ✅ Safety margin
+      longSwipesMs: 150,              // ✅ Short window
       followFinger: true,
       touchReleaseOnEdges: false,
       touchEventsTarget: 'container' as const,
       edgeSwipeDetection: true,
-      edgeSwipeThreshold: 50,
+      edgeSwipeThreshold: 20,         // ✅ Very easy edge starts
       touchStartPreventDefault: false,
       freeMode: false,
       watchSlidesProgress: true,
@@ -833,19 +870,20 @@ const ReelsContainer: React.FC<ReelsContainerProps> = React.memo(({
         enabled: true,
         cache: true
       },
-      speed: 450,                 // Slightly slower to feel more controlled
+      speed: 350,                     // ✅ Fast, snappy transition
       allowTouchMove: true,
-      simulateTouch: true,
+      simulateTouch: true,            // ✅ Desktop mouse drag
+      grabCursor: true,               // ✅ Show grab cursor on desktop
       resistance: true,
-      resistanceRatio: 0.92,      // High resistance at edges
+      resistanceRatio: 0.5,           // ✅ LOW: minimal resistance = very easy swipe
       cssMode: false,
       centeredSlides: true,
       preventInteractionOnTransition: true,
       mousewheel: {
         forceToAxis: true,
-        sensitivity: 0.5,         // Reduced mouse sensitivity too
-        thresholdDelta: 80,       // Higher threshold for wheel
-        thresholdTime: 400,
+        sensitivity: 1,               // ✅ Full sensitivity for wheel
+        thresholdDelta: 30,           // ✅ Low threshold
+        thresholdTime: 200,           // ✅ Quick response
         releaseOnEdges: false
       },
       lazy: {
@@ -897,16 +935,10 @@ const ReelsContainer: React.FC<ReelsContainerProps> = React.memo(({
 
   // ✅ Desktop Background & Pattern
   // Log branding to debug color issues
-  console.log('🎨 [ReelsContainer] Branding:', reelConfig.restaurant?.branding);
 
-  // ✅ FIX: Use background_color to match Hero Section (not accent_color)
-  const brandColor = (reelConfig.restaurant?.branding as any)?.background_color || reelConfig.restaurant?.branding?.primaryColor || '#000000';
 
-  // Use pattern from config or assets, similar to HeroPremiumSection
-  const patternUrl = (reelConfig.config as any)?.pattern_url ||
-    (reelConfig.config as any)?.background_pattern_url ||
-    (reelConfig.restaurant as any)?.assets?.landing_pattern_url ||
-    "https://visualtasteworker.franciscotortosaestudios.workers.dev/media/System/patterns/waves.svg";
+  // ✅ FIX: Use primary color as background as requested by user
+  const brandColor = reelConfig.restaurant?.branding?.primaryColor || (reelConfig.restaurant?.branding as any)?.primary_color || '#000000';
 
   return (
     // ✅ Outer Container: Desktop Background
@@ -914,7 +946,7 @@ const ReelsContainer: React.FC<ReelsContainerProps> = React.memo(({
       sx={{
         width: '100vw',
         height: '100svh',
-        bgcolor: brandColor,
+        background: `linear-gradient(135deg, ${brandColor} 0%, #000000 100%)`, // ✅ Gradient from primary to black
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
@@ -922,38 +954,37 @@ const ReelsContainer: React.FC<ReelsContainerProps> = React.memo(({
         position: 'relative'
       }}
     >
-      {/* ✅ Pattern Overlay */}
-      <Box
-        sx={{
-          position: 'absolute',
-          inset: 0,
-          backgroundImage: `url('${patternUrl}')`,
-          backgroundSize: '160px auto',
-          backgroundRepeat: 'repeat',
-          backgroundPosition: 'center top', // Match HeroPremiumSection
-          opacity: 0.12, // Match HeroPremiumSection
-          mixBlendMode: 'soft-light', // Match HeroPremiumSection
-          pointerEvents: 'none'
-        }}
-      />
-
-      {/* ✅ Inner Container: Mobile Phone Simulation */}
+      {/* ✅ Inner Container: Full Width Responsive */}
       <Box
         sx={{
           height: '100%',
           width: '100%',
-          maxWidth: '430px', // ✅ iPhone Pro Max width
           position: 'relative',
-          background: brandColor,
+          background: 'transparent', // ✅ Transparent to show gradient
+          borderRadius: 0,
           overflow: 'hidden',
           overscrollBehavior: 'none', // ✅ Prevent overscroll bounce
           touchAction: 'none', // ✅ Prevent native scroll - let Swiper handle it
           userSelect: 'none',
           WebkitUserSelect: 'none',
+          // ✅ FIX: Prevent native browser image drag
+          WebkitUserDrag: 'none',
+          userDrag: 'none',
+          // ✅ FIX: Apply to all images inside
+          '& img': {
+            WebkitUserDrag: 'none',
+            userDrag: 'none',
+            pointerEvents: 'none', // Images don't capture pointer - parent swiper does
+            draggable: 'false'
+          },
+          '& video': {
+            WebkitUserDrag: 'none',
+            userDrag: 'none',
+            pointerEvents: 'none'
+          },
           transform: 'translateZ(0)',
           backfaceVisibility: 'hidden',
           WebkitBackfaceVisibility: 'hidden',
-          boxShadow: '0 0 50px rgba(0,0,0,0.5)', // ✅ Shadow to pop out
           zIndex: 1 // ✅ Ensure it's above the pattern
         }}
       >
@@ -969,18 +1000,49 @@ const ReelsContainer: React.FC<ReelsContainerProps> = React.memo(({
             onLanguageChange={handleLanguageChange}
             onClose={onClose}
             hidden={isDishExpanded}
+            rightIcons={
+              <Box sx={{ display: { xs: 'none', md: 'flex' }, gap: 1 }}>
+                <SocialMenu
+                  restaurant={reelConfig.restaurant}
+                  onOpenOffer={handleOpenOffer}
+                  hasCampaign={!!marketingCampaign}
+                  reservationsEnabled={reelConfig?.reservationsEnabled}
+                  onOpenReservation={handleOpenReservation}
+                  deliveryEnabled={deliveryEnabled}
+                  onOpenDelivery={handleOpenDelivery}
+                  previousRating={(reelConfig as any)?.userStatus?.previousRating}
+                />
+              </Box>
+            }
           />
 
-          <SocialMenu
-            restaurant={reelConfig.restaurant}
-            onOpenOffer={handleOpenOffer}
-            reservationsEnabled={reelConfig?.reservationsEnabled}
-            onOpenReservation={handleOpenReservation}
-            deliveryEnabled={deliveryEnabled}
-            onOpenDelivery={handleOpenDelivery}
-            previousRating={(reelConfig as any)?.userStatus?.previousRating}
-            hidden={isDishExpanded}
-          />
+          {/* ✅ Floating SocialMenu for Mobile (Expandable Horizontal on Left) */}
+          <Box
+            sx={{
+              position: 'absolute',
+              top: 85, // Below header
+              left: { xs: 12, sm: 16 },
+              zIndex: 50,
+              display: { xs: 'flex', md: 'none' },
+              opacity: isDishExpanded ? 0 : 1,
+              visibility: isDishExpanded ? 'hidden' : 'visible',
+              pointerEvents: isDishExpanded ? 'none' : 'auto',
+              transition: 'all 0.3s ease-in-out'
+            }}
+          >
+            <MobileSocialMenu>
+              <SocialMenu
+                restaurant={reelConfig.restaurant}
+                onOpenOffer={handleOpenOffer}
+                hasCampaign={!!marketingCampaign}
+                reservationsEnabled={reelConfig?.reservationsEnabled}
+                onOpenReservation={handleOpenReservation}
+                deliveryEnabled={deliveryEnabled}
+                onOpenDelivery={handleOpenDelivery}
+                previousRating={(reelConfig as any)?.userStatus?.previousRating}
+              />
+            </MobileSocialMenu>
+          </Box>
 
           {/* ✅ Delivery Modal */}
           <DeliveryModal
@@ -1133,7 +1195,7 @@ const ReelsContainer: React.FC<ReelsContainerProps> = React.memo(({
                       }}
                     >
                       <Box sx={{ display: 'flex', gap: 2, mb: 2 }}>
-                        {item.image && (
+                        {item.image ? (
                           <Box
                             component="img"
                             src={item.image}
@@ -1141,17 +1203,43 @@ const ReelsContainer: React.FC<ReelsContainerProps> = React.memo(({
                             sx={{
                               width: 80,
                               height: 80,
+                              minWidth: 80,
                               objectFit: 'cover',
-                              borderRadius: 2
+                              borderRadius: 2,
+                              display: 'block'
                             }}
                           />
-                        )}
+                        ) : item.videoUrl ? (
+                          <Box
+                            sx={{
+                              width: 80,
+                              height: 80,
+                              minWidth: 80,
+                              borderRadius: 2,
+                              overflow: 'hidden'
+                            }}
+                          >
+                            <Box
+                              component="video"
+                              src={`${item.videoUrl}#t=0.1`}
+                              preload="metadata"
+                              muted
+                              playsInline
+                              sx={{
+                                width: '100%',
+                                height: '100%',
+                                objectFit: 'cover',
+                                display: 'block'
+                              }}
+                            />
+                          </Box>
+                        ) : null}
 
                         <Box sx={{ flexGrow: 1 }}>
                           <Typography sx={{ color: '#fff', fontWeight: 600, mb: 0.5, fontFamily: '"Fraunces", serif' }}>
                             {item.name}
                           </Typography>
-                          <Typography sx={{ color: reelConfig.restaurant?.branding?.primaryColor || '#FF6B6B', fontWeight: 700, fontSize: '1.1rem', fontFamily: '"Fraunces", serif' }}>
+                          <Typography sx={{ color: reelConfig.restaurant?.branding?.primary_color || reelConfig.restaurant?.branding?.primaryColor || '#FF6B6B', fontWeight: 700, fontSize: '1.1rem', fontFamily: '"Fraunces", serif' }}>
                             €{item.price.toFixed(2)}
                           </Typography>
                         </Box>
@@ -1205,11 +1293,11 @@ const ReelsContainer: React.FC<ReelsContainerProps> = React.memo(({
                             size="small"
                             onClick={() => updateCartItemQuantity(item.dishId, item.quantity + 1, item.portion)}
                             sx={{
-                              bgcolor: reelConfig.restaurant?.branding?.secondaryColor || '#4ECDC4',
+                              bgcolor: reelConfig.restaurant?.branding?.secondary_color || reelConfig.restaurant?.branding?.secondaryColor || '#4ECDC4',
                               color: '#fff',
                               width: 32,
                               height: 32,
-                              '&:hover': { bgcolor: reelConfig.restaurant?.branding?.secondaryColor || '#4ECDC4', opacity: 0.8 }
+                              '&:hover': { bgcolor: reelConfig.restaurant?.branding?.secondary_color || reelConfig.restaurant?.branding?.secondaryColor || '#4ECDC4', opacity: 0.8 }
                             }}
                           >
                             <Add fontSize="small" />
@@ -1241,7 +1329,7 @@ const ReelsContainer: React.FC<ReelsContainerProps> = React.memo(({
                   <Typography variant="h6" sx={{ color: '#fff', fontWeight: 600, fontFamily: '"Fraunces", serif' }}>
                     {t('cart_total', 'Total:')}
                   </Typography>
-                  <Typography variant="h4" sx={{ color: reelConfig.restaurant?.branding?.primaryColor || '#FF6B6B', fontWeight: 700, fontFamily: '"Fraunces", serif' }}>
+                  <Typography variant="h4" sx={{ color: reelConfig.restaurant?.branding?.primary_color || reelConfig.restaurant?.branding?.primaryColor || '#FF6B6B', fontWeight: 700, fontFamily: '"Fraunces", serif' }}>
                     €{getTotalPrice().toFixed(2)}
                   </Typography>
                 </Box>
@@ -1250,13 +1338,13 @@ const ReelsContainer: React.FC<ReelsContainerProps> = React.memo(({
                   icon={<Restaurant />}
                   severity="info"
                   sx={{
-                    bgcolor: `${reelConfig.restaurant?.branding?.secondaryColor || '#4ECDC4'}20`,
+                    bgcolor: `${reelConfig.restaurant?.branding?.secondary_color || reelConfig.restaurant?.branding?.secondaryColor || '#4ECDC4'}20`,
                     color: '#fff',
-                    border: `1px solid ${reelConfig.restaurant?.branding?.secondaryColor || '#4ECDC4'}40`,
+                    border: `1px solid ${reelConfig.restaurant?.branding?.secondary_color || reelConfig.restaurant?.branding?.secondaryColor || '#4ECDC4'}40`,
                     borderRadius: 2,
                     mb: 2,
                     '& .MuiAlert-icon': {
-                      color: reelConfig.restaurant?.branding?.secondaryColor || '#4ECDC4'
+                      color: reelConfig.restaurant?.branding?.secondary_color || reelConfig.restaurant?.branding?.secondaryColor || '#4ECDC4'
                     },
                     fontFamily: '"Fraunces", serif'
                   }}
@@ -1266,32 +1354,7 @@ const ReelsContainer: React.FC<ReelsContainerProps> = React.memo(({
                   </Typography>
                 </Alert>
 
-                <Button
-                  fullWidth
-                  variant="contained"
-                  startIcon={<Restaurant />}
-                  onClick={handleShowToStaff}
-                  sx={{
-                    bgcolor: reelConfig.restaurant?.branding?.secondaryColor || '#4ECDC4',
-                    color: '#fff',
-                    fontWeight: 700,
-                    fontSize: '1.1rem',
-                    py: 2,
-                    textTransform: 'none',
-                    borderRadius: 2,
-                    boxShadow: `0 8px 32px ${reelConfig.restaurant?.branding?.secondaryColor || '#4ECDC4'}80`,
-                    '&:hover': {
-                      bgcolor: reelConfig.restaurant?.branding?.secondaryColor || '#4ECDC4',
-                      opacity: 0.9,
-                      transform: 'translateY(-2px)',
-                      boxShadow: `0 12px 40px ${reelConfig.restaurant?.branding?.secondaryColor || '#4ECDC4'}99`
-                    },
-                    transition: 'all 0.3s ease',
-                    fontFamily: '"Fraunces", serif'
-                  }}
-                >
-                  {t('cart_btn_request', 'Solicitar al Personal')} ({getTotalItems()} {t('cart_items', 'items')})
-                </Button>
+
               </Box>
             )}
           </Drawer>
@@ -1302,7 +1365,7 @@ const ReelsContainer: React.FC<ReelsContainerProps> = React.memo(({
             <Box
               sx={{
                 position: 'absolute',
-                top: '80px',           // Below header
+                top: 0,                // ✅ Extend behind header for blur effect
                 left: 0,
                 right: 0,
                 bottom: '90px',        // Above section bar
@@ -1317,7 +1380,6 @@ const ReelsContainer: React.FC<ReelsContainerProps> = React.memo(({
                 {...swiperConfigs.horizontal}
                 onSwiper={(swiper) => {
                   horizontalSwiperRef.current = swiper;
-                  console.log('🎯 [Horizontal Swiper] onSwiper executed, ref assigned:', !!swiper);
                 }}
                 initialSlide={currentSectionIndex}
                 onSlideChangeTransitionStart={() => {
@@ -1329,40 +1391,31 @@ const ReelsContainer: React.FC<ReelsContainerProps> = React.memo(({
                 onSlideChange={(swiper) => {
                   // Skip if triggered by click navigation (handled separately)
                   if (isClickNavigationRef.current) {
-                    console.log(`🎯 [Horizontal] Click navigation, skipping`);
+
                     return;
                   }
 
                   const newIndex = swiper.activeIndex;
                   const prevIndex = currentSectionIndexRef.current;
-                  const maxIndex = (reelConfig?.sections?.length || 1) - 1;
 
-                  // ✅ Clamp to ±1 slide movement
-                  let targetIndex = newIndex;
-                  if (newIndex > prevIndex + 1) {
-                    targetIndex = Math.min(prevIndex + 1, maxIndex);
-                  } else if (newIndex < prevIndex - 1) {
-                    targetIndex = Math.max(prevIndex - 1, 0);
+                  // No change, skip
+                  if (newIndex === prevIndex) {
+                    return;
                   }
 
-                  console.log(`🎯 [Horizontal] prev=${prevIndex}, new=${newIndex}, target=${targetIndex}`);
+                  // ✅ Get the actual dish index from the vertical swiper of the new section
+                  const verticalSwiper = verticalSwiperRefs.current[newIndex];
+                  const actualDishIndex = verticalSwiper?.activeIndex ?? 0;
 
-                  // ✅ Correct position if needed (runCallbacks=false prevents recursion!)
-                  if (targetIndex !== newIndex) {
-                    console.log(`🎯 [Horizontal] CORRECTING: ${newIndex} → ${targetIndex}`);
-                    swiper.slideTo(targetIndex, 300, false);
-                  }
+                  // ✅ Update state with the ACTUAL position, not always 0
+                  currentSectionIndexRef.current = newIndex;
+                  currentDishIndexRef.current = actualDishIndex;
+                  setCurrentSectionIndex(newIndex);
+                  setCurrentDishIndex(actualDishIndex);
 
-                  // ✅ ALWAYS update state to match corrected position (no early return!)
-                  if (targetIndex !== prevIndex) {
-                    currentSectionIndexRef.current = targetIndex;
-                    currentDishIndexRef.current = 0;
-                    setCurrentSectionIndex(targetIndex);
-                    setCurrentDishIndex(0);
-                    const section = reelConfig?.sections?.[targetIndex];
-                    if (section) {
-                      setCurrentSection(section.id);
-                    }
+                  const section = reelConfig?.sections?.[newIndex];
+                  if (section) {
+                    setCurrentSection(section.id);
                   }
                 }}
                 style={{
@@ -1381,7 +1434,6 @@ const ReelsContainer: React.FC<ReelsContainerProps> = React.memo(({
                         if (sectionIdx === currentSectionIndex) {
                           verticalSwiperRef.current = swiper;
                         }
-                        console.log(`🎯 [Vertical Swiper ${sectionIdx}] onSwiper executed`);
                       }}
                       initialSlide={sectionIdx === initialSectionIndex ? initialDishIndex : 0}
                       onSlideChangeTransitionStart={() => {
@@ -1453,7 +1505,7 @@ const ReelsContainer: React.FC<ReelsContainerProps> = React.memo(({
                 primary: reelConfig.restaurant?.branding?.primaryColor || '#FF6B6B',
                 secondary: reelConfig.restaurant?.branding?.secondaryColor || '#4ECDC4',
                 accent: reelConfig.restaurant?.branding?.accent_color || reelConfig.restaurant?.branding?.accentColor || '#FF8C42',
-                text: reelConfig.restaurant?.branding?.textColor || '#000',
+                text: reelConfig.restaurant?.branding?.textColor || '#FFFFFF',
                 background: reelConfig.restaurant?.branding?.backgroundColor || '#fff'
               }}
               onAddToCart={addToCart}

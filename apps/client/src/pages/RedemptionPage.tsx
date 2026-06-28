@@ -50,6 +50,7 @@ interface ClaimData {
         slug: string;
         logo_url?: string;
     };
+    requires_pin: boolean;
     is_returning_visitor: boolean;
 }
 
@@ -67,6 +68,8 @@ export const RedemptionPage: React.FC = () => {
     const [showConfirmDialog, setShowConfirmDialog] = useState(false);
     const [redeeming, setRedeeming] = useState(false);
     const [localRedeemedAt, setLocalRedeemedAt] = useState<string | null>(null);
+    const [pin, setPin] = useState('');
+    const [pinError, setPinError] = useState(false);
 
     useEffect(() => {
         if (!token) {
@@ -102,14 +105,29 @@ export const RedemptionPage: React.FC = () => {
 
     const handleRedeem = async () => {
         if (!token) return;
+
+        // If PIN is required, validate it's provided
+        if (data?.requires_pin && pin.length < 4) {
+            setPinError(true);
+            return;
+        }
+
         setRedeeming(true);
+        setPinError(false);
 
         try {
             const response = await fetch(`${API_URL}/api/r/${token}/redeem`, {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' }
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(data?.requires_pin ? { pin } : {})
             });
             const result = await response.json();
+
+            if (result.requires_pin && !result.success) {
+                setPinError(true);
+                setPin('');
+                return;
+            }
 
             if (result.success) {
                 setLocalRedeemedAt(result.redeemed_at);
@@ -127,7 +145,7 @@ export const RedemptionPage: React.FC = () => {
             setError('Error al canjear');
         } finally {
             setRedeeming(false);
-            setShowConfirmDialog(false);
+            if (!pinError) setShowConfirmDialog(false);
         }
     };
 
@@ -405,7 +423,7 @@ export const RedemptionPage: React.FC = () => {
             {/* Confirmation Dialog */}
             <Dialog
                 open={showConfirmDialog}
-                onClose={() => setShowConfirmDialog(false)}
+                onClose={() => { setShowConfirmDialog(false); setPinError(false); setPin(''); }}
                 PaperProps={{
                     sx: {
                         bgcolor: '#1a1a1a',
@@ -422,15 +440,52 @@ export const RedemptionPage: React.FC = () => {
                     </Typography>
                 </DialogTitle>
                 <DialogContent>
-                    <Typography variant="body2" sx={{ textAlign: 'center', opacity: 0.7, lineHeight: 1.6 }}>
+                    <Typography variant="body2" sx={{ textAlign: 'center', opacity: 0.7, lineHeight: 1.6, mb: data?.requires_pin ? 2 : 0 }}>
                         Esta acción marcará la oferta como usada y no se podrá deshacer.
                         Solo pulsa "Confirmar" si el camarero te lo indica.
                     </Typography>
+
+                    {data?.requires_pin && (
+                        <Box sx={{ mt: 2 }}>
+                            <Typography variant="caption" sx={{ display: 'block', textAlign: 'center', mb: 1.5, opacity: 0.6 }}>
+                                🔒 El camarero debe introducir el PIN
+                            </Typography>
+                            <Box sx={{ display: 'flex', justifyContent: 'center' }}>
+                                <input
+                                    type="tel"
+                                    inputMode="numeric"
+                                    maxLength={4}
+                                    value={pin}
+                                    onChange={e => { setPin(e.target.value.replace(/\D/g, '')); setPinError(false); }}
+                                    placeholder="····"
+                                    style={{
+                                        width: '140px',
+                                        fontSize: '28px',
+                                        fontFamily: 'monospace',
+                                        textAlign: 'center',
+                                        letterSpacing: '12px',
+                                        padding: '12px',
+                                        borderRadius: '12px',
+                                        border: `2px solid ${pinError ? '#ef4444' : 'rgba(255,255,255,0.15)'}`,
+                                        background: 'rgba(255,255,255,0.05)',
+                                        color: 'white',
+                                        outline: 'none'
+                                    }}
+                                    autoFocus
+                                />
+                            </Box>
+                            {pinError && (
+                                <Typography variant="caption" sx={{ display: 'block', textAlign: 'center', mt: 1, color: '#ef4444' }}>
+                                    PIN incorrecto
+                                </Typography>
+                            )}
+                        </Box>
+                    )}
                 </DialogContent>
                 <DialogActions sx={{ px: 3, pb: 3, gap: 1 }}>
                     <Button
                         fullWidth
-                        onClick={() => setShowConfirmDialog(false)}
+                        onClick={() => { setShowConfirmDialog(false); setPinError(false); setPin(''); }}
                         sx={{
                             color: 'white',
                             bgcolor: alpha('#fff', 0.1),
@@ -443,7 +498,7 @@ export const RedemptionPage: React.FC = () => {
                         fullWidth
                         variant="contained"
                         onClick={handleRedeem}
-                        disabled={redeeming}
+                        disabled={redeeming || (data?.requires_pin && pin.length < 4)}
                         sx={{
                             bgcolor: '#22c55e',
                             '&:hover': { bgcolor: '#16a34a' }

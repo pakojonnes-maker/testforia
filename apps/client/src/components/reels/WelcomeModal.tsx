@@ -9,12 +9,16 @@ import {
     IconButton,
     Checkbox,
     FormControlLabel,
-    Link
+    Link,
+    Slide,
+    useMediaQuery,
+    useTheme
 } from '@mui/material';
-import { Close, CardGiftcard } from '@mui/icons-material';
+import { Close, CardGiftcard, CheckCircle } from '@mui/icons-material';
 import { API_URL } from '../../lib/apiClient';
-import { PrivacyContent } from '../legal/PrivacyContent'; // ✅ Import
+import { PrivacyContent } from '../legal/PrivacyContent';
 import { useTranslation } from '../../contexts/TranslationContext';
+import type { TransitionProps } from '@mui/material/transitions';
 
 // Matches the new 'marketing_campaigns' table structure
 export interface Campaign {
@@ -42,8 +46,19 @@ interface WelcomeModalProps {
     campaign?: Campaign;
 }
 
+// ✅ Slide-up transition for mobile bottom-sheet feel
+const SlideUpTransition = React.forwardRef(function Transition(
+    props: TransitionProps & { children: React.ReactElement },
+    ref: React.Ref<unknown>,
+) {
+    return <Slide direction="up" ref={ref} {...props} />;
+});
+
 const WelcomeModal: React.FC<WelcomeModalProps> = ({ open, onClose, restaurant, campaign }) => {
     const { t } = useTranslation();
+    const theme = useTheme();
+    const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
+
     const [email, setEmail] = useState('');
     const [phone, setPhone] = useState('');
     const [consent, setConsent] = useState(false);
@@ -78,6 +93,9 @@ const WelcomeModal: React.FC<WelcomeModalProps> = ({ open, onClose, restaurant, 
 
     // If no contact fields are enabled, treat as informative-only campaign
     const isInformativeOnly = !showEmail && !showPhone;
+
+    // ✅ Extract branding colors from restaurant (with fallbacks)
+    const accentColor = restaurant?.branding?.accent_color || restaurant?.branding?.accentColor || '#FFD700';
 
 
     // Format expiry date for display
@@ -188,6 +206,9 @@ const WelcomeModal: React.FC<WelcomeModalProps> = ({ open, onClose, restaurant, 
         }
     };
 
+    // ============================================
+    // SUCCESS STATE
+    // ============================================
     if (success) {
         const whatsAppUrl = generateWhatsAppUrl();
 
@@ -195,27 +216,62 @@ const WelcomeModal: React.FC<WelcomeModalProps> = ({ open, onClose, restaurant, 
             <Dialog
                 open={open}
                 onClose={onClose}
+                fullScreen={isMobile}
+                TransitionComponent={isMobile ? SlideUpTransition as any : undefined}
                 PaperProps={{
                     sx: {
-                        borderRadius: 3,
-                        bgcolor: '#1a1a1a',
+                        borderRadius: isMobile ? '24px 24px 0 0' : 3,
+                        bgcolor: '#0f0f1a',
                         color: 'white',
-                        maxWidth: '380px',
-                        m: 2
+                        maxWidth: isMobile ? '100%' : '400px',
+                        width: '100%',
+                        m: isMobile ? 0 : 2,
+                        mt: isMobile ? 'auto' : 2,
+                        maxHeight: isMobile ? '85vh' : 'auto',
+                        position: isMobile ? 'fixed' : 'relative',
+                        bottom: isMobile ? 0 : 'auto',
+                        backgroundImage: `radial-gradient(ellipse at top, ${accentColor}15 0%, transparent 60%)`,
+                        overflow: 'hidden'
                     }
                 }}
             >
+                {/* ✅ Drag handle for mobile */}
+                {isMobile && (
+                    <Box sx={{ display: 'flex', justifyContent: 'center', pt: 1.5, pb: 0.5 }}>
+                        <Box sx={{ width: 40, height: 4, borderRadius: 2, bgcolor: 'rgba(255,255,255,0.2)' }} />
+                    </Box>
+                )}
+
                 <Box sx={{ p: 4, textAlign: 'center' }}>
-                    <CardGiftcard sx={{ fontSize: 60, color: '#FFD700', mb: 2 }} />
-                    <Typography variant="h5" gutterBottom sx={{ fontWeight: 'bold' }}>
+                    {/* ✅ Animated success icon */}
+                    <Box sx={{
+                        width: 80,
+                        height: 80,
+                        borderRadius: '50%',
+                        bgcolor: `${accentColor}20`,
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        mx: 'auto',
+                        mb: 3,
+                        animation: 'success-pop 0.5s cubic-bezier(0.68, -0.55, 0.27, 1.55)',
+                        '@keyframes success-pop': {
+                            '0%': { transform: 'scale(0)' },
+                            '100%': { transform: 'scale(1)' }
+                        }
+                    }}>
+                        <CheckCircle sx={{ fontSize: 48, color: accentColor }} />
+                    </Box>
+
+                    <Typography variant="h5" gutterBottom sx={{ fontWeight: 700, fontFamily: '"Fraunces", serif' }}>
                         {t('success_title', '¡Gracias!')}
                     </Typography>
-                    <Typography variant="body2" sx={{ opacity: 0.8, mb: 3 }}>
+                    <Typography variant="body2" sx={{ opacity: 0.7, mb: 3, lineHeight: 1.6 }}>
                         {t('success_message', 'Tus datos se han guardado correctamente.')}
                     </Typography>
 
                     {claimData?.expires_at && (
-                        <Typography variant="caption" sx={{ display: 'block', opacity: 0.6, mb: 2 }}>
+                        <Typography variant="caption" sx={{ display: 'block', opacity: 0.5, mb: 3 }}>
                             📅 {t('valid_until', 'Válido hasta')}: {formatExpiryDate(claimData.expires_at)}
                         </Typography>
                     )}
@@ -231,14 +287,16 @@ const WelcomeModal: React.FC<WelcomeModalProps> = ({ open, onClose, restaurant, 
                             sx={{
                                 bgcolor: '#25D366',
                                 color: 'white',
-                                fontWeight: 'bold',
-                                py: 1.5,
+                                fontWeight: 700,
+                                py: 1.8,
                                 mb: 2,
-                                borderRadius: 2,
-                                '&:hover': { bgcolor: '#1DA851' }
+                                borderRadius: 3,
+                                fontSize: '0.95rem',
+                                textTransform: 'none',
+                                boxShadow: '0 8px 24px rgba(37,211,102,0.3)',
+                                '&:hover': { bgcolor: '#1DA851', boxShadow: '0 12px 32px rgba(37,211,102,0.4)' }
                             }}
                             onClick={() => {
-                                // Track WhatsApp save event
                                 localStorage.setItem(`whatsapp_saved_${campaign.id}`, 'true');
                             }}
                         >
@@ -249,7 +307,7 @@ const WelcomeModal: React.FC<WelcomeModalProps> = ({ open, onClose, restaurant, 
                     <Button
                         onClick={onClose}
                         variant="text"
-                        sx={{ color: 'rgba(255,255,255,0.5)', fontSize: '0.85rem' }}
+                        sx={{ color: 'rgba(255,255,255,0.4)', fontSize: '0.85rem', textTransform: 'none' }}
                     >
                         {t('button_close', 'Cerrar')}
                     </Button>
@@ -259,66 +317,151 @@ const WelcomeModal: React.FC<WelcomeModalProps> = ({ open, onClose, restaurant, 
     }
 
 
+    // ============================================
+    // MAIN MODAL
+    // ============================================
     return (
         <Dialog
             open={open}
             onClose={onClose}
-            fullWidth
-            maxWidth="xs"
+            fullScreen={isMobile}
+            TransitionComponent={isMobile ? SlideUpTransition as any : undefined}
             PaperProps={{
                 sx: {
-                    borderRadius: 3,
-                    bgcolor: '#1a1a1a',
+                    borderRadius: isMobile ? '24px 24px 0 0' : 3,
+                    bgcolor: '#0f0f1a',
                     color: 'white',
-                    backgroundImage: 'linear-gradient(145deg, #1a1a1a 0%, #2a2a2a 100%)',
-                    m: 2,
-                    overflow: 'hidden'
+                    maxWidth: isMobile ? '100%' : '400px',
+                    width: '100%',
+                    m: isMobile ? 0 : 2,
+                    mt: isMobile ? 'auto' : 2,
+                    maxHeight: isMobile ? '85vh' : 'auto',
+                    position: isMobile ? 'fixed' : 'relative',
+                    bottom: isMobile ? 0 : 'auto',
+                    overflow: 'hidden',
+                    backgroundImage: `radial-gradient(ellipse at top, ${accentColor}10 0%, transparent 50%)`
                 }
             }}
         >
+            {/* ✅ Drag handle for mobile */}
+            {isMobile && (
+                <Box sx={{ display: 'flex', justifyContent: 'center', pt: 1.5, pb: 0.5, position: 'relative', zIndex: 10 }}>
+                    <Box sx={{ width: 40, height: 4, borderRadius: 2, bgcolor: 'rgba(255,255,255,0.25)' }} />
+                </Box>
+            )}
+
+            {/* Close button */}
             <IconButton
                 onClick={onClose}
                 sx={{
                     position: 'absolute',
-                    right: 8,
-                    top: 8,
+                    right: 12,
+                    top: isMobile ? 16 : 12,
                     color: 'rgba(255,255,255,0.5)',
-                    zIndex: 10
+                    zIndex: 10,
+                    bgcolor: 'rgba(0,0,0,0.3)',
+                    backdropFilter: 'blur(8px)',
+                    '&:hover': { bgcolor: 'rgba(0,0,0,0.5)' }
                 }}
+                size="small"
             >
-                <Close />
+                <Close fontSize="small" />
             </IconButton>
 
-            <DialogContent sx={{ pt: 0, px: 0, pb: 4, textAlign: 'center' }}>
+            <DialogContent sx={{ pt: 0, px: 0, pb: isMobile ? 4 : 3, textAlign: 'center', overflow: 'auto' }}>
+                {/* ✅ Hero image with gradient overlay */}
                 {imageUrl ? (
-                    <Box
-                        component="img"
-                        src={imageUrl}
-                        alt="Offer"
-                        sx={{
-                            width: '100%',
-                            height: '200px',
-                            objectFit: 'cover',
-                            mb: 3
-                        }}
-                    />
+                    <Box sx={{ position: 'relative', mb: 0 }}>
+                        <Box
+                            component="img"
+                            src={imageUrl}
+                            alt="Offer"
+                            sx={{
+                                width: '100%',
+                                height: { xs: '220px', sm: '240px' },
+                                objectFit: 'cover',
+                                display: 'block'
+                            }}
+                        />
+                        {/* ✅ Bottom gradient overlay for text readability */}
+                        <Box sx={{
+                            position: 'absolute',
+                            bottom: 0,
+                            left: 0,
+                            right: 0,
+                            height: '60%',
+                            background: 'linear-gradient(transparent, #0f0f1a)',
+                            pointerEvents: 'none'
+                        }} />
+                    </Box>
                 ) : (
-                    <Box sx={{ pt: 4, px: 3, mb: 3 }}>
-                        <CardGiftcard sx={{ fontSize: 48, color: '#FFD700', mb: 1 }} />
+                    <Box sx={{
+                        pt: isMobile ? 3 : 4,
+                        px: 3,
+                        mb: 1,
+                        display: 'flex',
+                        justifyContent: 'center'
+                    }}>
+                        <Box sx={{
+                            width: 72,
+                            height: 72,
+                            borderRadius: '50%',
+                            bgcolor: `${accentColor}15`,
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            border: `2px solid ${accentColor}30`
+                        }}>
+                            <CardGiftcard sx={{ fontSize: 36, color: accentColor }} />
+                        </Box>
                     </Box>
                 )}
 
-                <Box sx={{ px: 3, mb: 3 }}>
-                    <Typography variant="h5" sx={{ fontWeight: 800, fontFamily: 'Fraunces', mb: 1 }}>
+                {/* ✅ Content section with proper spacing */}
+                <Box sx={{ px: 3, mt: imageUrl ? -2 : 2, mb: 3, position: 'relative', zIndex: 2 }}>
+                    <Typography
+                        variant="h5"
+                        sx={{
+                            fontWeight: 800,
+                            fontFamily: '"Fraunces", serif',
+                            mb: 1.5,
+                            fontSize: { xs: '1.4rem', sm: '1.5rem' },
+                            lineHeight: 1.2,
+                            background: `linear-gradient(135deg, #fff 0%, ${accentColor} 100%)`,
+                            WebkitBackgroundClip: 'text',
+                            WebkitTextFillColor: 'transparent',
+                            backgroundClip: 'text'
+                        }}
+                    >
                         {title}
                     </Typography>
-                    <Typography variant="body2" sx={{ opacity: 0.7, whiteSpace: 'pre-line' }}>
+                    <Typography
+                        variant="body2"
+                        sx={{
+                            opacity: 0.65,
+                            whiteSpace: 'pre-line',
+                            lineHeight: 1.6,
+                            fontSize: '0.9rem',
+                            maxWidth: '320px',
+                            mx: 'auto'
+                        }}
+                    >
                         {description}
                     </Typography>
                 </Box>
 
+                {/* ✅ Form section */}
                 {showForm && !isInformativeOnly ? (
-                    <Box component="form" onSubmit={handleSubmit} sx={{ px: 3, display: 'flex', flexDirection: 'column', gap: 2 }}>
+                    <Box
+                        component="form"
+                        onSubmit={handleSubmit}
+                        sx={{
+                            px: 3,
+                            display: 'flex',
+                            flexDirection: 'column',
+                            gap: 2
+                        }}
+                    >
                         {showEmail && (
                             <TextField
                                 placeholder={t('placeholder_email', 'Tu Email (para descuentos)')}
@@ -329,19 +472,26 @@ const WelcomeModal: React.FC<WelcomeModalProps> = ({ open, onClose, restaurant, 
                                 variant="outlined"
                                 sx={{
                                     '& .MuiOutlinedInput-root': {
-                                        bgcolor: 'rgba(255,255,255,0.05)',
-                                        borderRadius: 2,
+                                        bgcolor: 'rgba(255,255,255,0.06)',
+                                        borderRadius: 3,
                                         color: 'white',
+                                        fontSize: '0.95rem',
                                         '& fieldset': { borderColor: 'rgba(255,255,255,0.1)' },
-                                        '&:hover fieldset': { borderColor: 'rgba(255,255,255,0.3)' },
-                                        '&.Mui-focused fieldset': { borderColor: '#FFD700' }
+                                        '&:hover fieldset': { borderColor: 'rgba(255,255,255,0.25)' },
+                                        '&.Mui-focused fieldset': { borderColor: accentColor, borderWidth: 2 }
                                     }
                                 }}
                             />
                         )}
 
                         {showEmail && showPhone && (
-                            <Typography variant="caption" sx={{ opacity: 0.5 }}>{t('or', 'O')}</Typography>
+                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
+                                <Box sx={{ flex: 1, height: '1px', bgcolor: 'rgba(255,255,255,0.08)' }} />
+                                <Typography variant="caption" sx={{ opacity: 0.4, fontSize: '0.75rem' }}>
+                                    {t('or', 'O')}
+                                </Typography>
+                                <Box sx={{ flex: 1, height: '1px', bgcolor: 'rgba(255,255,255,0.08)' }} />
+                            </Box>
                         )}
 
                         {showPhone && (
@@ -354,12 +504,13 @@ const WelcomeModal: React.FC<WelcomeModalProps> = ({ open, onClose, restaurant, 
                                 variant="outlined"
                                 sx={{
                                     '& .MuiOutlinedInput-root': {
-                                        bgcolor: 'rgba(255,255,255,0.05)',
-                                        borderRadius: 2,
+                                        bgcolor: 'rgba(255,255,255,0.06)',
+                                        borderRadius: 3,
                                         color: 'white',
+                                        fontSize: '0.95rem',
                                         '& fieldset': { borderColor: 'rgba(255,255,255,0.1)' },
-                                        '&:hover fieldset': { borderColor: 'rgba(255,255,255,0.3)' },
-                                        '&.Mui-focused fieldset': { borderColor: '#25D366' }
+                                        '&:hover fieldset': { borderColor: 'rgba(255,255,255,0.25)' },
+                                        '&.Mui-focused fieldset': { borderColor: '#25D366', borderWidth: 2 }
                                     }
                                 }}
                             />
@@ -370,47 +521,109 @@ const WelcomeModal: React.FC<WelcomeModalProps> = ({ open, onClose, restaurant, 
                                 <Checkbox
                                     checked={consent}
                                     onChange={(e) => setConsent(e.target.checked)}
-                                    sx={{ color: 'rgba(255,255,255,0.5)', '&.Mui-checked': { color: '#FFD700' } }}
+                                    sx={{
+                                        color: 'rgba(255,255,255,0.3)',
+                                        '&.Mui-checked': { color: accentColor },
+                                        padding: '6px'
+                                    }}
+                                    size="small"
                                 />
                             }
                             label={
-                                <Typography variant="caption" sx={{ opacity: 0.7, textAlign: 'left', display: 'block' }}>
+                                <Typography variant="caption" sx={{ opacity: 0.6, textAlign: 'left', display: 'block', fontSize: '0.7rem', lineHeight: 1.4 }}>
                                     {t('consent_prefix', 'Acepto la ')} <Link
                                         component="button"
                                         onClick={(e) => {
                                             e.preventDefault();
                                             setShowPrivacy(true);
                                         }}
-                                        sx={{ color: '#FFD700', verticalAlign: 'baseline', textDecoration: 'none' }}
+                                        sx={{ color: accentColor, verticalAlign: 'baseline', textDecoration: 'none', fontSize: '0.7rem' }}
                                     >{t('privacy_policy_link', 'Política de Privacidad')}</Link> {t('consent_suffix', ' y consiento el tratamiento de mis datos.')}
                                 </Typography>
                             }
-                            sx={{ alignItems: 'flex-start', ml: 0 }}
+                            sx={{ alignItems: 'flex-start', ml: 0, mr: 0 }}
                         />
 
                         {error && (
-                            <Typography color="error" variant="caption">
+                            <Typography
+                                sx={{
+                                    color: '#ff6b6b',
+                                    fontSize: '0.8rem',
+                                    bgcolor: 'rgba(255,107,107,0.1)',
+                                    borderRadius: 2,
+                                    px: 2,
+                                    py: 1
+                                }}
+                            >
                                 {error}
                             </Typography>
                         )}
 
+                        {/* ✅ Primary CTA with restaurant accent color */}
                         <Button
                             type="submit"
                             variant="contained"
                             disabled={loading}
+                            fullWidth
                             sx={{
-                                bgcolor: '#FFD700',
-                                color: 'black',
-                                fontWeight: 'bold',
-                                py: 1.5,
-                                borderRadius: 2,
-                                '&:hover': { bgcolor: '#FFC000' }
+                                bgcolor: accentColor,
+                                color: '#0f0f1a',
+                                fontWeight: 700,
+                                py: 1.8,
+                                borderRadius: 3,
+                                fontSize: '0.95rem',
+                                textTransform: 'none',
+                                boxShadow: `0 8px 24px ${accentColor}40`,
+                                transition: 'all 0.2s ease',
+                                '&:hover': {
+                                    bgcolor: accentColor,
+                                    filter: 'brightness(1.1)',
+                                    boxShadow: `0 12px 32px ${accentColor}50`,
+                                    transform: 'translateY(-1px)'
+                                },
+                                '&:active': {
+                                    transform: 'translateY(0)'
+                                },
+                                '&.Mui-disabled': {
+                                    bgcolor: `${accentColor}60`,
+                                    color: 'rgba(0,0,0,0.5)'
+                                }
                             }}
                         >
-                            {loading ? t('button_saving', 'Guardando...') : t('button_get_offer', 'Obtener Oferta')}
+                            {loading ? t('button_saving', 'Guardando...') : t('button_get_offer', '🎁 Obtener Oferta')}
+                        </Button>
+                    </Box>
+                ) : isInformativeOnly ? (
+                    /* ✅ Informative-only: show a CTA to close/view menu instead of empty space */
+                    <Box sx={{ px: 3 }}>
+                        <Button
+                            onClick={onClose}
+                            variant="contained"
+                            fullWidth
+                            sx={{
+                                bgcolor: accentColor,
+                                color: '#0f0f1a',
+                                fontWeight: 700,
+                                py: 1.8,
+                                borderRadius: 3,
+                                fontSize: '0.95rem',
+                                textTransform: 'none',
+                                boxShadow: `0 8px 24px ${accentColor}40`,
+                                '&:hover': {
+                                    bgcolor: accentColor,
+                                    filter: 'brightness(1.1)',
+                                }
+                            }}
+                        >
+                            {t('button_view_menu', '📖 Ver Menú')}
                         </Button>
                     </Box>
                 ) : null}
+
+                {/* ✅ Safe area padding for iOS */}
+                {isMobile && (
+                    <Box sx={{ pb: 'env(safe-area-inset-bottom, 16px)' }} />
+                )}
             </DialogContent>
 
             {/* ✅ Sub-Modal de Privacidad */}
@@ -429,7 +642,7 @@ const WelcomeModal: React.FC<WelcomeModalProps> = ({ open, onClose, restaurant, 
             >
                 <DialogContent>
                     <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
-                        <Typography variant="h5" sx={{ fontFamily: 'Fraunces', color: '#FFD700' }}>
+                        <Typography variant="h5" sx={{ fontFamily: '"Fraunces", serif', color: accentColor }}>
                             {t('privacy_policy_link', 'Política de Privacidad')}
                         </Typography>
                         <IconButton onClick={() => setShowPrivacy(false)} sx={{ color: 'rgba(255,255,255,0.5)' }}>
@@ -447,7 +660,7 @@ const WelcomeModal: React.FC<WelcomeModalProps> = ({ open, onClose, restaurant, 
                         <Button
                             onClick={() => setShowPrivacy(false)}
                             variant="outlined"
-                            sx={{ color: '#FFD700', borderColor: '#FFD700' }}
+                            sx={{ color: accentColor, borderColor: accentColor }}
                         >
                             {t('button_close', 'Cerrar')}
                         </Button>

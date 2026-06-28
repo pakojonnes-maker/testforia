@@ -786,6 +786,36 @@ class AdminApiClient {
   public get queryDefaults() {
     return getQueryDefaults();
   }
+
+  // ============================================
+  // ✅ GENERIC REQUEST METHOD (for guidebook admin and future features)
+  // ============================================
+  /**
+   * Generic request method for any API endpoint
+   * Automatically uses the auth token and handles JSON parsing
+   */
+  public async request(path: string, options: RequestInit = {}): Promise<any> {
+    const url = `${API_URL}${path}`;
+    const headers: Record<string, string> = {
+      'Content-Type': 'application/json',
+    };
+    if (this.authToken) {
+      headers['Authorization'] = `Bearer ${this.authToken}`;
+    }
+
+    const response = await fetch(url, {
+      method: options.method || 'GET',
+      headers: { ...headers, ...(options.headers as Record<string, string> || {}) },
+      body: options.body || undefined,
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}));
+      throw new Error(errorData.error || errorData.message || `HTTP ${response.status}`);
+    }
+
+    return response.json();
+  }
 }
 
 // Crear el proxy que interceptará todas las llamadas a métodos no definidos

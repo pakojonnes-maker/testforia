@@ -3,7 +3,7 @@
 import React, { useState } from 'react';
 import { Box, Typography, Popover, IconButton, Tooltip } from '@mui/material';
 import { motion } from 'framer-motion';
-import { Home } from '@mui/icons-material';
+import { Home, Close } from '@mui/icons-material';
 import type { RestaurantConfig } from '../../../../hooks/useReelsConfig';
 import { useTranslation } from '../../../../contexts/TranslationContext';
 
@@ -26,6 +26,7 @@ interface HeaderProps {
   onClose?: () => void;
   showMenu?: boolean;
   hidden?: boolean; // ✅ Hide header when dish content is expanded
+  rightIcons?: any;
 }
 
 // ✅ FALLBACK: Emojis si las banderas SVG fallan
@@ -143,8 +144,10 @@ const ClassicHeader: React.FC<HeaderProps> = ({
   languages = [],
   currentLanguage,
   onLanguageChange,
+  onClose,
   showMenu = true,
-  hidden = false
+  hidden = false,
+  rightIcons
 }) => {
   const { t } = useTranslation();
   const [languageMenuAnchor, setLanguageMenuAnchor] = useState<null | HTMLElement>(null);
@@ -232,9 +235,9 @@ const ClassicHeader: React.FC<HeaderProps> = ({
           left: 0,
           right: 0,
           zIndex: 1000,
-          background: `linear-gradient(180deg, ${hexToRgba(colors.background, 0.9)} 0%, ${hexToRgba(colors.background, 0.7)} 85%, transparent 100%)`,
-          backdropFilter: 'blur(10px)',
-          WebkitBackdropFilter: 'blur(10px)',
+          background: { xs: `linear-gradient(180deg, ${hexToRgba(colors.background, 0.45)} 0%, ${hexToRgba(colors.background, 0.25)} 85%, transparent 100%)`, md: 'transparent' },
+          backdropFilter: { xs: 'blur(20px) saturate(180%)', md: 'none' },
+          WebkitBackdropFilter: { xs: 'blur(20px) saturate(180%)', md: 'none' },
           pt: { xs: 1.25, sm: 1.25 },
           pb: 1.25,
           px: { xs: 2.5, sm: 3 },
@@ -261,8 +264,8 @@ const ClassicHeader: React.FC<HeaderProps> = ({
             position: 'relative'
           }}
         >
-          {/* ✅ COLUMNA IZQUIERDA - Icono Home (Color Secundario) */}
-          <Box sx={{ width: '80px', flexShrink: 0, display: 'flex', justifyContent: 'flex-start' }}>
+          {/* ✅ COLUMNA IZQUIERDA - Iconos Home y Close */}
+          <Box sx={{ flex: 1, display: 'flex', justifyContent: 'flex-start', gap: 1 }}>
             <motion.div
               initial={{ x: -20, opacity: 0 }}
               animate={{ x: 0, opacity: 1 }}
@@ -272,40 +275,64 @@ const ClassicHeader: React.FC<HeaderProps> = ({
                 <IconButton
                   onClick={handleHomeClick}
                   sx={{
-                    width: { xs: 44, sm: 48 },
-                    height: { xs: 44, sm: 48 },
-                    bgcolor: 'rgba(255,255,255,0.1)',
-                    // backdropFilter removed to prevent artifacts
+                    width: 40,
+                    height: 40,
+                    bgcolor: 'rgba(0,0,0,0.3)',
                     border: '1px solid rgba(255,255,255,0.2)',
+                    backdropFilter: 'blur(10px)',
+                    boxShadow: '0 2px 8px rgba(0,0,0,0.4)',
                     transition: 'all 0.3s ease',
                     '&:hover': {
-                      bgcolor: 'rgba(255,255,255,0.2)',
+                      bgcolor: 'rgba(0,0,0,0.5)',
                       transform: 'scale(1.05)'
                     }
                   }}
                 >
-                  <Home
-                    sx={{
-                      fontSize: { xs: 22, sm: 24 },
-                      color: colors.accent || colors.secondary // ✅ Use accent if available
-                    }}
-                  />
+                  <Home sx={{ fontSize: 20, color: colors.accent || colors.secondary }} />
                 </IconButton>
               )}
             </motion.div>
+            
+            {onClose && (
+              <motion.div
+                initial={{ x: -20, opacity: 0 }}
+                animate={{ x: 0, opacity: 1 }}
+                transition={{ delay: 0.4, type: 'spring', stiffness: 200 }}
+              >
+                <IconButton
+                  onClick={onClose}
+                  sx={{
+                    display: 'none',
+                    width: 40,
+                    height: 40,
+                    bgcolor: 'rgba(0,0,0,0.3)',
+                    border: '1px solid rgba(255,255,255,0.2)',
+                    backdropFilter: 'blur(10px)',
+                    boxShadow: '0 2px 8px rgba(0,0,0,0.4)',
+                    transition: 'all 0.3s ease',
+                    '&:hover': {
+                      bgcolor: 'rgba(0,0,0,0.5)',
+                      transform: 'scale(1.05)'
+                    }
+                  }}
+                >
+                  <Close sx={{ fontSize: 20, color: '#fff' }} />
+                </IconButton>
+              </motion.div>
+            )}
           </Box>
 
           {/* ✅ COLUMNA CENTRAL - Texto centrado */}
           <Box
             sx={{
-              flex: 1,
+              flex: 2,
               textAlign: 'center',
               display: 'flex',
               flexDirection: 'column',
               alignItems: 'center',
               justifyContent: 'center',
-              maxWidth: 'calc(100% - 160px)',
-              mx: 2
+              mx: 2,
+              overflow: 'hidden'
             }}
           >
             <motion.div
@@ -319,7 +346,7 @@ const ClassicHeader: React.FC<HeaderProps> = ({
                 sx={{
                   color: colors.headerTitle,
                   fontWeight: 700,
-                  fontSize: { xs: '1.3rem', sm: '1.5rem' },
+                  fontSize: { xs: '1.2rem', sm: '1.5rem' },
                   lineHeight: 1.2,
                   mb: 0.5,
                   fontFamily: '"Playfair Display", "Georgia", serif',
@@ -327,19 +354,19 @@ const ClassicHeader: React.FC<HeaderProps> = ({
                   textAlign: 'center',
                   overflow: 'hidden',
                   textOverflow: 'ellipsis',
-                  whiteSpace: 'nowrap'
+                  whiteSpace: 'nowrap',
+                  textShadow: '0 1px 3px rgba(0,0,0,0.8), 0 2px 12px rgba(0,0,0,0.6)'
                 }}
               >
                 {getRestaurantName(restaurant)}
               </Typography>
 
-              {/* ✅ NOMBRE DE SECCIÓN - Color Secundario */}
               {/* ✅ NOMBRE DE SECCIÓN - Color Secundario con Marquee si es largo */}
               <Box sx={{
                 width: '100%',
                 overflow: 'hidden',
                 position: 'relative',
-                height: '20px', // Fixed height for the text
+                height: '24px', // Fixed height for the text
                 display: 'flex',
                 justifyContent: 'center',
                 alignItems: 'center'
@@ -348,14 +375,14 @@ const ClassicHeader: React.FC<HeaderProps> = ({
                   className="marquee-text"
                   sx={{
                     color: colors.headerSubtitle,
-                    fontSize: { xs: '0.75rem', sm: '0.85rem' }, // Reduced font size
-                    fontWeight: 400,
+                    fontSize: { xs: '0.9rem', sm: '1.1rem' },
+                    fontWeight: 600,
                     fontFamily: '"Fraunces", serif',
                     letterSpacing: 1,
                     textTransform: 'uppercase',
                     textAlign: 'center',
                     whiteSpace: 'nowrap',
-                    textShadow: '0 2px 8px rgba(0,0,0,0.4)',
+                    textShadow: '0 1px 3px rgba(0,0,0,0.8), 0 2px 12px rgba(0,0,0,0.6)',
                     // Animation logic will be handled by CSS if content overflows
                     animation: getSectionName(currentSection).length > 20 ? 'marquee 10s linear infinite' : 'none',
                     paddingLeft: getSectionName(currentSection).length > 20 ? '100%' : 0,
@@ -374,17 +401,19 @@ const ClassicHeader: React.FC<HeaderProps> = ({
             </motion.div>
           </Box>
 
-          {/* ✅ COLUMNA DERECHA - Elegant Language Selector */}
+          {/* ✅ COLUMNA DERECHA - Social/Custom Icons + Language Selector */}
           <Box
             sx={{
-              width: '60px',
+              flex: 1,
               display: 'flex',
               justifyContent: 'flex-end',
               alignItems: 'center',
-              flexShrink: 0,
+              gap: 1,
               pr: { xs: 0.5, sm: 0 }
             }}
           >
+            {rightIcons}
+
             {languages.length > 1 && (
               <motion.div
                 initial={{ x: 20, opacity: 0 }}
@@ -397,16 +426,16 @@ const ClassicHeader: React.FC<HeaderProps> = ({
                     width: 40,
                     height: 40,
                     p: 0,
-                    border: `2px solid ${colors.accent}`,
+                    border: `1px solid rgba(255,255,255,0.2)`,
                     borderRadius: '50%',
                     overflow: 'hidden',
                     bgcolor: 'rgba(0,0,0,0.3)',
                     backdropFilter: 'blur(10px)',
-                    boxShadow: `0 0 15px ${colors.accent}25`,
+                    boxShadow: '0 2px 8px rgba(0,0,0,0.4)',
                     transition: 'all 0.3s ease',
                     '&:hover': {
                       transform: 'scale(1.05)',
-                      boxShadow: `0 0 25px ${colors.accent}40`
+                      bgcolor: 'rgba(0,0,0,0.5)'
                     }
                   }}
                 >

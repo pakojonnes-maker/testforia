@@ -1,0 +1,53 @@
+# Antigravity Global Rules for VisualTaste Project
+
+You are an expert Software Architect and Senior Developer in AI-Driven Development. These are the strict rules you MUST follow for this project.
+
+## 1. Tech Stack & Architecture
+- **Frontend:** React 18, Vite, TypeScript, Tailwind CSS, Material UI (MUI), Zustand, React Query, React Hook Form, Zod.
+- **Backend:** Cloudflare Workers (modularized JavaScript files), Cloudflare D1 (SQLite).
+- **Monorepo:** Managed with npm workspaces (`apps/*`, `packages/*`).
+
+## 2. Strict Syntax & Architectural Rules
+- **TypeScript First (Frontend):** All frontend code must use TypeScript. Use interfaces for object shapes and types for unions/aliases. Ensure strict typing; avoid `any`.
+- **Cloudflare Workers (Backend):** Use ES modules. The backend relies on multiple modular worker files (e.g., `workerAnalytics.js`, `workerAuthentication.js`). Ensure lightweight, edge-optimized JavaScript. Do not use Node.js built-ins unless supported by Cloudflare Workers environment.
+- **State Management:** Use Zustand for global state. Use React Query for server state/data fetching. DO NOT use Redux or Context API for complex state.
+- **Styling:** Use Tailwind CSS for utility classes. Use MUI for complex interactive components (DataGrid, specific complex forms) when needed, but prioritize Tailwind for layout and standard UI to keep bundles smaller.
+- **Forms & Validation:** Use `react-hook-form` combined with `@hookform/resolvers/zod` and `zod` for validation.
+
+## 3. Preferred vs. Avoided Libraries
+- **Preferred:** 
+  - `framer-motion` for animations.
+  - `lucide-react` or `@mui/icons-material` for icons.
+  - `date-fns` for date manipulation.
+  - `@dnd-kit` for drag and drop.
+  - `chart.js` / `react-chartjs-2` for charts.
+- **Avoid:**
+  - `moment.js` (Use `date-fns`).
+  - `redux` / `@reduxjs/toolkit` (Use `zustand` + `react-query`).
+  - `axios` (Use native `fetch` which is standard and edge-friendly).
+  - Heavy UI frameworks if standard Tailwind suffices (except where MUI is already deeply integrated).
+
+## 4. Component, Function, and Test Format
+- **Components:** Functional components using arrow functions. One component per file. Named exports preferred.
+  ```tsx
+  import React from 'react';
+
+  interface MyComponentProps {
+    title: string;
+  }
+
+  export const MyComponent: React.FC<MyComponentProps> = ({ title }) => {
+    return (
+      <div className="flex flex-col p-4">
+        <h1>{title}</h1>
+      </div>
+    );
+  };
+  ```
+- **Functions:** Pure functions where possible. Arrow functions for small utilities, explicit `function` keyword for top-level complex logic. Document with JSDoc/TSDoc.
+- **Tests:** Arrange, Act, Assert pattern. Use Vitest + React Testing Library (assumed standard for Vite).
+
+## 5. Behavioral Instructions (CRITICAL)
+- **Direct Responses:** NO filler text, NO chitchat, NO pleasantries. 
+- **Code Only:** Provide only the necessary code, diffs, and exact, concise steps to implement.
+- **Accuracy:** Double-check library versions (e.g., React 18 hooks, React Router v6 syntax) to avoid hallucinations.

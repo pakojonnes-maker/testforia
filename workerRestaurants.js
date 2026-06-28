@@ -1,72 +1,54 @@
-// workers/workerRestaurant.js - VERSIÓN CORREGIDA CON PREFIJOS
-
-// Import password utilities from authentication worker (DRY principle)
 import { hashPassword, generateSecurePassword } from './workerAuthentication.js';
-
 // ===========================================================================
 // MAIN HANDLER
 // ===========================================================================
-
 export async function handleRestaurantRequests(request, env) {
     const url = new URL(request.url);
     const pathname = url.pathname;
     const method = request.method;
-
     console.log(`[Restaurant] ${method} ${pathname}`);
-
     // ============================================
     // LANGUAGES ENDPOINTS
     // ============================================
-
     if (method === "GET" && pathname === "/languages") {
         return getSystemLanguages(env);
     }
-
     if (method === "GET" && pathname.match(/^\/restaurants\/[\w-]+\/languages$/)) {
         const restaurantSlugOrId = pathname.split('/')[2];
         return getRestaurantLanguages(env, restaurantSlugOrId);
     }
-
     // ============================================
     // STYLING & THEME ENDPOINTS
     // ============================================
-
     if (method === 'GET' && pathname.match(/^\/restaurants\/[^\/]+\/styling$/)) {
         const restaurantId = pathname.split('/')[2];
         return getRestaurantStyling(env, restaurantId);
     }
-
     if (method === 'PUT' && pathname.match(/^\/restaurants\/[^\/]+\/styling$/)) {
         const restaurantId = pathname.split('/')[2];
         return updateRestaurantStyling(env, restaurantId, request);
     }
-
     if (method === 'PUT' && pathname.match(/^\/restaurants\/[^\/]+\/theme$/)) {
         const restaurantId = pathname.split('/')[2];
         return updateRestaurantTheme(env, restaurantId, request);
     }
-
     // ============================================
     // USERS ENDPOINTS
     // ============================================
-
     if (method === "GET" && pathname.match(/^\/restaurants\/[^/]+\/users$/)) {
         const restaurantId = pathname.split('/')[2];
         return getRestaurantUsers(env, restaurantId);
     }
-
     if (method === "POST" && pathname.match(/^\/restaurants\/[^/]+\/users$/)) {
         const restaurantId = pathname.split('/')[2];
         return addRestaurantUser(env, restaurantId, request);
     }
-
     if (method === "DELETE" && pathname.match(/^\/restaurants\/[^/]+\/users\/[^/]+$/)) {
         const parts = pathname.split('/');
         const restaurantId = parts[2];
         const userId = parts[4];
         return removeRestaurantUser(env, restaurantId, userId);
     }
-
     // Reset user password (Owner only)
     if (method === "POST" && pathname.match(/^\/restaurants\/[^/]+\/users\/[^/]+\/reset-password$/)) {
         const parts = pathname.split('/');
@@ -74,21 +56,17 @@ export async function handleRestaurantRequests(request, env) {
         const userId = parts[4];
         return resetUserPassword(env, restaurantId, userId, request);
     }
-
     // ============================================
     // RESTAURANT ENDPOINTS
     // ============================================
-
     if (method === "GET" && pathname.match(/^\/restaurants\/[^/]+\/config$/)) {
         const slug = pathname.split('/')[2];
         return getRestaurantConfig(env, slug);
     }
-
     if (method === "GET" && pathname.match(/^\/restaurants\/by-slug\/[^/]+$/)) {
         const slug = pathname.split('/').pop();
         return getRestaurantBySlug(env, slug);
     }
-
     if (method === "GET" && pathname.match(/^\/restaurants\/[^/]+$/) &&
         !pathname.includes("/by-slug/") &&
         !pathname.includes("/landing") &&
@@ -99,21 +77,17 @@ export async function handleRestaurantRequests(request, env) {
         const restaurantId = pathname.split('/')[2];
         return getRestaurant(env, restaurantId);
     }
-
     if (method === "PUT" && pathname.match(/^\/restaurants\/[^/]+$/) &&
         !pathname.includes("/styling") &&
         !pathname.includes("/theme")) {
         const restaurantId = pathname.split('/')[2];
         return updateRestaurant(env, restaurantId, request);
     }
-
     return null;
 }
-
 // ============================================
 // LANGUAGES FUNCTIONS
 // ============================================
-
 async function getSystemLanguages(env) {
     try {
         const languages = await env.DB.prepare(`
@@ -122,7 +96,6 @@ async function getSystemLanguages(env) {
       WHERE is_active = TRUE
       ORDER BY code = 'es' DESC, name ASC
     `).all();
-
         return createResponse({
             success: true,
             languages: (languages.results || []).map(lang => ({
@@ -141,17 +114,14 @@ async function getSystemLanguages(env) {
         }, 500);
     }
 }
-
 async function getRestaurantLanguages(env, restaurantSlugOrId) {
     try {
         const restaurant = await env.DB.prepare(`
       SELECT id FROM restaurants WHERE slug = ? OR id = ?
     `).bind(restaurantSlugOrId, restaurantSlugOrId).first();
-
         if (!restaurant) {
             return createResponse({ success: false, message: "Restaurant not found" }, 404);
         }
-
         const languagesData = await env.DB.prepare(`
       SELECT rl.language_code, rl.priority, rl.is_enabled, 
              rl.completion_percentage, l.name, l.native_name, l.flag_emoji
@@ -160,9 +130,7 @@ async function getRestaurantLanguages(env, restaurantSlugOrId) {
       WHERE rl.restaurant_id = ?
       ORDER BY rl.priority ASC
     `).bind(restaurant.id).all();
-
         let languages = languagesData.results || [];
-
         if (languages.length === 0) {
             const defaultLanguages = await env.DB.prepare(`
         SELECT code as language_code, name, native_name, flag_emoji, 
@@ -171,10 +139,8 @@ async function getRestaurantLanguages(env, restaurantSlugOrId) {
         WHERE is_active = TRUE
         ORDER BY code = 'es' DESC, code ASC
       `).all();
-
             languages = defaultLanguages.results || [];
         }
-
         return createResponse({
             success: true,
             languages: languages.map(lang => ({
@@ -195,11 +161,9 @@ async function getRestaurantLanguages(env, restaurantSlugOrId) {
         }, 500);
     }
 }
-
 // ============================================
 // STYLING & THEME FUNCTIONS
 // ============================================
-
 async function getRestaurantStyling(env, restaurantId) {
     try {
         const config = await env.DB.prepare(`
@@ -207,7 +171,6 @@ async function getRestaurantStyling(env, restaurantId) {
       FROM restaurant_reel_configs
       WHERE restaurant_id = ?
     `).bind(restaurantId).first();
-
         // Default colors - each independent, no fallbacks to other colors
         let customColors = {
             primary: '#FF6B6B',
@@ -225,11 +188,9 @@ async function getRestaurantStyling(env, restaurantId) {
             headerTitle: '#FFFFFF',
             headerSubtitle: '#FFC100'
         };
-
         if (config?.config_overrides) {
             try {
                 const overrides = JSON.parse(config.config_overrides);
-
                 // Read all reel_ prefixed colors, maintain independence
                 customColors = {
                     primary: overrides.reel_primary_color || customColors.primary,
@@ -250,23 +211,18 @@ async function getRestaurantStyling(env, restaurantId) {
                 console.error('[Styling GET] Parse error:', parseError);
             }
         }
-
         return createResponse({ success: true, styling: { customColors } });
     } catch (error) {
         console.error('[Styling GET] Error:', error);
         return createResponse({ success: false, message: error.message }, 500);
     }
 }
-
-
 async function updateRestaurantStyling(env, restaurantId, request) {
     try {
         const body = await request.json();
-
         const existing = await env.DB.prepare(
             `SELECT id, config_overrides FROM restaurant_reel_configs WHERE restaurant_id = ?`
         ).bind(restaurantId).first();
-
         let currentOverrides = {};
         if (existing?.config_overrides) {
             try {
@@ -275,7 +231,6 @@ async function updateRestaurantStyling(env, restaurantId, request) {
                 console.warn('[Styling PUT] Parse error');
             }
         }
-
         // Save ALL reel color fields with reel_ prefix
         const newReelColors = {
             reel_primary_color: body.primary,
@@ -292,17 +247,13 @@ async function updateRestaurantStyling(env, restaurantId, request) {
             reel_header_title: body.headerTitle,
             reel_header_subtitle: body.headerSubtitle
         };
-
         // Remove undefined values to not overwrite with null
         Object.keys(newReelColors).forEach(key => {
             if (newReelColors[key] === undefined) delete newReelColors[key];
         });
-
         const mergedOverrides = { ...currentOverrides, ...newReelColors };
         const configJson = JSON.stringify(mergedOverrides);
-
         console.log('[Styling PUT] Saving with reel_ prefix:', configJson);
-
         if (existing) {
             await env.DB.prepare(`
         UPDATE restaurant_reel_configs
@@ -316,26 +267,21 @@ async function updateRestaurantStyling(env, restaurantId, request) {
         VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
       `).bind(`reel_config_${restaurantId}`, restaurantId, 'tpl_classic', configJson).run();
         }
-
         return createResponse({ success: true, message: 'Colores de reels actualizados' });
     } catch (error) {
         console.error('[Styling PUT] Error:', error);
         return createResponse({ success: false, message: error.message }, 500);
     }
 }
-
 async function updateRestaurantTheme(env, restaurantId, request) {
     try {
         const body = await request.json();
-
         const restaurant = await env.DB.prepare(`
       SELECT theme_id FROM restaurants WHERE (id = ? OR slug = ?)
     `).bind(restaurantId, restaurantId).first();
-
         if (!restaurant || !restaurant.theme_id) {
             return createResponse({ success: false, message: "Restaurant or theme not found" }, 404);
         }
-
         await env.DB.prepare(`
       UPDATE themes 
       SET primary_color = ?, secondary_color = ?, accent_color = ?, 
@@ -351,18 +297,15 @@ async function updateRestaurantTheme(env, restaurantId, request) {
             body.override_fonts?.font_accent || 'serif',
             restaurant.theme_id
         ).run();
-
         return createResponse({ success: true, message: "Theme updated successfully" });
     } catch (error) {
         console.error("[Theme PUT] Error:", error);
         return createResponse({ success: false, message: "Error updating theme: " + error.message }, 500);
     }
 }
-
 // ============================================
 // USERS FUNCTIONS
 // ============================================
-
 async function getRestaurantUsers(env, restaurantId) {
     try {
         const users = await env.DB.prepare(`
@@ -372,67 +315,53 @@ async function getRestaurantUsers(env, restaurantId) {
             WHERE rs.restaurant_id = ?
             ORDER BY rs.created_at DESC
         `).bind(restaurantId).all();
-
         return createResponse({ success: true, users: users.results || [] });
     } catch (error) {
         console.error("[Users GET] Error:", error);
         return createResponse({ success: false, message: "Error getting users: " + error.message }, 500);
     }
 }
-
 async function addRestaurantUser(env, restaurantId, request) {
     try {
         const { email, role, name } = await request.json();
-
         if (!email) {
             return createResponse({ success: false, message: "Email is required" }, 400);
         }
-
         // Check limit (Max 5)
         const countResult = await env.DB.prepare(`
             SELECT COUNT(*) as count FROM restaurant_staff WHERE restaurant_id = ?
         `).bind(restaurantId).first();
-
         if (countResult.count >= 5) {
             return createResponse({ success: false, message: "Maximum 5 users allowed per restaurant" }, 403);
         }
-
         // Check if user exists
         let user = await env.DB.prepare(`SELECT id, email FROM users WHERE email = ?`).bind(email).first();
         let generatedPassword = null;
-
         if (!user) {
             // Create new user with secure random password
             const userId = `user_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
-
             // Generate secure password and hash it
             generatedPassword = generateSecurePassword(12);
             const passwordHash = await hashPassword(generatedPassword);
-
             await env.DB.prepare(`
                 INSERT INTO users (id, email, display_name, password_hash, auth_provider, created_at)
                 VALUES (?, ?, ?, ?, 'email', CURRENT_TIMESTAMP)
             `).bind(userId, email, name || email.split('@')[0], passwordHash).run();
-
             user = { id: userId, email };
             console.log(`[Users POST] Created new user ${email} with secure password`);
         }
-
         // Check if already in restaurant
         const existingStaff = await env.DB.prepare(`
             SELECT * FROM restaurant_staff WHERE restaurant_id = ? AND user_id = ?
         `).bind(restaurantId, user.id).first();
-
         if (existingStaff) {
             return createResponse({ success: false, message: "User already in this restaurant" }, 409);
         }
-
         // Add to staff
         await env.DB.prepare(`
             INSERT INTO restaurant_staff (restaurant_id, user_id, role, is_active, created_at)
             VALUES (?, ?, ?, TRUE, CURRENT_TIMESTAMP)
         `).bind(restaurantId, user.id, role || 'staff').run();
-
         // Return response WITH generated password (only shown once)
         const response = {
             success: true,
@@ -441,49 +370,39 @@ async function addRestaurantUser(env, restaurantId, request) {
                 : "Usuario existente añadido al restaurante",
             user: { ...user, role: role || 'staff' }
         };
-
         // Include generated password in response (only for new users)
         if (generatedPassword) {
             response.generatedPassword = generatedPassword;
         }
-
         return createResponse(response);
-
     } catch (error) {
         console.error("[Users POST] Error:", error);
         return createResponse({ success: false, message: "Error adding user: " + error.message }, 500);
     }
 }
-
 async function removeRestaurantUser(env, restaurantId, userId) {
     try {
         // Prevent deleting the last owner
         const staffMember = await env.DB.prepare(`
             SELECT role FROM restaurant_staff WHERE restaurant_id = ? AND user_id = ?
         `).bind(restaurantId, userId).first();
-
         if (staffMember && staffMember.role === 'owner') {
             const ownerCount = await env.DB.prepare(`
                 SELECT COUNT(*) as count FROM restaurant_staff WHERE restaurant_id = ? AND role = 'owner'
             `).bind(restaurantId).first();
-
             if (ownerCount.count <= 1) {
                 return createResponse({ success: false, message: "Cannot delete the last owner" }, 403);
             }
         }
-
         await env.DB.prepare(`
             DELETE FROM restaurant_staff WHERE restaurant_id = ? AND user_id = ?
         `).bind(restaurantId, userId).run();
-
         return createResponse({ success: true, message: "User removed successfully" });
-
     } catch (error) {
         console.error("[Users DELETE] Error:", error);
         return createResponse({ success: false, message: "Error removing user: " + error.message }, 500);
     }
 }
-
 async function resetUserPassword(env, restaurantId, userId, request) {
     try {
         // Verify the user belongs to this restaurant
@@ -493,25 +412,20 @@ async function resetUserPassword(env, restaurantId, userId, request) {
             JOIN users u ON rs.user_id = u.id
             WHERE rs.restaurant_id = ? AND rs.user_id = ?
         `).bind(restaurantId, userId).first();
-
         if (!staffMember) {
             return createResponse({
                 success: false,
                 message: "Usuario no encontrado en este restaurante"
             }, 404);
         }
-
         // Generate new secure password
         const newPassword = generateSecurePassword(12);
         const passwordHash = await hashPassword(newPassword);
-
         // Update the user's password
         await env.DB.prepare(`
             UPDATE users SET password_hash = ? WHERE id = ?
         `).bind(passwordHash, userId).run();
-
         console.log(`[Users RESET] Password reset for ${staffMember.email}`);
-
         return createResponse({
             success: true,
             message: "Contraseña reseteada correctamente",
@@ -522,7 +436,6 @@ async function resetUserPassword(env, restaurantId, userId, request) {
             },
             generatedPassword: newPassword
         });
-
     } catch (error) {
         console.error("[Users RESET] Error:", error);
         return createResponse({
@@ -531,11 +444,9 @@ async function resetUserPassword(env, restaurantId, userId, request) {
         }, 500);
     }
 }
-
 // ============================================
 // RESTAURANT FUNCTIONS
 // ============================================
-
 async function getRestaurantConfig(env, slug) {
     try {
         const restaurant = await env.DB.prepare(`
@@ -546,11 +457,9 @@ async function getRestaurantConfig(env, slug) {
       LEFT JOIN themes t ON r.theme_id = t.id
       WHERE (r.slug = ? OR r.id = ?) AND r.is_active = TRUE
     `).bind(slug, slug).first();
-
         if (!restaurant) {
             return createResponse({ success: false, message: "Restaurant not found" }, 404);
         }
-
         const reelConfig = await env.DB.prepare(`
       SELECT rrc.template_id, rrc.config_overrides,
              rt.name as template_name, rt.description as template_description,
@@ -559,7 +468,6 @@ async function getRestaurantConfig(env, slug) {
       LEFT JOIN reel_templates rt ON rrc.template_id = rt.id
       WHERE rrc.restaurant_id = ?
     `).bind(restaurant.id).first();
-
         // [NEW] Fetch Active Marketing Campaign
         const activeCampaign = await env.DB.prepare(`
       SELECT * FROM marketing_campaigns 
@@ -567,18 +475,14 @@ async function getRestaurantConfig(env, slug) {
       ORDER BY priority DESC, created_at DESC 
       LIMIT 1
     `).bind(restaurant.id).first();
-
         let configOverrides = {};
         let restaurantFeatures = {};
-
         if (reelConfig?.config_overrides) {
             try { configOverrides = JSON.parse(reelConfig.config_overrides); } catch (e) { }
         }
-
         if (restaurant.features) {
             try { restaurantFeatures = JSON.parse(restaurant.features); } catch (e) { }
         }
-
         // Parse campaign content if exists
         let marketingCampaign = undefined;
         if (activeCampaign) {
@@ -593,13 +497,11 @@ async function getRestaurantConfig(env, slug) {
                 console.error("Error parsing campaign JSON", e);
             }
         }
-
         // [NEW] Fetch Reservation Status
         const reservationSettings = await env.DB.prepare(`
             SELECT is_enabled FROM reservation_settings WHERE restaurant_id = ?
         `).bind(restaurant.id).first();
         const reservationsEnabled = reservationSettings?.is_enabled === 1;
-
         // ✅ CORREGIDO: branding usa SOLO tabla themes (NO config_overrides)
         const config = {
             template: {
@@ -627,14 +529,12 @@ async function getRestaurantConfig(env, slug) {
             marketing: marketingCampaign, // [NEW] Inject campaign here
             reservationsEnabled: reservationsEnabled // [NEW] Status
         };
-
         return createResponse({ success: true, config });
     } catch (error) {
         console.error("[Config] Error:", error);
         return createResponse({ success: false, message: "Error getting config: " + error.message }, 500);
     }
 }
-
 async function getRestaurant(env, restaurantId) {
     try {
         const restaurant = await env.DB.prepare(`
@@ -654,18 +554,15 @@ async function getRestaurant(env, restaurantId) {
       LEFT JOIN themes t ON r.theme_id = t.id
       WHERE (r.id = ? OR r.slug = ?) AND r.is_active = TRUE
     `).bind(restaurantId, restaurantId).first();
-
         if (!restaurant) {
             return createResponse({ success: false, message: "Restaurant not found" }, 404);
         }
-
         return createResponse({ success: true, restaurant });
     } catch (error) {
         console.error("[Restaurant GET] Error:", error);
         return createResponse({ success: false, message: "Server error: " + error.message }, 500);
     }
 }
-
 async function getRestaurantBySlug(env, slug) {
     try {
         // [FIX] Added LEFT JOIN restaurant_details to fetch social links
@@ -682,25 +579,21 @@ async function getRestaurantBySlug(env, slug) {
       LEFT JOIN themes t ON r.theme_id = t.id
       WHERE r.slug = ? AND r.is_active = TRUE
     `).bind(slug).first();
-
         if (!restaurant) {
             return createResponse({ success: false, message: "Restaurant not found" }, 404);
         }
-
         return createResponse({ success: true, restaurant });
     } catch (error) {
         console.error("[Restaurant By Slug] Error:", error);
         return createResponse({ success: false, message: "Server error: " + error.message }, 500);
     }
 }
-
 async function updateRestaurant(env, restaurantId, request) {
     try {
         // DEBUG: Read body as text first to see what we're receiving
         const rawBody = await request.text();
         console.log(`[Restaurant PUT] Raw body length: ${rawBody.length}`);
         console.log(`[Restaurant PUT] Raw body first 200 chars: ${rawBody.substring(0, 200)}`);
-
         let body;
         try {
             body = JSON.parse(rawBody);
@@ -713,15 +606,12 @@ async function updateRestaurant(env, restaurantId, request) {
                 debug: { bodyLength: rawBody.length, preview: rawBody.substring(0, 100) }
             }, 400);
         }
-
         const restaurant = await env.DB.prepare(`
       SELECT id, features FROM restaurants WHERE (id = ? OR slug = ?)
     `).bind(restaurantId, restaurantId).first();
-
         if (!restaurant) {
             return createResponse({ success: false, message: "Restaurant not found" }, 404);
         }
-
         // Parse existing features safely (may be null, empty string, JSON string, or already parsed)
         let newFeatures = {};
         if (restaurant.features) {
@@ -740,7 +630,6 @@ async function updateRestaurant(env, restaurantId, request) {
             // Merge/Patch features
             newFeatures = { ...newFeatures, ...body.features };
         }
-
         await env.DB.prepare(`
       UPDATE restaurants 
       SET name = COALESCE(?, name), 
@@ -764,11 +653,9 @@ async function updateRestaurant(env, restaurantId, request) {
             JSON.stringify(newFeatures),
             restaurant.id
         ).run();
-
         const detailsExist = await env.DB.prepare(`
       SELECT restaurant_id FROM restaurant_details WHERE restaurant_id = ?
     `).bind(restaurant.id).first();
-
         if (detailsExist) {
             await env.DB.prepare(`
         UPDATE restaurant_details 
@@ -824,14 +711,12 @@ async function updateRestaurant(env, restaurantId, request) {
                 body.tripadvisor_url || null
             ).run();
         }
-
         return createResponse({ success: true, message: "Restaurant updated successfully" });
     } catch (error) {
         console.error("[Restaurant PUT] Error:", error);
         return createResponse({ success: false, message: "Error updating restaurant: " + error.message }, 500);
     }
 }
-
 export function createResponse(data, status = 200) {
     return new Response(JSON.stringify(data), {
         status,

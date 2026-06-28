@@ -47,6 +47,9 @@ import {
   Visibility as VisibilityIcon,
   VisibilityOff as VisibilityOffIcon,
   TwoWheeler,
+  Apartment as ApartmentIcon,
+  Dashboard as GuideDashboardIcon,
+  SwapHoriz as SwapIcon,
 } from '@mui/icons-material';
 import {
   Menu,
@@ -65,7 +68,7 @@ import { RestaurantSelectorDialog } from '../common/RestaurantSelectorDialog';
 const drawerWidth = 240;
 
 export default function DashboardLayout() {
-  const { user, logout, switchRestaurant, currentRestaurant } = useAuth();
+  const { user, logout, switchRestaurant, currentRestaurant, currentAgency, switchAgency, adminMode, setAdminMode, hasRestaurants, hasAgencies } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
   const theme = useTheme();
@@ -200,7 +203,7 @@ export default function DashboardLayout() {
   const hasMultipleRestaurants = user?.restaurants && user.restaurants.length > 1;
 
   // Actualización de items del menú lateral con feature keys
-  const allMenuItems = [
+  const restaurantMenuItems = [
     {
       text: 'Estadísticas',
       icon: <StatsIcon />,
@@ -256,6 +259,24 @@ export default function DashboardLayout() {
       featureKey: null // Always visible for owners/admins
     },
   ];
+
+  // ✅ Guidebook Agency menu items
+  const agencyMenuItems = [
+    {
+      text: 'Dashboard',
+      icon: <GuideDashboardIcon />,
+      path: '/guide',
+      featureKey: null
+    },
+    {
+      text: 'Apartamentos',
+      icon: <ApartmentIcon />,
+      path: '/guide/apartments',
+      featureKey: null
+    },
+  ];
+
+  const allMenuItems = adminMode === 'agency' ? agencyMenuItems : restaurantMenuItems;
 
   // Parse features from current restaurant (may be JSON string or object)
   const getFeatures = () => {
@@ -392,6 +413,79 @@ export default function DashboardLayout() {
         )}
       </Toolbar>
       <Divider />
+
+      {/* ✅ Mode Toggle for users with both restaurants and agencies */}
+      {(hasRestaurants && hasAgencies) && (
+        <Box sx={{ px: 2, py: 1.5 }}>
+          <Box sx={{
+            display: 'flex',
+            borderRadius: 2,
+            overflow: 'hidden',
+            border: '1px solid',
+            borderColor: 'divider',
+          }}>
+            <Button
+              size="small"
+              fullWidth
+              onClick={() => { setAdminMode('restaurant'); navigate('/'); }}
+              startIcon={<RestaurantIcon sx={{ fontSize: 16 }} />}
+              sx={{
+                borderRadius: 0,
+                py: 0.8,
+                fontSize: '0.72rem',
+                fontWeight: adminMode === 'restaurant' ? 700 : 400,
+                bgcolor: adminMode === 'restaurant' ? 'primary.main' : 'transparent',
+                color: adminMode === 'restaurant' ? 'white' : 'text.secondary',
+                '&:hover': {
+                  bgcolor: adminMode === 'restaurant' ? 'primary.dark' : 'action.hover',
+                },
+              }}
+            >
+              Restaurantes
+            </Button>
+            <Button
+              size="small"
+              fullWidth
+              onClick={() => { setAdminMode('agency'); navigate('/guide'); }}
+              startIcon={<ApartmentIcon sx={{ fontSize: 16 }} />}
+              sx={{
+                borderRadius: 0,
+                py: 0.8,
+                fontSize: '0.72rem',
+                fontWeight: adminMode === 'agency' ? 700 : 400,
+                bgcolor: adminMode === 'agency' ? 'primary.main' : 'transparent',
+                color: adminMode === 'agency' ? 'white' : 'text.secondary',
+                '&:hover': {
+                  bgcolor: adminMode === 'agency' ? 'primary.dark' : 'action.hover',
+                },
+              }}
+            >
+              Guidebook
+            </Button>
+          </Box>
+        </Box>
+      )}
+
+      {/* ✅ Agency Selector (when in agency mode with multiple agencies) */}
+      {adminMode === 'agency' && user?.agencies && user.agencies.length > 1 && (
+        <Box sx={{ px: 2, pb: 1 }}>
+          <FormControl size="small" fullWidth>
+            <InputLabel id="agency-select-label">Agencia</InputLabel>
+            <Select
+              labelId="agency-select-label"
+              value={currentAgency?.id || ''}
+              label="Agencia"
+              onChange={(e) => switchAgency(e.target.value)}
+            >
+              {user.agencies.map((agency: any) => (
+                <MenuItem key={agency.id} value={agency.id}>
+                  <Typography variant="body2">{agency.name}</Typography>
+                </MenuItem>
+              ))}
+            </Select>
+          </FormControl>
+        </Box>
+      )}
       <List>
         {menuItems.map((item) => {
           const isActive = location.pathname === item.path;

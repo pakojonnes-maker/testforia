@@ -93,7 +93,7 @@ export const IOSInstallPrompt = () => {
                         </Typography>
 
                         <Typography variant="body2" sx={{ color: 'rgba(255,255,255,0.6)', textAlign: 'center', maxWidth: 300 }}>
-                            Recibe <strong style={{ color: '#FF6B6B' }}>ofertas exclusivas</strong> y accede más rápido al menú
+                            Recibe <strong style={{ color: '#FF6B6B' }}>ofertas exclusivas</strong> y notificaciones al instante. Se activarán automáticamente al abrir la app.
                         </Typography>
 
                         {/* Steps */}

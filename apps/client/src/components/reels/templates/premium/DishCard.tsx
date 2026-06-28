@@ -48,9 +48,7 @@ const PremiumDishCard: React.FC<DishCardProps> = ({
   const [showDetails, setShowDetails] = useState(false);
   // ✅ Video-First Loading Pattern
   const [videoReady, setVideoReady] = useState(false);
-  const [showFallbackImage, setShowFallbackImage] = useState(false);
   const [videoError, setVideoError] = useState(false);
-  const videoLoadTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // ✅ FIX: Refs for duration tracking to avoid closure issues
   const viewStartTimeRef = useRef<number | null>(null);
@@ -75,37 +73,10 @@ const PremiumDishCard: React.FC<DishCardProps> = ({
   // ✅ Reset video state when dish changes
   useEffect(() => {
     setVideoReady(false);
-    setShowFallbackImage(false);
     setVideoError(false);
-    if (videoLoadTimeoutRef.current) {
-      clearTimeout(videoLoadTimeoutRef.current);
-      videoLoadTimeoutRef.current = null;
-    }
   }, [dish?.id]);
 
-  // ✅ Video-First: Start timeout when video should play
-  useEffect(() => {
-    if (!isVideo || !isActive || !inView) {
-      if (videoLoadTimeoutRef.current) {
-        clearTimeout(videoLoadTimeoutRef.current);
-        videoLoadTimeoutRef.current = null;
-      }
-      return;
-    }
-
-    videoLoadTimeoutRef.current = setTimeout(() => {
-      if (!videoReady) {
-        setShowFallbackImage(true);
-      }
-    }, 500);
-
-    return () => {
-      if (videoLoadTimeoutRef.current) {
-        clearTimeout(videoLoadTimeoutRef.current);
-        videoLoadTimeoutRef.current = null;
-      }
-    };
-  }, [isVideo, isActive, inView, videoReady]);
+  // ✅ Thumbnail is always visible from frame 0 (no timeout needed)
 
   // Auto-play logic
   useEffect(() => {
@@ -117,7 +88,6 @@ const PremiumDishCard: React.FC<DishCardProps> = ({
         video.muted = true;
         video.play().catch(() => {
           setVideoError(true);
-          setShowFallbackImage(true);
         });
       });
     } else {
@@ -214,15 +184,9 @@ const PremiumDishCard: React.FC<DishCardProps> = ({
               preload={isActive ? 'auto' : 'metadata'}
               onCanPlayThrough={() => {
                 setVideoReady(true);
-                setShowFallbackImage(false);
-                if (videoLoadTimeoutRef.current) {
-                  clearTimeout(videoLoadTimeoutRef.current);
-                  videoLoadTimeoutRef.current = null;
-                }
               }}
               onError={() => {
                 setVideoError(true);
-                setShowFallbackImage(true);
               }}
               style={{
                 width: '100%',
@@ -234,25 +198,24 @@ const PremiumDishCard: React.FC<DishCardProps> = ({
               }}
             />
 
-            {/* ✅ Fallback Image: Only shown if timeout or error */}
-            {showFallbackImage && (
-              <img
-                src={media?.thumbnail_url || media?.url || '/placeholder.jpg'}
-                alt={dishName}
-                style={{
-                  position: 'absolute',
-                  top: 0,
-                  left: 0,
-                  width: '100%',
-                  height: '100%',
-                  objectFit: 'cover',
-                  filter: 'saturate(110%) brightness(105%)',
-                  opacity: videoReady ? 0 : 1,
-                  transition: 'opacity 0.3s ease-out',
-                  pointerEvents: 'none'
-                }}
-              />
-            )}
+            {/* ✅ First frame placeholder: shows actual video frame, fades out when video ready */}
+            <video
+              src={`${media?.url}#t=0.1`}
+              preload="metadata"
+              muted
+              playsInline
+              style={{
+                position: 'absolute',
+                top: 0,
+                left: 0,
+                width: '100%',
+                height: '100%',
+                objectFit: 'cover',
+                opacity: videoReady ? 0 : 1,
+                transition: 'opacity 0.3s ease-out',
+                pointerEvents: 'none',
+              }}
+            />
           </>
         ) : (
           /* ✅ Image-only display with blurred background for better mobile viewing */
@@ -269,7 +232,7 @@ const PremiumDishCard: React.FC<DishCardProps> = ({
                 width: '100%',
                 height: '100%',
                 objectFit: 'cover',
-                filter: 'blur(30px) brightness(0.4) saturate(110%)',
+                filter: 'blur(30px) brightness(0.6) saturate(110%)',
                 transform: 'scale(1.1)', // Prevent blur edge artifacts
                 zIndex: 0
               }}
@@ -282,7 +245,7 @@ const PremiumDishCard: React.FC<DishCardProps> = ({
                 position: 'relative',
                 width: '100%',
                 height: '100%',
-                objectFit: 'contain', // ✅ Show full image without cropping
+                objectFit: 'cover', // ✅ Fill full width like Instagram/TikTok reels
                 filter: 'saturate(110%) brightness(105%)',
                 zIndex: 1
               }}

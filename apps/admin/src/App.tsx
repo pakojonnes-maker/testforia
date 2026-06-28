@@ -21,6 +21,10 @@ const UsersPage = lazy(() => import('./pages/UsersPage'));
 const QRGeneratorPage = lazy(() => import('./pages/QRGeneratorPage'));
 const ReservationsPage = lazy(() => import('./pages/ReservationsPage'));
 const DeliveryPage = lazy(() => import('./pages/DeliveryPage'));
+// ✅ Guidebook Admin Pages
+const GuideAgencyDashboard = lazy(() => import('./pages/guide/GuideAgencyDashboard'));
+const GuideApartmentsPage = lazy(() => import('./pages/guide/GuideApartmentsPage'));
+const GuideApartmentDetail = lazy(() => import('./pages/guide/GuideApartmentDetail'));
 
 
 // Componente para proteger rutas
@@ -124,6 +128,32 @@ function App() {
             element={
               <Suspense fallback={<LinearProgress />}>
                 <DeliveryPage />
+              </Suspense>
+            }
+          />
+
+          {/* ✅ Guidebook Admin Routes */}
+          <Route
+            path="guide"
+            element={
+              <Suspense fallback={<LinearProgress />}>
+                <GuideAgencyDashboard />
+              </Suspense>
+            }
+          />
+          <Route
+            path="guide/apartments"
+            element={
+              <Suspense fallback={<LinearProgress />}>
+                <GuideApartmentsPage />
+              </Suspense>
+            }
+          />
+          <Route
+            path="guide/apartments/:id"
+            element={
+              <Suspense fallback={<LinearProgress />}>
+                <GuideApartmentDetail />
               </Suspense>
             }
           />

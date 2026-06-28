@@ -4,7 +4,7 @@ import React, { createContext, useContext, useEffect, useMemo, useRef, useState 
 import { apiClient } from '../lib/apiClient';
 import { IOSInstallPrompt } from '../components/IOSInstallPrompt';
 import RestaurantContext from '../contexts/RestaurantContext';
-import { Modal, Box, Typography, Button, IconButton } from '@mui/material';
+import { Modal, Box, Typography, Button, IconButton, Snackbar, Alert as MuiAlert } from '@mui/material';
 import NotificationsActiveIcon from '@mui/icons-material/NotificationsActive';
 import CloseIcon from '@mui/icons-material/Close';
 
@@ -166,17 +166,15 @@ function urlBase64ToUint8Array(base64String: string) {
 function getVisitorId(): string | null {
   if (typeof window === 'undefined') return null;
 
-  // 1. Check explicit consent
-  const consent = localStorage.getItem(CONSENT_KEY);
-  if (consent !== 'true') return null;
-
-  // 2. Read ID
+  // ✅ FIX: visitor_id is an anonymous UUID — NOT personal data
+  // Consent controls detailed event tracking (dish views, favorites, etc.)
+  // but NOT basic anonymous visit counting for recurrence
   const itemStr = localStorage.getItem(VISITOR_KEY);
   if (!itemStr) return null;
 
   try {
     const item = JSON.parse(itemStr);
-    // 3. Check TTL
+    // Check TTL
     if (Date.now() > item.expiry) {
       localStorage.removeItem(VISITOR_KEY);
       return null;
@@ -860,6 +858,11 @@ export function TrackingAndPushProvider({ restaurantId, children }: Props) {
   const [showIOSPrompt, setShowIOSPrompt] = useState(false);
   const [showSoftPrompt, setShowSoftPrompt] = useState(false);
   const [softPromptCallback, setSoftPromptCallback] = useState<(() => void) | undefined>();
+  // ✅ Snackbar state (replaces all alert() calls)
+  const [snackbar, setSnackbar] = useState<{ open: boolean; message: string; severity: 'success' | 'error' | 'info' | 'warning' }>({ open: false, message: '', severity: 'info' });
+  const showSnackbar = (message: string, severity: 'success' | 'error' | 'info' | 'warning' = 'info') => {
+    setSnackbar({ open: true, message, severity });
+  };
 
   useEffect(() => {
     if (typeof window !== 'undefined' && 'serviceWorker' in navigator && 'PushManager' in window) {
@@ -876,6 +879,20 @@ export function TrackingAndPushProvider({ restaurantId, children }: Props) {
       const ua = navigator.userAgent;
       const isIosDevice = /iPad|iPhone|iPod/.test(ua) && !(window as any).MSStream;
       setIsIOS(isIosDevice);
+
+      // ✅ FIX: iOS post-install auto-subscribe
+      // If user previously tried to subscribe on iOS Safari, and now they're in standalone PWA,
+      // auto-trigger the subscription flow.
+      const isStandalone = window.matchMedia('(display-mode: standalone)').matches || (navigator as any).standalone;
+      const hasPendingPush = localStorage.getItem('vt_push_pending') === 'true';
+      if (isIosDevice && isStandalone && hasPendingPush) {
+        console.log('🔔 [Push] iOS PWA detected with pending subscription — auto-triggering');
+        localStorage.removeItem('vt_push_pending');
+        // Delay to let the app fully initialize
+        setTimeout(() => {
+          setShowSoftPrompt(true);
+        }, 2000);
+      }
     }
   }, []);
 
@@ -890,6 +907,8 @@ export function TrackingAndPushProvider({ restaurantId, children }: Props) {
     const isStandalone = window.matchMedia('(display-mode: standalone)').matches || (navigator as any).standalone;
     if (isIOS && !isStandalone) {
       console.log('🔔 [Push] iOS Browser detected -> Show Prompt');
+      // ✅ FIX: Save pending intent so when user installs PWA, we auto-trigger
+      localStorage.setItem('vt_push_pending', 'true');
       setShowIOSPrompt(true);
       return 'ios_prompt';
     }
@@ -904,27 +923,22 @@ export function TrackingAndPushProvider({ restaurantId, children }: Props) {
         return 'denied';
       }
 
-      // VAPID Key (Should be env var, using public key generated earlier)
-      const VAPID_PUBLIC_KEY = 'BB34mfUFVy5s-Cnbtu7dB_OhXAx06GRlKKruLbJIbnTefFd0ECHqtcJP4x6r6MN-A3nr4Yl57wZ7iRm16SnSoQw';
+      // ✅ FIX: VAPID key from env var with fallback
+      const VAPID_PUBLIC_KEY = import.meta.env.VITE_VAPID_PUBLIC_KEY || 'BB34mfUFVy5s-Cnbtu7dB_OhXAx06GRlKKruLbJIbnTefFd0ECHqtcJP4x6r6MN-A3nr4Yl57wZ7iRm16SnSoQw';
 
+      // ✅ FIX: Always register SW first (browser no-ops if already registered),
+      // then wait for ready. navigator.serviceWorker.ready NEVER rejects —
+      // it hangs forever if no SW is registered, which caused the deadlock.
       let registration;
       try {
-        console.log('🔔 [Push] Registering SW...');
-        registration = await navigator.serviceWorker.register('/sw.js', { scope: '/' });
-        console.log('🔔 [Push] SW Registered:', registration);
+        console.log('🔔 [Push] Registering SW (idempotent)...');
+        await navigator.serviceWorker.register('/sw.js', { scope: '/' });
+        console.log('🔔 [Push] Waiting for SW ready...');
+        registration = await navigator.serviceWorker.ready;
+        console.log('🔔 [Push] SW Ready:', registration);
       } catch (swError) {
         console.error('🔔 [Push] SW Registration Error:', swError);
-        alert('Debug Error: Service Worker registration failed - ' + (swError instanceof Error ? swError.message : String(swError)));
-        return 'error';
-      }
-
-      try {
-        console.log('🔔 [Push] Waiting for SW ready...');
-        await navigator.serviceWorker.ready;
-        console.log('🔔 [Push] SW Ready. Subscribing using VAPID...');
-      } catch (readyError) {
-        console.error('🔔 [Push] SW Ready Error:', readyError);
-        alert('Debug Error: Service Worker not ready - ' + (readyError instanceof Error ? readyError.message : String(readyError)));
+        showSnackbar('Error al activar notificaciones. Inténtalo de nuevo.', 'error');
         return 'error';
       }
 
@@ -937,7 +951,7 @@ export function TrackingAndPushProvider({ restaurantId, children }: Props) {
         console.log('🔔 [Push] Subscription object created:', subscription);
       } catch (subError) {
         console.error('🔔 [Push] Push Subscription Error:', subError);
-        alert('Debug Error: Push subscription failed - ' + (subError instanceof Error ? subError.message : String(subError)) + '\n\nThis usually means:\n1. Push service unavailable\n2. VAPID key issue\n3. Network issue');
+        showSnackbar('Error al suscribirse. Verifica la configuración del navegador.', 'error');
         return 'error';
       }
 
@@ -947,7 +961,7 @@ export function TrackingAndPushProvider({ restaurantId, children }: Props) {
 
       try {
         console.log('🔔 [Push] Sending to backend...');
-        await fetch(`${import.meta.env.VITE_API_URL || 'https://visualtasteworker.franciscotortosaestudios.workers.dev'}/api/notifications/subscribe`, {
+        const response = await fetch(`${import.meta.env.VITE_API_URL || 'https://visualtasteworker.franciscotortosaestudios.workers.dev'}/api/notifications/subscribe`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json'
@@ -959,18 +973,25 @@ export function TrackingAndPushProvider({ restaurantId, children }: Props) {
             device_type: env.devicetype
           })
         });
+
+        // ✅ FIX: Verify backend response
+        if (!response.ok) {
+          console.error('🔔 [Push] Backend returned error:', response.status);
+          showSnackbar('Error al registrar la suscripción. Inténtalo de nuevo.', 'error');
+          return 'error';
+        }
         console.log('🔔 [Push] Backend registration success');
       } catch (backendError) {
         console.error('🔔 [Push] Backend registration error:', backendError);
-        // Still mark as enabled since the subscription was created
-        console.log('🔔 [Push] Subscription created but backend sync failed');
+        showSnackbar('Error de conexión al activar notificaciones.', 'error');
+        return 'error';
       }
 
       setIsPushEnabled(true);
       return 'success';
     } catch (error) {
       console.error('🔔 [Push] CRITICAL ERROR:', error);
-      alert('Debug Error: ' + (error instanceof Error ? error.message : JSON.stringify(error)));
+      showSnackbar('Error inesperado al activar notificaciones.', 'error');
       return 'error';
     }
   };
@@ -1007,23 +1028,22 @@ export function TrackingAndPushProvider({ restaurantId, children }: Props) {
   };
 
   const handleSoftPromptConfirm = async () => {
-    // Keep dialog open or show loading? For now, close it to show alerts.
     setShowSoftPrompt(false);
 
     // Trigger Native Request
     const result = await subscribeToPush();
 
     if (result === 'success') {
-      alert('✅ Notificaciones activadas. ¡Gracias!');
-      // Proceed
+      // ✅ FIX: Snackbar instead of alert
+      showSnackbar('🔔 ¡Notificaciones activadas! Recibirás ofertas exclusivas.', 'success');
       if (softPromptCallback) softPromptCallback();
     } else if (result === 'denied') {
-      alert('❌ Has bloqueado las notificaciones. Actívalas en la configuración para recibir regalos.');
-      // Still proceed to offer? Maybe, or maybe not. User said "ya no se volvera a activar" (this was for rating).
-      // Proceed anyway to let them see the offer content?
+      showSnackbar('Las notificaciones están bloqueadas. Actívalas en la configuración del navegador.', 'warning');
+      // Still proceed to let them see the offer content
       if (softPromptCallback) softPromptCallback();
     } else if (result === 'error') {
-      alert('❌ Ocurrió un error. Inténtalo de nuevo.');
+      // Error snackbar already shown by subscribeToPush
+      if (softPromptCallback) softPromptCallback();
     } else if (result === 'ios_prompt') {
       // Handled by IOSPrompt component state
     }
@@ -1059,6 +1079,23 @@ export function TrackingAndPushProvider({ restaurantId, children }: Props) {
         onConfirm={handleSoftPromptConfirm}
         primaryColor={primaryColor}
       />
+      {/* ✅ Global Snackbar for push notification feedback (replaces alert()) */}
+      <Snackbar
+        open={snackbar.open}
+        autoHideDuration={5000}
+        onClose={() => setSnackbar(prev => ({ ...prev, open: false }))}
+        anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
+      >
+        <MuiAlert
+          elevation={6}
+          variant="filled"
+          severity={snackbar.severity}
+          onClose={() => setSnackbar(prev => ({ ...prev, open: false }))}
+          sx={{ width: '100%', borderRadius: 3 }}
+        >
+          {snackbar.message}
+        </MuiAlert>
+      </Snackbar>
     </TrackingCtx.Provider>
   );
 }

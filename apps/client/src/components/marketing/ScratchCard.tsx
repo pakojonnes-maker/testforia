@@ -158,6 +158,8 @@ export const ScratchCard: React.FC<ScratchCardProps> = ({
         const pos = getPos(e);
         lastPos.current = pos;
         scratch(pos);
+        // Haptic feedback on first scratch
+        if (navigator.vibrate) navigator.vibrate(10);
     };
 
     const handleMove = (e: React.MouseEvent | React.TouchEvent) => {

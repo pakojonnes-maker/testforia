@@ -36,7 +36,8 @@ import {
   Tabs,
   Tab,
   Snackbar,
-  LinearProgress
+  LinearProgress,
+  Slider
 } from '@mui/material';
 import {
   Campaign as CampaignIcon,
@@ -51,7 +52,9 @@ import {
   Person as PersonIcon,
   DateRange as DateIcon,
   CheckCircle as CheckIcon,
-  Send as SendIcon
+  Send as SendIcon,
+  Receipt as ReceiptIcon,
+  Lock as LockIcon
 } from '@mui/icons-material';
 
 
@@ -181,7 +184,15 @@ const MarketingPage: React.FC = () => {
     image_url: ''
   });
   const [isSending, setIsSending] = useState(false);
-  const [qrUrl, setQrUrl] = useState(''); // For QR generator prefill
+  const [qrUrl, setQrUrl] = useState('');
+
+  // Claims state
+  const [claimsFilter, setClaimsFilter] = useState<string>('all');
+  const [claimsData, setClaimsData] = useState<{ claims: any[]; counts: any }>({ claims: [], counts: {} });
+  const [claimsLoading, setClaimsLoading] = useState(false);
+  const [redeemPin, setRedeemPin] = useState('');
+  const [pinLoaded, setPinLoaded] = useState(false);
+  const [savingPin, setSavingPin] = useState(false);
 
 
   // ============================================
@@ -197,6 +208,17 @@ const MarketingPage: React.FC = () => {
     enabled: !!restaurantId
   });
 
+  // ✅ Fetch subscriber count for the notification panel
+  const { data: subscriberData } = useQuery<{ subscriber_count: number }>({
+    queryKey: ['subscriberCount', restaurantId],
+    queryFn: async () => {
+      const res = await apiClient.client.get(`/api/restaurants/${restaurantId}/notifications/subscribers`);
+      return res.data;
+    },
+    enabled: !!restaurantId,
+    refetchInterval: 30000 // Refresh every 30s
+  });
+
   // ============================================
   // EFFECTS
   // ============================================
@@ -206,6 +228,63 @@ const MarketingPage: React.FC = () => {
       setPushEnabled(currentRestaurant.features.push_notifications_enabled !== false);
     }
   }, [currentRestaurant]);
+
+  // Load claims when tab 2 is active
+  useEffect(() => {
+    if (activeTab === 2 && restaurantId) {
+      loadClaims();
+    }
+  }, [activeTab, restaurantId, claimsFilter]);
+
+  // Load PIN when tab 2 is active  
+  useEffect(() => {
+    if (activeTab === 2 && restaurantId && !pinLoaded) {
+      loadPin();
+    }
+  }, [activeTab, restaurantId]);
+
+  const loadClaims = async () => {
+    setClaimsLoading(true);
+    try {
+      const params = claimsFilter !== 'all' ? `?status=${claimsFilter}` : '';
+      const res = await apiClient.client.get(`/api/restaurants/${restaurantId}/claims${params}`);
+      setClaimsData({ claims: res.data.claims || [], counts: res.data.counts || {} });
+    } catch (e) {
+      setClaimsData({ claims: [], counts: {} });
+    } finally {
+      setClaimsLoading(false);
+    }
+  };
+
+  const loadPin = async () => {
+    try {
+      const res = await apiClient.client.get(`/api/restaurants/${restaurantId}/redeem-pin`);
+      setRedeemPin(res.data.pin || '');
+      setPinLoaded(true);
+    } catch (e) { }
+  };
+
+  const savePin = async () => {
+    setSavingPin(true);
+    try {
+      await apiClient.client.put(`/api/restaurants/${restaurantId}/redeem-pin`, { pin: redeemPin || null });
+      setSnackbar({ open: true, message: redeemPin ? 'PIN guardado' : 'PIN desactivado', severity: 'success' });
+    } catch (e) {
+      setSnackbar({ open: true, message: 'Error al guardar PIN', severity: 'error' });
+    } finally {
+      setSavingPin(false);
+    }
+  };
+
+  const handleAdminRedeem = async (claimId: string) => {
+    try {
+      await apiClient.client.post(`/api/claims/${claimId}/admin-redeem`);
+      setSnackbar({ open: true, message: 'Canjeado correctamente', severity: 'success' });
+      loadClaims();
+    } catch (e) {
+      setSnackbar({ open: true, message: 'Error al canjear', severity: 'error' });
+    }
+  };
 
   // ============================================
   // HANDLERS
@@ -332,11 +411,25 @@ const MarketingPage: React.FC = () => {
     if (!notificationForm.title || !notificationForm.message) return;
     setIsSending(true);
     try {
-      await apiClient.client.post(`/api/restaurants/${restaurantId}/notifications/send`, notificationForm);
-      setSnackbar({ open: true, message: 'Notificación enviada 📲', severity: 'success' });
+      const res = await apiClient.client.post(`/api/restaurants/${restaurantId}/notifications/send`, notificationForm);
+      const data = res.data;
+      const sentCount = data.sent_count || 0;
+      const totalAttempted = data.total_attempted || 0;
+      const errorCount = data.errors?.length || 0;
+
+      if (sentCount > 0) {
+        setSnackbar({
+          open: true,
+          message: `📲 Enviada a ${sentCount}/${totalAttempted} dispositivos${errorCount > 0 ? ` (${errorCount} errores)` : ''}`,
+          severity: errorCount > 0 ? 'warning' as const : 'success' as const
+        });
+      } else {
+        setSnackbar({ open: true, message: data.message || 'No hay suscriptores activos', severity: 'warning' });
+      }
       setNotificationForm({ title: '', message: '', url: '', image_url: '' });
     } catch (error: any) {
-      setSnackbar({ open: true, message: 'Error al enviar', severity: 'error' });
+      const errorMsg = error?.response?.data?.message || 'Error al enviar';
+      setSnackbar({ open: true, message: errorMsg, severity: 'error' });
     } finally {
       setIsSending(false);
     }
@@ -434,7 +527,7 @@ const MarketingPage: React.FC = () => {
                   {stats.leads}
                 </Typography>
                 <Typography variant="caption" color="text.secondary" sx={{ fontSize: '0.65rem' }}>
-                  LEADS
+                  {campaign.type === 'scratch_win' ? 'JUGADOS' : 'LEADS'}
                 </Typography>
               </Box>
             </Grid>
@@ -444,7 +537,7 @@ const MarketingPage: React.FC = () => {
                   {stats.opened}
                 </Typography>
                 <Typography variant="caption" color="text.secondary" sx={{ fontSize: '0.65rem' }}>
-                  ABIERTOS
+                  {campaign.type === 'scratch_win' ? 'GANADOS' : 'ABIERTOS'}
                 </Typography>
               </Box>
             </Grid>
@@ -454,7 +547,7 @@ const MarketingPage: React.FC = () => {
                   {stats.redeemed}
                 </Typography>
                 <Typography variant="caption" color="text.secondary" sx={{ fontSize: '0.65rem' }}>
-                  CANJEADOS
+                  {campaign.type === 'scratch_win' ? 'CANJEADOS' : 'GUARDADOS'}
                 </Typography>
               </Box>
             </Grid>
@@ -585,6 +678,7 @@ const MarketingPage: React.FC = () => {
         >
           <Tab icon={<CampaignIcon />} label="Campañas" iconPosition="start" />
           <Tab icon={<NotificationsIcon />} label="Push Notifications" iconPosition="start" />
+          <Tab icon={<ReceiptIcon />} label="Canjes" iconPosition="start" />
         </Tabs>
       </Paper>
 
@@ -697,7 +791,7 @@ const MarketingPage: React.FC = () => {
                     '&:hover': { bgcolor: alpha(COLORS.cyan, 0.85) }
                   }}
                 >
-                  {isSending ? 'Enviando...' : 'Enviar a suscriptores'}
+                  {isSending ? 'Enviando...' : `Enviar a ${subscriberData?.subscriber_count ?? '...'} dispositivos`}
                 </Button>
               </Stack>
             </Paper>
@@ -919,11 +1013,18 @@ const MarketingPage: React.FC = () => {
             {/* Welcome Modal Settings */}
             {campaignForm.type === 'welcome_modal' && (
               <>
+                {/* ✅ Warning: multiple welcome campaigns */}
+                {campaigns && campaigns.filter(c => c.type === 'welcome_modal' && c.is_active && c.id !== selectedCampaign?.id).length > 0 && campaignForm.is_active && (
+                  <Alert severity="warning" sx={{ bgcolor: alpha('#f59e0b', 0.1), color: '#f59e0b', borderRadius: 2 }}>
+                    ⚠️ Ya tienes otra campaña de bienvenida activa. Solo se mostrará la de mayor prioridad.
+                  </Alert>
+                )}
+
                 <Divider sx={{ borderColor: alpha('#fff', 0.05) }} />
                 <Typography variant="subtitle2" sx={{ color: alpha('#fff', 0.5), display: 'flex', alignItems: 'center', gap: 1 }}>
                   ⚙️ Configuración del formulario
                 </Typography>
-                <Box display="flex" gap={2}>
+                <Box display="flex" gap={2} flexWrap="wrap">
                   <FormControlLabel
                     control={
                       <Switch
@@ -951,6 +1052,61 @@ const MarketingPage: React.FC = () => {
                     label="Mostrar Teléfono"
                   />
                 </Box>
+
+                <Divider sx={{ borderColor: alpha('#fff', 0.05) }} />
+                <Typography variant="subtitle2" sx={{ color: alpha('#fff', 0.5), display: 'flex', alignItems: 'center', gap: 1 }}>
+                  🚀 Comportamiento del popup
+                </Typography>
+
+                <FormControlLabel
+                  control={
+                    <Switch
+                      checked={campaignForm.settings?.auto_open !== false}
+                      onChange={e => setCampaignForm({
+                        ...campaignForm,
+                        settings: { ...campaignForm.settings, auto_open: e.target.checked }
+                      })}
+                      color="primary"
+                    />
+                  }
+                  label="Abrir automáticamente al entrar"
+                />
+                <Typography variant="caption" sx={{ color: alpha('#fff', 0.4), mt: -1, ml: 6 }}>
+                  {campaignForm.settings?.auto_open !== false
+                    ? 'El modal se mostrará automáticamente a nuevos visitantes.'
+                    : 'Solo se mostrará cuando el usuario pulse el botón de oferta en el menú.'}
+                </Typography>
+
+                {campaignForm.settings?.auto_open !== false && (
+                  <Box sx={{ px: 1 }}>
+                    <Typography variant="caption" sx={{ color: alpha('#fff', 0.5), mb: 1, display: 'block' }}>
+                      ⏱️ Retardo antes de mostrar: {((campaignForm.settings?.delay || 1500) / 1000).toFixed(1)}s
+                    </Typography>
+                    <Slider
+                      value={campaignForm.settings?.delay || 1500}
+                      onChange={(_, value) => setCampaignForm({
+                        ...campaignForm,
+                        settings: { ...campaignForm.settings, delay: value as number }
+                      })}
+                      min={500}
+                      max={10000}
+                      step={500}
+                      marks={[
+                        { value: 500, label: '0.5s' },
+                        { value: 3000, label: '3s' },
+                        { value: 5000, label: '5s' },
+                        { value: 10000, label: '10s' }
+                      ]}
+                      sx={{
+                        color: COLORS.welcome,
+                        '& .MuiSlider-markLabel': {
+                          color: alpha('#fff', 0.4),
+                          fontSize: '0.65rem'
+                        }
+                      }}
+                    />
+                  </Box>
+                )}
               </>
             )}
 
@@ -1146,6 +1302,171 @@ const MarketingPage: React.FC = () => {
           </Button>
         </DialogActions>
       </Dialog>
+
+      {/* Tab 2: Canjes */}
+      {activeTab === 2 && (
+        <Box>
+          {/* Status Counters */}
+          <Grid container spacing={2} sx={{ mb: 3 }}>
+            {[
+              { label: 'Activos', value: claimsData.counts.active || 0, color: COLORS.success, filter: 'active' },
+              { label: 'Canjeados', value: claimsData.counts.redeemed || 0, color: COLORS.scratch, filter: 'redeemed' },
+              { label: 'Expirados', value: claimsData.counts.expired || 0, color: COLORS.danger, filter: 'expired' },
+              { label: 'Total', value: claimsData.counts.total || 0, color: COLORS.purple, filter: 'all' }
+            ].map(stat => (
+              <Grid item xs={6} md={3} key={stat.filter}>
+                <Paper
+                  onClick={() => setClaimsFilter(stat.filter)}
+                  sx={{
+                    p: 2,
+                    cursor: 'pointer',
+                    textAlign: 'center',
+                    bgcolor: claimsFilter === stat.filter ? alpha(stat.color, 0.15) : alpha('#1a1a2e', 0.5),
+                    border: `1px solid ${claimsFilter === stat.filter ? alpha(stat.color, 0.4) : alpha('#fff', 0.05)}`,
+                    borderRadius: 2,
+                    transition: 'all 0.2s',
+                    '&:hover': { borderColor: alpha(stat.color, 0.3) }
+                  }}
+                >
+                  <Typography variant="h4" sx={{ fontWeight: 800, color: stat.color }}>{stat.value}</Typography>
+                  <Typography variant="caption" sx={{ opacity: 0.6 }}>{stat.label}</Typography>
+                </Paper>
+              </Grid>
+            ))}
+          </Grid>
+
+          {/* PIN Configuration */}
+          <Paper sx={{
+            p: 3, mb: 3,
+            bgcolor: alpha('#1a1a2e', 0.6),
+            borderRadius: 3,
+            border: `1px solid ${alpha(COLORS.cyan, 0.15)}`
+          }}>
+            <Box display="flex" justifyContent="space-between" alignItems="center" mb={2}>
+              <Box display="flex" alignItems="center" gap={1}>
+                <LockIcon sx={{ color: COLORS.cyan, fontSize: 20 }} />
+                <Typography variant="subtitle1" sx={{ fontWeight: 700 }}>
+                  PIN de Canje
+                </Typography>
+              </Box>
+              <Typography variant="caption" sx={{ opacity: 0.5 }}>
+                {redeemPin ? 'Activado' : 'Desactivado'}
+              </Typography>
+            </Box>
+            <Typography variant="body2" sx={{ opacity: 0.5, mb: 2, fontSize: '0.8rem' }}>
+              Si activas un PIN, el camarero deberá introducirlo para que el cliente pueda canjear. Déjalo vacío para desactivar.
+            </Typography>
+            <Box display="flex" gap={1.5} alignItems="center">
+              <TextField
+                size="small"
+                label="PIN (4 dígitos)"
+                value={redeemPin}
+                onChange={e => setRedeemPin(e.target.value.replace(/\D/g, '').slice(0, 4))}
+                inputProps={{ maxLength: 4, inputMode: 'numeric', style: { letterSpacing: '6px', fontFamily: 'monospace' } }}
+                sx={{ width: 160 }}
+              />
+              <Button
+                variant="contained"
+                size="small"
+                disabled={savingPin}
+                onClick={savePin}
+                sx={{ bgcolor: COLORS.cyan, '&:hover': { bgcolor: alpha(COLORS.cyan, 0.85) } }}
+              >
+                {savingPin ? 'Guardando...' : 'Guardar'}
+              </Button>
+            </Box>
+          </Paper>
+
+          {/* Claims List */}
+          {claimsLoading ? (
+            <LinearProgress sx={{ borderRadius: 1 }} />
+          ) : claimsData.claims.length > 0 ? (
+            <Stack spacing={1.5}>
+              {claimsData.claims.map((claim: any) => {
+                const isExpired = claim.status === 'expired' || (claim.expires_at && new Date(claim.expires_at) < new Date());
+                const isRedeemed = claim.status === 'redeemed';
+                const isActive = !isExpired && !isRedeemed;
+                const statusColor = isActive ? COLORS.success : isRedeemed ? COLORS.scratch : COLORS.danger;
+                const statusLabel = isActive ? 'Activo' : isRedeemed ? 'Canjeado' : 'Expirado';
+
+                return (
+                  <Paper
+                    key={claim.id}
+                    sx={{
+                      p: 2.5,
+                      bgcolor: alpha('#1a1a2e', 0.5),
+                      border: `1px solid ${alpha(statusColor, 0.15)}`,
+                      borderRadius: 2,
+                      display: 'flex',
+                      justifyContent: 'space-between',
+                      alignItems: 'center',
+                      flexWrap: 'wrap',
+                      gap: 1.5
+                    }}
+                  >
+                    <Box sx={{ flex: 1, minWidth: 200 }}>
+                      <Box display="flex" alignItems="center" gap={1} mb={0.5}>
+                        <GiftIcon sx={{ fontSize: 18, color: statusColor }} />
+                        <Typography variant="subtitle2" sx={{ fontWeight: 700 }}>
+                          {claim.reward_name || 'Sin premio'}
+                        </Typography>
+                        <Chip
+                          size="small"
+                          label={statusLabel}
+                          sx={{
+                            bgcolor: alpha(statusColor, 0.15),
+                            color: statusColor,
+                            fontWeight: 600,
+                            fontSize: '0.65rem',
+                            height: 20
+                          }}
+                        />
+                      </Box>
+                      <Typography variant="caption" sx={{ opacity: 0.5, display: 'block' }}>
+                        {claim.campaign_name} • {claim.customer_contact || 'Sin contacto'}
+                      </Typography>
+                      <Typography variant="caption" sx={{ opacity: 0.35 }}>
+                        {new Date(claim.created_at).toLocaleDateString('es-ES', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}
+                        {claim.redeemed_at && ` → Canjeado ${new Date(claim.redeemed_at).toLocaleDateString('es-ES', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}`}
+                      </Typography>
+                    </Box>
+                    {isActive && (
+                      <Button
+                        size="small"
+                        variant="outlined"
+                        startIcon={<CheckIcon />}
+                        onClick={() => handleAdminRedeem(claim.id)}
+                        sx={{
+                          borderColor: alpha(COLORS.success, 0.3),
+                          color: COLORS.success,
+                          '&:hover': { borderColor: COLORS.success, bgcolor: alpha(COLORS.success, 0.08) }
+                        }}
+                      >
+                        Canjear
+                      </Button>
+                    )}
+                  </Paper>
+                );
+              })}
+            </Stack>
+          ) : (
+            <Paper sx={{
+              p: 6, textAlign: 'center',
+              bgcolor: alpha('#1a1a2e', 0.4),
+              borderRadius: 3,
+              border: `1px dashed ${alpha('#fff', 0.1)}`
+            }}>
+              <ReceiptIcon sx={{ fontSize: 64, color: alpha('#fff', 0.15), mb: 2 }} />
+              <Typography variant="h6" color="text.secondary" gutterBottom>
+                Sin canjes aún
+              </Typography>
+              <Typography variant="body2" color="text.secondary">
+                Cuando los clientes reclamen premios, aparecerán aquí
+              </Typography>
+            </Paper>
+          )}
+        </Box>
+      )}
 
       {/* Snackbar */}
       <Snackbar

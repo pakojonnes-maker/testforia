@@ -77,89 +77,11 @@ export default function SpecialOfferSection({
   const buttonLink = content?.button_link || '/menu';
   const buttonText = labels?.view_menu_button || 'view menu';
 
-  // HARDCODED DISHES - URLs desde Restoria
-  const dishes: Dish[] = content?.dishes || [
-    {
-      id: '1',
-      name: 'Stuffed Mushrooms',
-      category: 'Appetizers',
-      description: 'Flavorful, filled with panko bread crumbs, pine nuts, parsley, sun-dried tomatoe...',
-      price: '25.00',
-      image_url: 'https://restoria.botble.com/storage/resource/special-dish2.png',
-      link: '/menu/stuffed-mushrooms',
-      rounded: false,
-    },
-    {
-      id: '2',
-      name: 'Jalapeno Poppers',
-      category: 'Appetizers',
-      description: 'Greek yogurt filling instead of a traditional cream cheese one. its every bit a...',
-      price: '29.00',
-      image_url: 'https://restoria.botble.com/storage/resource/dish2.png',
-      link: '/menu/jalapeno-poppers',
-      rounded: true,
-    },
-    {
-      id: '3',
-      name: 'Caprese Skewers',
-      category: 'Appetizers',
-      description: 'Drizzle these colorful skewers with an easy balsamic reduction for a pop of swee...',
-      price: '45.00',
-      image_url: 'https://restoria.botble.com/storage/resource/dish3.png',
-      link: '/menu/caprese-skewers',
-      rounded: false,
-    },
-    {
-      id: '4',
-      name: 'Greek Salad',
-      category: 'Appetizers',
-      description: 'Tomatoes, green bell pepper, sliced cucumber onion, olives, and feta cheese.',
-      price: '50.00',
-      image_url: 'https://restoria.botble.com/storage/resource/dish4.png',
-      link: '/menu/greek-salad',
-      rounded: true,
-    },
-    {
-      id: '5',
-      name: 'Roasted Salmon',
-      category: 'Main Dishes',
-      description: 'Tomatoes, green bell pepper, sliced cucumber onion, olives, and feta cheese.',
-      price: '25.50',
-      image_url: 'https://restoria.botble.com/storage/resource/dish5.png',
-      link: '/menu/roasted-salmon',
-      rounded: false,
-    },
-    {
-      id: '6',
-      name: 'Baked Eggplant',
-      category: 'Main Dishes',
-      description: 'Vegetables, cheeses, ground meats, tomato sauce, seasonings and spices',
-      price: '40.00',
-      image_url: 'https://restoria.botble.com/storage/resource/dessertdish3.png',
-      link: '/menu/baked-eggplant',
-      rounded: true,
-    },
-    {
-      id: '7',
-      name: 'Steamed Crab Legs',
-      category: 'Main Dishes',
-      description: 'Succulent crab legs steamed to perfection, served with drawn butter and fresh le...',
-      price: '10.00',
-      image_url: 'https://restoria.botble.com/storage/resource/special-dish4.png',
-      link: '/menu/steamed-crab-legs',
-      rounded: false,
-    },
-    {
-      id: '8',
-      name: 'Skirt Steak',
-      category: 'Main Dishes',
-      description: 'Vegetables, cheeses, ground meats, tomato sauce, seasonings and spices.',
-      price: '39.00',
-      image_url: 'https://restoria.botble.com/storage/resource/dessertdish4.png',
-      link: '/menu/skirt-steak',
-      rounded: true,
-    },
-  ];
+  // ✅ FIX: Use restaurant's actual dishes from CMS, no hardcoded external data
+  const dishes: Dish[] = content?.dishes || [];
+
+  // Don't render section if no dishes are configured
+  if (dishes.length === 0) return null;
 
   // Scroll functions
   const scroll = (direction: 'left' | 'right') => {

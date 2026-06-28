@@ -200,11 +200,28 @@ function App() {
   }, [slug, currentPage]);
 
   // ✅ Tema dinámico
+  // ✅ Tema dinámico
   const theme = useMemo(() => {
     const primaryColor = restaurantData?.reelsConfig?.colors?.primary;
     const secondaryColor = restaurantData?.reelsConfig?.colors?.secondary;
+
+    // Buscar el mejor candidato para el fondo (priorizar acento/amarillo)
+    // Try to find the accent color first, then fall back to primary
+    const accentCandidate =
+      restaurantData?.reelsConfig?.colors?.accent ||
+      restaurantData?.reelsConfig?.colors?.accent_color ||
+      restaurantData?.restaurant?.branding?.accentColor ||
+      restaurantData?.restaurant?.branding?.accent_color ||
+      primaryColor ||
+      restaurantData?.restaurant?.branding?.primaryColor;
+
+    // ✅ Set global CSS variable for desktop background
+    if (accentCandidate) {
+      document.documentElement.style.setProperty('--primary-color', accentCandidate);
+    }
+
     return createCustomTheme(primaryColor, secondaryColor);
-  }, [restaurantData?.reelsConfig]);
+  }, [restaurantData]);
 
   // ✅ RENDERIZADO OPTIMIZADO CON SUSPENSE
   const renderContent = () => {
@@ -293,6 +310,7 @@ function App() {
         <SplashScreen
           isAppReady={!loading}
           onComplete={() => setShowSplash(false)}
+          disableConsent={currentPage === 'landing' || currentPage === 'home'}
         />
       )}
       {renderContent()}

@@ -12,8 +12,10 @@
     "preview": "vite preview",
     "dev:admin": "cd apps/admin && npm run dev",
     "dev:client": "cd apps/client && npm run dev",
+    "dev:guide": "cd apps/guide && npm run dev",
     "build:admin": "cd apps/admin && npm run build",
-    "build:client": "cd apps/client && npm run build"
+    "build:client": "cd apps/client && npm run build",
+    "build:guide": "cd apps/guide && npm run build"
   },
   "dependencies": {
     "framer-motion": "^12.23.9",

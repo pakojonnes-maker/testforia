@@ -1,0 +1,293 @@
+INSERT OR REPLACE INTO themes (id, name, primary_color, secondary_color, is_premium) VALUES 
+('theme_xpecado', 'Xpecado Theme', '#FFC100', '#000000', 1);
+-- 2. Create Restaurant
+INSERT OR REPLACE INTO restaurants (
+    id, account_id, name, slug, email, phone, 
+    theme_id, reel_template_id, language_default, 
+    logo_url, cover_image_url, address, city, is_active
+) VALUES (
+    'rest_xpecado', 
+    'acc_default', 
+    'Xpecado', 
+    'xpecado', 
+    'hola@xpecado.com', 
+    '+34600000000', 
+    'theme_xpecado', 
+    'tpl_classic', 
+    'es', 
+    'upload_assets/logo_xpecado.png', 
+    'upload_assets/cover_xpecado.jpg', 
+    'Calle Principal 1', 
+    'Madrid', 
+    1
+);
+-- 3. Restaurant Details
+INSERT OR REPLACE INTO restaurant_details (
+    id, restaurant_id, 
+    opening_hours, 
+    whatsapp_number, instagram_url, 
+    has_wifi, has_delivery, accepts_reservations
+) VALUES (
+    'det_xpecado', 'rest_xpecado',
+    '{"monday": {"open": "13:00", "close": "23:00"}}',
+    '+34600000000', 'https://instagram.com/xpecado', 
+    1, 1, 1
+);
+-- 4. Create Admin User
+INSERT OR IGNORE INTO users (
+    id, email, display_name, auth_provider, preferred_language, password_hash
+) VALUES (
+    'user_xpecado_admin', 
+    'admin@xpecado.com', 
+    'Admin Xpecado', 
+    'email', 
+    'es', 
+    '05c802e250573a7d55ebc2ab60a33476:5ea39fa2c413addc4939be5bc599d981505f073cb456fe6a0dbf19b8c31247bc' -- Example hash
+);
+-- 5. Link User to Restaurant
+INSERT OR REPLACE INTO restaurant_staff (
+    restaurant_id, user_id, role, is_active
+) VALUES (
+    'rest_xpecado', 'user_xpecado_admin', 'owner', 1
+);
+-- 6. Supported Languages (Enabled for all requested languages)
+-- First ensure they exist in the global languages table
+INSERT OR IGNORE INTO languages (code, name, native_name, flag_emoji, is_active) VALUES
+('es', 'Spanish', 'Español', '🇪🇸', 1),
+('en', 'English', 'English', '🇺🇸', 1),
+('fr', 'French', 'Français', '🇫🇷', 1),
+('de', 'German', 'Deutsch', '🇩🇪', 1),
+('it', 'Italian', 'Italiano', '🇮🇹', 1),
+('pt', 'Portuguese', 'Português', '🇵🇹', 1),
+('ko', 'Korean', '한국어', '🇰🇷', 1),
+('ja', 'Japanese', '日本語', '🇯🇵', 1),
+('bn', 'Bengali', 'বাংলা', '🇧🇩', 1),
+('ar', 'Arabic', 'العربية', '🇦🇪', 1),
+('ru', 'Russian', 'Русский', '🇷🇺', 1),
+('uk', 'Ukrainian', 'Українська', '🇺🇦', 1),
+('zh', 'Chinese', '中文', '🇨🇳', 1),
+('hi', 'Hindi', 'हिन्दी', '🇮🇳', 1),
+('nl', 'Dutch', 'Nederlands', '🇳🇱', 1),
+('sv', 'Swedish', 'Svenska', '🇸🇪', 1),
+('pl', 'Polish', 'Polski', '🇵🇱', 1),
+('tr', 'Turkish', 'Türkçe', '🇹🇷', 1);
+INSERT OR REPLACE INTO restaurant_languages (restaurant_id, language_code, is_enabled) VALUES
+('rest_xpecado', 'es', 1),
+('rest_xpecado', 'en', 1),
+('rest_xpecado', 'fr', 1),
+('rest_xpecado', 'de', 1),
+('rest_xpecado', 'it', 1),
+('rest_xpecado', 'pt', 1),
+('rest_xpecado', 'ko', 1),
+('rest_xpecado', 'ja', 1),
+('rest_xpecado', 'bn', 1),
+('rest_xpecado', 'ar', 1),
+('rest_xpecado', 'ru', 1),
+('rest_xpecado', 'uk', 1),
+('rest_xpecado', 'zh', 1),
+('rest_xpecado', 'hi', 1),
+('rest_xpecado', 'nl', 1),
+('rest_xpecado', 'sv', 1),
+('rest_xpecado', 'pl', 1),
+('rest_xpecado', 'tr', 1);
+-- 7. Create Default Menu
+INSERT OR REPLACE INTO menus (id, restaurant_id, name, is_active, is_default) VALUES
+('menu_xpecado_main', 'rest_xpecado', 'Carta Principal', 1, 1);
+-- 8. Create Sections
+INSERT OR REPLACE INTO sections (id, menu_id, restaurant_id, order_index) VALUES
+('sect_xp_burgers', 'menu_xpecado_main', 'rest_xpecado', 1),
+('sect_xp_glutenfree', 'menu_xpecado_main', 'rest_xpecado', 2),
+('sect_xp_kids', 'menu_xpecado_main', 'rest_xpecado', 3),
+('sect_xp_sides', 'menu_xpecado_main', 'rest_xpecado', 4),
+('sect_xp_sauces', 'menu_xpecado_main', 'rest_xpecado', 5),
+('sect_xp_drinks', 'menu_xpecado_main', 'rest_xpecado', 6);
+-- 9. Translate Sections (Spanish Base)
+INSERT OR REPLACE INTO translations (entity_id, entity_type, language_code, field, value) VALUES
+('sect_xp_burgers', 'section', 'es', 'name', 'BURGERS'),
+('sect_xp_glutenfree', 'section', 'es', 'name', 'SIN GLUTEN'),
+('sect_xp_kids', 'section', 'es', 'name', 'PLAY & EAT'),
+('sect_xp_sides', 'section', 'es', 'name', 'COMPLEMENTOS'),
+('sect_xp_sauces', 'section', 'es', 'name', 'SALSAS'),
+('sect_xp_drinks', 'section', 'es', 'name', 'BEBIDAS');
+-- 10. Create Dishes
+-- BURGERS
+INSERT OR REPLACE INTO dishes (id, restaurant_id, status, price, is_vegetarian, is_gluten_free) VALUES
+('dish_xp_classic', 'rest_xpecado', 'active', 12.00, 0, 0),
+('dish_xp_bacon', 'rest_xpecado', 'active', 13.00, 0, 0),
+('dish_xp_chicken', 'rest_xpecado', 'active', 12.50, 0, 0),
+('dish_xp_cheese', 'rest_xpecado', 'active', 11.50, 0, 0),
+('dish_xp_trufada', 'rest_xpecado', 'active', 14.00, 0, 0),
+('dish_xp_xpace', 'rest_xpecado', 'active', 14.50, 0, 0),
+('dish_xp_veggie', 'rest_xpecado', 'active', 13.00, 1, 0),
+('dish_xp_emmy', 'rest_xpecado', 'active', 14.00, 0, 0),
+('dish_xp_axian', 'rest_xpecado', 'active', 14.00, 0, 0),
+('dish_xp_brutal', 'rest_xpecado', 'active', 13.00, 0, 0),
+('dish_xp_bigsmash', 'rest_xpecado', 'active', 13.50, 0, 0),
+('dish_xp_smashchkn', 'rest_xpecado', 'active', 12.50, 0, 0);
+-- SIN GLUTEN
+INSERT OR REPLACE INTO dishes (id, restaurant_id, status, price, is_vegetarian, is_gluten_free) VALUES
+('dish_xp_classic_gf', 'rest_xpecado', 'active', 13.00, 0, 1),
+('dish_xp_bacon_gf', 'rest_xpecado', 'active', 14.00, 0, 1),
+('dish_xp_cheese_gf', 'rest_xpecado', 'active', 12.50, 0, 1),
+('dish_xp_veggie_gf', 'rest_xpecado', 'active', 14.00, 1, 1);
+-- KIDS (PLAY & EAT)
+INSERT OR REPLACE INTO dishes (id, restaurant_id, status, price, is_vegetarian, is_gluten_free) VALUES
+('dish_xp_kids_cheese', 'rest_xpecado', 'active', 9.00, 0, 0),
+('dish_xp_kids_pops', 'rest_xpecado', 'active', 9.00, 0, 0),
+('dish_xp_kids_smash', 'rest_xpecado', 'active', 9.50, 0, 0);
+-- SIDES (COMPLEMENTOS)
+INSERT OR REPLACE INTO dishes (id, restaurant_id, status, price, is_vegetarian, is_gluten_free) VALUES
+('dish_xp_patatas', 'rest_xpecado', 'active', 3.50, 1, 1),
+('dish_xp_patatas_xp', 'rest_xpecado', 'active', 4.00, 1, 1),
+('dish_xp_new_fries', 'rest_xpecado', 'active', 5.50, 0, 0),
+('dish_xp_trufada_fries', 'rest_xpecado', 'active', 6.00, 0, 0),
+('dish_xp_kentucky', 'rest_xpecado', 'active', 7.00, 0, 0),
+('dish_xp_sweet', 'rest_xpecado', 'active', 4.50, 1, 1),
+('dish_xp_croq', 'rest_xpecado', 'active', 6.00, 0, 0);
+-- SALSAS
+INSERT OR REPLACE INTO dishes (id, restaurant_id, status, price, is_vegetarian, is_gluten_free) VALUES
+('dish_xp_mayo_xp', 'rest_xpecado', 'active', 1.00, 1, 1),
+('dish_xp_salsa_trufa', 'rest_xpecado', 'active', 1.50, 1, 1),
+('dish_xp_salsa_bbq', 'rest_xpecado', 'active', 1.00, 1, 1);
+-- DRINKS
+INSERT OR REPLACE INTO dishes (id, restaurant_id, status, price, is_vegetarian, is_gluten_free) VALUES
+('dish_xp_coke', 'rest_xpecado', 'active', 2.50, 1, 1),
+('dish_xp_coke_zero', 'rest_xpecado', 'active', 2.50, 1, 1),
+('dish_xp_coke_00', 'rest_xpecado', 'active', 2.50, 1, 1),
+('dish_xp_fanta_lemon', 'rest_xpecado', 'active', 2.50, 1, 1),
+('dish_xp_fanta_orange', 'rest_xpecado', 'active', 2.50, 1, 1),
+('dish_xp_water', 'rest_xpecado', 'active', 2.00, 1, 1),
+('dish_xp_tinto', 'rest_xpecado', 'active', 3.00, 1, 1),
+('dish_xp_aquarius', 'rest_xpecado', 'active', 2.50, 1, 1);
+-- 11. Link Dishes to Sections
+-- Burgers
+INSERT OR REPLACE INTO section_dishes (section_id, dish_id, order_index) VALUES
+('sect_xp_burgers', 'dish_xp_classic', 1),
+('sect_xp_burgers', 'dish_xp_bacon', 2),
+('sect_xp_burgers', 'dish_xp_chicken', 3),
+('sect_xp_burgers', 'dish_xp_cheese', 4),
+('sect_xp_burgers', 'dish_xp_trufada', 5),
+('sect_xp_burgers', 'dish_xp_xpace', 6),
+('sect_xp_burgers', 'dish_xp_veggie', 7),
+('sect_xp_burgers', 'dish_xp_emmy', 8),
+('sect_xp_burgers', 'dish_xp_axian', 9),
+('sect_xp_burgers', 'dish_xp_brutal', 10),
+('sect_xp_burgers', 'dish_xp_bigsmash', 11),
+('sect_xp_burgers', 'dish_xp_smashchkn', 12);
+-- Sin Gluten
+INSERT OR REPLACE INTO section_dishes (section_id, dish_id, order_index) VALUES
+('sect_xp_glutenfree', 'dish_xp_classic_gf', 1),
+('sect_xp_glutenfree', 'dish_xp_bacon_gf', 2),
+('sect_xp_glutenfree', 'dish_xp_cheese_gf', 3),
+('sect_xp_glutenfree', 'dish_xp_veggie_gf', 4);
+-- Kids
+INSERT OR REPLACE INTO section_dishes (section_id, dish_id, order_index) VALUES
+('sect_xp_kids', 'dish_xp_kids_cheese', 1),
+('sect_xp_kids', 'dish_xp_kids_pops', 2),
+('sect_xp_kids', 'dish_xp_kids_smash', 3);
+-- Sides
+INSERT OR REPLACE INTO section_dishes (section_id, dish_id, order_index) VALUES
+('sect_xp_sides', 'dish_xp_patatas', 1),
+('sect_xp_sides', 'dish_xp_patatas_xp', 2),
+('sect_xp_sides', 'dish_xp_new_fries', 3),
+('sect_xp_sides', 'dish_xp_trufada_fries', 4),
+('sect_xp_sides', 'dish_xp_kentucky', 5),
+('sect_xp_sides', 'dish_xp_sweet', 6),
+('sect_xp_sides', 'dish_xp_croq', 7);
+-- Sauces
+INSERT OR REPLACE INTO section_dishes (section_id, dish_id, order_index) VALUES
+('sect_xp_sauces', 'dish_xp_mayo_xp', 1),
+('sect_xp_sauces', 'dish_xp_salsa_trufa', 2),
+('sect_xp_sauces', 'dish_xp_salsa_bbq', 3);
+-- Drinks
+INSERT OR REPLACE INTO section_dishes (section_id, dish_id, order_index) VALUES
+('sect_xp_drinks', 'dish_xp_coke', 1),
+('sect_xp_drinks', 'dish_xp_coke_zero', 2),
+('sect_xp_drinks', 'dish_xp_coke_00', 3),
+('sect_xp_drinks', 'dish_xp_fanta_lemon', 4),
+('sect_xp_drinks', 'dish_xp_fanta_orange', 5),
+('sect_xp_drinks', 'dish_xp_water', 6),
+('sect_xp_drinks', 'dish_xp_tinto', 7),
+('sect_xp_drinks', 'dish_xp_aquarius', 8);
+-- 12. Translations for Dishes (Spanish)
+INSERT OR REPLACE INTO translations (entity_id, entity_type, language_code, field, value) VALUES
+-- Classic
+('dish_xp_classic', 'dish', 'es', 'name', 'THE CLASSIC BURGER'),
+('dish_xp_classic', 'dish', 'es', 'description', 'Doble Smash Burger (180 gr) de vacuno 100 %. Con Queso Cheddar, Taquitos de Cebolla y Pepinillos. Salsa mostaza y Ketchup.'),
+-- Bacon
+('dish_xp_bacon', 'dish', 'es', 'name', 'BACON CHEESE BURGER'),
+('dish_xp_bacon', 'dish', 'es', 'description', 'Doble Smash Burger (180 gr) de vacuno 100 %. Doble de Queso Cheddar y Bacon ULTRA crujiente. Salsa Mayo-XPECADO.'),
+-- Chicken
+('dish_xp_chicken', 'dish', 'es', 'name', 'CHICKEN BURGER'),
+('dish_xp_chicken', 'dish', 'es', 'description', 'Pollo Crujiente. Queso Cheddar, Lechuga y Tomate Fresco. Salsa Mayo-XPECADO.'),
+-- Cheese
+('dish_xp_cheese', 'dish', 'es', 'name', 'CHEESE BURGER'),
+('dish_xp_cheese', 'dish', 'es', 'description', 'Doble Smash Burger (180 gr) de vacuno 100 %. Doble de Queso Cheddar y Salsa Mayo-XPECADO.'),
+-- Trufada
+('dish_xp_trufada', 'dish', 'es', 'name', 'LA TRUFADA'),
+('dish_xp_trufada', 'dish', 'es', 'description', 'Doble SMASH burger (160gr) de vacuno 100%. Doble de Queso Cheddar, Huevo y Cebolla Caramelizada. Salsa Mayo Trufa.'),
+-- Xpace
+('dish_xp_xpace', 'dish', 'es', 'name', 'XPACE JAM'),
+('dish_xp_xpace', 'dish', 'es', 'description', 'Doble SMASH burger (160gr) de vacuno 100%. Queso de Cabra, Cheddar, Pulled Pork, Cebolla Crujiente y salsa BBQ.'),
+-- Veggie
+('dish_xp_veggie', 'dish', 'es', 'name', 'THE VEGGIE'),
+('dish_xp_veggie', 'dish', 'es', 'description', 'Big Burger Vegetal HEURA 100%. Cebollla, Pepinillo, Lechuga, Tomate. Mostaza y Ketchup.'),
+-- Emmy
+('dish_xp_emmy', 'dish', 'es', 'name', 'LA SANTA EMMY'),
+('dish_xp_emmy', 'dish', 'es', 'description', 'Doble SMASH burger (160gr) vacuno 100%, Queso Cheddar Ahumado, Cebolla Caramelizada, Pepinillo, Bits de Bacon y Salsa Emmy.'),
+-- Axian
+('dish_xp_axian', 'dish', 'es', 'name', 'AXIAN POP'),
+('dish_xp_axian', 'dish', 'es', 'description', 'Doble SMASH burger (160gr) de vacuno 100%. Queso Cheddar, Mayo-Axian, Mermelada de bacon oriental y toque de palomitas y shichimi'),
+-- Brutal
+('dish_xp_brutal', 'dish', 'es', 'name', 'BRUTAL CHICKEN'),
+('dish_xp_brutal', 'dish', 'es', 'description', 'Delicioso Contramuslo de Pollo Frito Casero, Queso Cheddar, Lechuga, Bits de Bacon, Cebolla crujiente y Salsa Smokey Bacon.'),
+-- Big Smash
+('dish_xp_bigsmash', 'dish', 'es', 'name', 'BIG SMASH'),
+('dish_xp_bigsmash', 'dish', 'es', 'description', 'Doble SMASH burger (160gr) de vacuno 100%. Doble de Queso Cheddar.Cebolla Morada, Lechuga, Pepinillo y nuestra Salsa American Burger.'),
+-- Smash Chicken
+('dish_xp_smashchkn', 'dish', 'es', 'name', 'SMASH CHICKEN'),
+('dish_xp_smashchkn', 'dish', 'es', 'description', 'Deliciosa Doble Patty de Pollo Smasheado receta exclusiva. Doble queso Cheddar, pepinillos, Bacon Bits y nuestra famosa Salsa Mayo XPecado.'),
+-- Sin Gluten Descriptions
+('dish_xp_classic_gf', 'dish', 'es', 'name', 'THE CLASSIC BURGER SIN GLUTEN'),
+('dish_xp_classic_gf', 'dish', 'es', 'description', 'Doble Smash Burger (180 gr) de vacuno 100 %. Con Queso Cheddar, Taquitos de Cebolla y Pepinillos. Salsa mostaza y Ketchup'),
+('dish_xp_bacon_gf', 'dish', 'es', 'name', 'BACON CHEESE BURGER SIN GLUTEN'),
+('dish_xp_bacon_gf', 'dish', 'es', 'description', 'Doble Smash Burger (180 gr) de vacuno 100 %. Doble de Queso Cheddar y Bacon ULTRA crujiente. Salsa Mayo-XPECADO.'),
+('dish_xp_cheese_gf', 'dish', 'es', 'name', 'CHEESE BURGER SIN GLUTEN'),
+('dish_xp_cheese_gf', 'dish', 'es', 'description', 'Doble Smash Burger (180 gr) de vacuno 100%. Doble de Queso Cheddar y Salsa Mayo-XPECADO'),
+('dish_xp_veggie_gf', 'dish', 'es', 'name', 'THE VEGGIE SIN GLUTEN'),
+('dish_xp_veggie_gf', 'dish', 'es', 'description', 'Big Burger Vegetal HEURA 100%. Cebollla, Pepinillo, Lechuga, Tomate. Mostaza y Ketchup.'),
+-- Play & Eat
+('dish_xp_kids_cheese', 'dish', 'es', 'name', 'PLAY & EAT CHEESE BURGER'),
+('dish_xp_kids_cheese', 'dish', 'es', 'description', 'Nuestro menú infantil Play & Eat compuesto por una Cheese Burger de una carne con queso, ración pequeña de patatas fritas y bebida.'),
+('dish_xp_kids_pops', 'dish', 'es', 'name', 'PLAY & EAT POPS POLLO'),
+('dish_xp_kids_pops', 'dish', 'es', 'description', 'Nuestro menú infantil Play & Eat compuesto por 5 piezas de delicioso contramuslo rebozado, ración pequeña de patatas fritas y bebida.'),
+('dish_xp_kids_smash', 'dish', 'es', 'name', 'PLAY & EAT SMASH CHICKEN'),
+('dish_xp_kids_smash', 'dish', 'es', 'description', 'Nuestro menú infantil Play & Eat compuesto por una exclusiva Smash Chicken de una carne sazonada, con queso, ración pequeña de patatas fritas y bebida.'),
+-- Sides
+('dish_xp_patatas', 'dish', 'es', 'name', 'PATATAS'),
+('dish_xp_patatas', 'dish', 'es', 'description', 'Deliciosas patatas crujientes.'),
+('dish_xp_patatas_xp', 'dish', 'es', 'name', 'PATATAS XPECADO'),
+('dish_xp_patatas_xp', 'dish', 'es', 'description', 'Deliciosas patatas crujientes aderezadas con sazonador XPECADO.'),
+('dish_xp_new_fries', 'dish', 'es', 'name', 'NEW FRIES'),
+('dish_xp_new_fries', 'dish', 'es', 'description', 'Patatas fritas crujientes con un delicioso queso Cheddar, nuestro toque secreto y bits de Bacon ultracrujientes.'),
+('dish_xp_trufada_fries', 'dish', 'es', 'name', 'TRUFADA FRIES'),
+('dish_xp_trufada_fries', 'dish', 'es', 'description', 'Patatas con Salsa Trufada Xpecado, Parmesano, Toque de Cajún, Cebolla Crujiente y Cebollino.'),
+('dish_xp_kentucky', 'dish', 'es', 'name', 'KENTUCKY BBQ'),
+('dish_xp_kentucky', 'dish', 'es', 'description', 'Nueva y eXplosiva receta. Alitas fritas al punto de BBQ en su salsa, con kikos desmenuzados y cebollino.'),
+('dish_xp_sweet', 'dish', 'es', 'name', 'SWEET POTATO'),
+('dish_xp_sweet', 'dish', 'es', 'description', 'Tiras de boniato crujientes.'),
+('dish_xp_croq', 'dish', 'es', 'name', 'CROQ n ROLL'),
+('dish_xp_croq', 'dish', 'es', 'description', 'Deliciosas croquetas cremosas de jamón con mayo trufa y parmesano.'),
+-- Sauces
+('dish_xp_mayo_xp', 'dish', 'es', 'name', 'MAYO XPECADO'),
+('dish_xp_salsa_trufa', 'dish', 'es', 'name', 'SALSA TRUFADA'),
+('dish_xp_salsa_bbq', 'dish', 'es', 'name', 'SALSA BBQ'),
+-- Drinks
+('dish_xp_coke', 'dish', 'es', 'name', 'COCA-COLA'),
+('dish_xp_coke_zero', 'dish', 'es', 'name', 'COCA-COLA ZERO'),
+('dish_xp_coke_00', 'dish', 'es', 'name', 'COCA-COLA ZERO ZERO'),
+('dish_xp_fanta_lemon', 'dish', 'es', 'name', 'FANTA LIMÓN'),
+('dish_xp_fanta_orange', 'dish', 'es', 'name', 'FANTA NARANJA'),
+('dish_xp_water', 'dish', 'es', 'name', 'AGUA'),
+('dish_xp_tinto', 'dish', 'es', 'name', 'TINTO VERANO CASERA'),
+('dish_xp_aquarius', 'dish', 'es', 'name', 'AQUARIUS LIMON');

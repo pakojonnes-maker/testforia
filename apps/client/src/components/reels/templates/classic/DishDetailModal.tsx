@@ -87,7 +87,6 @@ const DishDetailModal: React.FC<DishDetailModalProps> = ({
             openTimeRef.current = Date.now();
             // Track view only once per open
             if (!hasTrackedViewRef.current) {
-                console.log('✅ [DishDetailModal] Tracking view:', dish.id);
                 viewDish(dish.id);
                 hasTrackedViewRef.current = true;
             }
@@ -100,7 +99,6 @@ const DishDetailModal: React.FC<DishDetailModalProps> = ({
             if (openTimeRef.current && dish?.id && hasTrackedViewRef.current) {
                 const duration = Math.floor((Date.now() - openTimeRef.current) / 1000);
                 if (duration > 0) {
-                    console.log('✅ [DishDetailModal] Tracking duration:', dish.id, duration, 'seconds');
                     trackDishViewDuration(dish.id, duration);
                 }
             }
@@ -121,7 +119,9 @@ const DishDetailModal: React.FC<DishDetailModalProps> = ({
     const dishName = dish.translations?.name?.[currentLanguage] || dish.name || t('dish_untitled', 'Plato');
     const description = dish.translations?.description?.[currentLanguage] || dish.description || '';
     const media = dish.media?.[0];
-    const imageUrl = media?.thumbnail_url || media?.url;
+    const mediaUrl = media?.url;
+    const isVideo = media?.type === 'video' || mediaUrl?.endsWith('.mp4');
+    const imageUrl = media?.thumbnail_url || (!isVideo ? mediaUrl : null);
 
     const currentPrice = selectedPortion === 'half' ? (dish.half_price || 0) : (dish.price || 0);
 
@@ -130,7 +130,6 @@ const DishDetailModal: React.FC<DishDetailModalProps> = ({
         const newState = !isFavorite;
         setIsFavorite(newState);
         favoriteDish(dish.id, newState); // ✅ Sync with tracker/backend
-        console.log('✅ [DishDetailModal] Favorite toggled:', dish.id, newState);
     };
 
     const handleAdd = () => {
@@ -145,11 +144,21 @@ const DishDetailModal: React.FC<DishDetailModalProps> = ({
             TransitionComponent={Transition as any}
             keepMounted
             onClose={onClose}
-            fullScreen
+            fullWidth
+            maxWidth="sm"
             PaperProps={{
                 sx: {
-                    bgcolor: '#000',
-                    backgroundImage: 'none'
+                    bgcolor: '#111',
+                    backgroundImage: 'none',
+                    maxWidth: { xs: '100%', md: '500px' },
+                    width: '100%',
+                    margin: { xs: 0, md: 'auto' },
+                    maxHeight: { xs: '100%', md: '90vh' },
+                    height: { xs: '100%', md: 'auto' },
+                    borderRadius: { xs: 0, md: 4 },
+                    overflow: 'hidden',
+                    boxShadow: '0 24px 80px rgba(0,0,0,0.8)',
+                    position: 'relative' // Clave para la barra inferior
                 }
             }}
         >
@@ -170,17 +179,26 @@ const DishDetailModal: React.FC<DishDetailModalProps> = ({
                 <Close />
             </IconButton>
 
-            {/* Hero Image */}
-            <Box sx={{ height: '40vh', position: 'relative', width: '100%' }}>
+            {/* Hero Image / Video Thumbnail */}
+            <Box sx={{ width: '100%', position: 'relative', bgcolor: '#000', display: 'flex', justifyContent: 'center' }}>
                 {imageUrl ? (
                     <Box
                         component="img"
                         src={imageUrl}
                         alt={dishName}
-                        sx={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                        sx={{ width: '100%', height: 'auto', maxHeight: { xs: '60vh', md: '50vh' }, objectFit: 'contain', display: 'block' }}
+                    />
+                ) : isVideo && mediaUrl ? (
+                    /* ✅ Video-only: show first frame via preload="metadata" */
+                    <video
+                        src={`${mediaUrl}#t=0.1`}
+                        preload="metadata"
+                        muted
+                        playsInline
+                        style={{ width: '100%', height: 'auto', maxHeight: '60vh', objectFit: 'contain', display: 'block' }}
                     />
                 ) : (
-                    <Box sx={{ width: '100%', height: '100%', bgcolor: '#222' }} />
+                    <Box sx={{ width: '100%', height: '40vh', bgcolor: '#222' }} />
                 )}
                 <Box
                     sx={{
@@ -188,13 +206,14 @@ const DishDetailModal: React.FC<DishDetailModalProps> = ({
                         bottom: 0,
                         left: 0,
                         right: 0,
-                        height: '50%',
-                        background: 'linear-gradient(to top, #000 0%, transparent 100%)'
+                        height: '120px',
+                        background: 'linear-gradient(to top, #111 0%, transparent 100%)',
+                        pointerEvents: 'none'
                     }}
                 />
             </Box>
 
-            <DialogContent sx={{ px: 3, pb: 4, pt: 1, position: 'relative', mt: '-20px' }}>
+            <DialogContent sx={{ px: { xs: 2, md: 4 }, pb: '100px', pt: 3, position: 'relative', mt: 0, bgcolor: '#111', overflowY: 'auto' }}>
                 {/* Header: Name and Price */}
                 <Box sx={{ mb: 3 }}>
                     <Typography
@@ -347,17 +366,18 @@ const DishDetailModal: React.FC<DishDetailModalProps> = ({
                 {/* Actions Footer */}
                 <Box
                     sx={{
-                        position: 'fixed', // Sticky footer inside modal
+                        position: 'absolute', // Sticky inside the Paper container, not viewport
                         bottom: 0,
                         left: 0,
                         right: 0,
-                        p: 3,
-                        bgcolor: 'rgba(0,0,0,0.9)',
+                        p: { xs: 2, md: 3 },
+                        bgcolor: 'rgba(15,15,15,0.95)',
                         backdropFilter: 'blur(20px)',
                         borderTop: '1px solid rgba(255,255,255,0.1)',
                         display: 'flex',
                         alignItems: 'center',
-                        gap: 2
+                        gap: 2,
+                        zIndex: 10
                     }}
                 >
                     {/* Favorite Button */}

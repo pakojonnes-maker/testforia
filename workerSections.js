@@ -1,18 +1,11 @@
-// ===========================================================================
-// CLOUDFLARE WORKER - SECTIONS API
-// ===========================================================================
-// La autenticación y CORS se manejan centralizadamente en worker.js
-// ===========================================================================
 
 import { verifyJWT } from './workerAuthentication.js';
-
 function createResponse(body, status = 200) {
     return new Response(JSON.stringify(body), {
         status,
         headers: { "Content-Type": "application/json" }
     });
 }
-
 // Helper function for authentication (used within this module)
 async function authenticateRequest(request, env) {
     const authHeader = request.headers.get('Authorization');
@@ -23,33 +16,26 @@ async function authenticateRequest(request, env) {
         return null;
     }
 }
-
 export async function handleSectionRequests(request, env) {
     const url = new URL(request.url);
     console.log(`[Sections] Procesando: ${request.method} ${url.pathname}`);
-
     // =============================================
     // ICONOS DEL SISTEMA
     // =============================================
-
     // GET /system/icons - Listar iconos disponibles (público)
     if (request.method === "GET" && url.pathname === "/system/icons") {
         try {
             console.log('[Sections] Listando iconos del sistema desde R2');
-
             const iconsList = await env.R2_BUCKET.list({
                 prefix: 'System/icons/',
                 delimiter: ''
             });
-
             const icons = (iconsList.objects || []).map(obj => ({
                 filename: obj.key.replace('System/icons/', ''),
                 url: `${url.origin}/media/${obj.key}`,
                 size: obj.size
             }));
-
             console.log(`[Sections] Se encontraron ${icons.length} iconos`);
-
             return createResponse({
                 success: true,
                 icons: icons
@@ -62,27 +48,21 @@ export async function handleSectionRequests(request, env) {
             }, 500);
         }
     }
-
     // =============================================
     // MENÚS (MENUS)
     // =============================================
-
     // Endpoint para obtener menús por restaurante (RESTful)
     if (request.method === "GET" && url.pathname.match(/^\/restaurants\/[\w-]+\/menus$/)) {
         const restaurantId = url.pathname.split('/')[2];
-
         try {
             console.log(`[Sections] Obteniendo menús para restaurante ${restaurantId}`);
-
             const menusData = await env.DB.prepare(`
         SELECT id, name, is_default, description
         FROM menus
         WHERE restaurant_id = ?
         ORDER BY is_default DESC, id ASC
       `).bind(restaurantId).all();
-
             console.log(`[Sections] Se encontraron ${menusData.results?.length || 0} menús`);
-
             return createResponse({
                 success: true,
                 menus: menusData.results || []
@@ -95,26 +75,21 @@ export async function handleSectionRequests(request, env) {
             }, 500);
         }
     }
-
     // Endpoint tradicional para obtener menús (compatibilidad)
     if (request.method === "GET" && url.pathname === "/menus") {
         const params = new URLSearchParams(url.search);
         const restaurantId = params.get('restaurant_id');
-
         if (!restaurantId) {
             return createResponse({ success: false, message: "Restaurant ID requerido" }, 400);
         }
-
         try {
             console.log(`[Sections] Obteniendo menús para restaurante ${restaurantId} (ruta legacy)`);
-
             const menusData = await env.DB.prepare(`
         SELECT id, name, is_default, description
         FROM menus
         WHERE restaurant_id = ?
         ORDER BY is_default DESC, id ASC
       `).bind(restaurantId).all();
-
             return createResponse({
                 success: true,
                 menus: menusData.results || []
@@ -127,11 +102,9 @@ export async function handleSectionRequests(request, env) {
             }, 500);
         }
     }
-
     // =============================================
     // SECCIONES (SECTIONS)
     // =============================================
-
     // Endpoint público RESTful para obtener secciones por restaurante
     if (request.method === "GET" && url.pathname.match(/^\/restaurants\/[\w-]+\/sections$/)) {
         const restaurantId = url.pathname.split('/')[2];
@@ -141,23 +114,19 @@ export async function handleSectionRequests(request, env) {
         const isAdmin = !!userData;
         return await getSectionsForRestaurant(restaurantId, env, includeDishes, isAdmin);
     }
-
     // Endpoint original para obtener secciones (mantener por compatibilidad)
     if (request.method === "GET" && url.pathname === "/sections") {
         const params = new URLSearchParams(url.search);
         const restaurantId = params.get('restaurant_id');
         const includeDishes = params.get('include_dishes') === 'true';
-
         if (!restaurantId) {
             return createResponse({ success: false, message: "Restaurant ID requerido" }, 400);
         }
-
         // ✅ Detectar si es contexto admin (tiene JWT válido)
         const userData = await authenticateRequest(request, env);
         const isAdmin = !!userData;
         return await getSectionsForRestaurant(restaurantId, env, includeDishes, isAdmin);
     }
-
     // Endpoint para manejar secciones (crear/actualizar) - REQUIERE AUTENTICACIÓN
     if ((request.method === "POST" || request.method === "PUT") && url.pathname.match(/^\/sections(\/[\w_-]+)?$/)) {
         // ✅ Verificar autenticación
@@ -165,33 +134,27 @@ export async function handleSectionRequests(request, env) {
         if (!userData) {
             return createResponse({ success: false, message: "No autorizado" }, 401);
         }
-
         try {
             const data = await request.json();
             const isNew = request.method === "POST" || !url.pathname.includes('/');
             const sectionId = isNew ? `sect_${Date.now()}_${Math.random().toString(36).substring(2, 7)}` : url.pathname.split('/').pop();
             const { restaurant_id, menu_id, translations, order_index, icon_url, bg_color, is_visible } = data;
-
             if (!restaurant_id) {
                 return createResponse({ success: false, message: "Restaurant ID requerido" }, 400);
             }
-
             if (!menu_id) {
                 return createResponse({ success: false, message: "Menu ID requerido" }, 400);
             }
-
             // Verificar que el menú existe
             const menuExists = await env.DB.prepare(`
         SELECT id FROM menus WHERE id = ? AND restaurant_id = ?
       `).bind(menu_id, restaurant_id).first();
-
             if (!menuExists) {
                 return createResponse({
                     success: false,
                     message: "El menú especificado no existe. Por favor, crea primero un menú."
                 }, 400);
             }
-
             try {
                 // Obtener el orden máximo actual para insertar al final si es necesario
                 let maxOrder = 1;
@@ -201,7 +164,6 @@ export async function handleSectionRequests(request, env) {
           `).bind(menu_id).first();
                     maxOrder = (orderResult?.max_order || 0) + 1;
                 }
-
                 // Insertar o actualizar la sección
                 if (isNew) {
                     await env.DB.prepare(`
@@ -237,7 +199,6 @@ export async function handleSectionRequests(request, env) {
                         restaurant_id
                     ).run();
                 }
-
                 // Guardar traducciones
                 if (translations) {
                     // Eliminar traducciones anteriores
@@ -245,9 +206,7 @@ export async function handleSectionRequests(request, env) {
             DELETE FROM translations 
             WHERE entity_id = ? AND entity_type = 'section'
           `).bind(sectionId).run();
-
                     const translationStatements = [];
-
                     // Guardar nombres en todos los idiomas
                     for (const [lang, value] of Object.entries(translations.name || {})) {
                         if (value) {
@@ -259,7 +218,6 @@ export async function handleSectionRequests(request, env) {
                             );
                         }
                     }
-
                     // Guardar descripciones si existen
                     for (const [lang, value] of Object.entries(translations.description || {})) {
                         if (value) {
@@ -271,23 +229,19 @@ export async function handleSectionRequests(request, env) {
                             );
                         }
                     }
-
                     if (translationStatements.length > 0) {
                         await env.DB.batch(translationStatements);
                     }
                 }
-
                 return createResponse({
                     success: true,
                     sectionId,
                     message: isNew ? "Sección creada correctamente" : "Sección actualizada correctamente"
                 });
-
             } catch (dbError) {
                 console.error("[Sections] Error en operaciones de base de datos:", dbError);
                 throw dbError;
             }
-
         } catch (error) {
             console.error("[Sections] Error al guardar sección:", error);
             return createResponse({
@@ -296,7 +250,6 @@ export async function handleSectionRequests(request, env) {
             }, 500);
         }
     }
-
     // Endpoint para eliminar una sección - REQUIERE AUTENTICACIÓN
     if (request.method === "DELETE" && url.pathname.match(/^\/sections\/[\w-]+$/)) {
         // ✅ Verificar autenticación
@@ -304,55 +257,44 @@ export async function handleSectionRequests(request, env) {
         if (!userData) {
             return createResponse({ success: false, message: "No autorizado" }, 401);
         }
-
         const sectionId = url.pathname.split('/').pop();
         const params = new URLSearchParams(url.search);
         const restaurantId = params.get('restaurant_id');
-
         if (!restaurantId) {
             return createResponse({ success: false, message: "Restaurant ID requerido" }, 400);
         }
-
         try {
             // Verificar que la sección pertenece al restaurante
             const section = await env.DB.prepare(`
         SELECT id FROM sections WHERE id = ? AND restaurant_id = ?
       `).bind(sectionId, restaurantId).first();
-
             if (!section) {
                 return createResponse({ success: false, message: "Sección no encontrada o no pertenece a este restaurante" }, 404);
             }
-
             // Verificar si hay platos asociados
             const dishCount = await env.DB.prepare(`
         SELECT COUNT(*) as count FROM section_dishes WHERE section_id = ?
       `).bind(sectionId).first();
-
             if (dishCount && dishCount.count > 0) {
                 return createResponse({
                     success: false,
                     message: "No se puede eliminar la sección porque tiene platos asociados. Mueva los platos a otra sección primero."
                 }, 400);
             }
-
             try {
                 const deleteStatements = [
                     env.DB.prepare(`DELETE FROM translations WHERE entity_id = ? AND entity_type = 'section'`).bind(sectionId),
                     env.DB.prepare(`DELETE FROM sections WHERE id = ?`).bind(sectionId)
                 ];
-
                 await env.DB.batch(deleteStatements);
-
                 return createResponse({
                     success: true,
                     message: "Sección eliminada correctamente"
                 });
-
             } catch (dbError) {
                 console.error("[Sections] Error en operaciones de base de datos:", dbError);
                 throw dbError;
             }
-
         } catch (error) {
             console.error("[Sections] Error al eliminar sección:", error);
             return createResponse({
@@ -361,20 +303,16 @@ export async function handleSectionRequests(request, env) {
             }, 500);
         }
     }
-
     return null;
 }
-
 // ===========================================================================
 // FUNCIONES AUXILIARES
 // ===========================================================================
-
 async function getSectionsForRestaurant(restaurantId, env, includeDishes = false, isAdmin = false) {
     try {
         // ✅ OPTIMIZADO: Query única con GROUP_CONCAT para traducciones
         // ✅ isAdmin: Si es admin, muestra todas las secciones con is_visible; si no, filtra solo visibles
         const visibilityFilter = isAdmin ? '' : 'AND s.is_visible = TRUE';
-
         const sectionsData = await env.DB.prepare(`
             SELECT 
                 s.id, s.menu_id, s.order_index, s.icon_url, s.bg_color,
@@ -400,15 +338,12 @@ async function getSectionsForRestaurant(restaurantId, env, includeDishes = false
             GROUP BY s.id, s.menu_id, s.order_index, s.icon_url, s.bg_color, m.name
             ORDER BY s.order_index ASC
         `).bind(restaurantId).all();
-
         if (!sectionsData.results || sectionsData.results.length === 0) {
             return createResponse({ success: true, sections: [] });
         }
-
         // ✅ OPTIMIZADO: Procesar traducciones en memoria (sin queries adicionales)
         const sections = sectionsData.results.map(section => {
             const translations = { name: {}, description: {} };
-
             // Parsear translations_data
             if (section.translations_data) {
                 const parts = section.translations_data.split('|||').filter(Boolean);
@@ -416,13 +351,11 @@ async function getSectionsForRestaurant(restaurantId, env, includeDishes = false
                     if (!part) return;
                     const [lang, field, ...valueParts] = part.split(':');
                     const value = valueParts.join(':'); // Por si el valor contiene ':'
-
                     if (lang && field && value) {
                         translations[field][lang] = value;
                     }
                 });
             }
-
             return {
                 id: section.id,
                 menu_id: section.menu_id,
@@ -437,7 +370,6 @@ async function getSectionsForRestaurant(restaurantId, env, includeDishes = false
                 dishes: [] // Inicializar array de platos
             };
         });
-
         // ✅ SI SE SOLICITAN PLATOS: Buscar platos activos ordenados por sección
         if (includeDishes) {
             console.log(`[Sections] Fetching dishes for restaurant ${restaurantId}`);
@@ -455,7 +387,6 @@ async function getSectionsForRestaurant(restaurantId, env, includeDishes = false
                 WHERE s.restaurant_id = ? AND d.status = 'active'
                 ORDER BY sd.section_id, sd.order_index
             `).bind(restaurantId).all();
-
             // Agrupar platos por sección
             const dishesBySection = {};
             if (dishesData.results) {
@@ -466,20 +397,16 @@ async function getSectionsForRestaurant(restaurantId, env, includeDishes = false
                     dishesBySection[dish.section_id].push(dish);
                 });
             }
-
             // Asignar platos a sus secciones
             sections.forEach(section => {
                 section.dishes = dishesBySection[section.id] || [];
             });
         }
-
         console.log(`[Sections] ✅ Optimized: ${sections.length} sections loaded (Dishes included: ${includeDishes})`);
-
         return createResponse({
             success: true,
             sections
         });
-
     } catch (dbError) {
         console.error("[Sections] Error de base de datos:", dbError);
         return createResponse({

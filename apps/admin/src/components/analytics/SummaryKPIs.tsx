@@ -1,7 +1,7 @@
 // apps/admin/src/components/analytics/SummaryKPIs.tsx
 import { Grid, Card, CardContent, Typography, Box, alpha } from '@mui/material';
 import type { SvgIconProps } from '@mui/material';
-import VisibilityIcon from '@mui/icons-material/Visibility';
+import PeopleIcon from '@mui/icons-material/People';
 import AccessTimeIcon from '@mui/icons-material/AccessTime';
 import RestaurantMenuIcon from '@mui/icons-material/RestaurantMenu';
 import FavoriteIcon from '@mui/icons-material/Favorite';
@@ -62,8 +62,7 @@ export default function SummaryKPIs({ data, cartMetrics }: Props) {
     const dishViews = data?.dishViews || data?.dish_views || 0;
     const favorites = data?.favorites || 0;
     const avgDishViewDuration = data?.avgDishViewDuration || data?.avg_dish_view_duration || 0;
-    // ✅ NEW: Get returning visitors from backend
-    const returningVisitors = data?.returning_visitors || 0;
+
 
     const cartTotalItems = cartMetrics?.totalItems || cartMetrics?.total_items_added || 0;
     const cartAvgValue = cartMetrics?.avgValue || cartMetrics?.avg_cart_value || 0;
@@ -76,10 +75,6 @@ export default function SummaryKPIs({ data, cartMetrics }: Props) {
     const engagementRate = dishViews > 0
         ? ((favorites + cartTotalItems) / dishViews * 100).toFixed(1)
         : '0.0';
-    // ✅ FIX: Use returning_visitors from backend instead of incorrect formula
-    const returnRate = uniqueVisitors > 0
-        ? ((returningVisitors / uniqueVisitors) * 100).toFixed(0)
-        : '0';
 
     const kpis: KpiItem[] = [
         {
@@ -123,12 +118,12 @@ export default function SummaryKPIs({ data, cartMetrics }: Props) {
             emoji: '🛒'
         },
         {
-            title: 'Tasa de Retorno',
-            value: `${returnRate}%`,
-            Icon: VisibilityIcon,
+            title: 'Sesiones Totales',
+            value: totalSessions.toLocaleString(),
+            Icon: PeopleIcon,
             color: '#8b5cf6',
-            subtitle: `${returningVisitors} Visitantes recurrentes`,
-            emoji: '🔄'
+            subtitle: `${uniqueVisitors} visitantes únicos`,
+            emoji: '📊'
         },
     ];
 

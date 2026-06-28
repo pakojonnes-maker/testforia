@@ -16,20 +16,17 @@ export async function handleReservationRequests(request, env) {
         const restaurantSlugOrId = pathname.split('/')[3];
         return getReservationConfig(env, restaurantSlugOrId);
     }
-
     // PUT /reservations/config/:restaurant_id
     // Updates reservation settings (schedule, closed dates, etc.)
     if (method === "PUT" && pathname.match(/^\/reservations\/config\/[\w-]+$/)) {
         const restaurantSlugOrId = pathname.split('/')[3];
         return updateReservationConfig(env, request, restaurantSlugOrId);
     }
-
     // NEW: GET /reservations/availability/calendar
     // Returns availability status for a range of dates
     if (method === "GET" && pathname === "/reservations/availability/calendar") {
         return getAvailabilityCalendar(env, url.searchParams);
     }
-
     // GET /reservations/availability?restaurant_id=X&date=Y&party_size=Z
     if (method === "GET" && pathname === "/reservations/availability") {
         return checkAvailability(env, url.searchParams);
@@ -66,13 +63,11 @@ export async function handleReservationRequests(request, env) {
         const id = pathname.split('/')[2];
         return updateReservation(env, id, request);
     }
-
     // NEW: GET /reservations/by-token/:token
     if (method === "GET" && pathname.match(/^\/reservations\/by-token\/[\w-]+$/)) {
         const token = pathname.split('/')[3];
         return getReservationByToken(env, token);
     }
-
     // NEW: POST /reservations/cancel-by-token
     if (method === "POST" && pathname === "/reservations/cancel-by-token") {
         return cancelReservationByToken(env, request);
@@ -110,7 +105,6 @@ async function getReservationConfig(env, restaurantSlugOrId) {
         return createResponse({ success: false, message: error.message }, 500);
     }
 }
-
 async function updateReservationConfig(env, request, restaurantSlugOrId) {
     try {
         const body = await request.json();
@@ -118,23 +112,18 @@ async function updateReservationConfig(env, request, restaurantSlugOrId) {
         const restaurant = await env.DB.prepare(
             `SELECT id FROM restaurants WHERE slug = ? OR id = ?`
         ).bind(restaurantSlugOrId, restaurantSlugOrId).first();
-
         if (!restaurant) return createResponse({ success: false, message: "Restaurant not found" }, 404);
-
         const {
             is_enabled, max_capacity, max_party_size, slot_duration_minutes,
             gap_between_slots_minutes, booking_availability, closed_dates,
             advance_days, holiday_closures
         } = body;
-
         // Check if settings exist
         const exists = await env.DB.prepare(`SELECT restaurant_id FROM reservation_settings WHERE restaurant_id = ?`).bind(restaurant.id).first();
-
         // Ensure JSON fields are strings if they are objects, OR null if undefined
         const availabilityJson = booking_availability ? (typeof booking_availability === 'object' ? JSON.stringify(booking_availability) : booking_availability) : null;
         const closedDatesJson = closed_dates ? (typeof closed_dates === 'object' ? JSON.stringify(closed_dates) : closed_dates) : null;
         const holidaysJson = holiday_closures ? (typeof holiday_closures === 'object' ? JSON.stringify(holiday_closures) : holiday_closures) : null;
-
         if (exists) {
             await env.DB.prepare(`
                 UPDATE reservation_settings SET
@@ -162,56 +151,43 @@ async function updateReservationConfig(env, request, restaurantSlugOrId) {
                 availabilityJson, closedDatesJson, advance_days || 30, holidaysJson
             ).run();
         }
-
         return createResponse({ success: true, message: "Settings updated successfully" });
-
     } catch (error) {
         return createResponse({ success: false, message: error.message }, 500);
     }
 }
-
 async function getAvailabilityCalendar(env, params) {
     try {
         const restaurantId = params.get('restaurant_id');
         const startDateStr = params.get('start_date'); // YYYY-MM-DD
         const endDateStr = params.get('end_date');     // YYYY-MM-DD
-
         if (!restaurantId) return createResponse({ success: false, message: "Missing restaurant_id" }, 400);
-
         // Get Settings
         const settings = await env.DB.prepare(
             `SELECT * FROM reservation_settings WHERE restaurant_id = ?`
         ).bind(restaurantId).first();
-
         if (!settings || !settings.is_enabled) {
             return createResponse({ success: true, calendar: [], is_enabled: false });
         }
-
         const closedDates = settings.closed_dates ? JSON.parse(settings.closed_dates) : [];
         const bookingAvailability = settings.booking_availability ? JSON.parse(settings.booking_availability) : null;
-
         // Generate date range
         const calendar = [];
         const start = startDateStr ? new Date(startDateStr) : new Date();
         const end = endDateStr ? new Date(endDateStr) : new Date(start);
         if (!endDateStr) end.setDate(end.getDate() + (settings.advance_days || 30));
-
         const now = new Date();
-
         // Loop through dates
         for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
             const dateStr = d.toISOString().split('T')[0];
             const dayOfWeek = d.toLocaleDateString('en-US', { weekday: 'long' }).toLowerCase();
-
             let status = 'open';
             let reason = null;
-
             // 1. Check Closed Dates
             if (closedDates.includes(dateStr)) {
                 status = 'closed';
                 reason = 'closed_date';
             }
-
             // 2. Check Schedule Existence
             if (status === 'open' && bookingAvailability) {
                 const dailySlots = bookingAvailability[dayOfWeek] || bookingAvailability['default'];
@@ -220,56 +196,45 @@ async function getAvailabilityCalendar(env, params) {
                     reason = 'no_schedule';
                 }
             }
-
             // 3. Check Past Dates (allowing today)
             const todayStr = now.toISOString().split('T')[0];
             if (dateStr < todayStr) {
                 status = 'closed';
                 reason = 'past';
             }
-
             calendar.push({
                 date: dateStr,
                 status,
                 reason
             });
         }
-
         return createResponse({ success: true, calendar });
-
     } catch (error) {
         return createResponse({ success: false, message: error.message }, 500);
     }
 }
-
 async function checkAvailability(env, params) {
     try {
         const restaurantId = params.get('restaurant_id');
         const date = params.get('date'); // YYYY-MM-DD
         const partySize = parseInt(params.get('party_size') || '2');
         if (!restaurantId || !date) return createResponse({ success: false, message: "Missing params" }, 400);
-
         // 1. Get Settings
         const settings = await env.DB.prepare(
             `SELECT * FROM reservation_settings WHERE restaurant_id = ? AND is_enabled = TRUE`
         ).bind(restaurantId).first();
-
         if (!settings) return createResponse({ success: false, message: "Reservations disabled" }, 403);
-
         // Check Closed Dates
         const closedDates = settings.closed_dates ? JSON.parse(settings.closed_dates) : [];
         if (closedDates.includes(date)) {
             return createResponse({ success: true, slots: [], message: "Restaurant closed on this date" });
         }
-
         const maxCapacity = settings.max_capacity || 50;
         const maxPartySize = settings.max_party_size || 10;
         const slotDuration = settings.slot_duration_minutes || 90;
         const gap = settings.gap_between_slots_minutes;
         const pacing = (gap && gap > 0) ? gap : 15; // Default 15 min interval for slot generation
-
         if (partySize > maxCapacity) return createResponse({ success: false, message: "Party size exceeds restaurant capacity" }, 400);
-
         // 2. Count existing reservations
         const existingReservations = await env.DB.prepare(`
             SELECT reservation_time, party_size 
@@ -278,7 +243,6 @@ async function checkAvailability(env, params) {
             AND reservation_date = ? 
             AND status IN ('confirmed', 'pending')
         `).bind(restaurantId, date).all();
-
         // 3. Process Schedule (MERGE INTERVALS STRATEGY)
         let rawSchedule = settings.booking_availability ? JSON.parse(settings.booking_availability) : null;
         if (!rawSchedule) {
@@ -286,82 +250,64 @@ async function checkAvailability(env, params) {
                 "default": [{ "start": "13:00", "end": "23:00" }]
             };
         }
-
         const dayOfWeek = new Date(date).toLocaleDateString('en-US', { weekday: 'long' }).toLowerCase();
         let definedSlots = rawSchedule[dayOfWeek] || rawSchedule['default'] || [];
-
         // MERGE LOGIC: Combine [13-14, 14-15] into [13-15]
         const mergedWindows = mergeTimeRanges(definedSlots);
-
         // 4. Generate Dynamic Slots
         let availableSlots = [];
-
         // Current time for same-day validation
         const now = new Date();
         const todayStr = now.toISOString().split('T')[0];
         const isToday = date === todayStr;
         const currentMinutes = now.getHours() * 60 + now.getMinutes();
         const bufferMinutes = 30; // Min time before booking
-
         for (const window of mergedWindows) {
             let current = window.start; // in minutes
             const windowEnd = window.end; // in minutes
-
             // While the reservation fits in the window
             while (current + slotDuration <= windowEnd) {
-
                 // Past validation
                 if (isToday && current < currentMinutes + bufferMinutes) {
                     current += pacing;
                     continue;
                 }
-
                 // Capacity Calculation (Overlap check)
                 // A reservation starting at 'current' ends at 'current + slotDuration'
                 // It overlaps with existing Res if: ResStart < MyEnd AND ResEnd > MyStart
                 const potentialStart = current;
                 const potentialEnd = current + slotDuration;
-
                 const currentOccupancy = existingReservations.results.reduce((acc, res) => {
                     const resStart = convertToMinutes(res.reservation_time);
                     const resEnd = resStart + slotDuration; // Assuming constant duration for calculation simplicity
-
                     if (resStart < potentialEnd && resEnd > potentialStart) {
                         return acc + res.party_size;
                     }
                     return acc;
                 }, 0);
-
                 if (currentOccupancy + partySize <= maxCapacity) {
                     availableSlots.push(convertToTime(current));
                 }
-
                 current += pacing; // Move to next potential slot
             }
         }
-
         return createResponse({ success: true, slots: availableSlots });
-
     } catch (error) {
         return createResponse({ success: false, message: error.message }, 500);
     }
 }
-
 // Helper: Merge overlapping or adjacent time ranges
 // Input: [{start: "13:00", end: "14:00"}, {start: "14:00", end: "15:00"}]
 // Output: [{start: 780, end: 900}] (in minutes)
 function mergeTimeRanges(ranges) {
     if (!ranges || ranges.length === 0) return [];
-
     // Convert to minutes and sort
     const sorted = ranges.map(r => ({
         start: convertToMinutes(r.start),
         end: convertToMinutes(r.end)
     })).sort((a, b) => a.start - b.start);
-
     const merged = [];
     let current = sorted[0];
-
     for (let i = 1; i < sorted.length; i++) {
         const next = sorted[i];
         if (current.end >= next.start) {
@@ -376,7 +322,6 @@ function mergeTimeRanges(ranges) {
     merged.push(current);
     return merged;
 }
-
 async function createReservation(env, request) {
     try {
         const body = await request.json();
@@ -391,7 +336,6 @@ async function createReservation(env, request) {
         const id = `res_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
         const magicToken = crypto.randomUUID(); // Generate unique token
         const status = 'pending'; // Default to pending as per user request
-
         await env.DB.prepare(`
             INSERT INTO reservations (
                 id, restaurant_id, client_name, client_email, client_phone,
@@ -406,7 +350,6 @@ async function createReservation(env, request) {
             request.headers.get('CF-Connecting-IP') || 'unknown',
             magicToken
         ).run();
-
         // Log it
         await env.DB.prepare(`
             INSERT INTO reservation_logs (id, reservation_id, action, changed_by, reason)
@@ -414,17 +357,14 @@ async function createReservation(env, request) {
         `).bind(
             `log_${Date.now()}`, id, 'created', 'user', 'Online Booking'
         ).run();
-
         return createResponse({ success: true, reservation_id: id, magic_token: magicToken });
     } catch (error) {
         return createResponse({ success: false, message: error.message }, 500);
     }
 }
-
 // ============================================
 // NEW: EMAIL & SELF-SERVICE FUNCTIONS
 // ============================================
-
 async function getReservationByToken(env, token) {
     if (!token) return createResponse({ success: false, message: "Token required" }, 400);
     try {
@@ -434,37 +374,28 @@ async function getReservationByToken(env, token) {
             JOIN restaurants res ON r.restaurant_id = res.id
             WHERE r.magic_link_token = ?
         `).bind(token).first();
-
         if (!reservation) return createResponse({ success: false, message: "Reservation not found" }, 404);
-
         return createResponse({ success: true, reservation });
     } catch (error) {
         return createResponse({ success: false, message: error.message }, 500);
     }
 }
-
 async function cancelReservationByToken(env, request) {
     try {
         const body = await request.json();
         const { token, reason } = body;
-
         if (!token) return createResponse({ success: false, message: "Token required" }, 400);
-
         // Verify existence
         const reservation = await env.DB.prepare(`SELECT id, restaurant_id, status FROM reservations WHERE magic_link_token = ?`).bind(token).first();
-
         if (!reservation) return createResponse({ success: false, message: "Reservation not found" }, 404);
-
         if (['cancelled', 'cancelled_restaurant', 'completed'].includes(reservation.status)) {
             return createResponse({ success: false, message: "Reservation already processed" }, 400);
         }
-
         // Cancel
         await env.DB.prepare(`
             UPDATE reservations SET status = 'cancelled_user', cancellation_reason = ?, updated_at = CURRENT_TIMESTAMP
             WHERE id = ?
         `).bind(reason || "Cancelled by user via link", reservation.id).run();
-
         // Log
         await env.DB.prepare(`
             INSERT INTO reservation_logs (id, reservation_id, action, changed_by, previous_state, new_state, reason)
@@ -472,15 +403,11 @@ async function cancelReservationByToken(env, request) {
         `).bind(
             `log_${Date.now()}`, reservation.id, 'status_change', 'client_token', reservation.status, 'cancelled_user', reason || "Self-service cancellation"
         ).run();
-
         return createResponse({ success: true, message: "Reservation cancelled" });
-
     } catch (error) {
         return createResponse({ success: false, message: error.message }, 500);
     }
 }
-
-
 async function joinWaitlist(env, request) {
     try {
         const body = await request.json();
@@ -598,11 +525,9 @@ async function updateReservation(env, id, request) {
     try {
         const body = await request.json();
         // Extract allowed fields\n        const { status, cancellation_reason, date, time, party_size, special_requests, client_name, client_email, client_phone, admin_notes, table_assignment } = body;
-
         // Build Dynamic Query
         let queryParts = ["updated_at = CURRENT_TIMESTAMP"];
         let params = [];
-
         if (status) { queryParts.push("status = ?"); params.push(status); }
         if (cancellation_reason !== undefined) { queryParts.push("cancellation_reason = ?"); params.push(cancellation_reason); }
         if (date) { queryParts.push("reservation_date = ?"); params.push(date); }
@@ -614,13 +539,9 @@ async function updateReservation(env, id, request) {
         if (client_phone) { queryParts.push("client_phone = ?"); params.push(client_phone); }
         if (admin_notes !== undefined) { queryParts.push("admin_notes = ?"); params.push(admin_notes); }
         if (table_assignment !== undefined) { queryParts.push("table_assignment = ?"); params.push(table_assignment); }
-
         params.push(id); // Where ID
-
         const sql = `UPDATE reservations SET ${queryParts.join(", ")} WHERE id = ?`;
-
         await env.DB.prepare(sql).bind(...params).run();
-
         // Log activity
         const action = status ? 'status_change' : 'update_details';
         await env.DB.prepare(`
@@ -629,7 +550,6 @@ async function updateReservation(env, id, request) {
         `).bind(
             `log_${Date.now()}`, id, action, 'admin', status || 'details_updated', 'Admin Update'
         ).run();
-
         return createResponse({ success: true });
     } catch (error) {
         return createResponse({ success: false, message: error.message }, 500);

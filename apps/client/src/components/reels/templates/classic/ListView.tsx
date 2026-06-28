@@ -209,7 +209,7 @@ const DishListItem: React.FC<DishListItemProps> = ({
                         borderRadius: 3,
                         backdropFilter: 'blur(30px)',
                         border: `1px solid ${colors.secondary}40`,
-                        overflow: 'hidden',
+                        overflow: 'visible', // ✅ Changed from hidden to prevent icon cutoff
                         display: 'flex',
                         flexDirection: 'row',
                         zIndex: 1,
@@ -217,17 +217,19 @@ const DishListItem: React.FC<DishListItemProps> = ({
                         minHeight: '200px'
                     }}
                 >
-                    {/* Left: Video/Image Container */}
                     <Box sx={{
                         position: 'relative',
-                        width: '187px',
-                        minWidth: '187px',
+                        width: '42%',       // ✅ Reduced from 45% to give more space to content
+                        minWidth: '130px',  // ✅ Reduced minimum for more content space
+                        maxWidth: '160px',  // ✅ Reduced maximum for more content space
+                        aspectRatio: '3/4', // ✅ Maintain aspect ratio
                         bgcolor: '#000',
                         display: 'flex',
                         alignItems: 'center',
                         justifyContent: 'center',
                         overflow: 'hidden',
-                        borderRight: `1px solid ${colors.secondary}20`
+                        borderRight: `1px solid ${colors.secondary}20`,
+                        flexShrink: 0       // ✅ Prevent shrinking
                     }}>
                         {mediaUrl ? (
                             <>
@@ -236,6 +238,7 @@ const DishListItem: React.FC<DishListItemProps> = ({
                                     <video
                                         ref={videoRef}
                                         src={mediaUrl}
+                                        poster={media?.thumbnail_url}
                                         playsInline
                                         muted
                                         autoPlay
@@ -253,25 +256,46 @@ const DishListItem: React.FC<DishListItemProps> = ({
                                     />
                                 ) : null}
 
-                                {/* ✅ Fallback Image: Only shown if not active, timeout, or error */}
+                                {/* ✅ Fallback: Only shown if not active, timeout, or error */}
                                 {(!isActive || !isVideo || showFallbackImage || videoError) && (
-                                    <Box
-                                        component="img"
-                                        src={media?.thumbnail_url || mediaUrl}
-                                        alt={dishName}
-                                        sx={{
-                                            position: isActive && isVideo && !videoError ? 'absolute' : 'relative',
-                                            inset: 0,
-                                            width: '100%',
-                                            height: '100%',
-                                            objectFit: 'cover',
-                                            zIndex: 2,
-                                            opacity: (isActive && videoReady && !videoError) ? 0 : 1,
-                                            transition: 'opacity 0.3s ease-out',
-                                            pointerEvents: 'none',
-                                            willChange: 'opacity'
-                                        }}
-                                    />
+                                    media?.thumbnail_url || !isVideo ? (
+                                        <Box
+                                            component="img"
+                                            src={media?.thumbnail_url || mediaUrl}
+                                            alt={dishName}
+                                            sx={{
+                                                position: isActive && isVideo && !videoError ? 'absolute' : 'relative',
+                                                inset: 0,
+                                                width: '100%',
+                                                height: '100%',
+                                                objectFit: 'cover',
+                                                zIndex: 2,
+                                                opacity: (isActive && videoReady && !videoError) ? 0 : 1,
+                                                transition: 'opacity 0.3s ease-out',
+                                                pointerEvents: 'none',
+                                                willChange: 'opacity'
+                                            }}
+                                        />
+                                    ) : (
+                                        /* ✅ Video-only dish: show first frame via preload="metadata" */
+                                        <video
+                                            src={`${mediaUrl}#t=0.1`}
+                                            preload="metadata"
+                                            muted
+                                            playsInline
+                                            style={{
+                                                position: isActive && !videoError ? 'absolute' : 'relative',
+                                                inset: 0,
+                                                width: '100%',
+                                                height: '100%',
+                                                objectFit: 'cover',
+                                                zIndex: 2,
+                                                opacity: (isActive && videoReady && !videoError) ? 0 : 1,
+                                                transition: 'opacity 0.3s ease-out',
+                                                pointerEvents: 'none',
+                                            }}
+                                        />
+                                    )
                                 )}
                             </>
                         ) : (
@@ -309,13 +333,16 @@ const DishListItem: React.FC<DishListItemProps> = ({
                     {/* Right: Content & Actions */}
                     <Box sx={{
                         p: 1.5,
+                        pr: 2,              // ✅ Increased right padding for cart icon
                         flex: 1,
+                        minWidth: 0,        // ✅ Allow content to shrink properly
                         display: 'flex',
                         flexDirection: 'column',
-                        justifyContent: 'space-between'
+                        justifyContent: 'space-between',
+                        overflow: 'visible' // ✅ Allow cart icon to be fully visible
                     }}>
                         <Box>
-                            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 1 }}>
+                            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 1, overflow: 'hidden' }}>
                                 <Typography
                                     variant="h6"
                                     sx={{
@@ -324,7 +351,11 @@ const DishListItem: React.FC<DishListItemProps> = ({
                                         fontWeight: 300,
                                         fontSize: '1.1rem',
                                         lineHeight: 1.2,
-                                        mb: 0.5
+                                        mb: 0.5,
+                                        flex: 1,
+                                        minWidth: 0,
+                                        overflow: 'hidden',
+                                        textOverflow: 'ellipsis'
                                     }}
                                 >
                                     {dishName}
@@ -334,8 +365,9 @@ const DishListItem: React.FC<DishListItemProps> = ({
                                     color: colors.secondary,
                                     fontWeight: 700,
                                     fontFamily: '"Fraunces", serif',
-                                    fontSize: '1rem',
-                                    whiteSpace: 'nowrap'
+                                    fontSize: '0.95rem',
+                                    whiteSpace: 'nowrap',
+                                    flexShrink: 0
                                 }}>
                                     €{(dish.price || 0).toFixed(2)}
                                 </Typography>
@@ -471,7 +503,7 @@ const DishListItem: React.FC<DishListItemProps> = ({
                                 onClick={handleAdd}
                                 size="small"
                                 sx={{
-                                    ml: 1,
+                                    ml: 0.5,  // ✅ Reduced margin to prevent cutoff
                                     bgcolor: colors.accent || colors.secondary,
                                     color: '#000',
                                     width: 36,
@@ -630,7 +662,7 @@ const ListView: React.FC<ListViewProps> = ({
                 '&::-webkit-scrollbar-thumb': { background: 'rgba(255,255,255,0.1)', borderRadius: '4px' }
             }}
         >
-            <Box sx={{ maxWidth: '600px', mx: 'auto' }}>
+            <Box sx={{ maxWidth: '1200px', mx: 'auto' }}>
                 {sections.map((section, _index) => {
                     const sectionName = section?.translations?.name?.[currentLanguage] || section?.name || t('default_section_name', 'Sección');
 
@@ -669,7 +701,11 @@ const ListView: React.FC<ListViewProps> = ({
                             </Box>
 
 
-                            <Box>
+                            <Box sx={{
+                                display: 'grid',
+                                gridTemplateColumns: { xs: '1fr', sm: 'repeat(2, 1fr)', md: 'repeat(3, 1fr)' },
+                                gap: { xs: 0, sm: 3 }
+                            }}>
                                 {section.dishes?.map((dish: any, idx: number) => (
                                     <DishListItem
                                         key={dish.id}
@@ -770,7 +806,7 @@ const ListView: React.FC<ListViewProps> = ({
                         width: 56,
                         height: 56,
                         borderRadius: '50%',
-                        background: `linear-gradient(145deg, #FFD700 0%, ${colors.accent || '#FFC100'} 50%, #DAA520 100%)`,
+                        bgcolor: colors.accent || colors.secondary,
                         display: 'flex',
                         alignItems: 'center',
                         justifyContent: 'center',

@@ -124,8 +124,8 @@ const LanguageSwitcher: React.FC<LanguageSwitcherProps> = ({
             border: `2px solid rgba(255,255,255,0.2)`,
             borderRadius: '50%',
             overflow: 'hidden',
-            bgcolor: 'rgba(0,0,0,0.3)',
-            backdropFilter: 'blur(10px)',
+            bgcolor: 'rgba(0,0,0,0.4)',
+            backdropFilter: 'blur(6px)',
             transition: 'all 0.3s ease',
             '&:hover': {
               borderColor: accentColor,
@@ -147,9 +147,9 @@ const LanguageSwitcher: React.FC<LanguageSwitcherProps> = ({
         slotProps={{
           paper: {
             sx: {
-              bgcolor: 'rgba(10, 10, 10, 0.95)',
-              backdropFilter: 'blur(20px)',
-              WebkitBackdropFilter: 'blur(20px)',
+              bgcolor: 'rgba(10, 10, 10, 0.97)',
+              backdropFilter: 'blur(10px)',
+              WebkitBackdropFilter: 'blur(10px)',
               border: '1px solid rgba(255,255,255,0.06)',
               borderRadius: 3,
               mt: 1,

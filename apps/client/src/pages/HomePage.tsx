@@ -145,8 +145,7 @@ function HeroSection() {
         background: colors.bg,
       }}
     >
-      <title>VisualTaste | Carta Digital QR para Restaurantes - Menú con Video</title>
-      <meta name="description" content="Crea tu Carta Digital QR para restaurantes gratis. La única carta digital interactiva con vídeo 4K, traducción IA y pedidos. Aumenta tus ventas hoy." />
+      {/* Metadatos movidos a index.html */}
 
       {/* Background Noise/Texture */}
       <Box
@@ -295,7 +294,8 @@ function HeroSection() {
                     muted
                     loop
                     playsInline
-                    src="https://visualtasteworker.franciscotortosaestudios.workers.dev/media/System/landing/video_principal.mp4"
+                    aria-label="Demo de carta digital QR VisualTaste con menú interactivo en móvil"
+                    src="https://visualtasteworker.franciscotortosaestudios.workers.dev/media/System/landing/header.mp4"
                     sx={{
                       width: '100%',
                       height: '100%',
@@ -420,7 +420,7 @@ function BusinessValuesSection() {
   return (
     <Box component="section" sx={{ py: { xs: 8, md: 16 }, background: colors.bg, px: { xs: 2, sm: 3, md: 0 } }}>
       <Container maxWidth="lg">
-        <SectionHeader title="VALOR OPERATIVO" subtitle="Más que una carta, una herramienta de negocio" />
+        <SectionHeader title="SOLUCIÓN INTEGRAL" subtitle="La Carta Digital que Transforma tu Restaurante" />
 
         <Stack spacing={{ xs: 8, md: 12 }}>
           {values.map((item, index) => (
@@ -678,8 +678,8 @@ function ProductShowcaseSection() {
 
   const showcaseItems = [
     {
-      type: 'video',
-      src: 'https://visualtasteworker.franciscotortosaestudios.workers.dev/media/System/demo-reel.mp4',
+      type: 'image',
+      src: 'https://visualtasteworker.franciscotortosaestudios.workers.dev/media/System/landing/menu.png',
       title: 'Menú Interactivo',
       description: 'Interfaz tipo Instagram que enamora.',
     },

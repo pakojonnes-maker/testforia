@@ -6,11 +6,12 @@ import { Box, Button, Typography, Fade, Switch } from '@mui/material';
 interface SplashScreenProps {
     isAppReady: boolean;
     onComplete: () => void;
+    disableConsent?: boolean;
 }
 
 const CONSENT_KEY = 'vt_consent_analytics';
 
-export const SplashScreen = ({ isAppReady, onComplete }: SplashScreenProps) => {
+export const SplashScreen = ({ isAppReady, onComplete, disableConsent = false }: SplashScreenProps) => {
     const [startExit, setStartExit] = useState(false);
     const [rotationFinished, setRotationFinished] = useState(false);
     const [consentNeeded, setConsentNeeded] = useState(false);
@@ -23,11 +24,16 @@ export const SplashScreen = ({ isAppReady, onComplete }: SplashScreenProps) => {
 
     // Initial check
     useEffect(() => {
+        if (disableConsent) {
+            setConsentNeeded(false);
+            return;
+        }
+
         const consent = localStorage.getItem(CONSENT_KEY);
         if (consent === null) {
             setConsentNeeded(true);
         }
-    }, []);
+    }, [disableConsent]);
 
     // Ensure we track the rotation state reliably
     const handleRotationEnd = () => {

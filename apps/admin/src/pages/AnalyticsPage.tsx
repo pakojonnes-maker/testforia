@@ -1,5 +1,5 @@
 // apps/admin/src/pages/AnalyticsPage.tsx
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import {
   Box,
@@ -35,7 +35,7 @@ import { apiClient } from '../lib/apiClient';
 import SummaryKPIs from '../components/analytics/SummaryKPIs';
 import TimeSeriesChart from '../components/analytics/TimeSeriesChart';
 import HourlyTrafficChart from '../components/analytics/HourlyTrafficChart';
-import CartAnalytics from '../components/analytics/CartAnalytics';
+import RecurrencePanel from '../components/analytics/RecurrencePanel';
 import TopDishesChart from '../components/analytics/TopDishesChart';
 import ConversionFunnel from '../components/analytics/ConversionFunnel';
 import TopCitiesChart from '../components/analytics/TopCitiesChart';
@@ -215,7 +215,7 @@ function KPIsTab({ data, timeRange }: any) {
         />
       </Grid>
 
-      {/* Row 2: Evolución de Sesiones (8 cols) + Horas Pico (4 cols) */}
+      {/* Row 2: Evolución de Tráfico (8 cols) + Horas Pico (4 cols) */}
       <Grid item xs={12} lg={8}>
         <TimeSeriesChart data={data.timeseries} timeRange={timeRange} />
       </Grid>
@@ -223,23 +223,28 @@ function KPIsTab({ data, timeRange }: any) {
         <HourlyTrafficChart data={data.trafficByHour} />
       </Grid>
 
-      {/* Row 3: Top Platos (4 cols) + Funnel de Conversión (4 cols) + Top Ciudades (4 cols) */}
-      <Grid item xs={12} md={6} lg={4}>
-        <TopDishesChart dishes={data.topDishes || []} />
+      {/* Row 3: Recurrencia (6 cols) + Funnel de Conversión (6 cols) */}
+      <Grid item xs={12} md={6}>
+        <RecurrencePanel
+          newVisitors={data.summary?.new_visitors || 0}
+          returningVisitors={data.summary?.returning_visitors || 0}
+          uniqueVisitors={data.summary?.uniqueVisitors || data.summary?.unique_visitors || 0}
+          totalSessions={data.summary?.totalSessions || data.summary?.total_sessions || 0}
+        />
       </Grid>
-      <Grid item xs={12} md={6} lg={4}>
+      <Grid item xs={12} md={6}>
         <ConversionFunnel data={funnelData} />
       </Grid>
-      <Grid item xs={12} md={6} lg={4}>
+
+      {/* Row 4: Top Platos (6 cols) + Top Ciudades (6 cols) */}
+      <Grid item xs={12} md={6}>
+        <TopDishesChart dishes={data.topDishes || []} />
+      </Grid>
+      <Grid item xs={12} md={6}>
         <TopCitiesChart
           cities={data.breakdowns?.cities || []}
           countries={data.breakdowns?.countries || []}
         />
-      </Grid>
-
-      {/* Row 4: Cart Analytics (full width for prominence) */}
-      <Grid item xs={12}>
-        <CartAnalytics data={data.cartMetrics} />
       </Grid>
     </Grid>
   );

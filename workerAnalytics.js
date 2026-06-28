@@ -1,20 +1,16 @@
-
 export async function handleAnalyticsRequests(request, env) {
     const url = new URL(request.url);
     // CORS preflight
     if (request.method === "OPTIONS") {
         return createResponse({}, 204);
     }
-
     // 🔧 DEBUG ENDPOINT - Check what data exists
     if (request.method === "GET" && url.pathname === "/analytics/debug") {
         const params = new URLSearchParams(url.search);
         const restaurantId = params.get("restaurant_id");
-
         if (!restaurantId) {
             return createResponse({ error: "restaurant_id required" }, 400);
         }
-
         try {
             // Check daily_analytics table
             const dailyAnalytics = await env.DB.prepare(
@@ -24,14 +20,12 @@ export async function handleAnalyticsRequests(request, env) {
                  ORDER BY date DESC 
                  LIMIT 10`
             ).bind(restaurantId).all();
-
             // Check sessions table
             const sessions = await env.DB.prepare(
                 `SELECT COUNT(*) as count, MIN(started_at) as first, MAX(started_at) as last 
                  FROM sessions 
                  WHERE restaurant_id = ?`
             ).bind(restaurantId).first();
-
             // Check events table
             const events = await env.DB.prepare(
                 `SELECT event_type, COUNT(*) as count 
@@ -41,7 +35,6 @@ export async function handleAnalyticsRequests(request, env) {
                  ORDER BY count DESC 
                  LIMIT 20`
             ).bind(restaurantId).all();
-
             // Check dish_daily_metrics
             const dishMetrics = await env.DB.prepare(
                 `SELECT dish_id, SUM(views) as views, SUM(favorites) as favorites 
@@ -51,7 +44,6 @@ export async function handleAnalyticsRequests(request, env) {
                  ORDER BY views DESC 
                  LIMIT 10`
             ).bind(restaurantId).all();
-
             // Check section_daily_metrics
             const sectionMetrics = await env.DB.prepare(
                 `SELECT section_id, SUM(views) as views, AVG(avg_time_spent) as avg_time 
@@ -59,7 +51,6 @@ export async function handleAnalyticsRequests(request, env) {
                  WHERE restaurant_id = ? 
                  GROUP BY section_id`
             ).bind(restaurantId).all();
-
             return createResponse({
                 success: true,
                 restaurantId,
@@ -86,7 +77,6 @@ export async function handleAnalyticsRequests(request, env) {
             return createResponse({ error: err.message, stack: err.stack }, 500);
         }
     }
-
     // /analytics: dataset completo para AnalyticsPage
     if (request.method === "GET" && (url.pathname === "/analytics" || url.pathname === "/analytics/")) {
         // Auth
@@ -134,7 +124,6 @@ export async function handleAnalyticsRequests(request, env) {
                  FROM sessions s
                  WHERE s.restaurant_id = ? AND s.started_at BETWEEN ? AND ?`
             ).bind(restaurantId, fromTs, toTs).first();
-
             // Get event stats
             const eventStats = await env.DB.prepare(
                 `SELECT 
@@ -145,14 +134,12 @@ export async function handleAnalyticsRequests(request, env) {
                  FROM events
                  WHERE restaurant_id = ? AND created_at BETWEEN ? AND ?`
             ).bind(restaurantId, fromTs, toTs).first();
-
             // Get avg dish view duration from dish_daily_metrics
             const dishDurationStats = await env.DB.prepare(
                 `SELECT AVG(avg_view_duration) AS avg_dish_view_duration
                  FROM dish_daily_metrics
                  WHERE restaurant_id = ? AND date BETWEEN ? AND ?`
             ).bind(restaurantId, from, to).first();
-
             // ✅ NEW: Get visitor recurrence stats (new vs returning)
             const visitorRecurrence = await env.DB.prepare(
                 `SELECT 
@@ -161,7 +148,6 @@ export async function handleAnalyticsRequests(request, env) {
                  FROM sessions
                  WHERE restaurant_id = ? AND started_at BETWEEN ? AND ?`
             ).bind(restaurantId, fromTs, toTs).first();
-
             // Combine into summary object
             const summary = {
                 total_views: sessionStats?.total_sessions || 0, // Use sessions as proxy for views
@@ -180,16 +166,32 @@ export async function handleAnalyticsRequests(request, env) {
                 new_visitors: visitorRecurrence?.new_visitors || 0,
                 returning_visitors: visitorRecurrence?.returning_visitors || 0
             };
-
             console.log('[Analytics] Summary calculated:', summary);
-            // 2) Timeseries (daily_analytics)
+            // 2) Timeseries (daily_analytics -> fallback sessions)
+            let timeseries = [];
             const timeseriesRes = await env.DB.prepare(
                 `SELECT date, total_views, unique_visitors, total_sessions
          FROM daily_analytics
          WHERE restaurant_id = ? AND date BETWEEN ? AND ?
          ORDER BY date ASC`
             ).bind(restaurantId, from, to).all();
-            // 3) Top dishes (dish_daily_metrics → fallback events)
+            if ((timeseriesRes.results?.length ?? 0) === 0) {
+                // Fallback: group by date from raw sessions
+                const fallbackTs = await env.DB.prepare(
+                    `SELECT 
+                        DATE(started_at) as date,
+                        COUNT(*) as total_sessions,
+                        COUNT(DISTINCT COALESCE(visitor_id, id)) as unique_visitors,
+                        COUNT(*) as total_views
+                     FROM sessions
+                     WHERE restaurant_id = ? AND started_at BETWEEN ? AND ?
+                     GROUP BY DATE(started_at)
+                     ORDER BY date ASC`
+                ).bind(restaurantId, fromTs, toTs).all();
+                timeseries = fallbackTs.results ?? [];
+            } else {
+                timeseries = timeseriesRes.results ?? [];
+            }
             let topDishes = await env.DB.prepare(
                 `SELECT dm.dish_id,
                 COALESCE(SUM(dm.views),0) AS views,
@@ -344,7 +346,6 @@ export async function handleAnalyticsRequests(request, env) {
          GROUP BY qc.id, qc.location
          ORDER BY scans DESC`
             ).bind(restaurantId, fromTs, toTs).all();
-
             // 9) ✅ NEW: Cart Metrics - Calculated from source (cart_sessions)
             const cartMetricsRaw = await env.DB.prepare(
                 `SELECT 
@@ -358,7 +359,6 @@ export async function handleAnalyticsRequests(request, env) {
                 FROM cart_sessions
                 WHERE restaurantid = ? AND createdat BETWEEN ? AND ?`
             ).bind(restaurantId, fromTs, toTs).first();
-
             const cartMetrics = {
                 total_carts_created: cartMetricsRaw?.total_carts_created || 0,
                 total_carts_shown: cartMetricsRaw?.total_carts_active || 0, // Proxying active as shown
@@ -377,7 +377,7 @@ export async function handleAnalyticsRequests(request, env) {
                 success: true,
                 range: { from, to },
                 summary,
-                timeseries: timeseriesRes.results ?? [],
+                timeseries: timeseries,
                 topDishes: (topDishes.results ?? []).map(r => ({
                     dish_id: r.dish_id,
                     name: dishNames[r.dish_id] ?? r.dish_id,
@@ -629,10 +629,11 @@ export async function handleAnalyticsRequests(request, env) {
         const fromTs = from + 'T00:00:00';
         const toTs = to + 'T23:59:59';
         try {
-            // Get sessions with basic info
+            // Get sessions with basic info + recurrence data
             const sessions = await env.DB.prepare(
                 `SELECT 
                     s.id, s.started_at, s.duration_seconds, s.device_type, s.os_name, s.browser, s.country, s.city,
+                    s.visit_count, s.visitor_id, s.language_code, s.referrer, s.pwa_installed,
                     u.display_name as user_name,
                     cs.totalitems as cart_items,
                     cs.estimatedvalue as cart_value
@@ -739,7 +740,6 @@ export async function handleAnalyticsRequests(request, env) {
                      WHERE restaurant_id = ?`
                 ).bind(restaurantId).first()
             ]);
-
             const summary = {
                 total_leads: leadsStats?.total_leads || 0,
                 email_leads: leadsStats?.email_leads || 0,
@@ -757,7 +757,6 @@ export async function handleAnalyticsRequests(request, env) {
                     ? ((claimsStats?.opened_count || 0) / (claimsStats?.total_claims || 0) * 100).toFixed(1)
                     : 0
             };
-
             // 2) Time series - leads per day
             const timeseries = await env.DB.prepare(
                 `SELECT 
@@ -770,7 +769,6 @@ export async function handleAnalyticsRequests(request, env) {
                  GROUP BY DATE(created_at)
                  ORDER BY date ASC`
             ).bind(restaurantId, fromTs, toTs).all();
-
             // 3) Campaign breakdown
             const campaigns = await env.DB.prepare(
                 `SELECT 
@@ -787,13 +785,11 @@ export async function handleAnalyticsRequests(request, env) {
                  WHERE mc.restaurant_id = ?
                  ORDER BY leads DESC, mc.created_at DESC`
             ).bind(fromTs, toTs, fromTs, toTs, fromTs, toTs, fromTs, toTs, restaurantId).all();
-
             // 4) Channel breakdown (email vs phone)
             const channelBreakdown = {
                 email: leadsStats?.email_leads || 0,
                 phone: leadsStats?.phone_leads || 0
             };
-
             // 5) Save method breakdown (WhatsApp vs Direct)
             const saveMethodStats = await env.DB.prepare(
                 `SELECT 
@@ -803,12 +799,10 @@ export async function handleAnalyticsRequests(request, env) {
                  WHERE restaurant_id = ? AND created_at BETWEEN ? AND ?
                  GROUP BY save_method`
             ).bind(restaurantId, fromTs, toTs).all();
-
             const saveMethodBreakdown = (saveMethodStats.results || []).reduce((acc, row) => {
                 acc[row.method] = row.count;
                 return acc;
             }, {});
-
             // 6) Event type breakdown (for insights)
             const eventBreakdown = await env.DB.prepare(
                 `SELECT 
@@ -819,7 +813,6 @@ export async function handleAnalyticsRequests(request, env) {
                  GROUP BY event_type
                  ORDER BY count DESC`
             ).bind(restaurantId, fromTs, toTs).all();
-
             return createResponse({
                 success: true,
                 range: { from, to },

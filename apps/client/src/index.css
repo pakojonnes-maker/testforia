@@ -63,3 +63,5 @@ body.reels-mode #root {
   position: relative;
   touch-action: none;
 }
+
+/* 📱 FORCED MOBILE VIEW ON DESKTOP REMOVED FOR FULL RESPONSIVE SUPPORT */

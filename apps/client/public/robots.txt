@@ -1,0 +1,21 @@
+# Permitir rastreo completo a todos los bots
+User-agent: *
+Allow: /
+
+# Bloquear áreas administrativas o privadas (si existen)
+Disallow: /admin/
+Disallow: /api/
+
+# Evitar rastreo de parámetros de búsqueda interna
+Disallow: /*?s=
+Disallow: /*&s=
+
+# Bloquear bots de IA no deseados (opcional, según preferencia)
+# User-agent: GPTBot
+# Disallow: /
+
+# User-agent: ChatGPT-User
+# Disallow: /
+
+# Referencia al sitemap
+Sitemap: https://visualtastes.com/sitemap.xml

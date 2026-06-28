@@ -235,9 +235,6 @@ export async function handleDishRequests(request, env) {
             const hasDishId = pathParts.length >= 2 && pathParts[0] === 'dishes' && pathParts[1];
             const isNew = request.method === "POST" && !hasDishId;
             const dishId = isNew ? `dish_${Date.now()}_${Math.random().toString(36).substring(2, 7)}` : pathParts[1] || url.pathname.split('/').pop();
-
-            console.log(`[Dishes] Save operation - Method: ${request.method}, Path: ${url.pathname}`);
-            console.log(`[Dishes] pathParts: ${JSON.stringify(pathParts)}, hasDishId: ${hasDishId}, isNew: ${isNew}, dishId: ${dishId}`);
             const restaurantId = data.restaurant_id;
             if (!restaurantId) {
                 return createResponse({ success: false, message: "Restaurant ID requerido" }, 400);
@@ -577,7 +574,6 @@ async function getAllergensOptimized(dishIds, env, request) {
         translationsByAllergen[t.entity_id][t.language_code] = t.value;
     }
     const origin = request.url.origin || 'https://visualtasteworker.franciscotortosaestudios.workers.dev';
-
     // Mapeo de casos especiales para nombres de archivos
     const filenameOverrides = {
         'allergen_crustaceans': 'allergen_crustacean.svg',
@@ -586,14 +582,12 @@ async function getAllergensOptimized(dishIds, env, request) {
         'allergen_molluscs': 'allergen_shellfish.svg',
         'allergen_soy': 'allergen_soya.svg'
     };
-
     // Organizar alérgenos por dish_id
     const allergensByDish = {};
     for (const allergen of allergenData.results) {
         if (!allergensByDish[allergen.dish_id]) {
             allergensByDish[allergen.dish_id] = [];
         }
-
         let filename;
         if (filenameOverrides[allergen.id]) {
             filename = filenameOverrides[allergen.id];
@@ -601,10 +595,8 @@ async function getAllergensOptimized(dishIds, env, request) {
             // Por defecto usar el ID completo (ej. 'allergen_celery.svg', 'allergen_gluten.svg')
             filename = `${allergen.id}.svg`;
         }
-
         // Usar 'System' con mayúscula como indica el bucket
         const iconUrl = `${origin}/media/System/allergens/${filename}`;
-
         allergensByDish[allergen.dish_id].push({
             id: allergen.id,
             icon_url: iconUrl,
@@ -817,5 +809,5 @@ export function createResponse(data, status = 200) {
             "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS",
             "Access-Control-Allow-Headers": "Content-Type, Authorization",
         },
-    });
+    }); 
 }

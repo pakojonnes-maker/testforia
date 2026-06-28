@@ -90,8 +90,19 @@ const DeliveryModal: React.FC<DeliveryModalProps> = ({
     const { tracker, sessionId } = useTracking();
     const { t } = useTranslation();
 
-    // Get visitor_id from localStorage as fallback
-    const visitorId = typeof window !== 'undefined' ? localStorage.getItem('visitor_id') : null;
+    // ✅ FIX: Use correct key 'vt_visitor_id' and parse JSON {value, expiry}
+    const visitorId = (() => {
+        if (typeof window === 'undefined') return null;
+        try {
+            const raw = localStorage.getItem('vt_visitor_id');
+            if (!raw) return null;
+            const parsed = JSON.parse(raw);
+            if (parsed.value && (!parsed.expiry || Date.now() <= parsed.expiry)) {
+                return parsed.value;
+            }
+            return null;
+        } catch { return null; }
+    })();
 
     // Form state
     const [customerName, setCustomerName] = useState('');

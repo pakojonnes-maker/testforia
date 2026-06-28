@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { useParams, useSearchParams } from 'react-router-dom';
+import { useSearchParams } from 'react-router-dom';
 import { ScratchCard } from '../components/marketing/ScratchCard';
 import { ClaimPrize } from '../components/marketing/ClaimPrize';
 
@@ -20,9 +20,19 @@ interface Campaign {
 type Status = 'loading' | 'error' | 'ready' | 'playing' | 'won' | 'lost' | 'claimed';
 
 export const LoyaltyPage: React.FC = () => {
-    const params = useParams<{ qrId: string }>();
     const [searchParams] = useSearchParams();
-    const qrId = params.qrId || searchParams.get('c');
+
+    // ✅ FIX: Extract ID from URL path — supports /{slug}/loyalty/{id} and /loyalty/{id}
+    const extractIdFromPath = (): string | null => {
+        const segments = window.location.pathname.split('/').filter(Boolean);
+        const loyaltyIndex = segments.indexOf('loyalty');
+        if (loyaltyIndex >= 0 && segments[loyaltyIndex + 1]) {
+            return segments[loyaltyIndex + 1];
+        }
+        return null;
+    };
+
+    const qrId = extractIdFromPath() || searchParams.get('c');
 
     const [status, setStatus] = useState<Status>('loading');
     const [message, setMessage] = useState('');
@@ -30,6 +40,9 @@ export const LoyaltyPage: React.FC = () => {
     const [sessionId, setSessionId] = useState<string | null>(null);
     const [reward, setReward] = useState<Reward | null>(null);
     const [restaurantId, setRestaurantId] = useState('');
+    const [restaurantSlug, setRestaurantSlug] = useState('');
+    const [restaurantName, setRestaurantName] = useState('');
+    const [restaurantLogo, setRestaurantLogo] = useState('');
     const [magicLink, setMagicLink] = useState('');
     const [googleReviewUrl, setGoogleReviewUrl] = useState<string | null>(null);
 
@@ -62,17 +75,17 @@ export const LoyaltyPage: React.FC = () => {
             setSessionId(data.session_id);
             setCampaign(data.campaign);
             setRestaurantId(data.restaurant_id || data.campaign?.restaurant_id || '');
-            setStatus('ready');
+            setRestaurantSlug(data.restaurant_slug || '');
+            setRestaurantName(data.restaurant_name || '');
+            setRestaurantLogo(data.restaurant_logo || '');
+            setStatus('ready'); // Now shows the "Play" screen instead of auto-playing
         } catch {
             setStatus('error');
             setMessage('Error de conexión');
         }
     };
 
-    useEffect(() => {
-        if (status === 'ready') playGame();
-    }, [status]);
-
+    // Bug #10 fix: No longer auto-plays. User must press the button.
     const playGame = async () => {
         try {
             const visitorId = localStorage.getItem('vt_visitor_id');
@@ -87,7 +100,6 @@ export const LoyaltyPage: React.FC = () => {
             });
             const data = await res.json();
 
-            // Handle cooldown (fraud prevention)
             if (data.cooldown) {
                 setStatus('error');
                 setMessage(data.message || 'Ya has jugado hoy. ¡Vuelve mañana!');
@@ -95,6 +107,8 @@ export const LoyaltyPage: React.FC = () => {
             }
 
             setReward(data.win && data.reward ? data.reward : null);
+            // Haptic feedback on game start
+            if (navigator.vibrate) navigator.vibrate(50);
             setStatus('playing');
         } catch {
             setStatus('error');
@@ -102,7 +116,11 @@ export const LoyaltyPage: React.FC = () => {
         }
     };
 
-    const onScratchComplete = () => setStatus(reward ? 'won' : 'lost');
+    const onScratchComplete = () => {
+        // Haptic on reveal
+        if (navigator.vibrate) navigator.vibrate(reward ? [50, 100, 50, 100, 200] : [200]);
+        setStatus(reward ? 'won' : 'lost');
+    };
 
     const handleClaimSuccess = (data: any) => {
         setMagicLink(data.magic_link || '');
@@ -110,7 +128,15 @@ export const LoyaltyPage: React.FC = () => {
         setStatus('claimed');
     };
 
+    // Get the menu URL for CTA buttons
+    const menuUrl = restaurantSlug
+        ? `https://menu.visualtastes.com/${restaurantSlug}`
+        : '';
+
+    // ============================================
     // STYLES
+    // ============================================
+
     const pageStyle: React.CSSProperties = {
         minHeight: '100vh',
         background: 'linear-gradient(180deg, #1a1a2e 0%, #16213e 100%)',
@@ -134,29 +160,88 @@ export const LoyaltyPage: React.FC = () => {
         boxShadow: '0 20px 60px rgba(0,0,0,0.4)'
     };
 
-    const btnStyle: React.CSSProperties = {
+    const btnPrimary: React.CSSProperties = {
+        display: 'block',
+        width: '100%',
+        padding: '16px',
+        border: 'none',
+        borderRadius: '14px',
+        fontSize: '17px',
+        fontWeight: 700,
+        cursor: 'pointer',
+        marginTop: '16px',
+        background: 'linear-gradient(135deg, #FFD700 0%, #FFA500 100%)',
+        color: '#1a1a2e',
+        transition: 'transform 0.2s, box-shadow 0.2s',
+        boxShadow: '0 6px 20px rgba(255,215,0,0.3)'
+    };
+
+    const btnSecondary: React.CSSProperties = {
         display: 'block',
         width: '100%',
         padding: '14px',
-        border: 'none',
+        border: '1px solid rgba(255,255,255,0.15)',
         borderRadius: '12px',
-        fontSize: '16px',
-        fontWeight: 600,
+        fontSize: '15px',
+        fontWeight: 500,
         cursor: 'pointer',
-        marginTop: '16px'
+        marginTop: '12px',
+        background: 'transparent',
+        color: 'rgba(255,255,255,0.7)',
+        textDecoration: 'none',
+        textAlign: 'center' as const
     };
 
+    // ============================================
+    // Restaurant Branding Header (Bug F fix)
+    // ============================================
+    const BrandingHeader = () => (
+        (restaurantLogo || restaurantName) ? (
+            <div style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '10px',
+                marginBottom: '24px',
+                opacity: 0.9
+            }}>
+                {restaurantLogo && (
+                    <img
+                        src={restaurantLogo}
+                        alt={restaurantName}
+                        style={{
+                            width: 36,
+                            height: 36,
+                            borderRadius: '50%',
+                            objectFit: 'cover',
+                            border: '2px solid rgba(255,255,255,0.2)'
+                        }}
+                    />
+                )}
+                {restaurantName && (
+                    <span style={{ fontSize: '15px', fontWeight: 500 }}>
+                        {restaurantName}
+                    </span>
+                )}
+            </div>
+        ) : null
+    );
+
+    // ============================================
     // LOADING
+    // ============================================
     if (status === 'loading') {
         return (
             <div style={pageStyle}>
                 <div style={{ fontSize: '48px', animation: 'spin 1s linear infinite' }}>🎰</div>
                 <p style={{ marginTop: '16px', opacity: 0.7 }}>Cargando...</p>
+                <style>{`@keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }`}</style>
             </div>
         );
     }
 
+    // ============================================
     // ERROR
+    // ============================================
     if (status === 'error') {
         return (
             <div style={pageStyle}>
@@ -164,44 +249,101 @@ export const LoyaltyPage: React.FC = () => {
                     <div style={{ fontSize: '48px', marginBottom: '16px' }}>❌</div>
                     <h2 style={{ margin: 0 }}>Error</h2>
                     <p style={{ opacity: 0.7 }}>{message}</p>
+                    {menuUrl && (
+                        <a href={menuUrl} style={{ ...btnSecondary, color: '#667eea' }}>
+                            🍽️ Ver menú
+                        </a>
+                    )}
                 </div>
             </div>
         );
     }
 
+    // ============================================
+    // READY — Bug #10 fix: Intermediate screen with play button
+    // ============================================
+    if (status === 'ready') {
+        return (
+            <div style={pageStyle}>
+                <BrandingHeader />
+                <div style={{
+                    ...cardStyle,
+                    background: 'linear-gradient(145deg, #1a1a2e, #16213e)',
+                    color: '#fff',
+                    border: '1px solid rgba(255,255,255,0.08)'
+                }}>
+                    <div style={{
+                        fontSize: '64px',
+                        marginBottom: '16px',
+                        animation: 'float 3s ease-in-out infinite'
+                    }}>
+                        🎁
+                    </div>
+                    <h2 style={{ margin: '0 0 8px', fontSize: '22px', fontWeight: 700 }}>
+                        {campaign?.content?.title || '¡Tienes un premio esperándote!'}
+                    </h2>
+                    <p style={{ opacity: 0.65, fontSize: '14px', margin: '0 0 24px', lineHeight: 1.5 }}>
+                        {campaign?.content?.description || 'Rasca la tarjeta y descubre si hoy es tu día de suerte'}
+                    </p>
+                    <button
+                        onClick={playGame}
+                        style={btnPrimary}
+                    >
+                        🎰 ¡Descubrir mi premio!
+                    </button>
+                    <p style={{ marginTop: '16px', fontSize: '11px', opacity: 0.35 }}>
+                        Un intento por día
+                    </p>
+                </div>
+                <style>{`
+                    @keyframes float {
+                        0%, 100% { transform: translateY(0px); }
+                        50% { transform: translateY(-10px); }
+                    }
+                `}</style>
+            </div>
+        );
+    }
+
+    // ============================================
     // PLAYING
+    // ============================================
     if (status === 'playing') {
         return (
             <div style={pageStyle}>
-                <h1 style={{ fontSize: '24px', marginBottom: '8px', fontWeight: 700 }}>
+                <BrandingHeader />
+                <h1 style={{ fontSize: '22px', marginBottom: '6px', fontWeight: 700 }}>
                     {campaign?.content?.title || '¡Rasca y Gana!'}
                 </h1>
-                <p style={{ opacity: 0.7, marginBottom: '24px', fontSize: '14px' }}>
+                <p style={{ opacity: 0.6, marginBottom: '20px', fontSize: '13px' }}>
                     {campaign?.content?.description || 'Descubre tu premio'}
                 </p>
-
 
                 <ScratchCard
                     width={300}
                     height={340}
                     onReveal={onScratchComplete}
+                    revealThreshold={0.30}
                     prizeImageUrl={reward?.image_url}
                     prizeName={reward?.name}
                     prizeDescription={reward?.description}
                     isWin={!!reward}
                 />
 
-                <p style={{ marginTop: '24px', fontSize: '12px', opacity: 0.5 }}>
+                <p style={{ marginTop: '20px', fontSize: '12px', opacity: 0.4 }}>
                     Desliza para rascar
                 </p>
             </div>
         );
     }
 
+    // ============================================
     // WON
+    // ============================================
     if (status === 'won' && reward) {
         return (
             <div style={pageStyle}>
+                <BrandingHeader />
                 <div style={cardStyle}>
                     <div style={{ fontSize: '48px', marginBottom: '16px' }}>🏆</div>
                     <h2 style={{ margin: '0 0 8px' }}>¡Felicidades!</h2>
@@ -212,8 +354,12 @@ export const LoyaltyPage: React.FC = () => {
                     <ClaimPrize
                         sessionId={sessionId!}
                         rewardId={reward.id}
+                        rewardName={reward.name}
+                        rewardDescription={reward.description}
                         campaignId={campaign!.id}
                         restaurantId={restaurantId}
+                        restaurantName={restaurantName}
+                        restaurantSlug={restaurantSlug}
                         onClaimSuccess={handleClaimSuccess}
                     />
                 </div>
@@ -221,43 +367,69 @@ export const LoyaltyPage: React.FC = () => {
         );
     }
 
-    // LOST
+    // ============================================
+    // LOST — Bug #11 fix: Added CTAs (menu + review)
+    // ============================================
     if (status === 'lost') {
         return (
             <div style={pageStyle}>
+                <BrandingHeader />
                 <div style={cardStyle}>
                     <div style={{ fontSize: '48px', marginBottom: '16px' }}>🍀</div>
-                    <h2 style={{ margin: '0 0 8px' }}>¡Vuelve pronto!</h2>
-                    <p style={{ opacity: 0.7, fontSize: '14px' }}>
-                        No has ganado esta vez, pero sigue intentándolo.
+                    <h2 style={{ margin: '0 0 8px' }}>¡La próxima será!</h2>
+                    <p style={{ opacity: 0.7, fontSize: '14px', marginBottom: '20px' }}>
+                        No has ganado esta vez, pero vuelve mañana para intentarlo de nuevo.
                     </p>
+                    {menuUrl && (
+                        <a href={menuUrl} style={{
+                            ...btnPrimary,
+                            textDecoration: 'none',
+                            background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+                            color: '#fff',
+                            boxShadow: '0 6px 20px rgba(102,126,234,0.3)'
+                        }}>
+                            🍽️ Ver nuestro menú
+                        </a>
+                    )}
                 </div>
             </div>
         );
     }
 
-    // CLAIMED
+    // ============================================
+    // CLAIMED — Bug #12 fix: Removed raw magic link display
+    // ============================================
     if (status === 'claimed') {
         return (
             <div style={pageStyle}>
+                <BrandingHeader />
                 <div style={cardStyle}>
                     <div style={{ fontSize: '48px', marginBottom: '16px' }}>✅</div>
                     <h2 style={{ margin: '0 0 8px', color: '#10b981' }}>¡Premio Guardado!</h2>
-                    <p style={{ opacity: 0.7, fontSize: '14px', marginBottom: '16px' }}>
-                        Te enviaremos un recordatorio.
+                    <p style={{ opacity: 0.7, fontSize: '14px', marginBottom: '20px' }}>
+                        Guárdalo en WhatsApp para no perderlo. Muéstralo al personal cuando lo visites.
                     </p>
 
                     {magicLink && (
-                        <div style={{
-                            background: '#f3f4f6',
-                            padding: '12px',
-                            borderRadius: '8px',
-                            fontSize: '10px',
-                            wordBreak: 'break-all',
-                            marginBottom: '16px'
-                        }}>
-                            {magicLink}
-                        </div>
+                        <a
+                            href={`https://wa.me/?text=${encodeURIComponent(
+                                `🎁 *${restaurantName || 'Mi premio'}*\n\n` +
+                                `🏆 ${reward?.name || 'Premio'}\n` +
+                                `${reward?.description || ''}\n\n` +
+                                `🔗 Ver premio: ${magicLink}`
+                            )}`}
+                            target="_blank"
+                            rel="noreferrer"
+                            style={{
+                                ...btnPrimary,
+                                background: '#25D366',
+                                color: '#fff',
+                                textDecoration: 'none',
+                                boxShadow: '0 6px 20px rgba(37,211,102,0.3)'
+                            }}
+                        >
+                            💬 Guardar en WhatsApp
+                        </a>
                     )}
 
                     {googleReviewUrl && (
@@ -266,13 +438,18 @@ export const LoyaltyPage: React.FC = () => {
                             target="_blank"
                             rel="noreferrer"
                             style={{
-                                ...btnStyle,
-                                background: '#4285F4',
-                                color: '#fff',
-                                textDecoration: 'none'
+                                ...btnSecondary,
+                                color: '#4285F4',
+                                borderColor: 'rgba(66,133,244,0.3)'
                             }}
                         >
                             ⭐ Déjanos una reseña
+                        </a>
+                    )}
+
+                    {menuUrl && (
+                        <a href={menuUrl} style={btnSecondary}>
+                            🍽️ Ver menú
                         </a>
                     )}
                 </div>

@@ -1,27 +1,26 @@
 import React, { useState } from 'react';
-import { Box, IconButton, Paper } from '@mui/material';
-import { Menu as MenuIcon, Instagram, LocalOffer, WhatsApp, EventAvailable, Star, Close, Notifications, NotificationsActive, TwoWheeler } from '@mui/icons-material';
-import { motion, AnimatePresence } from 'framer-motion';
+import { IconButton, Box, Snackbar, Alert as MuiAlert } from '@mui/material';
+import { Instagram, Star, EventAvailable, TwoWheeler, WhatsApp, Notifications, NotificationsActive, LocalOffer } from '@mui/icons-material';
 import { useDishTracking } from '../../providers/TrackingAndPushProvider';
-
+import RatingModal from '../ui/RatingModal';
 interface SocialMenuProps {
     restaurant: any;
     onOpenOffer: () => void;
+    hasCampaign?: boolean;
     reservationsEnabled?: boolean;
     onOpenReservation?: () => void;
     deliveryEnabled?: boolean;
     onOpenDelivery?: () => void;
     previousRating?: number | null;
-    hidden?: boolean; // ✅ Hide when dish content is expanded
 }
-import RatingModal from '../ui/RatingModal';
 
-const SocialMenu: React.FC<SocialMenuProps> = ({ restaurant, onOpenOffer, reservationsEnabled, onOpenReservation, deliveryEnabled, onOpenDelivery, hidden = false }) => {
-    console.log('SocialMenu restaurant:', restaurant);
-    console.log('SocialMenu instagram:', restaurant?.social_media?.instagram || restaurant?.instagram_url || restaurant?.instagram);
-    const [isOpen, setIsOpen] = useState(false);
+const SocialMenu: React.FC<SocialMenuProps> = ({ restaurant, onOpenOffer, hasCampaign = false, reservationsEnabled, onOpenReservation, deliveryEnabled, onOpenDelivery }) => {
+
+    // Removed isOpen state since we're rendering icons inline
     const [loading, setLoading] = useState(false);
     const { subscribeToPush, isPushEnabled, isPushSupported } = useDishTracking(); // Hook import
+    // ✅ Local snackbar for push notification feedback (replaces alert())
+    const [pushSnackbar, setPushSnackbar] = useState<{ open: boolean; message: string; severity: 'success' | 'error' | 'warning' | 'info' }>({ open: false, message: '', severity: 'info' });
 
     const getInstagramUrl = () => {
         if (!restaurant) return null;
@@ -61,11 +60,21 @@ const SocialMenu: React.FC<SocialMenuProps> = ({ restaurant, onOpenOffer, reserv
 
     const handleRatingSubmit = async (rating: number, comment: string) => {
         try {
-            const visitorId = localStorage.getItem('visitor_id'); // Assuming this key
-            const sessionId = sessionStorage.getItem('session_id'); // Assuming this key or similar
+            // ✅ FIX: Use correct key 'vt_visitor_id' and parse JSON {value, expiry}
+            let visitorId: string | null = null;
+            try {
+                const raw = localStorage.getItem('vt_visitor_id');
+                if (raw) {
+                    const parsed = JSON.parse(raw);
+                    if (parsed.value && (!parsed.expiry || Date.now() <= parsed.expiry)) {
+                        visitorId = parsed.value;
+                    }
+                }
+            } catch { /* ignore parse errors */ }
+            const sessionId = sessionStorage.getItem('session_id');
 
             if (!visitorId) {
-                console.warn('No visitor_id found for rating');
+
                 // Could generate one here if needed
             }
 
@@ -83,7 +92,7 @@ const SocialMenu: React.FC<SocialMenuProps> = ({ restaurant, onOpenOffer, reserv
             });
 
             if (response.ok) {
-                console.log('Rating submitted successfully');
+
                 setCurrentRating(rating);
                 // Save to localStorage to avoid asking again if needed, but we wanted to allow re-rate for high scores.
                 localStorage.setItem(`rated_${restaurant.id}`, rating.toString());
@@ -112,199 +121,216 @@ const SocialMenu: React.FC<SocialMenuProps> = ({ restaurant, onOpenOffer, reserv
     const shouldShowStar = !effectiveRating || effectiveRating >= 4;
 
     return (
-        <Box
-            sx={{
-                position: 'absolute',
-                top: 80, // Below header
-                left: 16,
-                zIndex: 20,
-                display: 'flex',
-                alignItems: 'center',
-                gap: 1,
-                // ✅ Hide when dish content is expanded
-                opacity: hidden ? 0 : 1,
-                visibility: hidden ? 'hidden' : 'visible',
-                pointerEvents: hidden ? 'none' : 'auto',
-                transition: 'opacity 0.3s ease-in-out, visibility 0.3s ease-in-out'
-            }}
-        >
-            <IconButton
-                onClick={() => setIsOpen(!isOpen)}
-                sx={{
-                    bgcolor: 'rgba(0,0,0,0.6)',
-                    color: 'white',
-                    backdropFilter: 'blur(4px)',
-                    '&:hover': { bgcolor: 'rgba(0,0,0,0.8)' }
-                }}
-            >
-                {isOpen ? <Close /> : <MenuIcon />}
-            </IconButton>
+        <>
+            {/* Delivery */}
+            {deliveryEnabled && onOpenDelivery && (
+                <IconButton
+                    onClick={onOpenDelivery}
+                    sx={{
+                        width: 40,
+                        height: 40,
+                        bgcolor: 'rgba(0,0,0,0.3)',
+                        border: '1px solid rgba(255,255,255,0.2)',
+                        backdropFilter: 'blur(10px)',
+                        boxShadow: { xs: 'none', md: '0 2px 8px rgba(0,0,0,0.4)' },
+                        color: '#fff',
+                        transition: 'all 0.3s ease',
+                        '&:hover': {
+                            bgcolor: 'rgba(0,0,0,0.5)',
+                            transform: 'scale(1.05)',
+                            color: '#6366f1'
+                        }
+                    }}
+                >
+                    <TwoWheeler sx={{ fontSize: 20 }} />
+                </IconButton>
+            )}
 
-            <AnimatePresence>
-                {isOpen && (
-                    <motion.div
-                        initial={{ opacity: 0, x: -20, scale: 0.8 }}
-                        animate={{ opacity: 1, x: 0, scale: 1 }}
-                        exit={{ opacity: 0, x: -20, scale: 0.8 }}
-                        transition={{ duration: 0.2 }}
-                    >
-                        <Paper
-                            elevation={4}
-                            sx={{
-                                display: 'flex',
-                                gap: 1,
-                                p: 0.5,
-                                bgcolor: 'rgba(0,0,0,0.6)',
-                                backdropFilter: 'blur(4px)',
-                                borderRadius: '24px',
-                                border: '1px solid rgba(255,255,255,0.1)'
-                            }}
-                        >
-                            {/* Delivery */}
-                            {deliveryEnabled && onOpenDelivery && (
-                                <IconButton
-                                    size="small"
-                                    onClick={() => {
-                                        onOpenDelivery();
-                                        setIsOpen(false);
-                                    }}
-                                    sx={{
-                                        color: '#fff',
-                                        '&:hover': {
-                                            transform: 'scale(1.1)',
-                                            color: '#6366f1'
-                                        }
-                                    }}
-                                >
-                                    <TwoWheeler fontSize="small" />
-                                </IconButton>
-                            )}
+            {/* Reservations */}
+            {reservationsEnabled && onOpenReservation && (
+                <IconButton
+                    onClick={onOpenReservation}
+                    sx={{
+                        width: 40,
+                        height: 40,
+                        bgcolor: 'rgba(0,0,0,0.3)',
+                        border: '1px solid rgba(255,255,255,0.2)',
+                        backdropFilter: 'blur(10px)',
+                        boxShadow: { xs: 'none', md: '0 2px 8px rgba(0,0,0,0.4)' },
+                        color: '#fff',
+                        transition: 'all 0.3s ease',
+                        '&:hover': {
+                            bgcolor: 'rgba(0,0,0,0.5)',
+                            transform: 'scale(1.05)',
+                            color: '#69F0AE'
+                        }
+                    }}
+                >
+                    <EventAvailable sx={{ fontSize: 20 }} />
+                </IconButton>
+            )}
 
-                            {/* Reservations */}
-                            {reservationsEnabled && onOpenReservation && (
-                                <IconButton
-                                    size="small"
-                                    onClick={() => {
-                                        onOpenReservation();
-                                        setIsOpen(false);
-                                    }}
-                                    sx={{
-                                        color: '#fff',
-                                        '&:hover': {
-                                            transform: 'scale(1.1)',
-                                            color: '#69F0AE'
-                                        }
-                                    }}
-                                >
-                                    <EventAvailable fontSize="small" />
-                                </IconButton>
-                            )}
+            {/* Rating Star */}
+            {shouldShowStar && (
+                <IconButton
+                    onClick={() => setRatingModalOpen(true)}
+                    sx={{
+                        width: 40,
+                        height: 40,
+                        bgcolor: 'rgba(0,0,0,0.3)',
+                        border: '1px solid rgba(255,255,255,0.2)',
+                        backdropFilter: 'blur(10px)',
+                        boxShadow: { xs: 'none', md: '0 2px 8px rgba(0,0,0,0.4)' },
+                        color: effectiveRating && effectiveRating >= 4 ? '#FFD700' : 'white',
+                        transition: 'all 0.3s ease',
+                        '&:hover': {
+                            bgcolor: 'rgba(0,0,0,0.5)',
+                            transform: 'scale(1.05)',
+                            color: '#FFD700'
+                        }
+                    }}
+                >
+                    <Star sx={{ fontSize: 20 }} />
+                </IconButton>
+            )}
 
-                            {/* Rating Star */}
-                            {shouldShowStar && (
-                                <IconButton
-                                    size="small"
-                                    onClick={() => {
-                                        setRatingModalOpen(true);
-                                        setIsOpen(false);
-                                    }}
-                                    sx={{
-                                        color: effectiveRating && effectiveRating >= 4 ? '#FFD700' : 'white', // Gold if high rating
-                                        '&:hover': {
-                                            transform: 'scale(1.1)',
-                                            color: '#FFD700'
-                                        }
-                                    }}
-                                >
-                                    <Star fontSize="small" />
-                                </IconButton>
-                            )}
+            {/* Instagram */}
+            {getInstagramUrl() && (
+                <IconButton
+                    onClick={handleInstagramClick}
+                    sx={{
+                        width: 40,
+                        height: 40,
+                        bgcolor: 'rgba(0,0,0,0.3)',
+                        border: '1px solid rgba(255,255,255,0.2)',
+                        backdropFilter: 'blur(10px)',
+                        boxShadow: { xs: 'none', md: '0 2px 8px rgba(0,0,0,0.4)' },
+                        color: 'white',
+                        transition: 'all 0.3s ease',
+                        '&:hover': {
+                            bgcolor: 'rgba(0,0,0,0.5)',
+                            transform: 'scale(1.05)'
+                        }
+                    }}
+                >
+                    <Box sx={{
+                        display: 'flex',
+                        background: 'radial-gradient(circle at 30% 107%, #fdf497 0%, #fdf497 5%, #fd5949 45%, #d6249f 60%, #285AEB 90%)',
+                        WebkitBackgroundClip: 'text',
+                        WebkitTextFillColor: 'transparent',
+                    }}>
+                        <Instagram sx={{ fontSize: 20, color: 'inherit' }} />
+                    </Box>
+                </IconButton>
+            )}
 
-                            {getInstagramUrl() && (
-                                <IconButton
-                                    size="small"
-                                    onClick={handleInstagramClick}
-                                    sx={{
-                                        color: 'white',
-                                        background: 'radial-gradient(circle at 30% 107%, #fdf497 0%, #fdf497 5%, #fd5949 45%, #d6249f 60%, #285AEB 90%)',
-                                        WebkitBackgroundClip: 'text',
-                                        WebkitTextFillColor: 'transparent',
-                                        '&:hover': {
-                                            transform: 'scale(1.1)'
-                                        }
-                                    }}
-                                >
-                                    <Instagram fontSize="small" sx={{ color: 'inherit' }} />
-                                </IconButton>
-                            )}
+            {/* Notifications Bell */}
+            {isPushSupported && !isPushEnabled && (
+                <IconButton
+                    disabled={loading}
+                    onClick={async () => {
+                        setLoading(true);
+                        const result = await subscribeToPush();
+                        setLoading(false);
+                        if (result === 'success') {
+                            setPushSnackbar({ open: true, message: '🔔 ¡Notificaciones activadas!', severity: 'success' });
+                        } else if (result === 'denied') {
+                            setPushSnackbar({ open: true, message: 'Notificaciones bloqueadas. Actívalas en configuración.', severity: 'warning' });
+                        }
+                    }}
+                    sx={{
+                        width: 40,
+                        height: 40,
+                        bgcolor: 'rgba(0,0,0,0.3)',
+                        border: '1px solid rgba(255,255,255,0.2)',
+                        backdropFilter: 'blur(10px)',
+                        boxShadow: { xs: 'none', md: '0 2px 8px rgba(0,0,0,0.4)' },
+                        color: 'white',
+                        opacity: loading ? 0.5 : 1,
+                        transition: 'all 0.3s ease',
+                        '&:hover': {
+                            bgcolor: 'rgba(0,0,0,0.5)',
+                            transform: 'scale(1.05)',
+                            color: '#FF4081'
+                        }
+                    }}
+                >
+                    <Notifications sx={{ fontSize: 20 }} />
+                </IconButton>
+            )}
+            
+            {isPushEnabled && (
+                <IconButton
+                    onClick={() => setPushSnackbar({ open: true, message: '✅ Las notificaciones ya están activadas.', severity: 'info' })}
+                    sx={{
+                        width: 40,
+                        height: 40,
+                        bgcolor: 'rgba(0,0,0,0.3)',
+                        border: '1px solid rgba(255,255,255,0.2)',
+                        backdropFilter: 'blur(10px)',
+                        boxShadow: { xs: 'none', md: '0 2px 8px rgba(0,0,0,0.4)' },
+                        color: '#FFD700',
+                        transition: 'all 0.3s ease',
+                        '&:hover': {
+                            bgcolor: 'rgba(0,0,0,0.5)',
+                            transform: 'scale(1.05)'
+                        }
+                    }}
+                >
+                    <NotificationsActive sx={{ fontSize: 20 }} />
+                </IconButton>
+            )}
 
-                            {/* Notifications Bell */}
-                            {isPushSupported && !isPushEnabled && (
-                                <IconButton
-                                    size="small"
-                                    disabled={loading}
-                                    onClick={async () => {
-                                        setLoading(true);
-                                        const result = await subscribeToPush();
-                                        setLoading(false);
+            {/* Offer */}
+            {hasCampaign && (
+                <IconButton
+                    onClick={() => onOpenOffer()}
+                    sx={{
+                        width: 40,
+                        height: 40,
+                        bgcolor: 'rgba(0,0,0,0.3)',
+                        border: '1px solid rgba(255,255,255,0.2)',
+                        backdropFilter: 'blur(10px)',
+                        boxShadow: { xs: 'none', md: '0 2px 8px rgba(0,0,0,0.4)' },
+                        color: '#FFD700',
+                        animation: 'offer-pulse 2s ease-in-out infinite',
+                        '@keyframes offer-pulse': {
+                            '0%, 100%': { transform: 'scale(1)' },
+                            '50%': { transform: 'scale(1.15)' }
+                        },
+                        transition: 'all 0.3s ease',
+                        '&:hover': {
+                            bgcolor: 'rgba(0,0,0,0.5)',
+                            transform: 'scale(1.05)'
+                        }
+                    }}
+                >
+                    <LocalOffer sx={{ fontSize: 20 }} />
+                </IconButton>
+            )}
 
-                                        if (result === 'success') {
-                                            alert('✅ Notificaciones activadas correctamente');
-                                        } else if (result === 'denied') {
-                                            alert('❌ Has bloqueado las notificaciones. Por favor, actívalas en la configuración del navegador.');
-                                        } else if (result === 'ios_prompt') {
-                                            // The prompt is handled by provider, no alert needed or maybe a hint
-                                        } else if (result === 'error') {
-                                            alert('❌ Error al activar las notificaciones. Inténtalo de nuevo.');
-                                        }
-                                    }}
-                                    sx={{
-                                        color: 'white',
-                                        '&:hover': {
-                                            color: '#FF4081',
-                                            transform: 'scale(1.1)'
-                                        },
-                                        opacity: loading ? 0.5 : 1
-                                    }}
-                                >
-                                    <Notifications fontSize="small" />
-                                </IconButton>
-                            )}
-                            {isPushEnabled && (
-                                <IconButton
-                                    size="small"
-                                    onClick={() => alert('✅ Las notificaciones están activadas. ¡Gracias!')}
-                                    sx={{
-                                        color: '#FFD700', // Gold to show it's active/premium
-                                        '&:hover': {
-                                            transform: 'scale(1.1)'
-                                        }
-                                    }}
-                                >
-                                    <NotificationsActive fontSize="small" />
-                                </IconButton>
-                            )}
-
-                            <IconButton
-                                size="small"
-                                onClick={() => {
-                                    console.log('🔍 [SocialMenu] Offer button clicked');
-                                    onOpenOffer();
-                                }}
-                                sx={{ color: '#FFD700' }}
-                            >
-                                <LocalOffer fontSize="small" />
-                            </IconButton>
-
-                            {getWhatsAppNumber() && (
-                                <IconButton size="small" onClick={handleWhatsAppClick} sx={{ color: '#25D366' }}>
-                                    <WhatsApp fontSize="small" />
-                                </IconButton>
-                            )}
-                        </Paper>
-                    </motion.div>
-                )}
-            </AnimatePresence>
+            {/* WhatsApp */}
+            {getWhatsAppNumber() && (
+                <IconButton 
+                    onClick={handleWhatsAppClick}
+                    sx={{
+                        width: 40,
+                        height: 40,
+                        bgcolor: 'rgba(0,0,0,0.3)',
+                        border: '1px solid rgba(255,255,255,0.2)',
+                        backdropFilter: 'blur(10px)',
+                        boxShadow: { xs: 'none', md: '0 2px 8px rgba(0,0,0,0.4)' },
+                        color: '#25D366',
+                        transition: 'all 0.3s ease',
+                        '&:hover': {
+                            bgcolor: 'rgba(0,0,0,0.5)',
+                            transform: 'scale(1.05)'
+                        }
+                    }}
+                >
+                    <WhatsApp sx={{ fontSize: 20 }} />
+                </IconButton>
+            )}
 
             <RatingModal
                 open={ratingModalOpen}
@@ -313,7 +339,25 @@ const SocialMenu: React.FC<SocialMenuProps> = ({ restaurant, onOpenOffer, reserv
                 googleReviewUrl={restaurant?.google_review_url || restaurant?.details?.google_review_url}
                 previousRating={effectiveRating}
             />
-        </Box>
+
+            {/* ✅ Snackbar for push notification feedback */}
+            <Snackbar
+                open={pushSnackbar.open}
+                autoHideDuration={4000}
+                onClose={() => setPushSnackbar(prev => ({ ...prev, open: false }))}
+                anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
+            >
+                <MuiAlert
+                    elevation={6}
+                    variant="filled"
+                    severity={pushSnackbar.severity}
+                    onClose={() => setPushSnackbar(prev => ({ ...prev, open: false }))}
+                    sx={{ width: '100%', borderRadius: 3 }}
+                >
+                    {pushSnackbar.message}
+                </MuiAlert>
+            </Snackbar>
+        </>
     );
 };
 

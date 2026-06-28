@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useRef, useMemo, useState } from 'react';
 import { Box, Typography } from '@mui/material';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Restaurant, ChevronRight } from '@mui/icons-material';
+import { Restaurant, ChevronRight, ChevronLeft } from '@mui/icons-material';
 import { useTranslation } from '../../../../contexts/TranslationContext';
 
 interface Section {
@@ -36,6 +36,7 @@ const SectionBar: React.FC<SectionBarProps> = ({
 
   // State for scroll indicator
   const [showRightArrow, setShowRightArrow] = useState(false);
+  const [showLeftArrow, setShowLeftArrow] = useState(false);
 
   const themeColors = useMemo(() => {
     const overrides = config?.overrides || {};
@@ -84,7 +85,7 @@ const SectionBar: React.FC<SectionBarProps> = ({
   }, [t]);
 
   const handleSectionClick = useCallback((index: number) => {
-    console.log(`🔥 [SectionBar] Click en sección ${index}, actual: ${currentSectionIndex}`);
+
 
     if (index !== currentSectionIndex) {
       onSectionChange(index);
@@ -96,7 +97,9 @@ const SectionBar: React.FC<SectionBarProps> = ({
     if (scrollRef.current) {
       const container = scrollRef.current;
       const hasMoreOnRight = container.scrollLeft + container.clientWidth < container.scrollWidth - 10;
+      const hasMoreOnLeft = container.scrollLeft > 10;
       setShowRightArrow(hasMoreOnRight);
+      setShowLeftArrow(hasMoreOnLeft);
     }
   }, []);
 
@@ -114,18 +117,28 @@ const SectionBar: React.FC<SectionBarProps> = ({
   useEffect(() => {
     if (scrollRef.current && sections.length > 0 && currentSectionIndex < sections.length) {
       const container = scrollRef.current;
-      const activeButton = container.children[currentSectionIndex] as HTMLElement;
 
-      if (activeButton) {
-        const containerWidth = container.offsetWidth;
-        const buttonLeft = activeButton.offsetLeft;
-        const buttonWidth = activeButton.offsetWidth;
-        const scrollLeft = buttonLeft - (containerWidth / 2) + (buttonWidth / 2);
-
+      // For the last section, scroll all the way to the end
+      if (currentSectionIndex === sections.length - 1) {
         container.scrollTo({
-          left: Math.max(0, scrollLeft),
+          left: container.scrollWidth,
           behavior: 'smooth'
         });
+      } else {
+        // Use data attribute to find the correct element (children index is shifted by dividers)
+        const activeButton = container.querySelector(`[data-section-index="${currentSectionIndex}"]`) as HTMLElement;
+
+        if (activeButton) {
+          const containerWidth = container.offsetWidth;
+          const buttonLeft = activeButton.offsetLeft;
+          const buttonWidth = activeButton.offsetWidth;
+          const scrollLeft = buttonLeft - (containerWidth / 2) + (buttonWidth / 2);
+
+          container.scrollTo({
+            left: Math.max(0, scrollLeft),
+            behavior: 'smooth'
+          });
+        }
       }
     }
     // Update indicator after scroll
@@ -196,16 +209,18 @@ const SectionBar: React.FC<SectionBarProps> = ({
     <Box
       sx={{
         position: 'absolute', // ✅ Changed from fixed to absolute to stay within container
-        bottom: 0,
+        bottom: { xs: 0, md: 32 }, // Elevate on PC
         left: 0,
         right: 0,
         zIndex: 1000,
-        background: `linear-gradient(180deg, transparent 0%, ${hexToRgba(themeColors.background, 0.3)} 20%, ${hexToRgba(themeColors.background, 0.8)} 100%)`,
-        backdropFilter: 'blur(16px)',
-        WebkitBackdropFilter: 'blur(16px)',
-        borderTop: '1px solid rgba(255, 255, 255, 0.08)',
-        pb: { xs: 'env(safe-area-inset-bottom, 8px)', sm: 1 },
-        pt: { xs: 1.5, sm: 1.5 }
+        background: { xs: `linear-gradient(180deg, transparent 0%, ${hexToRgba(themeColors.background, 0.3)} 20%, ${hexToRgba(themeColors.background, 0.8)} 100%)`, md: 'transparent' },
+        backdropFilter: { xs: 'blur(16px)', md: 'none' },
+        WebkitBackdropFilter: { xs: 'blur(16px)', md: 'none' },
+        borderTop: { xs: '1px solid rgba(255, 255, 255, 0.08)', md: 'none' },
+        pb: { xs: 'env(safe-area-inset-bottom, 8px)', sm: 1, md: 0 },
+        pt: { xs: 1.5, sm: 1.5, md: 0 },
+        display: 'flex',
+        justifyContent: 'center'
       }}
     >
       <Box
@@ -216,7 +231,12 @@ const SectionBar: React.FC<SectionBarProps> = ({
         sx={{
           display: 'flex',
           alignItems: 'center',
-          width: '100%',
+          width: { xs: '100%', md: 'auto' },
+          maxWidth: '100%',
+          bgcolor: { xs: 'transparent', md: '#181818' }, // ✅ Dark pill background on PC
+          borderRadius: { xs: 0, md: 4 },
+          p: { xs: 0, md: 1.5 }, // ✅ Padding inside pill
+          border: { xs: 'none', md: '1px solid rgba(255,255,255,0.08)' },
           overflowX: 'auto',
           overflowY: 'hidden',
           touchAction: 'pan-x',  // Allow horizontal touch scroll
@@ -224,9 +244,9 @@ const SectionBar: React.FC<SectionBarProps> = ({
           '&::-webkit-scrollbar': {
             display: 'none'
           },
-          px: { xs: 1, sm: 2 },
-          gap: { xs: 0, sm: 0 },
-          justifyContent: sections.length <= 4 ? 'space-evenly' : 'flex-start'
+          px: { xs: 1, sm: 2, md: 1.5 },
+          gap: { xs: 0, sm: 0, md: 1 },
+          justifyContent: { xs: sections.length <= 4 ? 'space-evenly' : 'flex-start', md: 'center' }
         }}
       >
         {sections.map((section, index) => {
@@ -237,6 +257,7 @@ const SectionBar: React.FC<SectionBarProps> = ({
           return (
             <React.Fragment key={`section-${section.id}-${index}`}>
               <motion.div
+                data-section-index={index}
                 initial={{ opacity: 0, y: 10 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{
@@ -249,7 +270,6 @@ const SectionBar: React.FC<SectionBarProps> = ({
                   flex: sections.length <= 4 ? 1 : '0 0 auto',
                   display: 'flex',
                   justifyContent: 'center',
-                  transform: isActive ? 'scale(1.08)' : 'scale(1)',
                   transition: 'transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1)'
                 }}
               >
@@ -261,54 +281,44 @@ const SectionBar: React.FC<SectionBarProps> = ({
                     flexDirection: 'column',
                     alignItems: 'center',
                     justifyContent: 'center',
-                    gap: 0.75,
-                    minWidth: isActive ? { xs: 82, sm: 92 } : { xs: 72, sm: 80 },
-                    py: 1,
+                    gap: { xs: 0.75, md: 1 },
+                    minWidth: { xs: isActive ? 82 : 72, sm: isActive ? 92 : 80, md: 100 },
+                    transform: { xs: isActive ? 'scale(1.08)' : 'scale(1)', md: 'none' },
+                    py: { xs: 1, md: 1.5 },
+                    px: { xs: 0, md: 2 },
                     cursor: 'pointer',
                     position: 'relative',
                     transition: 'all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1)',
-                    border: 'none',
-                    background: 'transparent',
+                    border: { xs: 'none', md: isActive ? `1px solid ${themeColors.sectionIconActive}40` : '1px solid transparent' },
+                    bgcolor: { xs: 'transparent', md: isActive ? `${themeColors.sectionIconActive}15` : 'transparent' },
+                    borderRadius: { xs: 0, md: 3 },
                     outline: 'none',
                     '&:active': {
                       transform: 'scale(0.96)'
+                    },
+                    '&:hover': {
+                      bgcolor: { md: isActive ? `${themeColors.sectionIconActive}20` : 'rgba(255,255,255,0.05)' }
                     }
                   }}
                 >
                   {/* Icon Container */}
                   <motion.div
-                    animate={isActive ? {
-                      scale: [1, 1.1, 1],
-                      rotate: [0, 5, -5, 0]
-                    } : {}}
-                    transition={{
-                      duration: 0.6,
-                      ease: "easeInOut",
-                      times: [0, 0.3, 0.6, 1]
-                    }}
+                    animate={{}} // Handle animations via CSS or skip on PC
                   >
                     <Box
                       sx={{
-                        width: { xs: 48, sm: 52 },
-                        height: { xs: 48, sm: 52 },
+                        width: { xs: 48, sm: 52, md: 24 }, // ✅ Smaller icon on PC, no circle
+                        height: { xs: 48, sm: 52, md: 24 },
                         display: 'flex',
                         alignItems: 'center',
                         justifyContent: 'center',
                         position: 'relative',
-                        borderRadius: '50%',
-                        border: `2px solid ${isActive ? themeColors.sectionIconActive : 'rgba(255, 255, 255, 0.15)'}`,
-                        background: isActive
-                          ? `linear-gradient(135deg, ${themeColors.sectionIconActive}20, transparent)`
-                          : 'transparent',
+                        borderRadius: { xs: '50%', md: 0 },
+                        border: { xs: `2px solid ${isActive ? themeColors.sectionIconActive : 'rgba(255, 255, 255, 0.15)'}`, md: 'none' },
+                        background: { xs: isActive ? `linear-gradient(135deg, ${themeColors.sectionIconActive}20, transparent)` : 'transparent', md: 'transparent' },
                         transition: 'all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1)',
-                        boxShadow: isActive
-                          ? `0 0 0 4px ${themeColors.sectionIconActive}10, 0 4px 12px ${themeColors.sectionIconActive}30`
-                          : 'none',
-                        '&:hover': {
-                          transform: !isActive ? 'rotate(5deg)' : 'none',
-                          borderColor: !isActive ? 'rgba(255, 255, 255, 0.3)' : themeColors.sectionIconActive
-                        },
-                        '&::after': isActive ? {
+                        boxShadow: { xs: isActive ? `0 0 0 4px ${themeColors.sectionIconActive}10, 0 4px 12px ${themeColors.sectionIconActive}30` : 'none', md: 'none' },
+                        '&::after': { xs: isActive ? {
                           content: '""',
                           position: 'absolute',
                           inset: -8,
@@ -316,22 +326,10 @@ const SectionBar: React.FC<SectionBarProps> = ({
                           background: `radial-gradient(circle, ${themeColors.sectionIconActive}25, transparent 70%)`,
                           zIndex: -1,
                           animation: 'pulse 2s ease-in-out infinite'
-                        } : {}
+                        } : {}, md: {} }
                       }}
                     >
-                      <motion.div
-                        animate={isActive ? {
-                          scale: [1, 1.15, 1]
-                        } : {}}
-                        transition={{
-                          duration: 0.5,
-                          repeat: Infinity,
-                          repeatDelay: 2,
-                          ease: "easeInOut"
-                        }}
-                      >
-                        <SectionIcon section={section} isActive={isActive} />
-                      </motion.div>
+                      <SectionIcon section={section} isActive={isActive} />
                     </Box>
                   </motion.div>
 
@@ -378,7 +376,7 @@ const SectionBar: React.FC<SectionBarProps> = ({
                     </Typography>
                   </Box>
 
-                  {/* Active Indicator Line */}
+                  {/* Active Indicator Line (Mobile only) */}
                   <AnimatePresence>
                     {isActive && (
                       <motion.div
@@ -402,11 +400,19 @@ const SectionBar: React.FC<SectionBarProps> = ({
                           background: `linear-gradient(90deg, transparent, ${themeColors.sectionIconActive}, transparent)`,
                           boxShadow: `0 0 8px ${themeColors.sectionIconActive}80`
                         }}
+                        className="mobile-only-indicator"
                       />
                     )}
                   </AnimatePresence>
                 </Box>
               </motion.div>
+
+              {/* Global style to hide indicator on md up */}
+              <style>{`
+                @media (min-width: 900px) {
+                  .mobile-only-indicator { display: none !important; }
+                }
+              `}</style>
 
               {/* Divider between sections (except last) */}
               {index < sections.length - 1 && sections.length > 4 && (
@@ -423,47 +429,84 @@ const SectionBar: React.FC<SectionBarProps> = ({
             </React.Fragment>
           );
         })}
+
+        {/* Spacer at the end to prevent last section from being clipped */}
+        {sections.length > 4 && (
+          <Box
+            sx={{
+              minWidth: { xs: 32, sm: 40 },
+              flexShrink: 0
+            }}
+          />
+        )}
       </Box>
 
-      {/* Scroll Right Indicator Arrow */}
+      {/* Scroll Left Fade Indicator */}
+      <AnimatePresence>
+        {showLeftArrow && sections.length > 4 && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.25 }}
+            style={{
+              position: 'absolute',
+              left: 0,
+              top: 0,
+              bottom: 0,
+              width: 40,
+              pointerEvents: 'none',
+              zIndex: 10,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'flex-start',
+              paddingLeft: 4,
+              background: `linear-gradient(to right, ${hexToRgba(themeColors.background, 0.85)} 0%, ${hexToRgba(themeColors.background, 0.4)} 60%, transparent 100%)`
+            }}
+          >
+            <ChevronLeft
+              sx={{
+                color: themeColors.sectionIconActive,
+                fontSize: 18,
+                opacity: 0.8,
+                animation: 'bounceLeft 1.5s ease-in-out infinite'
+              }}
+            />
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Scroll Right Fade Indicator */}
       <AnimatePresence>
         {showRightArrow && sections.length > 4 && (
           <motion.div
-            initial={{ opacity: 0, x: 10 }}
-            animate={{ opacity: 1, x: 0 }}
-            exit={{ opacity: 0, x: 10 }}
-            transition={{ duration: 0.2 }}
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.25 }}
             style={{
               position: 'absolute',
-              right: 8,
-              top: '50%',
-              transform: 'translateY(-50%)',
+              right: 0,
+              top: 0,
+              bottom: 0,
+              width: 40,
               pointerEvents: 'none',
-              zIndex: 10
+              zIndex: 10,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'flex-end',
+              paddingRight: 4,
+              background: `linear-gradient(to left, ${hexToRgba(themeColors.background, 0.85)} 0%, ${hexToRgba(themeColors.background, 0.4)} 60%, transparent 100%)`
             }}
           >
-            <Box
+            <ChevronRight
               sx={{
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                bgcolor: 'rgba(0,0,0,0.6)',
-                backdropFilter: 'blur(8px)',
-                borderRadius: '50%',
-                width: 28,
-                height: 28,
-                border: `1px solid ${themeColors.sectionIconActive}40`,
-                boxShadow: `0 0 12px ${themeColors.sectionIconActive}30`
+                color: themeColors.sectionIconActive,
+                fontSize: 18,
+                opacity: 0.8,
+                animation: 'bounceRight 1.5s ease-in-out infinite'
               }}
-            >
-              <ChevronRight
-                sx={{
-                  color: themeColors.sectionIconActive,
-                  fontSize: 20,
-                  animation: 'bounceRight 1.5s ease-in-out infinite'
-                }}
-              />
-            </Box>
+            />
           </motion.div>
         )}
       </AnimatePresence>
@@ -494,7 +537,16 @@ const SectionBar: React.FC<SectionBarProps> = ({
               transform: translateX(0);
             }
             50% {
-              transform: translateX(4px);
+              transform: translateX(3px);
+            }
+          }
+
+          @keyframes bounceLeft {
+            0%, 100% {
+              transform: translateX(0);
+            }
+            50% {
+              transform: translateX(-3px);
             }
           }
         `}
