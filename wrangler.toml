@@ -9,3 +9,7 @@ compatibility_date = "2023-10-30"
 binding = "DB"
 database_name = "restaurant-menu-saas"
 database_id = "7e8d1efe-2a54-4849-9a06-4c47152392bd"
+
+[[r2_buckets]]
+binding = "R2_BUCKET"
+bucket_name = "mediabucket"

@@ -50,6 +50,9 @@ export async function handleGuideTracking(request, env, ctx) {
         if (url.pathname === '/guide/track/intent') {
             return await handleIntent(request, env);
         }
+        if (url.pathname === '/guide/track/section-view') {
+            return await handleSectionView(request, env);
+        }
 
         return errorResponse('Guide tracking endpoint not found', 404);
     } catch (error) {
@@ -84,8 +87,8 @@ async function handleSessionStart(request, env) {
     const city = request.cf?.city || null;
 
     await env.DB.prepare(`
-        INSERT INTO guide_sessions (id, apartment_id, zone_id, device_type, os_name, browser, country, city, language_code, started_at)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        INSERT INTO guide_sessions (id, apartment_id, zone_id, device_type, os_name, browser, country, city, language_code, device_fingerprint, started_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `).bind(
         sessionId,
         apartment.id,
@@ -96,6 +99,7 @@ async function handleSessionStart(request, env) {
         country,
         city,
         data.language || 'es',
+        data.deviceFingerprint || null,
         new Date().toISOString()
     ).run();
 
@@ -220,4 +224,46 @@ async function handleIntent(request, env) {
         targetId,
         actionTaken
     });
+}
+
+/**
+ * POST /guide/track/section-view
+ * Body: { apartmentId, sessionId, section, durationSeconds? }
+ */
+async function handleSectionView(request, env) {
+    const data = await request.json();
+    const { apartmentId, sessionId, section, durationSeconds } = data;
+
+    if (!apartmentId || !section) {
+        return errorResponse('apartmentId and section are required');
+    }
+
+    const validSections = ['info', 'discover', 'restaurants', 'services'];
+    if (!validSections.includes(section)) {
+        return errorResponse('Invalid section');
+    }
+
+    const apartment = await env.DB.prepare(
+        'SELECT zone_id FROM guide_apartments WHERE id = ?'
+    ).bind(apartmentId).first();
+
+    if (!apartment) {
+        return errorResponse('Apartment not found', 404);
+    }
+
+    const viewId = generateId('sv');
+    await env.DB.prepare(`
+        INSERT INTO guide_section_views (id, session_id, apartment_id, zone_id, section, duration_seconds, created_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?)
+    `).bind(
+        viewId,
+        sessionId || null,
+        apartmentId,
+        apartment.zone_id,
+        section,
+        durationSeconds || 0,
+        new Date().toISOString()
+    ).run();
+
+    return jsonResponse({ success: true, viewId });
 }

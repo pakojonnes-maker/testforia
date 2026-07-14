@@ -21,6 +21,7 @@ export async function trackSessionStart(apartmentId: string, language: string) {
         deviceType: /Mobile|Android|iPhone/i.test(navigator.userAgent) ? 'mobile' : 'desktop',
         osName: getOS(),
         browser: getBrowser(),
+        deviceFingerprint: getDeviceFingerprint(),
       }),
     });
     if (!res.ok) return null;
@@ -66,6 +67,16 @@ export function buildWhatsAppUrl(phone: string, message?: string): string {
   return message ? `${base}?text=${encodeURIComponent(message)}` : base;
 }
 
+export async function trackSectionView(apartmentId: string, sessionId: string | null, section: string) {
+  try {
+    await fetch(`${API_URL}/guide/track/section-view`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ apartmentId, sessionId, section }),
+    });
+  } catch { /* best effort */ }
+}
+
 function getOS(): string {
   const ua = navigator.userAgent;
   if (/iPad|iPhone|iPod/.test(ua)) return 'iOS';
@@ -83,4 +94,22 @@ function getBrowser(): string {
   if (/Safari/.test(ua)) return 'Safari';
   if (/Edge/.test(ua)) return 'Edge';
   return 'unknown';
+}
+
+function getDeviceFingerprint(): string {
+  const parts = [
+    navigator.userAgent,
+    navigator.language,
+    window.screen.width + 'x' + window.screen.height,
+    window.screen.colorDepth,
+    new Date().getTimezoneOffset(),
+  ];
+  let hash = 0;
+  const str = parts.join('|');
+  for (let i = 0; i < str.length; i++) {
+    const char = str.charCodeAt(i);
+    hash = ((hash << 5) - hash) + char;
+    hash = hash & hash;
+  }
+  return Math.abs(hash).toString(36);
 }

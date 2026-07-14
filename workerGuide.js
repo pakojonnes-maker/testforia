@@ -63,7 +63,7 @@ async function handleGetGuidebook(env, slug, lang) {
 
         // Agency
         env.DB.prepare(`
-            SELECT id, name, slug, logo_url
+            SELECT id, name, slug, logo_url, primary_color, secondary_color, accent_color
             FROM guide_agencies WHERE id = ? AND is_active = TRUE
         `).bind(apartment.agency_id).first(),
 
@@ -108,7 +108,7 @@ async function handleGetGuidebook(env, slug, lang) {
         // Experiences with translations
         env.DB.prepare(`
             SELECT 
-                e.id, e.category, e.action_type, e.action_data, e.action_prefilled_message,
+                e.id, e.category, e.service_subcategory, e.action_type, e.action_data, e.action_prefilled_message,
                 e.price_display, e.cover_image_url, e.is_featured,
                 t_name.value AS name,
                 t_desc.value AS description,
@@ -204,6 +204,13 @@ async function handleGetGuidebook(env, slug, lang) {
         WHERE entity_id = ? AND entity_type = 'zone' AND field = 'description' AND language_code = ?
     `).bind(zone.id, lang).first();
 
+    const deviceCount = await env.DB.prepare(`
+        SELECT COUNT(DISTINCT device_fingerprint) as count
+        FROM guide_sessions
+        WHERE apartment_id = ? AND device_fingerprint IS NOT NULL
+        AND started_at >= datetime('now', '-24 hours')
+    `).bind(apartment.id).first();
+
     // 6. Compose response  
     // Replace {{apartment_name}} in prefilled WhatsApp messages
     const processedExperiences = (experiences.results || []).map(exp => {
@@ -216,6 +223,7 @@ async function handleGetGuidebook(env, slug, lang) {
             name: exp.name || exp.id,
             description: exp.description || '',
             category: exp.category,
+            service_subcategory: exp.service_subcategory || null,
             action_type: exp.action_type,
             action_data: exp.action_data,
             prefilled_message: prefilled,
@@ -254,7 +262,10 @@ async function handleGetGuidebook(env, slug, lang) {
         agency: {
             id: agency?.id,
             name: agency?.name || 'Host',
-            logo_url: agency?.logo_url
+            logo_url: agency?.logo_url,
+            primary_color: agency?.primary_color || null,
+            secondary_color: agency?.secondary_color || null,
+            accent_color: agency?.accent_color || null,
         },
         pois: (pois.results || []).map(poi => ({
             id: poi.id,
@@ -276,7 +287,8 @@ async function handleGetGuidebook(env, slug, lang) {
         experiences: processedExperiences,
         meta: {
             lang,
-            available_langs: ['es', 'en', 'fr', 'de', 'it', 'pt', 'nl', 'ru', 'zh', 'ja', 'ko', 'ar']
+            available_langs: ['es', 'en', 'fr', 'de', 'it', 'pt', 'nl', 'ru', 'zh', 'ja', 'ko', 'ar'],
+            active_devices_24h: deviceCount?.count || 0
         }
     });
 }

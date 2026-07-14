@@ -124,6 +124,10 @@ export async function handleGuideAdminRequests(request, env) {
             const aptId = path.split('/')[1];
             return await upsertApartmentInfo(env, aptId, await request.json(), isSuperAdmin, userAgencyIds);
         }
+        if (path.match(/^apartments\/[^/]+\/stats$/) && method === 'GET') {
+            const aptId = path.split('/')[1];
+            return await getApartmentStats(env, aptId, url.searchParams, isSuperAdmin, userAgencyIds);
+        }
 
         // ============ ZONES (superadmin only) ============
         if (path === 'zones' && method === 'GET') {
@@ -239,10 +243,9 @@ async function createAgency(env, data) {
 async function updateAgency(env, id, data) {
     const sets = [];
     const vals = [];
-    if (data.name !== undefined) { sets.push('name = ?'); vals.push(data.name); }
-    if (data.contact_email !== undefined) { sets.push('contact_email = ?'); vals.push(data.contact_email); }
-    if (data.contact_phone !== undefined) { sets.push('contact_phone = ?'); vals.push(data.contact_phone); }
-    if (data.logo_url !== undefined) { sets.push('logo_url = ?'); vals.push(data.logo_url); }
+    for (const field of ['name', 'contact_email', 'contact_phone', 'logo_url', 'primary_color', 'secondary_color', 'accent_color', 'font_family']) {
+        if (data[field] !== undefined) { sets.push(`${field} = ?`); vals.push(data[field]); }
+    }
     if (data.is_active !== undefined) { sets.push('is_active = ?'); vals.push(data.is_active ? 1 : 0); }
     if (sets.length === 0) return errorResponse('No fields to update');
     sets.push('modified_at = CURRENT_TIMESTAMP');
@@ -704,4 +707,53 @@ async function saveTranslations(env, entityId, entityType, translations) {
     if (statements.length > 0) {
         await env.DB.batch(statements);
     }
+}
+
+// ============================================
+// APARTMENT STATS
+// ============================================
+async function getApartmentStats(env, aptId, params, isSuperAdmin, userAgencyIds) {
+    // Verify access
+    const apt = await env.DB.prepare('SELECT agency_id FROM guide_apartments WHERE id = ?').bind(aptId).first();
+    if (!apt) return errorResponse('Apartment not found', 404);
+    if (!isSuperAdmin && !userAgencyIds.includes(apt.agency_id)) return errorResponse('Forbidden', 403);
+
+    const days = parseInt(params.get('days') || '30');
+    const fromTs = new Date(Date.now() - days * 86400000).toISOString();
+
+    const [sessionStats, deviceStats, sectionStats, langStats] = await Promise.all([
+        env.DB.prepare(`
+            SELECT COUNT(*) as total_sessions, AVG(duration_seconds) as avg_duration
+            FROM guide_sessions WHERE apartment_id = ? AND started_at >= ?
+        `).bind(aptId, fromTs).first(),
+
+        env.DB.prepare(`
+            SELECT COUNT(DISTINCT device_fingerprint) as unique_devices
+            FROM guide_sessions WHERE apartment_id = ? AND device_fingerprint IS NOT NULL AND started_at >= ?
+        `).bind(aptId, fromTs).first(),
+
+        env.DB.prepare(`
+            SELECT section, COUNT(*) as views
+            FROM guide_section_views WHERE apartment_id = ? AND created_at >= ?
+            GROUP BY section ORDER BY views DESC
+        `).bind(aptId, fromTs).all(),
+
+        env.DB.prepare(`
+            SELECT language_code as lang, COUNT(*) as count
+            FROM guide_sessions WHERE apartment_id = ? AND started_at >= ?
+            GROUP BY language_code ORDER BY count DESC
+        `).bind(aptId, fromTs).all(),
+    ]);
+
+    return jsonResponse({
+        success: true,
+        stats: {
+            total_sessions: sessionStats?.total_sessions || 0,
+            avg_duration_seconds: Math.round(sessionStats?.avg_duration || 0),
+            unique_devices: deviceStats?.unique_devices || 0,
+            section_views: sectionStats.results || [],
+            by_language: langStats.results || [],
+        },
+        period_days: days
+    });
 }
