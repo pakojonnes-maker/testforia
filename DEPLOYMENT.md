@@ -1,84 +1,92 @@
-# Guía de Despliegue en Cloudflare Pages
+# Guía de Despliegue — VisualTaste
 
-Esta guía detalla los pasos para desplegar las aplicaciones frontend (`admin` y `client`) en Cloudflare Pages.
+> Actualizado (julio 2026) para reflejar la arquitectura real desplegada en Cloudflare.
+> Fuente de verdad ampliada: `CLAUDE.md` (raíz).
 
-## 🏗️ Estructura del Proyecto
-
-El proyecto es un monorepo con dos aplicaciones principales:
-- **Admin**: Panel de administración (`apps/admin`)
-- **Client**: Carta digital/Reels (`apps/client`)
-
-Cada una debe desplegarse como un proyecto independiente en Cloudflare Pages.
-
-## 🚀 Despliegue del Frontend (Cloudflare Pages)
-
-### 1. Requisitos Previos
-- Cuenta en Cloudflare.
-- Repositorio conectado a GitHub/GitLab.
-
-### 2. Configuración para Admin (`apps/admin`)
-
-Crea un nuevo proyecto en Cloudflare Pages y conéctalo a tu repositorio.
-
-| Configuración | Valor |
-|--------------|-------|
-| **Nombre del Proyecto** | `visualtaste-admin` (o similar) |
-| **Framework Preset** | `Vite` |
-| **Build Command** | `npm run build:admin` |
-| **Build Output Directory** | `apps/admin/dist` |
-| **Root Directory** | `/` (Dejar vacío o poner raíz) |
-
-#### Variables de Entorno (Environment Variables)
-Configura estas variables en la sección **Settings > Environment variables**:
-
-| Variable | Descripción | Ejemplo |
-|----------|-------------|---------|
-| `VITE_API_URL` | URL de tu backend (Workers) | `https://visualtaste-auth.tu-cuenta.workers.dev` |
+El proyecto es un monorepo (npm workspaces) con **3 apps frontend** en Cloudflare Pages
+y **un único Worker** de backend.
 
 ---
 
-### 3. Configuración para Client (`apps/client`)
+## 🏗️ Estructura
 
-Crea otro proyecto en Cloudflare Pages para la aplicación cliente.
+| Parte | Ubicación | Dónde se despliega |
+|---|---|---|
+| Backend (API) | `worker.js` + módulos `worker*.js` | Cloudflare Workers → `visualtasteworker` |
+| Carta digital "Gravy" | `apps/client` | Cloudflare Pages → `visualtaste` |
+| Panel admin | `apps/admin` | Cloudflare Pages → `visualtasteadmin` |
+| Guidebook | `apps/guide` | Cloudflare Pages → `visualtastes-guide` |
 
-| Configuración | Valor |
-|--------------|-------|
-| **Nombre del Proyecto** | `visualtaste-client` (o similar) |
-| **Framework Preset** | `Vite` |
-| **Build Command** | `npm run build:client` |
-| **Build Output Directory** | `apps/client/dist` |
-| **Root Directory** | `/` (Dejar vacío o poner raíz) |
-
-#### Variables de Entorno (Environment Variables)
-
-| Variable | Descripción | Ejemplo |
-|----------|-------------|---------|
-| `VITE_API_URL` | URL de tu backend (Workers) | `https://visualtaste-auth.tu-cuenta.workers.dev` |
+Cuenta Cloudflare: `bcdb1b118c735428df024b1b2e300eb3`.
 
 ---
 
-### 📝 Notas Importantes
+## ⚙️ Backend (Cloudflare Workers) — UN worker único
 
-1. **Monorepo**: Es crucial dejar el **Root Directory** en la raíz (`/`) y usar los comandos `npm run build:admin` y `npm run build:client`. Esto permite que el proceso de build acceda a las dependencias compartidas en el monorepo (como `@visualtaste/api`).
-2. **Node Version**: Cloudflare Pages usa una versión reciente de Node.js por defecto. Si necesitas una específica, puedes añadir la variable de entorno `NODE_VERSION` (ej. `18.17.0`).
-
-## ⚙️ Despliegue del Backend (Cloudflare Workers)
-
-El backend consta de varios Workers que se despliegan individualmente o mediante `wrangler`.
-
-Para detalles específicos sobre la autenticación y configuración de la base de datos, consulta el archivo:
-👉 [DEPLOYMENT-AUTH.md](./DEPLOYMENT-AUTH.md)
-
-### Comandos Rápidos (si usas Wrangler)
+`worker.js` es el enrutador central (entrypoint). Importa ~21 módulos `worker*.js` como
+ES modules; Wrangler los **empaqueta juntos** en un solo Worker al desplegar. **No** se
+despliega cada archivo por separado.
 
 ```bash
-# Desplegar Worker de Autenticación
-npx wrangler deploy workerAuth.js --name visualtaste-auth
+# Desplegar el backend completo (bundlea worker.js + todos los módulos)
+npx wrangler deploy
 
-# Desplegar Worker de Tracking
-npx wrangler deploy workerTracking.js --name visualtaste-tracking
+# Desarrollo local del worker
+npx wrangler dev
 
-# Desplegar otros workers según sea necesario...
+# Logs en vivo
+npx wrangler tail visualtasteworker
 ```
 
-Asegúrate de que la variable `VITE_API_URL` en tus proyectos de Pages apunte a la URL de tu worker principal (o al worker que actúe como gateway/router si tienes uno unificado).
+Config en `wrangler.toml`: bindings `DB` (D1 `restaurant-menu-saas`), `R2_BUCKET`
+(R2 `mediabucket`), `GUIDE_CACHE` (KV) y `AI` (Workers AI).
+
+Secretos (no hardcodear en el código):
+```bash
+npx wrangler secret put JWT_SECRET
+```
+
+Migraciones D1:
+```bash
+npx wrangler d1 execute restaurant-menu-saas --file=migrations/XXXX.sql            # local
+npx wrangler d1 execute restaurant-menu-saas --remote --file=migrations/XXXX.sql   # producción
+```
+
+Ver detalles de autenticación en `DEPLOYMENT-AUTH.md`.
+
+---
+
+## 🚀 Frontend (Cloudflare Pages) — 3 proyectos
+
+Los tres proyectos ya existen en Cloudflare Pages (rama `main`). Build de cada app:
+
+| App | Build command | Output dir | Proyecto Pages | Dominios |
+|---|---|---|---|---|
+| client | `npm run build:client` | `apps/client/dist` | `visualtaste` | visualtastes.com, www, menu.visualtastes.com |
+| admin | `npm run build:admin` | `apps/admin/dist` | `visualtasteadmin` | admin.visualtastes.com |
+| guide | `npm run build:guide` | `apps/guide/dist` | `visualtastes-guide` | guide.visualtastes.com |
+
+### Deploy manual con Wrangler
+```bash
+npm run build:client && npx wrangler pages deploy apps/client/dist --project-name=visualtaste
+npm run build:admin  && npx wrangler pages deploy apps/admin/dist  --project-name=visualtasteadmin
+npm run build:guide  && npx wrangler pages deploy apps/guide/dist  --project-name=visualtastes-guide
+```
+
+### Si se configura build automático desde Git
+- **Framework preset:** Vite
+- **Root directory:** `/` (raíz — necesario para que el build acceda a los workspaces
+  compartidos como `@visualtaste/api`)
+- **Build command / Output dir:** los de la tabla de arriba
+
+### Variables de entorno (Pages → Settings → Environment variables)
+| Variable | Descripción | Valor |
+|---|---|---|
+| `VITE_API_URL` | URL del backend (Worker) | URL de `visualtasteworker` |
+| `NODE_VERSION` | (opcional) versión de Node | p. ej. `18.17.0` |
+
+---
+
+## 📝 Notas
+- **Monorepo:** deja siempre el Root Directory en `/` y usa los comandos `npm run build:*`.
+- Los tres frontends consumen el mismo backend vía `VITE_API_URL`.

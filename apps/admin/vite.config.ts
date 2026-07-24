@@ -16,6 +16,19 @@ export default defineConfig({
   },
   server: {
     force: true // Fuerza la reoptimización de dependencias
-  }
+  },
+  build: {
+    rollupOptions: {
+      output: {
+        // ✅ Separa vendors pesados del bundle principal para que el navegador
+        // los cachee de forma independiente entre despliegues.
+        manualChunks: {
+          'vendor-react': ['react', 'react-dom', 'react-router-dom'],
+          'vendor-mui': ['@mui/material', '@mui/icons-material', '@mui/x-data-grid'],
+          'vendor-charts': ['chart.js', 'react-chartjs-2'],
+        },
+      },
+    },
+  },
 })
 

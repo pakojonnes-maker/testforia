@@ -10,7 +10,10 @@ import type { Swiper as SwiperType } from 'swiper';
 // Hooks y contextos
 // Hooks y contextos
 import { useReelsConfig } from '../../hooks/useReelsConfig';
-import { useDishTracking, useTracking } from '../../providers/TrackingAndPushProvider';
+import { useCart } from '../../hooks/useCart';
+import { useWelcomeModal } from '../../hooks/useWelcomeModal';
+import { useLoyaltyCard } from '../../hooks/useLoyaltyCard';
+import { useDishTracking } from '../../providers/TrackingAndPushProvider';
 import { TranslationProvider } from '../../contexts/TranslationContext';
 
 // Template components
@@ -24,10 +27,8 @@ import { ShoppingCart } from '@mui/icons-material';
 import SocialMenu from './SocialMenu';
 import ViewModeToggle from './ViewModeToggle';
 import WelcomeModal from './WelcomeModal';
-import FloatingLauncher from '../marketing/FloatingLauncher';
 import DeliveryModal from '../delivery/DeliveryModal';
-// EventBanner ready but requires section-level integration
-// import _EventBanner from '../marketing/EventBanner';
+import LoyaltyCardModal from '../loyalty/LoyaltyCardModal';
 
 // CSS
 // @ts-ignore
@@ -48,7 +49,6 @@ import {
   ListItem,
   Alert
 } from '@mui/material';
-import apiClient from '../../lib/apiClient';
 
 // ======================================================================
 // TIPOS
@@ -64,17 +64,6 @@ interface ReelsContainerProps {
   initialSectionIndex?: number;
   initialDishIndex?: number;
   onClose?: () => void;
-}
-
-interface CartItem {
-  dishId: string;
-  name: string;
-  price: number;
-  quantity: number;
-  portion: 'full' | 'half';
-  image?: string;
-  videoUrl?: string;
-  addedAt: string;
 }
 
 const MobileSocialMenu = ({ children }: { children: any }) => {
@@ -172,13 +161,6 @@ const ReelsContainer: React.FC<ReelsContainerProps> = React.memo(({
 
   const { config: reelConfig, loading: configLoading, error: configError } = useReelsConfig(restaurantSlug, currentLanguage);
 
-  useEffect(() => {
-    if (reelConfig) {
-
-      // console.log('🌍 [ReelsContainer] Translations content:', reelConfig.translations);
-    }
-  }, [reelConfig]);
-
   // ✅ Helper for internal translations (since we are outside TranslationProvider's context)
   const t = useCallback((key: string, defaultText: string) => {
     return reelConfig?.translations?.[key] || defaultText;
@@ -191,22 +173,14 @@ const ReelsContainer: React.FC<ReelsContainerProps> = React.memo(({
 
   const [currentSectionIndex, setCurrentSectionIndex] = useState(initialSectionIndex);
   const [currentDishIndex, setCurrentDishIndex] = useState(initialDishIndex);
-  const [welcomeModalOpen, setWelcomeModalOpen] = useState(false);
   const [muted, setMuted] = useState(true);
   const [isDishExpanded, setIsDishExpanded] = useState(false); // ✅ Track dish expansion for UI hiding
   const [deliveryModalOpen, setDeliveryModalOpen] = useState(false); // ✅ Delivery modal state
+  const [loyaltyModalOpen, setLoyaltyModalOpen] = useState(false);
   // const [showFavorites, setShowFavorites] = useState(false); // NEW: Favorites Modal State
 
-  // Extract marketing campaign
-  const marketingCampaign = useMemo(() => {
-
-    return reelConfig?.marketing;
-  }, [reelConfig]);
-
-  // Extract Scratch & Win campaign (if visible in menu)
-  const scratchWinCampaign = useMemo(() => {
-    return (reelConfig as any)?.scratchWin;
-  }, [reelConfig]);
+  const { marketingCampaign, welcomeModalOpen, setWelcomeModalOpen } = useWelcomeModal(reelConfig);
+  const { loyaltyProgram, loyaltyCard, setLoyaltyCard, visitorId } = useLoyaltyCard(reelConfig);
 
   // ✅ Extract delivery settings from config
   const deliveryConfig = useMemo(() => {
@@ -218,52 +192,7 @@ const ReelsContainer: React.FC<ReelsContainerProps> = React.memo(({
     return deliveryConfig?.is_enabled || false;
   }, [deliveryConfig]);
 
-  // Extract visible Event campaigns (ready for future integration)
-  // const eventCampaigns = useMemo(() => {
-  //   return (reelConfig as any)?.events || [];
-  // }, [reelConfig]);
-
-  // Auto-open Welcome Modal
-  useEffect(() => {
-
-
-    if (!marketingCampaign || !reelConfig?.restaurant?.id) return;
-
-    // Check if enabled in config (default to true if no config provided, or false if explicitly disabled)
-    const isEnabled = marketingCampaign.settings?.auto_open !== false;
-    const delay = marketingCampaign.settings?.delay || 1500;
-
-
-
-    if (!isEnabled) return;
-
-    // ✅ FIX: Use campaignId instead of restaurantId so new campaigns are shown to returning visitors
-    const hasSeenWelcome = localStorage.getItem(`welcome_seen_${marketingCampaign.id}`);
-    const hasSubscribed = localStorage.getItem(`subscribed_${reelConfig.restaurant.id}`);
-
-
-
-    if (!hasSeenWelcome && !hasSubscribed) {
-
-      // Delay slightly for better UX
-      const timer = setTimeout(() => {
-
-        setWelcomeModalOpen(true);
-        localStorage.setItem(`welcome_seen_${marketingCampaign.id}`, 'true');
-      }, delay);
-      return () => clearTimeout(timer);
-    } else {
-
-    }
-  }, [reelConfig?.restaurant?.id, marketingCampaign]);
-
   const navigate = useNavigate();
-
-  // ✅ FIX: Usar sessionId del TrackingProvider en lugar de crear uno propio
-  const { sessionId: trackingSessionId } = useTracking();
-
-  // Sincronizar con el sessionId del TrackingProvider
-  const sessionId = trackingSessionId || undefined;
 
   // ======================================================================
   // REFS
@@ -281,19 +210,6 @@ const ReelsContainer: React.FC<ReelsContainerProps> = React.memo(({
   // ✅ NUEVO: Refs para tracking de tiempo en sección
   const sectionDishesViewedRef = useRef<Set<string>>(new Set());
 
-  // ======================================================================
-  // CART STATE & LOGIC
-  // ======================================================================
-  const [cart, setCart] = useState<CartItem[]>([]);
-  const [cartId, setCartId] = useState<string | null>(null);
-
-  const [openCartDrawer, setOpenCartDrawer] = useState(false);
-
-  // Generar UUID para carrito
-  const generateCartId = useCallback(() => {
-    return 'cart_' + Math.random().toString(36).substring(2, 15) + Date.now().toString(36);
-  }, []);
-
   // ✅ FIX: Open offer directly without push prompt interception
   const handleOpenOffer = () => {
     setWelcomeModalOpen(true);
@@ -310,221 +226,6 @@ const ReelsContainer: React.FC<ReelsContainerProps> = React.memo(({
     setDeliveryModalOpen(true);
   }, []);
 
-  // Tracking helpers
-  const trackCartCreated = useCallback(async (newCartId: string) => {
-    if (!sessionId || !restaurantData.restaurant?.id) return;
-    try {
-      await apiClient.tracking.sendEvents({
-        sessionId: sessionId,
-        restaurantId: restaurantData.restaurant.id,
-        events: [{
-          type: 'cart_created',
-          entityId: newCartId,
-          entityType: 'cart',
-          ts: new Date().toISOString()
-        }]
-      });
-    } catch (error) { console.error('❌ [Tracking] Error creating cart:', error); }
-  }, [sessionId, restaurantData.restaurant]);
-
-  const trackItemAdded = useCallback(async (dishId: string, quantity: number, price: number, sequence: number, updatedCart: CartItem[]) => {
-    if (!sessionId || !restaurantData.restaurant?.id || !cartId) return;
-
-    const totalItems = updatedCart.reduce((acc, item) => acc + item.quantity, 0);
-    const totalValue = updatedCart.reduce((acc, item) => acc + (item.price * item.quantity), 0);
-    const uniqueDishes = updatedCart.length;
-    const itemsSnapshot = updatedCart.map(item => ({ dishId: item.dishId, name: item.name, quantity: item.quantity, price: item.price }));
-
-    try {
-      await apiClient.tracking.sendEvents({
-        sessionId: sessionId,
-        restaurantId: restaurantData.restaurant.id,
-        events: [{
-          type: 'cart_item_added',
-          entityId: dishId,
-          entityType: 'dish',
-          value: JSON.stringify({
-            cartId,
-            quantity,
-            price,
-            sequence,
-            totalItems,
-            totalValue,
-            uniqueDishes,
-            items: itemsSnapshot
-          }),
-          ts: new Date().toISOString()
-        }]
-      });
-    } catch (error) { console.error('❌ [Tracking] Error adding item:', error); }
-  }, [sessionId, restaurantData.restaurant, cartId]);
-
-  const trackItemRemoved = useCallback(async (dishId: string, updatedCart: CartItem[]) => {
-    if (!sessionId || !restaurantData.restaurant?.id || !cartId) return;
-
-    const totalItems = updatedCart.reduce((acc, item) => acc + item.quantity, 0);
-    const totalValue = updatedCart.reduce((acc, item) => acc + (item.price * item.quantity), 0);
-    const uniqueDishes = updatedCart.length;
-    const itemsSnapshot = updatedCart.map(item => ({ dishId: item.dishId, name: item.name, quantity: item.quantity, price: item.price }));
-
-    try {
-      await apiClient.tracking.sendEvents({
-        sessionId: sessionId,
-        restaurantId: restaurantData.restaurant.id,
-        events: [{
-          type: 'cart_item_removed',
-          entityId: dishId,
-          entityType: 'dish',
-          value: JSON.stringify({
-            cartId,
-            totalItems,
-            totalValue,
-            uniqueDishes,
-            items: itemsSnapshot
-          }),
-          ts: new Date().toISOString()
-        }]
-      });
-    } catch (error) { console.error('❌ [Tracking] Error removing item:', error); }
-  }, [sessionId, restaurantData.restaurant, cartId]);
-
-  const trackItemQuantityUpdated = useCallback(async (dishId: string, newQuantity: number, oldQuantity: number, updatedCart: CartItem[]) => {
-    if (!sessionId || !restaurantData.restaurant?.id || !cartId) return;
-
-    const totalItems = updatedCart.reduce((acc, item) => acc + item.quantity, 0);
-    const totalValue = updatedCart.reduce((acc, item) => acc + (item.price * item.quantity), 0);
-    const uniqueDishes = updatedCart.length;
-    const itemsSnapshot = updatedCart.map(item => ({ dishId: item.dishId, name: item.name, quantity: item.quantity, price: item.price }));
-
-    try {
-      await apiClient.tracking.sendEvents({
-        sessionId: sessionId,
-        restaurantId: restaurantData.restaurant.id,
-        events: [{
-          type: 'cart_item_quantity',
-          entityId: dishId,
-          entityType: 'dish',
-          value: JSON.stringify({
-            cartId,
-            newQuantity,
-            oldQuantity,
-            totalItems,
-            totalValue,
-            uniqueDishes,
-            items: itemsSnapshot
-          }),
-          ts: new Date().toISOString()
-        }]
-      });
-    } catch (error) { console.error('❌ [Tracking] Error updating quantity:', error); }
-  }, [sessionId, restaurantData.restaurant, cartId]);
-
-  const trackCartOpened = useCallback(async () => {
-    if (!sessionId || !restaurantData.restaurant?.id || !cartId) return;
-    try {
-      await apiClient.tracking.sendEvents({
-        sessionId: sessionId,
-        restaurantId: restaurantData.restaurant.id,
-        events: [{
-          type: 'cart_opened',
-          entityId: cartId,
-          entityType: 'cart',
-          value: JSON.stringify({
-            totalItems: cart.reduce((acc, item) => acc + item.quantity, 0),
-            totalValue: cart.reduce((acc, item) => acc + (item.price * item.quantity), 0)
-          }),
-          ts: new Date().toISOString()
-        }]
-      });
-    } catch (error) { console.error('❌ [Tracking] Error opening cart:', error); }
-  }, [sessionId, restaurantData.restaurant, cartId, cart]);
-
-
-
-  // Cart Actions
-  const addToCart = useCallback(async (dish: any, quantity: number, portion: 'full' | 'half' = 'full', price?: number) => {
-    // Determine uniqueness based on dishId AND portion
-    const existingItem = cart.find(item => item.dishId === dish.id && item.portion === portion);
-    let currentCartId = cartId;
-
-    if (!currentCartId) {
-      currentCartId = generateCartId();
-      setCartId(currentCartId);
-
-      await trackCartCreated(currentCartId);
-    }
-
-    let dishName = dish?.translations?.name?.[currentLanguage] || dish?.name || reelConfig?.translations?.['dish_untitled'] || 'Plato';
-
-    // Add portion indicator to name if it's a half portion
-    if (portion === 'half') {
-      const suffix = t('half_portion_suffix', ' (½)');
-      dishName = `${dishName}${suffix}`;
-    }
-
-    const media = dish?.media?.[0];
-    const isVideoMedia = media?.media_type === 'video' || media?.type === 'video' || media?.url?.endsWith('.mp4');
-    const image = media?.thumbnail_url || (!isVideoMedia ? media?.url : undefined);
-    const videoUrl = isVideoMedia ? media?.url : undefined;
-
-    // Use provided price or fallback to dish prices
-    const itemPrice = price !== undefined ? price : (portion === 'half' ? (dish.half_price || 0) : (dish.price || 0));
-
-    let updatedCart: CartItem[];
-
-    if (existingItem) {
-      const oldQuantity = existingItem.quantity;
-      updatedCart = cart.map(item =>
-        (item.dishId === dish.id && item.portion === portion) ? { ...item, quantity: item.quantity + quantity } : item
-      );
-      setCart(updatedCart);
-      await trackItemQuantityUpdated(dish.id, existingItem.quantity + quantity, oldQuantity, updatedCart);
-    } else {
-      const newItem: CartItem = {
-        dishId: dish.id,
-        name: dishName,
-        price: itemPrice,
-        quantity: quantity,
-        portion,
-        image,
-        videoUrl,
-        addedAt: new Date().toISOString()
-      };
-      updatedCart = [...cart, newItem];
-      setCart(updatedCart);
-      await trackItemAdded(dish.id, quantity, itemPrice, cart.length + 1, updatedCart);
-    }
-  }, [cart, cartId, currentLanguage, generateCartId, trackCartCreated, trackItemAdded, trackItemQuantityUpdated]);
-
-  const removeFromCart = useCallback(async (dishId: string, portion: 'full' | 'half') => {
-    const updatedCart = cart.filter(item => !(item.dishId === dishId && item.portion === portion));
-    setCart(updatedCart);
-    await trackItemRemoved(dishId, updatedCart);
-  }, [cart, trackItemRemoved]);
-
-  const updateCartItemQuantity = useCallback(async (dishId: string, newQuantity: number, portion: 'full' | 'half') => {
-    const item = cart.find(i => i.dishId === dishId && i.portion === portion);
-    if (!item) return;
-
-    if (newQuantity <= 0) {
-      await removeFromCart(dishId, portion);
-    } else {
-      const updatedCart = cart.map(i => (i.dishId === dishId && i.portion === portion) ? { ...i, quantity: newQuantity } : i);
-      setCart(updatedCart);
-      await trackItemQuantityUpdated(dishId, newQuantity, item.quantity, updatedCart);
-    }
-  }, [cart, removeFromCart, trackItemQuantityUpdated]);
-
-  const getTotalPrice = useCallback(() => cart.reduce((acc, item) => acc + (item.price * item.quantity), 0), [cart]);
-  const getTotalItems = useCallback(() => cart.reduce((acc, item) => acc + item.quantity, 0), [cart]);
-
-  const handleOpenCartDrawer = useCallback(async () => {
-    setOpenCartDrawer(true);
-    await trackCartOpened();
-  }, [trackCartOpened]);
-
-
-
   // ======================================================================
   // TRACKING
   // ======================================================================
@@ -532,8 +233,29 @@ const ReelsContainer: React.FC<ReelsContainerProps> = React.memo(({
   const {
     setCurrentSection,
     trackScrollDepth,
-    trackSectionTime
+    trackSectionTime,
+    track
   } = useDishTracking();
+
+  // ======================================================================
+  // CART (state + server-side tracking extracted to useCart)
+  // ======================================================================
+  const {
+    cart,
+    openCartDrawer,
+    setOpenCartDrawer,
+    addToCart,
+    removeFromCart,
+    updateCartItemQuantity,
+    getTotalPrice,
+    getTotalItems,
+    handleOpenCartDrawer
+  } = useCart({
+    track,
+    currentLanguage,
+    t,
+    defaultDishName: reelConfig?.translations?.['dish_untitled'] || 'Plato'
+  });
 
   // ✅ NUEVO: Refs para tracking de tiempo en sección
   const sectionStartTimeRef = useRef<number>(Date.now());
@@ -647,10 +369,6 @@ const ReelsContainer: React.FC<ReelsContainerProps> = React.memo(({
       setCurrentSection(currentSection.id);
     }
   }, [currentSection?.id, setCurrentSection]);
-
-  useEffect(() => {
-
-  }, [currentSectionIndex, currentDishIndex, currentLanguage]);
 
   useEffect(() => {
     if (!currentSection?.id) return;
@@ -1010,6 +728,8 @@ const ReelsContainer: React.FC<ReelsContainerProps> = React.memo(({
                   onOpenReservation={handleOpenReservation}
                   deliveryEnabled={deliveryEnabled}
                   onOpenDelivery={handleOpenDelivery}
+                  loyaltyEnabled={!!loyaltyProgram}
+                  onOpenLoyalty={() => setLoyaltyModalOpen(true)}
                   previousRating={(reelConfig as any)?.userStatus?.previousRating}
                 />
               </Box>
@@ -1060,6 +780,19 @@ const ReelsContainer: React.FC<ReelsContainerProps> = React.memo(({
             restaurantId={reelConfig.restaurant?.id}
             currentLanguage={currentLanguage}
             isAvailable={deliveryConfig?.is_enabled}
+          />
+
+          {/* ✅ Loyalty Stamp Card Modal */}
+          <LoyaltyCardModal
+            open={loyaltyModalOpen}
+            onClose={() => setLoyaltyModalOpen(false)}
+            program={loyaltyProgram}
+            card={loyaltyCard}
+            onCardChange={setLoyaltyCard}
+            restaurantId={reelConfig.restaurant?.id}
+            restaurantSlug={reelConfig.restaurant?.slug}
+            accentColor={reelConfig.restaurant?.branding?.accent_color || reelConfig.restaurant?.branding?.accentColor}
+            visitorId={visitorId}
           />
 
           <ViewModeToggle
@@ -1524,13 +1257,6 @@ const ReelsContainer: React.FC<ReelsContainerProps> = React.memo(({
             />
           )}
 
-          {/* Scratch & Win Floating Launcher */}
-          {scratchWinCampaign && (
-            <FloatingLauncher
-              campaign={scratchWinCampaign}
-              restaurantSlug={reelConfig?.restaurant?.slug}
-            />
-          )}
         </TranslationProvider>
       </Box >
     </Box >

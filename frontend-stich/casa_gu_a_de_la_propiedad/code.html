@@ -1,0 +1,269 @@
+<!DOCTYPE html><html class="light" lang="es"><head>
+<meta charset="utf-8">
+<meta content="width=device-width, initial-scale=1.0" name="viewport">
+<title>StayTap - Casa</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600&amp;family=Playfair+Display:wght@500;600;700&amp;display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet">
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    "colors": {
+                        "tertiary-container": "#687a52",
+                        "primary-fixed": "#ffdbcf",
+                        "surface-variant": "#e5e2dd",
+                        "on-error": "#ffffff",
+                        "on-secondary-fixed-variant": "#2d486d",
+                        "primary": "#944426",
+                        "on-primary-fixed-variant": "#793013",
+                        "inverse-surface": "#31302d",
+                        "inverse-primary": "#ffb59b",
+                        "outline": "#88726b",
+                        "on-secondary-container": "#3e5980",
+                        "on-tertiary-container": "#f9ffea",
+                        "on-tertiary": "#ffffff",
+                        "on-error-container": "#93000a",
+                        "on-secondary-fixed": "#001c3b",
+                        "surface-dim": "#dcdad5",
+                        "tertiary-fixed-dim": "#bacd9e",
+                        "on-tertiary-fixed-variant": "#3b4c28",
+                        "secondary-fixed-dim": "#adc8f5",
+                        "surface-bright": "#fcf9f4",
+                        "terracotta": "#C96D4B",
+                        "deep-sea": "#1E3A5F",
+                        "surface-container-highest": "#e5e2dd",
+                        "error-container": "#ffdad6",
+                        "surface-container-high": "#ebe8e3",
+                        "primary-fixed-dim": "#ffb59b",
+                        "on-surface-variant": "#55433d",
+                        "tertiary-fixed": "#d5eab9",
+                        "outline-variant": "#dbc1b9",
+                        "secondary-fixed": "#d5e3ff",
+                        "olive": "#6B7D54",
+                        "on-secondary": "#ffffff",
+                        "on-tertiary-fixed": "#111f02",
+                        "on-background": "#1c1c19",
+                        "surface-container": "#f0ede9",
+                        "tertiary": "#50613b",
+                        "on-primary-fixed": "#380d00",
+                        "warm-sand": "#F1EBE0",
+                        "surface-tint": "#974728",
+                        "on-primary-container": "#fffbff",
+                        "surface": "#fcf9f4",
+                        "primary-container": "#b35c3b",
+                        "surface-container-low": "#f6f3ee",
+                        "secondary-container": "#b5d0fd",
+                        "surface-container-lowest": "#ffffff",
+                        "error": "#ba1a1a",
+                        "inverse-on-surface": "#f3f0eb",
+                        "secondary": "#455f87",
+                        "on-primary": "#ffffff",
+                        "background": "#fcf9f4",
+                        "on-surface": "#1c1c19",
+                        "crisp-white": "#FFFFFF"
+                    },
+                    "borderRadius": {
+                        "DEFAULT": "0.25rem",
+                        "lg": "0.5rem",
+                        "xl": "0.75rem",
+                        "full": "9999px",
+                        "2xl": "1rem"
+                    },
+                    "spacing": {
+                        "margin-mobile": "20px",
+                        "gutter": "24px",
+                        "container-max": "1200px",
+                        "base": "8px",
+                        "margin-desktop": "64px"
+                    },
+                    "fontFamily": {
+                        "label-lg": ["Montserrat"],
+                        "body-md": ["Montserrat"],
+                        "display-lg": ["Playfair Display"],
+                        "headline-lg-mobile": ["Playfair Display"],
+                        "body-lg": ["Montserrat"],
+                        "headline-md": ["Playfair Display"],
+                        "headline-lg": ["Playfair Display"],
+                        "label-sm": ["Montserrat"]
+                    },
+                    "fontSize": {
+                        "label-lg": ["14px", { "lineHeight": "1.2", "letterSpacing": "0.05em", "fontWeight": "600" }],
+                        "body-md": ["16px", { "lineHeight": "1.5", "fontWeight": "400" }],
+                        "display-lg": ["48px", { "lineHeight": "1.1", "letterSpacing": "-0.02em", "fontWeight": "700" }],
+                        "headline-lg-mobile": ["28px", { "lineHeight": "1.2", "fontWeight": "600" }],
+                        "body-lg": ["18px", { "lineHeight": "1.6", "fontWeight": "400" }],
+                        "headline-md": ["24px", { "lineHeight": "1.3", "fontWeight": "500" }],
+                        "headline-lg": ["32px", { "lineHeight": "1.2", "fontWeight": "600" }],
+                        "label-sm": ["12px", { "lineHeight": "1.2", "letterSpacing": "0.02em", "fontWeight": "500" }]
+                    }
+                }
+            }
+        }
+    </script>
+<style>
+        body { background-color: theme('colors.background'); }
+        .glass-card {
+            background: rgba(255, 255, 255, 0.7);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.3);
+        }
+    </style>
+</head>
+<body class="text-on-surface antialiased pb-24 md:pb-0">
+<!-- TopAppBar -->
+<header class="bg-surface dark:bg-on-background shadow-sm docked full-width top-0 z-40 sticky">
+<div class="flex flex-col w-full pt-4 px-margin-mobile gap-4 max-w-container-max mx-auto">
+<div class="flex justify-between items-center w-full">
+<div class="flex items-center gap-2">
+<span class="material-symbols-outlined text-terracotta dark:text-primary-fixed">language</span>
+<h1 class="text-headline-md font-headline-md font-bold text-deep-sea dark:text-secondary-fixed">StayTap</h1>
+</div>
+<!-- Web Navigation (Hidden on Mobile) -->
+<nav class="hidden md:flex gap-8">
+<a class="text-olive border-b-2 border-olive pb-2 font-bold hover:text-terracotta dark:hover:text-primary-fixed transition-colors scale-95 duration-150 ease-in-out" href="#">Casa</a>
+<a class="text-on-surface-variant dark:text-surface-variant pb-2 hover:text-terracotta dark:hover:text-primary-fixed transition-colors scale-95 duration-150 ease-in-out" href="#">Ubicaciones</a>
+<a class="text-on-surface-variant dark:text-surface-variant pb-2 hover:text-terracotta dark:hover:text-primary-fixed transition-colors scale-95 duration-150 ease-in-out" href="#">Promociones</a>
+<a class="text-on-surface-variant dark:text-surface-variant pb-2 hover:text-terracotta dark:hover:text-primary-fixed transition-colors scale-95 duration-150 ease-in-out" href="#">Chat IA</a>
+</nav>
+<div class="flex items-center gap-4">
+<button class="hidden md:flex items-center gap-2 bg-warm-sand px-4 py-2 rounded-full text-deep-sea font-label-sm text-label-sm hover:bg-surface-variant transition-colors">
+<img alt="ES" class="w-4 h-4 rounded-full object-cover" src="https://lh3.googleusercontent.com/aida-public/AB6AXuA_2ZOdCXhzupETxZ_lo22wqfnWV6lLtTSpE_DC7OF2480MK8KLY_iheajGwSWCbVnBIxRmtzQWf28h0OXq_dmaa3ItV8HnIxg8R7S4rD55TJ4AZCCr-PV4bhlXTqOcsSVbLZHa7TGRg63SCADIMqXJdtGKXqOFrWfd3ZyYFggmJwJLSE_GgvAa8tP516XtB_QHJ1uC7ArQHyehBG-v0UYZ0og5Gopj7aTnhyo6vYgYIX0i4HFRVQnl">
+                        Español
+                        <span class="material-symbols-outlined text-[16px]">expand_more</span>
+</button>
+<div class="w-10 h-10 rounded-full overflow-hidden border-2 border-crisp-white shadow-sm">
+<span class="material-symbols-outlined w-full h-full flex items-center justify-center bg-surface-variant text-on-surface-variant">chrome_extension_check</span>
+</div>
+</div>
+</div>
+<!-- Mobile Section Tabs -->
+<div class="flex md:hidden gap-6 overflow-x-auto pb-2 scrollbar-hide">
+<button class="text-olive border-b-2 border-olive pb-2 font-label-lg text-label-lg whitespace-nowrap">Alojamiento</button>
+<button class="text-on-surface-variant pb-2 font-label-lg text-label-lg whitespace-nowrap">Servicios</button>
+<button class="text-on-surface-variant pb-2 font-label-lg text-label-lg whitespace-nowrap">Manuales</button>
+</div>
+</div>
+</header>
+<main class="max-w-container-max mx-auto px-margin-mobile md:px-margin-desktop py-8 flex flex-col gap-12">
+<!-- Hero Section -->
+<section class="relative w-full h-[400px] rounded-2xl overflow-hidden shadow-[0px_4px_20px_rgba(201,109,75,0.08)]">
+<div class="absolute inset-0 bg-cover bg-center" data-alt="A stunning exterior view of a modern Mediterranean villa with a sparkling blue pool in the foreground. The sun is shining brightly, casting warm light on the white walls and terracotta roof tiles. Lush green palm trees frame the shot, evoking a luxurious, relaxing coastal atmosphere." style="background-image: url('https://lh3.googleusercontent.com/aida-public/AB6AXuBwvq-mRIGt-voQMGucVpUHX-uYHeL4F_eA3WWhFWOMmbakcmIxWnHxOzVtUzEdbnTSkL7SDhA2PlQLqHgd7Tz7yG-Jih9vvn7aJv886_Yt8HhqL7KPzOI6z26Kf8lcZUQ2s0Q_SMpHVTLfGzJQOhhX2WT9SyCHXepmUc-0AOFkNS6boFVAXkPMvM42Ej_MmPjsrwcf1CxUz2P3m1JpaJKd25pj6iu-QmqUdXCDN1zmXYh1UP9adIBA')"></div>
+<div class="absolute inset-0 bg-gradient-to-t from-deep-sea/80 via-transparent to-transparent"></div>
+<div class="absolute bottom-0 left-0 p-6 md:p-8 w-full text-crisp-white">
+<div class="flex justify-between items-end">
+<div>
+<h2 class="text-headline-lg-mobile md:text-display-lg font-headline-lg-mobile md:font-display-lg mb-2">Villa Mediterranée</h2>
+<p class="flex items-center gap-2 text-body-md font-body-md opacity-90">
+<span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 1;">location_on</span>
+                            Antibes, Costa Azul
+                        </p>
+</div>
+<button class="bg-crisp-white text-terracotta px-6 py-3 rounded-full font-label-lg text-label-lg shadow-md hover:bg-warm-sand transition-colors hidden md:block">
+                        Ver Dirección
+                    </button>
+</div>
+</div>
+</section>
+<!-- Alert Banner -->
+<div class="bg-warm-sand p-4 rounded-xl flex items-start gap-3 border-l-4 border-terracotta">
+<span class="material-symbols-outlined text-terracotta mt-0.5">info</span>
+<div>
+<h4 class="font-label-lg text-label-lg text-deep-sea">Código de Entrada</h4>
+<p class="font-body-md text-body-md text-on-surface-variant mt-1">El código de la puerta principal para tu estancia es <strong class="text-deep-sea">4920#</strong>.</p>
+</div>
+</div>
+<!-- Quick Actions Bento Grid -->
+<section>
+<h3 class="text-headline-md font-headline-md text-deep-sea mb-6">Guías Rápidas</h3>
+<div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+<!-- Action Card 1 -->
+<div class="relative h-48 rounded-2xl overflow-hidden shadow-[0px_4px_20px_rgba(201,109,75,0.08)] group cursor-pointer">
+<img class="absolute inset-0 w-full h-full object-cover transition-transform duration-500 group-hover:scale-105" data-alt="Close up of a classic silver Italian Moka pot sitting on a stove, freshly brewing rich dark espresso coffee. The lighting is warm and morning-like, creating a cozy and inviting atmosphere typical of a slow Mediterranean breakfast." src="https://lh3.googleusercontent.com/aida-public/AB6AXuCUNIw8NzQVjMy-0vg1-oxI-flo1iS9uBynCvxVRNi4jSp6xgiFxsyRa7YBiLGgEITblX2l4v-YT358GHa9LBMnrmcUfsr2NwVTjl8SJOMFqVrgXVBN-20K9Vsy9oaAgRtQg6FxCBSDNbCoGE05j9dxotbGF-kjoSbCUR_i8zvZgpMIioQ0bzGG6HzvVC0_41_ZOuCFHjy3-CtDhLShnEZEsQOCEfsINoANQjfiIVM7eF8U4Pjg_lxR">
+<div class="absolute inset-0 bg-gradient-to-t from-deep-sea/70 to-transparent"></div>
+<div class="absolute bottom-4 left-4 right-4 flex justify-between items-end">
+<span class="font-label-lg text-label-lg text-crisp-white">Cómo hacer Moka</span>
+<span class="material-symbols-outlined text-crisp-white bg-white/20 p-1 rounded-full backdrop-blur-sm">chevron_right</span>
+</div>
+</div>
+<!-- Action Card 2 -->
+<div class="relative h-48 rounded-2xl overflow-hidden shadow-[0px_4px_20px_rgba(201,109,75,0.08)] group cursor-pointer">
+<img class="absolute inset-0 w-full h-full object-cover transition-transform duration-500 group-hover:scale-105" data-alt="A sleek, modern smart thermostat mounted on a smooth white wall in a sunlit room. The digital display shows a comfortable temperature setting. Soft shadows from a nearby plant add a touch of organic warmth to the minimalist technological scene." src="https://lh3.googleusercontent.com/aida-public/AB6AXuAOuB15NGtepZuKeXy1QnfFdfYuhkX3xlx5SIkqkv6mCOQHoedgQ09qxuTthYilQ6VhSmCOBYyGSqRn1ud-jhRFNNYU8yfgF_4cjl48ixZTutKnvxBS2BCimNY2u45SY0LhfQ5dd-jlF5zN0ctGODRf3r3HTPQFEoO2TBqJxAnEcYDjc_noaDOqX6CMmO6caomi_tiTGjOgn8hnPGSYCwlwvbNFce9IJU36lr08SyHtxbZGR5GRfFOW">
+<div class="absolute inset-0 bg-gradient-to-t from-deep-sea/70 to-transparent"></div>
+<div class="absolute bottom-4 left-4 right-4 flex justify-between items-end">
+<span class="font-label-lg text-label-lg text-crisp-white">Ajustar Temperatura</span>
+<span class="material-symbols-outlined text-crisp-white bg-white/20 p-1 rounded-full backdrop-blur-sm">chevron_right</span>
+</div>
+</div>
+<!-- Action Card 3 -->
+<div class="relative h-48 rounded-2xl overflow-hidden shadow-[0px_4px_20px_rgba(201,109,75,0.08)] group cursor-pointer">
+<img class="absolute inset-0 w-full h-full object-cover transition-transform duration-500 group-hover:scale-105" data-alt="A modern, clean-lined wood burning fireplace in a cozy living room setting. A warm fire is burning brightly inside, casting a gentle orange glow on the surrounding minimalist decor and natural wood elements." src="https://lh3.googleusercontent.com/aida-public/AB6AXuBpP-KxridX6Thn17ASpyQAdCwQYMBhoBac7LwFdyThja_fD0-QtjHNzj2SKc5EiGz5IYKU8dA-UNr18vwzWpXZLvMUQq8FWaF8dhPr3Gdg3ADBLizGLmovrESL44ct0vKhxtYORpNdcRnnHL4xGrajux1E7XeGcflV8u67XzwXiLAOGhzNFqcaEpzUSwwTA2HU2n7UiZ4xK2Q1MNPUQF-dlah2pT2yp8NqTejyv2UY6wsVM4quPYfV">
+<div class="absolute inset-0 bg-gradient-to-t from-deep-sea/70 to-transparent"></div>
+<div class="absolute bottom-4 left-4 right-4 flex justify-between items-end">
+<span class="font-label-lg text-label-lg text-crisp-white">Encender Chimenea</span>
+<span class="material-symbols-outlined text-crisp-white bg-white/20 p-1 rounded-full backdrop-blur-sm">chevron_right</span>
+</div>
+</div>
+</div>
+</section>
+<!-- Smart Home Controls -->
+<section class="grid grid-cols-1 md:grid-cols-2 gap-6">
+<!-- WiFi Card -->
+<div class="bg-crisp-white p-6 rounded-2xl shadow-[0px_4px_20px_rgba(201,109,75,0.08)] flex flex-col justify-between h-40">
+<div class="flex items-center gap-3">
+<span class="material-symbols-outlined text-deep-sea">wifi</span>
+<h4 class="font-label-lg text-label-lg text-deep-sea">WiFi</h4>
+</div>
+<div class="flex justify-between items-end">
+<div>
+<p class="text-[10px] uppercase tracking-wider text-on-surface-variant mb-1">Red</p>
+<p class="font-body-md text-body-md text-deep-sea font-medium">VillaMed_Guest</p>
+</div>
+<button class="p-2 bg-warm-sand text-terracotta rounded-lg hover:bg-surface-variant transition-colors">
+<span class="material-symbols-outlined text-[20px]">content_copy</span>
+</button>
+</div>
+</div>
+<!-- Lighting Card -->
+<div class="bg-crisp-white p-6 rounded-2xl shadow-[0px_4px_20px_rgba(201,109,75,0.08)] flex flex-col justify-between h-40">
+<div class="flex justify-between items-start">
+<div class="flex items-center gap-3">
+<span class="material-symbols-outlined text-deep-sea">lightbulb</span>
+<h4 class="font-label-lg text-label-lg text-deep-sea">Luces Terraza</h4>
+</div>
+<span class="bg-tertiary-fixed text-on-tertiary-fixed-variant text-[10px] font-bold px-2 py-1 rounded-full uppercase tracking-wider">Demo</span>
+</div>
+<div class="flex justify-between items-center mt-4">
+<span class="font-body-md text-body-md text-on-surface-variant">Estado</span>
+<!-- Toggle Switch -->
+<div class="w-12 h-6 bg-olive rounded-full relative cursor-pointer">
+<div class="absolute right-1 top-1 w-4 h-4 bg-crisp-white rounded-full shadow-sm"></div>
+</div>
+</div>
+</div>
+</section>
+</main>
+<!-- BottomNavBar (Mobile Only) -->
+<nav class="md:hidden bg-crisp-white dark:bg-inverse-surface fixed bottom-0 w-full z-50 rounded-t-xl shadow-[0px_-4px_20px_rgba(201,109,75,0.08)] fixed bottom-0 left-0 w-full flex justify-around items-center py-3 px-4">
+<!-- Active Tab -->
+<a class="flex flex-col items-center justify-center text-terracotta dark:text-primary-fixed font-bold bg-primary-fixed/20 rounded-xl px-3 py-1 scale-90 transition-transform" href="#">
+<span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 1;">home</span>
+<span class="text-label-sm font-label-sm mt-1">Casa</span>
+</a>
+<!-- Inactive Tabs -->
+<a class="flex flex-col items-center justify-center text-on-surface-variant dark:text-surface-variant hover:bg-warm-sand dark:hover:bg-tertiary-container/30 px-3 py-1 rounded-xl transition-colors" href="#">
+<span class="material-symbols-outlined">location_on</span>
+<span class="text-label-sm font-label-sm mt-1">Ubicaciones</span>
+</a>
+<a class="flex flex-col items-center justify-center text-on-surface-variant dark:text-surface-variant hover:bg-warm-sand dark:hover:bg-tertiary-container/30 px-3 py-1 rounded-xl transition-colors" href="#">
+<span class="material-symbols-outlined">sell</span>
+<span class="text-label-sm font-label-sm mt-1">Promociones</span>
+</a>
+<a class="flex flex-col items-center justify-center text-on-surface-variant dark:text-surface-variant hover:bg-warm-sand dark:hover:bg-tertiary-container/30 px-3 py-1 rounded-xl transition-colors" href="#">
+<span class="material-symbols-outlined">spark</span>
+<span class="text-label-sm font-label-sm mt-1">Chat IA</span>
+</a>
+</nav>
+</body></html>

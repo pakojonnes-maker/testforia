@@ -8,6 +8,15 @@ interface InfoItem {
   title: string;
   content: string;
   media: any[];
+  is_sequential?: boolean;
+  steps?: Array<{
+    id: string;
+    step_number: number;
+    title: string;
+    content: string;
+    media: Array<{url: string}>;
+    checklist_items?: string[];
+  }>;
 }
 
 interface InfoSectionProps {
@@ -16,118 +25,166 @@ interface InfoSectionProps {
 }
 
 export default function InfoSection({ infoItems, lang }: InfoSectionProps) {
-  const [expandedItems, setExpandedItems] = useState<Record<string, boolean>>({});
+  const [selectedItem, setSelectedItem] = useState<InfoItem | null>(null);
 
-  const toggleExpand = (id: string) => {
-    setExpandedItems(prev => ({ ...prev, [id]: !prev[id] }));
-  };
-
-  const copyToClipboard = (text: string, id: string) => {
+  const copyToClipboard = (text: string) => {
     navigator.clipboard.writeText(text).catch(() => {});
-    // Could add a temporary "Copied!" state here
   };
 
   if (infoItems.length === 0) {
     return (
-      <div className="section-container" style={{ textAlign: 'center', padding: '48px 16px', color: 'var(--gris-medio)' }}>
-        <span className="material-icons-round" style={{ fontSize: 48, opacity: 0.3 }}>info</span>
-        <p style={{ marginTop: 8 }}>{getTranslation('no_info', lang)}</p>
+      <div className="text-center py-12 text-on-surface-variant">
+        <span className="material-symbols-outlined text-5xl opacity-30">info</span>
+        <p className="mt-2 font-body-md text-body-md">{getTranslation('no_info', lang)}</p>
       </div>
     );
   }
 
+  const wifiItem = infoItems.find(item => item.key.toLowerCase() === 'wifi');
+  const doorCodeItem = infoItems.find(item => item.key.toLowerCase() === 'door_code');
+  const guideItems = infoItems.filter(item => item.key.toLowerCase() !== 'wifi' && item.key.toLowerCase() !== 'door_code');
+
   return (
-    <div className="section-container" style={{ display: 'flex', flexDirection: 'column', gap: 'var(--sp-md)' }}>
-      {infoItems.map(item => {
-        const isExpanded = expandedItems[item.id];
-        const isWifi = item.key.toLowerCase() === 'wifi';
-        const isEmergency = item.key.toLowerCase() === 'emergency';
-        const isLongText = item.content.length > 150 && !isWifi;
+    <div className="flex flex-col gap-12">
+      {doorCodeItem && (
+        <div className="bg-terracotta/10 border border-terracotta/30 rounded-2xl p-4 flex items-center justify-between mb-6">
+          <div className="flex items-center gap-3">
+            <span className="material-symbols-outlined text-terracotta" style={{fontVariationSettings: "'FILL' 1"}}>door_front</span>
+            <div>
+              <p className="font-label-sm text-label-sm text-terracotta uppercase tracking-wider">{getTranslation('door_code_title', lang)}</p>
+              <p className="font-headline-md text-headline-md text-deep-sea tracking-widest">{doorCodeItem.content}</p>
+            </div>
+          </div>
+          <button onClick={() => copyToClipboard(doorCodeItem.content)} className="p-2 rounded-full hover:bg-terracotta/10 transition-colors">
+            <span className="material-symbols-outlined text-terracotta text-[20px]">content_copy</span>
+          </button>
+        </div>
+      )}
 
-        const iconBg = isWifi ? 'var(--mar-espuma)' : isEmergency ? '#FEE2E2' : 'var(--arena-dorada)';
-        const iconColor = isWifi ? 'var(--brand-primary)' : isEmergency ? '#DC2626' : 'var(--terracota)';
-
-        return (
-          <div key={item.id} style={{
-            background: 'var(--blanco-puro)',
-            borderRadius: 'var(--r-lg)',
-            padding: 'var(--sp-md)',
-            boxShadow: 'var(--sh-sm)',
-            border: `1px solid ${isEmergency ? '#FECACA' : 'var(--gris-suave)'}`
-          }}>
-            <div 
-              style={{ display: 'flex', gap: 'var(--sp-sm)', alignItems: 'flex-start', cursor: isLongText ? 'pointer' : 'default' }}
-              onClick={() => isLongText && toggleExpand(item.id)}
-            >
-              <div style={{
-                width: '40px', height: '40px', borderRadius: 'var(--r-md)', flexShrink: 0,
-                background: iconBg, color: iconColor,
-                display: 'flex', alignItems: 'center', justifyContent: 'center'
-              }}>
-                <span className="material-icons-round">{item.icon || 'info'}</span>
-              </div>
-              
-              <div style={{ flex: 1, minWidth: 0 }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <h3 style={{ fontSize: '1rem', fontWeight: 700, color: 'var(--negro-suave)', marginBottom: '4px' }}>
-                    {item.title}
-                  </h3>
-                  {isLongText && (
-                    <span className="material-icons-round" style={{ color: 'var(--gris-medio)', fontSize: '20px' }}>
-                      {isExpanded ? 'expand_less' : 'expand_more'}
+      {/* Quick Actions Grid */}
+      {guideItems.length > 0 && (
+        <section>
+          <h3 className="text-headline-md font-headline-md text-deep-sea mb-6">{getTranslation('quick_guides', lang)}</h3>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            {guideItems.map(item => {
+              const bgImg = item.media?.[0]?.url || 'https://placehold.co/600x400/e5e2dd/55433d?text=' + encodeURIComponent(item.title);
+              return (
+                <div 
+                  key={item.id} 
+                  className="relative aspect-[4/3] rounded-2xl overflow-hidden shadow-sm group cursor-pointer"
+                  onClick={() => setSelectedItem(item)}
+                >
+                  <img 
+                    className="absolute inset-0 w-full h-full object-cover transition-transform duration-500 group-hover:scale-105" 
+                    src={bgImg} 
+                    alt={item.title} 
+                  />
+                  <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent"></div>
+                  <div className="absolute bottom-3 left-3 right-3 flex justify-between items-end gap-2">
+                    <span className="font-label-md text-label-md text-white line-clamp-2 leading-tight">
+                      {item.title}
                     </span>
-                  )}
+                    <span className="material-symbols-outlined text-white text-[18px] shrink-0">
+                      chevron_right
+                    </span>
+                  </div>
                 </div>
+              );
+            })}
+          </div>
+        </section>
+      )}
 
-                {isWifi ? (
-                  <div style={{ 
-                    marginTop: '12px', background: 'var(--blanco-calido)', 
-                    padding: '12px', borderRadius: 'var(--r-md)', border: '1px solid var(--gris-suave)' 
-                  }}>
-                    <div style={{ fontFamily: 'monospace', fontSize: '1.1rem', color: 'var(--brand-secondary)', whiteSpace: 'pre-wrap', wordBreak: 'break-all' }}>
-                      {item.content}
-                    </div>
-                    <button 
-                      onClick={(e) => { e.stopPropagation(); copyToClipboard(item.content, item.id); }}
-                      style={{
-                        marginTop: '8px', display: 'flex', alignItems: 'center', gap: '4px',
-                        fontSize: '0.75rem', fontWeight: 600, color: 'var(--brand-primary)',
-                        background: 'var(--mar-espuma)', padding: '6px 12px', borderRadius: 'var(--r-pill)'
-                      }}
-                    >
-                      <span className="material-icons-round" style={{ fontSize: '14px' }}>content_copy</span>
-                      {getTranslation('copy_btn', lang)}
-                    </button>
-                  </div>
-                ) : (
-                  <div style={{ 
-                    fontSize: '0.9rem', color: 'var(--gris-texto)', lineHeight: 1.6, whiteSpace: 'pre-wrap',
-                    display: isExpanded ? 'block' : '-webkit-box',
-                    WebkitLineClamp: isExpanded ? 'unset' : 3,
-                    WebkitBoxOrient: 'vertical',
-                    overflow: isExpanded ? 'visible' : 'hidden'
-                  }}>
-                    {item.content}
-                  </div>
-                )}
-
-                {item.media && item.media.length > 0 && isExpanded && (
-                  <div style={{ marginTop: '12px', display: 'flex', gap: '8px', overflowX: 'auto', paddingBottom: '8px' }}>
-                    {item.media.map(m => (
-                      <img 
-                        key={m.id} 
-                        src={m.url} 
-                        alt="" 
-                        style={{ height: '120px', borderRadius: 'var(--r-sm)', objectFit: 'cover' }} 
-                      />
-                    ))}
-                  </div>
-                )}
+      {/* Smart Home Controls */}
+      {wifiItem && (
+        <section>
+          <h3 className="text-headline-md font-headline-md text-deep-sea mb-6">{getTranslation('connectivity', lang)}</h3>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div className="bg-crisp-white p-6 rounded-2xl shadow-[0px_4px_20px_rgba(201,109,75,0.08)] flex flex-col justify-between h-40">
+              <div className="flex items-center gap-3">
+                <span className="material-symbols-outlined text-deep-sea">wifi</span>
+                <h4 className="font-label-lg text-label-lg text-deep-sea">{wifiItem.title}</h4>
+              </div>
+              <div className="flex justify-between items-end">
+                <div>
+                  <p className="text-[10px] uppercase tracking-wider text-on-surface-variant mb-1">{getTranslation('network_password_label', lang)}</p>
+                  <p className="font-body-md text-body-md text-deep-sea font-medium whitespace-pre-wrap">{wifiItem.content}</p>
+                </div>
+                <button
+                  onClick={() => copyToClipboard(wifiItem.content)}
+                  className="p-2 bg-warm-sand text-terracotta rounded-lg hover:bg-surface-variant transition-colors"
+                  title={getTranslation('copy_btn', lang)}
+                >
+                  <span className="material-symbols-outlined text-[20px]">content_copy</span>
+                </button>
               </div>
             </div>
           </div>
-        );
-      })}
+        </section>
+      )}
+
+      {/* Modal Popup for Details */}
+      {selectedItem && (
+        <div 
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-[fadeIn_0.2s_ease]"
+          onClick={() => setSelectedItem(null)}
+        >
+          <div 
+            className="bg-surface rounded-2xl w-full max-w-lg overflow-hidden shadow-xl animate-[slideUp_0.3s_ease]" 
+            onClick={e => e.stopPropagation()}
+          >
+            <div className="relative h-64 md:h-80">
+              <img 
+                src={selectedItem.media?.[0]?.url || 'https://placehold.co/600x400/e5e2dd/55433d?text=' + encodeURIComponent(selectedItem.title)} 
+                className="w-full h-full object-cover" 
+                alt={selectedItem.title}
+              />
+              <button 
+                className="absolute top-4 right-4 w-10 h-10 bg-black/40 text-white rounded-full flex items-center justify-center hover:bg-black/60 transition-colors backdrop-blur-sm"
+                onClick={() => setSelectedItem(null)}
+              >
+                <span className="material-symbols-outlined">close</span>
+              </button>
+              <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent pointer-events-none"></div>
+              <h3 className="absolute bottom-6 left-6 right-6 text-headline-sm font-headline-sm text-white">
+                {selectedItem.title}
+              </h3>
+            </div>
+            <div className="p-6 max-h-[50vh] overflow-y-auto" style={{ scrollbarWidth: 'thin' }}>
+              {selectedItem.is_sequential && selectedItem.steps && selectedItem.steps.length > 0 ? (
+                <div>
+                  {selectedItem.steps.map(step => (
+                    <div key={step.id} className="flex gap-4 mb-6">
+                      <div className="flex-shrink-0 w-8 h-8 rounded-full bg-terracotta text-crisp-white flex items-center justify-center font-label-sm text-label-sm font-bold">
+                        {step.step_number}
+                      </div>
+                      <div className="flex-1">
+                        <h4 className="font-label-lg text-label-lg text-deep-sea mb-1">{step.title}</h4>
+                        <p className="font-body-md text-body-md text-on-surface-variant">{step.content}</p>
+                        {step.media?.[0] && <img src={step.media[0].url} className="mt-3 rounded-xl w-full object-cover max-h-48" alt={step.title} />}
+                        {step.checklist_items && step.checklist_items.length > 0 && (
+                          <ul className="mt-2 space-y-1">
+                            {step.checklist_items.map((item, i) => (
+                              <li key={i} className="flex items-center gap-2 font-body-md text-body-md text-on-surface-variant">
+                                <span className="material-symbols-outlined text-olive text-[18px]">check_circle</span>
+                                {item}
+                              </li>
+                            ))}
+                          </ul>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="text-body-md font-body-md text-on-surface-variant whitespace-pre-wrap leading-relaxed">
+                  {selectedItem.content}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

@@ -43,7 +43,10 @@ export interface QRCodeHandle {
 }
 
 const QRCodeGenerator = forwardRef<QRCodeHandle, QRCodeGeneratorProps>(
-    ({ data, size = 300, image, dotsOptions, cornersSquareOptions, cornersDotOptions, backgroundOptions, imageOptions }, ref) => {
+    ({ data, size = 300, image, dotsOptions, cornersSquareOptions, cornersDotOptions, backgroundOptions, imageOptions = {} }, ref) => {
+        // qr-code-styling lee imageOptions.hideBackgroundDots internamente sin comprobar
+        // undefined; sin este default, omitir la prop (como no requiere imagen) revienta
+        // el constructor con "Cannot read properties of undefined (reading 'hideBackgroundDots')".
         const refContainer = useRef<HTMLDivElement>(null);
         const qrCode = useRef<QRCodeStyling>();
 

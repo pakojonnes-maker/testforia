@@ -1,13 +1,13 @@
 // src/pages/guide/GuideApartmentDetail.tsx
-// Manage info items (wifi, rules, checkout, etc.) for a single apartment
-import { useState, useEffect } from 'react';
+// Manage a single apartment: settings, WiFi/rules info blocks, and assigned POIs
+import { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
 import { apiClient } from '../../lib/apiClient';
 import {
   Box, Typography, Paper, Button, IconButton, TextField, Chip,
   CircularProgress, Alert, Divider, Tooltip, Card, CardContent,
-  Dialog, DialogTitle, DialogContent, DialogActions,
+  Dialog, DialogTitle, DialogContent, DialogActions, Switch, FormControlLabel,
   FormControl, InputLabel, Select, MenuItem, Tabs, Tab,
 } from '@mui/material';
 import {
@@ -23,6 +23,25 @@ import {
   Translate as TranslateIcon,
   QrCode as QrCodeIcon,
   Download as DownloadIcon,
+  Refresh as RefreshIcon,
+  PhoneIphone as PhoneIcon,
+  Save as SaveIcon,
+  LocationOn as LocationOnIcon,
+  Image as ImageIcon,
+  Star as StarIcon,
+  DirectionsWalk as WalkIcon,
+  DirectionsCar as DriveIcon,
+  DirectionsBike as BikeIcon,
+  ArrowUpward as ArrowUpIcon,
+  ArrowDownward as ArrowDownIcon,
+  CheckCircle as CheckCircleIcon,
+  AddCircleOutline as AddCircleOutlineIcon,
+  Celebration as CelebrationIcon,
+  Tv as TvIcon,
+  ContentCopy as ContentCopyIcon,
+  FiberManualRecord as DotIcon,
+  Visibility as ImpressionIcon,
+  QrCodeScanner as QrScanIcon,
 } from '@mui/icons-material';
 import QRCodeGenerator, { QRCodeHandle } from '../../components/QRCodeGenerator';
 
@@ -35,6 +54,48 @@ interface ApartmentInfo {
   content: string;
   media?: { r2_key: string; media_type: string }[];
 }
+
+interface Zone {
+  id: string;
+  name: string;
+}
+
+interface Poi {
+  id: string;
+  category: string;
+  name_es: string;
+  name_en: string;
+  rating?: number;
+  travel_mode?: string;
+  travel_time_text?: string;
+  distance_text?: string;
+}
+
+interface TvDevice {
+  id: string;
+  pairing_code: string;
+  device_label: string | null;
+  is_active: boolean;
+  paired_at: string | null;
+  last_seen_at: string | null;
+}
+
+interface TvStats {
+  totals: Record<string, number>;
+  byScreen: { screen: string; count: number }[];
+  impressionsLast7Days: { day: string; count: number }[];
+}
+
+const TV_EVENT_LABELS: Record<string, string> = {
+  impression: 'Impresiones',
+  screen_view: 'Vistas de pantalla',
+  wifi_reveal: 'WiFi mostrado',
+  poi_select: 'Localizaciones vistas',
+  menu_qr_shown: 'QR de carta mostrado',
+  booking_qr_shown: 'QR de reserva mostrado',
+};
+
+const MEDIA_BASE = import.meta.env.VITE_API_URL || 'https://visualtasteworker.franciscotortosaestudios.workers.dev';
 
 const ICON_MAP: Record<string, any> = {
   wifi: <WifiIcon />,
@@ -59,6 +120,7 @@ const AVAILABLE_KEYS = [
   { key: 'custom', label: 'Personalizado', icon: 'info' },
 ];
 
+// 13 active languages for this project (see CLAUDE.md §5). Keep in sync project-wide.
 const LANGUAGES = [
   { code: 'es', label: '🇪🇸 Español' },
   { code: 'en', label: '🇬🇧 English' },
@@ -66,23 +128,32 @@ const LANGUAGES = [
   { code: 'de', label: '🇩🇪 Deutsch' },
   { code: 'it', label: '🇮🇹 Italiano' },
   { code: 'pt', label: '🇵🇹 Português' },
-  { code: 'nl', label: '🇳🇱 Nederlands' },
+  { code: 'ca', label: '🏴󠁥󠁳󠁣󠁴󠁿 Català' },
+  { code: 'ar', label: '🇦🇪 العربية' },
+  { code: 'ru', label: '🇷🇺 Русский' },
+  { code: 'uk', label: '🇺🇦 Українська' },
+  { code: 'zh', label: '🇨🇳 中文' },
+  { code: 'ja', label: '🇯🇵 日本語' },
+  { code: 'ko', label: '🇰🇷 한국어' },
 ];
 
 export default function GuideApartmentDetail() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const { currentAgency } = useAuth();
+
+  // State
   const [apartment, setApartment] = useState<any>(null);
   const [infoItems, setInfoItems] = useState<ApartmentInfo[]>([]);
   const [loading, setLoading] = useState(true);
   const [currentLang, setCurrentLang] = useState('es');
+  const [activeMainTab, setActiveMainTab] = useState(0); // 0: Ajustes, 1: Guía, 2: Localizaciones
+  const [previewKey, setPreviewKey] = useState(Date.now()); // For forcing iframe reload
+  const qrRef = useRef<QRCodeHandle>(null);
+
+  // Dialog State (info blocks)
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingItem, setEditingItem] = useState<ApartmentInfo | null>(null);
   const [saving, setSaving] = useState(false);
-  const qrRef = useRef<QRCodeHandle>(null);
-
-  // Form for the dialog
   const [form, setForm] = useState({
     info_key: '',
     icon_name: 'info',
@@ -91,17 +162,63 @@ export default function GuideApartmentDetail() {
   });
   const [uploadingMedia, setUploadingMedia] = useState(false);
 
+  // Settings tab state
+  const [zones, setZones] = useState<Zone[]>([]);
+  const [settingsForm, setSettingsForm] = useState({ name: '', address: '', zone_id: '', cover_image_url: '' });
+  const [settingsSaving, setSettingsSaving] = useState(false);
+  const [settingsError, setSettingsError] = useState<string | null>(null);
+  const [settingsSuccess, setSettingsSuccess] = useState<string | null>(null);
+  const [uploadingCover, setUploadingCover] = useState(false);
+
+  // POIs tab state
+  const [poisLoading, setPoisLoading] = useState(false);
+  const [catalogPois, setCatalogPois] = useState<Poi[]>([]);
+  const [assignedOrder, setAssignedOrder] = useState<Record<string, number>>({});
+  const [poisError, setPoisError] = useState<string | null>(null);
+
+  // Welcome modal tab state
+  const [welcomeForm, setWelcomeForm] = useState({
+    is_active: false,
+    image_url: '',
+    action_enabled: false,
+    action_type: 'URL' as 'URL' | 'WHATSAPP' | 'PHONE',
+    action_data: '',
+    translations: {} as Record<string, { title?: string; body?: string; action_label?: string }>,
+  });
+  const [welcomeLoading, setWelcomeLoading] = useState(true);
+  const [welcomeSaving, setWelcomeSaving] = useState(false);
+  const [welcomeError, setWelcomeError] = useState<string | null>(null);
+  const [welcomeSuccess, setWelcomeSuccess] = useState<string | null>(null);
+  const [uploadingWelcomeImage, setUploadingWelcomeImage] = useState(false);
+
+  // Pantalla TV tab state
+  const [tvDevices, setTvDevices] = useState<TvDevice[]>([]);
+  const [tvStats, setTvStats] = useState<TvStats | null>(null);
+  const [tvLoading, setTvLoading] = useState(false);
+  const [tvError, setTvError] = useState<string | null>(null);
+  const [pairing, setPairing] = useState(false);
+  const [deviceLabelInput, setDeviceLabelInput] = useState('');
+  const [newDevice, setNewDevice] = useState<{ pairingCode: string; deviceLabel: string | null } | null>(null);
+  const tvQrRef = useRef<QRCodeHandle>(null);
+
   const loadInfo = async () => {
     if (!id) return;
     setLoading(true);
     try {
-      // Fetch both apartment details and info items
       const [aptRes, infoRes] = await Promise.all([
         apiClient.request(`/guide/admin/apartments/${id}`),
         apiClient.request(`/guide/admin/apartments/${id}/info?lang=${currentLang}`)
       ]);
       setApartment(aptRes.apartment);
       setInfoItems(infoRes.info || []);
+      if (aptRes.apartment) {
+        setSettingsForm({
+          name: aptRes.apartment.name || '',
+          address: aptRes.apartment.address || '',
+          zone_id: aptRes.apartment.zone_id || '',
+          cover_image_url: aptRes.apartment.cover_image_url || '',
+        });
+      }
     } catch (err) {
       console.error('Error loading data:', err);
     } finally {
@@ -109,7 +226,87 @@ export default function GuideApartmentDetail() {
     }
   };
 
-  useEffect(() => { loadInfo(); }, [id, currentLang]);
+  const loadZones = async () => {
+    try {
+      const response = await apiClient.request('/guide/admin/zones');
+      if (response.success) setZones(response.zones || []);
+    } catch (err) {
+      console.error('Error loading zones:', err);
+    }
+  };
+
+  const loadPois = async (zoneId: string) => {
+    if (!id || !zoneId) return;
+    setPoisLoading(true);
+    setPoisError(null);
+    try {
+      const [catalogRes, assignedRes] = await Promise.all([
+        apiClient.request(`/guide/admin/pois?zone_id=${zoneId}`),
+        apiClient.request(`/guide/admin/apartments/${id}/pois`),
+      ]);
+      setCatalogPois(catalogRes.pois || []);
+      const orderMap: Record<string, number> = {};
+      for (const p of (assignedRes.pois || [])) {
+        orderMap[p.poi_id] = p.order_override ?? 0;
+      }
+      setAssignedOrder(orderMap);
+    } catch (err: any) {
+      setPoisError(err.message || 'Error al cargar localizaciones');
+    } finally {
+      setPoisLoading(false);
+    }
+  };
+
+  const loadWelcome = async () => {
+    if (!id) return;
+    setWelcomeLoading(true);
+    try {
+      const res = await apiClient.request(`/guide/admin/apartments/${id}/welcome`);
+      if (res.success && res.welcome) {
+        setWelcomeForm({
+          is_active: !!res.welcome.is_active,
+          image_url: res.welcome.image_url || '',
+          action_enabled: !!res.welcome.action_enabled,
+          action_type: res.welcome.action_type || 'URL',
+          action_data: res.welcome.action_data || '',
+          translations: res.welcome.translations || {},
+        });
+      }
+    } catch (err) {
+      console.error('Error loading welcome modal:', err);
+    } finally {
+      setWelcomeLoading(false);
+    }
+  };
+
+  const loadTv = async () => {
+    if (!id) return;
+    setTvLoading(true);
+    setTvError(null);
+    try {
+      const [devicesRes, statsRes] = await Promise.all([
+        apiClient.request(`/guide/admin/tv/devices?apartment_id=${id}`),
+        apiClient.request(`/guide/admin/tv/stats/${id}`),
+      ]);
+      setTvDevices(devicesRes.devices || []);
+      setTvStats(statsRes);
+    } catch (err: any) {
+      setTvError(err.message || 'Error al cargar la pantalla TV');
+    } finally {
+      setTvLoading(false);
+    }
+  };
+
+  useEffect(() => { loadInfo(); loadZones(); loadWelcome(); }, [id]);
+  useEffect(() => { if (id) loadInfo(); }, [currentLang]);
+  useEffect(() => {
+    if (apartment?.zone_id) loadPois(apartment.zone_id);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [apartment?.zone_id]);
+  useEffect(() => {
+    if (activeMainTab === 4 && id) loadTv();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeMainTab, id]);
 
   const handleOpenCreate = () => {
     setEditingItem(null);
@@ -161,7 +358,8 @@ export default function GuideApartmentDetail() {
         }),
       });
       setDialogOpen(false);
-      loadInfo();
+      await loadInfo();
+      handleRefreshPreview();
     } catch (err) {
       console.error('Error saving info:', err);
     } finally {
@@ -169,35 +367,37 @@ export default function GuideApartmentDetail() {
     }
   };
 
+  const uploadFile = async (file: File): Promise<{ r2_key: string; url: string; media_type: string }> => {
+    const formData = new FormData();
+    formData.append('file', file);
+    const response = await fetch(`${MEDIA_BASE}/media/upload`, {
+      method: 'POST',
+      headers: { 'Authorization': `Bearer ${localStorage.getItem('auth_token')}` },
+      body: formData
+    });
+    const result = await response.json();
+    if (!result.success) throw new Error(result.message || 'Error al subir el archivo');
+    return {
+      r2_key: result.r2_key,
+      url: result.url || `${MEDIA_BASE}/media/${result.r2_key}`,
+      media_type: file.type.startsWith('video/') ? 'video' : 'image',
+    };
+  };
+
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     if (!e.target.files || e.target.files.length === 0) return;
     setUploadingMedia(true);
     try {
       const file = e.target.files[0];
-      const formData = new FormData();
-      formData.append('file', file);
-      
-      // Upload to R2 endpoint
-      const response = await fetch(`${import.meta.env.VITE_API_URL || 'https://visualtasteworker.franciscotortosaestudios.workers.dev'}/media/upload`, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${localStorage.getItem('vt_token')}`
-        },
-        body: formData
-      });
-      
-      const result = await response.json();
-      if (result.success && result.r2_key) {
-        setForm(prev => ({
-          ...prev,
-          media: [...prev.media, { r2_key: result.r2_key, media_type: file.type.startsWith('video/') ? 'video' : 'image' }]
-        }));
-      }
+      const uploaded = await uploadFile(file);
+      setForm(prev => ({
+        ...prev,
+        media: [...prev.media, { r2_key: uploaded.r2_key, media_type: uploaded.media_type }]
+      }));
     } catch (err) {
       console.error('Error uploading file:', err);
     } finally {
       setUploadingMedia(false);
-      // Reset input
       if (e.target) e.target.value = '';
     }
   };
@@ -210,38 +410,204 @@ export default function GuideApartmentDetail() {
     });
   };
 
-  return (
-    <Box>
-      {/* Header */}
-      <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 3 }}>
-        <IconButton onClick={() => navigate('/guide/apartments')}>
-          <BackIcon />
-        </IconButton>
-        <Box sx={{ flexGrow: 1 }}>
-          <Typography variant="h5" fontWeight={700}>
-            {apartment ? apartment.name : 'Cargando...'}
-          </Typography>
-          <Typography variant="body2" color="text.secondary">
-            Gestión de información y código QR del apartamento
-          </Typography>
-        </Box>
-        <Button variant="contained" startIcon={<AddIcon />} onClick={handleOpenCreate} sx={{ borderRadius: 2 }}>
-          Nueva Info
-        </Button>
-      </Box>
+  const handleRefreshPreview = () => {
+    setPreviewKey(Date.now());
+  };
 
-      {/* QR Code Section */}
+  // ---------- Settings (Ajustes) tab ----------
+  const handleCoverUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (!e.target.files || e.target.files.length === 0) return;
+    setUploadingCover(true);
+    setSettingsError(null);
+    try {
+      const uploaded = await uploadFile(e.target.files[0]);
+      setSettingsForm(prev => ({ ...prev, cover_image_url: uploaded.url }));
+    } catch (err: any) {
+      setSettingsError(err.message || 'Error al subir la portada');
+    } finally {
+      setUploadingCover(false);
+      if (e.target) e.target.value = '';
+    }
+  };
+
+  const handleSaveSettings = async () => {
+    if (!id) return;
+    setSettingsSaving(true);
+    setSettingsError(null);
+    setSettingsSuccess(null);
+    try {
+      await apiClient.request(`/guide/admin/apartments/${id}`, {
+        method: 'PUT',
+        body: JSON.stringify(settingsForm),
+      });
+      setApartment((prev: any) => ({ ...prev, ...settingsForm }));
+      setSettingsSuccess('Cambios guardados correctamente.');
+      handleRefreshPreview();
+    } catch (err: any) {
+      setSettingsError(err.message || 'Error al guardar los ajustes');
+    } finally {
+      setSettingsSaving(false);
+    }
+  };
+
+  // ---------- Bienvenida (welcome modal) tab ----------
+  const handleWelcomeImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (!e.target.files || e.target.files.length === 0) return;
+    setUploadingWelcomeImage(true);
+    setWelcomeError(null);
+    try {
+      const uploaded = await uploadFile(e.target.files[0]);
+      setWelcomeForm(prev => ({ ...prev, image_url: uploaded.url }));
+    } catch (err: any) {
+      setWelcomeError(err.message || 'Error al subir la imagen');
+    } finally {
+      setUploadingWelcomeImage(false);
+      if (e.target) e.target.value = '';
+    }
+  };
+
+  const handleSaveWelcome = async () => {
+    if (!id) return;
+    setWelcomeSaving(true);
+    setWelcomeError(null);
+    setWelcomeSuccess(null);
+    try {
+      await apiClient.request(`/guide/admin/apartments/${id}/welcome`, {
+        method: 'PUT',
+        body: JSON.stringify(welcomeForm),
+      });
+      setWelcomeSuccess('Ventana de bienvenida guardada correctamente.');
+      handleRefreshPreview();
+    } catch (err: any) {
+      setWelcomeError(err.message || 'Error al guardar la ventana de bienvenida');
+    } finally {
+      setWelcomeSaving(false);
+    }
+  };
+
+  // ---------- Localizaciones (POI assignment) tab ----------
+  const handleTogglePoi = async (poiId: string, isAssigned: boolean) => {
+    if (!id) return;
+    setPoisError(null);
+    try {
+      if (isAssigned) {
+        await apiClient.request(`/guide/admin/apartments/${id}/pois/${poiId}`, { method: 'DELETE' });
+        setAssignedOrder(prev => {
+          const next = { ...prev };
+          delete next[poiId];
+          return next;
+        });
+      } else {
+        const nextOrder = Object.keys(assignedOrder).length > 0 ? Math.max(...Object.values(assignedOrder)) + 1 : 0;
+        await apiClient.request(`/guide/admin/apartments/${id}/pois`, {
+          method: 'POST',
+          body: JSON.stringify({ poi_id: poiId, order_override: nextOrder }),
+        });
+        setAssignedOrder(prev => ({ ...prev, [poiId]: nextOrder }));
+      }
+    } catch (err: any) {
+      setPoisError(err.message || 'Error al actualizar la localización');
+    }
+  };
+
+  const handleReorderPoi = async (poiId: string, direction: -1 | 1) => {
+    if (!id) return;
+    const assignedIds = Object.keys(assignedOrder).sort((a, b) => assignedOrder[a] - assignedOrder[b]);
+    const currentIdx = assignedIds.indexOf(poiId);
+    const targetIdx = currentIdx + direction;
+    if (targetIdx < 0 || targetIdx >= assignedIds.length) return;
+
+    const reordered = [...assignedIds];
+    [reordered[currentIdx], reordered[targetIdx]] = [reordered[targetIdx], reordered[currentIdx]];
+    const items = reordered.map((pid, index) => ({ poi_id: pid, order_override: index }));
+
+    const newOrderMap: Record<string, number> = {};
+    for (const item of items) newOrderMap[item.poi_id] = item.order_override;
+    setAssignedOrder(newOrderMap); // optimistic
+
+    try {
+      await apiClient.request(`/guide/admin/apartments/${id}/pois/reorder`, {
+        method: 'PUT',
+        body: JSON.stringify({ items }),
+      });
+    } catch (err: any) {
+      setPoisError(err.message || 'Error al reordenar');
+      if (apartment?.zone_id) loadPois(apartment.zone_id); // revert on failure
+    }
+  };
+
+  // ---------- Pantalla TV tab ----------
+  const handlePairDevice = async () => {
+    if (!id) return;
+    setPairing(true);
+    setTvError(null);
+    try {
+      const res = await apiClient.request('/guide/admin/tv/devices', {
+        method: 'POST',
+        body: JSON.stringify({ apartmentId: id, deviceLabel: deviceLabelInput || undefined }),
+      });
+      setNewDevice({ pairingCode: res.device.pairingCode, deviceLabel: res.device.deviceLabel });
+      setDeviceLabelInput('');
+      await loadTv();
+    } catch (err: any) {
+      setTvError(err.message || 'Error al emparejar la TV');
+    } finally {
+      setPairing(false);
+    }
+  };
+
+  const copyPairingCode = (code: string) => {
+    navigator.clipboard.writeText(code).catch(() => {});
+  };
+
+  const handleToggleDevice = async (deviceId: string, nextActive: boolean) => {
+    setTvError(null);
+    // Optimista: refleja el cambio antes de que responda el backend.
+    setTvDevices(prev => prev.map(d => d.id === deviceId ? { ...d, is_active: nextActive } : d));
+    try {
+      await apiClient.request(`/guide/admin/tv/devices/${deviceId}`, {
+        method: 'PATCH',
+        body: JSON.stringify({ isActive: nextActive }),
+      });
+    } catch (err: any) {
+      setTvError(err.message || 'Error al actualizar la TV');
+      setTvDevices(prev => prev.map(d => d.id === deviceId ? { ...d, is_active: !nextActive } : d)); // revert
+    }
+  };
+
+  const isRecentlySeen = (lastSeenAt: string | null) => {
+    if (!lastSeenAt) return false;
+    return Date.now() - new Date(lastSeenAt).getTime() < 15 * 60 * 1000; // 15 min
+  };
+
+  const formatRelativeTime = (iso: string | null) => {
+    if (!iso) return 'Nunca conectada';
+    const diffMs = Date.now() - new Date(iso).getTime();
+    const mins = Math.floor(diffMs / 60000);
+    if (mins < 1) return 'Ahora mismo';
+    if (mins < 60) return `Hace ${mins} min`;
+    const hours = Math.floor(mins / 60);
+    if (hours < 24) return `Hace ${hours} h`;
+    return `Hace ${Math.floor(hours / 24)} d`;
+  };
+
+  const travelIcon = (mode?: string) =>
+    mode === 'drive' ? <DriveIcon sx={{ fontSize: 16 }} /> : mode === 'bike' ? <BikeIcon sx={{ fontSize: 16 }} /> : <WalkIcon sx={{ fontSize: 16 }} />;
+
+  // Sub-components for tabs to keep layout clean
+  const renderSettingsTab = () => (
+    <Box>
       {apartment && (
-        <Paper elevation={0} sx={{ p: 3, mb: 4, borderRadius: 3, border: '1px solid', borderColor: 'divider', display: 'flex', gap: 4, alignItems: 'center', flexWrap: 'wrap' }}>
-          <Box 
+        <Paper elevation={0} sx={{ p: 3, mb: 3, borderRadius: 3, border: '1px solid', borderColor: 'divider', display: 'flex', gap: 4, alignItems: 'center', flexWrap: 'wrap' }}>
+          <Box
             sx={{ flexShrink: 0, cursor: 'pointer', transition: 'transform 0.2s', '&:hover': { transform: 'scale(1.05)' } }}
             onClick={() => window.open(`https://guide.visualtastes.com/${apartment.slug}`, '_blank')}
-            title="Haz click para probar el enlace"
+            title="Haz click para probar el enlace en nueva pestaña"
           >
              <QRCodeGenerator
                 ref={qrRef}
                 data={`https://guide.visualtastes.com/${apartment.slug}`}
-                size={180}
+                size={160}
                 dotsOptions={{ color: '#0f172a', type: 'rounded' }}
                 cornersSquareOptions={{ type: 'extra-rounded' }}
                 imageOptions={{ margin: 10 }}
@@ -249,39 +615,100 @@ export default function GuideApartmentDetail() {
           </Box>
           <Box sx={{ flexGrow: 1 }}>
             <Typography variant="h6" fontWeight={600} gutterBottom sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-              <QrCodeIcon color="primary" /> Código QR del Apartamento
+              <QrCodeIcon color="primary" /> Acceso Directo (QR)
             </Typography>
             <Typography variant="body2" color="text.secondary" sx={{ mb: 2, maxWidth: 500 }}>
-              Descarga o imprime este código QR y colócalo en un lugar visible (nevera, marco, puerta). Los huéspedes lo escanearán para acceder directamente a la guía del apartamento.
+              Descarga este código QR y colócalo en la propiedad. Los huéspedes accederán sin necesidad de descargar ninguna app.
             </Typography>
             <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap' }}>
-              <Button 
-                variant="contained" 
-                startIcon={<QrCodeIcon />}
-                onClick={() => window.open(`https://guide.visualtastes.com/${apartment.slug}`, '_blank')}
-              >
-                Abrir Guía
-              </Button>
-              <Button 
-                variant="outlined" 
+              <Button
+                variant="outlined" size="small"
                 startIcon={<DownloadIcon />}
                 onClick={() => qrRef.current?.download('svg')}
               >
-                Descargar SVG (Alta Calidad)
+                SVG (Impresión)
               </Button>
-              <Button 
-                variant="outlined" 
+              <Button
+                variant="outlined" size="small"
                 startIcon={<DownloadIcon />}
                 onClick={() => qrRef.current?.download('png')}
               >
-                Descargar PNG
+                PNG (Web)
               </Button>
             </Box>
           </Box>
         </Paper>
       )}
 
-      {/* Language Tabs */}
+      <Paper elevation={0} sx={{ p: 3, borderRadius: 3, border: '1px solid', borderColor: 'divider' }}>
+        <Typography variant="h6" fontWeight={600} gutterBottom>Datos del Apartamento</Typography>
+        <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
+          Estos datos son la base de la ficha: nombre, dirección, zona turística y portada.
+        </Typography>
+
+        {settingsError && <Alert severity="error" sx={{ mb: 2 }}>{settingsError}</Alert>}
+        {settingsSuccess && <Alert severity="success" sx={{ mb: 2 }} onClose={() => setSettingsSuccess(null)}>{settingsSuccess}</Alert>}
+
+        <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2.5 }}>
+          <TextField
+            label="Nombre del apartamento" fullWidth
+            value={settingsForm.name}
+            onChange={(e) => setSettingsForm(prev => ({ ...prev, name: e.target.value }))}
+          />
+          <TextField
+            label="Dirección" fullWidth
+            value={settingsForm.address}
+            onChange={(e) => setSettingsForm(prev => ({ ...prev, address: e.target.value }))}
+          />
+          <FormControl fullWidth>
+            <InputLabel>Zona turística</InputLabel>
+            <Select
+              value={settingsForm.zone_id}
+              label="Zona turística"
+              onChange={(e) => setSettingsForm(prev => ({ ...prev, zone_id: e.target.value as string }))}
+            >
+              {zones.map(z => <MenuItem key={z.id} value={z.id}>{z.name}</MenuItem>)}
+            </Select>
+          </FormControl>
+
+          <Box>
+            <Typography variant="subtitle2" fontWeight={600} sx={{ mb: 1 }}>Foto de Portada</Typography>
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, flexWrap: 'wrap' }}>
+              {settingsForm.cover_image_url && (
+                <Box sx={{ width: 96, height: 72, borderRadius: 2, overflow: 'hidden', border: '1px solid', borderColor: 'divider' }}>
+                  <img src={settingsForm.cover_image_url} alt="Portada" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                </Box>
+              )}
+              <Button
+                variant="outlined" component="label" disabled={uploadingCover}
+                startIcon={uploadingCover ? <CircularProgress size={18} /> : <ImageIcon />}
+              >
+                {uploadingCover ? 'Subiendo...' : settingsForm.cover_image_url ? 'Cambiar portada' : 'Subir portada'}
+                <input type="file" hidden accept="image/*" onChange={handleCoverUpload} />
+              </Button>
+            </Box>
+          </Box>
+        </Box>
+
+        <Divider sx={{ my: 3 }} />
+
+        <Box sx={{ display: 'flex', justifyContent: 'flex-end' }}>
+          <Button
+            variant="contained"
+            startIcon={settingsSaving ? <CircularProgress size={18} color="inherit" /> : <SaveIcon />}
+            disabled={settingsSaving || !settingsForm.name || !settingsForm.zone_id}
+            onClick={handleSaveSettings}
+            sx={{ px: 4 }}
+          >
+            {settingsSaving ? 'Guardando...' : 'Guardar Cambios'}
+          </Button>
+        </Box>
+      </Paper>
+    </Box>
+  );
+
+  const renderGuideTab = () => (
+    <Box>
       <Paper elevation={0} sx={{ mb: 3, borderRadius: 2, border: '1px solid', borderColor: 'divider' }}>
         <Tabs
           value={currentLang}
@@ -296,20 +723,19 @@ export default function GuideApartmentDetail() {
         </Tabs>
       </Paper>
 
-      {/* Info Cards */}
       {loading ? (
         <Box sx={{ display: 'flex', justifyContent: 'center', py: 6 }}>
           <CircularProgress />
         </Box>
       ) : infoItems.length === 0 ? (
-        <Box sx={{ textAlign: 'center', py: 8 }}>
-          <InfoIcon sx={{ fontSize: 64, color: 'text.disabled', mb: 2 }} />
-          <Typography variant="h6" color="text.secondary">Sin información todavía</Typography>
-          <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-            Añade WiFi, normas, check-out y todo lo que tus huéspedes necesitan saber.
+        <Box sx={{ textAlign: 'center', py: 8, border: '1px dashed', borderColor: 'divider', borderRadius: 3 }}>
+          <InfoIcon sx={{ fontSize: 48, color: 'text.disabled', mb: 2 }} />
+          <Typography variant="subtitle1" fontWeight={600} color="text.secondary">Sin información</Typography>
+          <Typography variant="body2" color="text.secondary" sx={{ mb: 3, px: 2 }}>
+            Añade bloques de información como la clave del WiFi, normas de la casa o check-out.
           </Typography>
           <Button variant="contained" startIcon={<AddIcon />} onClick={handleOpenCreate}>
-            Añadir primera info
+            Crear Primer Bloque
           </Button>
         </Box>
       ) : (
@@ -319,20 +745,14 @@ export default function GuideApartmentDetail() {
               key={item.id}
               elevation={0}
               sx={{
-                border: '1px solid',
-                borderColor: 'divider',
-                borderRadius: 3,
-                transition: 'all 0.2s',
-                '&:hover': { borderColor: 'primary.light' },
+                border: '1px solid', borderColor: 'divider', borderRadius: 3,
+                transition: 'all 0.2s', '&:hover': { borderColor: 'primary.light', bgcolor: 'action.hover' },
               }}
             >
-              <CardContent sx={{ display: 'flex', gap: 2, alignItems: 'start' }}>
+              <CardContent sx={{ display: 'flex', gap: 2, alignItems: 'start', p: '16px !important' }}>
                 <Box sx={{
-                  p: 1.5, borderRadius: 2,
-                  bgcolor: 'primary.main',
-                  color: 'white',
-                  display: 'flex', alignItems: 'center',
-                  minWidth: 44, justifyContent: 'center'
+                  p: 1.5, borderRadius: 2, bgcolor: 'primary.main', color: 'white',
+                  display: 'flex', alignItems: 'center', minWidth: 44, justifyContent: 'center'
                 }}>
                   {ICON_MAP[item.icon_name] || <InfoIcon />}
                 </Box>
@@ -342,7 +762,6 @@ export default function GuideApartmentDetail() {
                       {item.title || item.info_key}
                     </Typography>
                     <Box>
-                      <Chip label={item.info_key} size="small" sx={{ mr: 1, borderRadius: 1 }} />
                       <Tooltip title="Editar">
                         <IconButton size="small" onClick={() => handleOpenEdit(item)}>
                           <EditIcon fontSize="small" />
@@ -350,18 +769,24 @@ export default function GuideApartmentDetail() {
                       </Tooltip>
                     </Box>
                   </Box>
-                  <Typography variant="body2" color="text.secondary" sx={{ whiteSpace: 'pre-wrap' }}>
+                  <Typography variant="body2" color="text.secondary" sx={{ whiteSpace: 'pre-wrap', mb: 1 }}>
                     {item.content || (
                       <em style={{ opacity: 0.6 }}>
-                        Sin contenido en {LANGUAGES.find(l => l.code === currentLang)?.label || currentLang}
+                        Sin traducción en {LANGUAGES.find(l => l.code === currentLang)?.label || currentLang}
                       </em>
                     )}
                   </Typography>
                   {item.media && item.media.length > 0 && (
-                    <Box sx={{ display: 'flex', gap: 1, mt: 2, flexWrap: 'wrap' }}>
+                    <Box sx={{ display: 'flex', gap: 1, mt: 1, flexWrap: 'wrap' }}>
                       {item.media.map((m, i) => (
-                        <Box key={i} sx={{ width: 80, height: 80, borderRadius: 2, overflow: 'hidden', border: '1px solid', borderColor: 'divider' }}>
-                          <img src={`https://visualtasteworker.franciscotortosaestudios.workers.dev/media/${m.r2_key}`} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                        <Box key={i} sx={{ width: 48, height: 48, borderRadius: 1.5, overflow: 'hidden', border: '1px solid', borderColor: 'divider' }}>
+                          {m.media_type === 'video' ? (
+                            <Box sx={{ width: '100%', height: '100%', bgcolor: 'black', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                              <Typography variant="caption" color="white" fontSize={8}>VID</Typography>
+                            </Box>
+                          ) : (
+                            <img src={`${MEDIA_BASE}/media/${m.r2_key}`} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                          )}
                         </Box>
                       ))}
                     </Box>
@@ -370,8 +795,526 @@ export default function GuideApartmentDetail() {
               </CardContent>
             </Card>
           ))}
+          <Button
+            variant="outlined"
+            startIcon={<AddIcon />}
+            onClick={handleOpenCreate}
+            sx={{ mt: 1, borderStyle: 'dashed', py: 1.5, borderRadius: 3 }}
+          >
+            Añadir Nuevo Bloque
+          </Button>
         </Box>
       )}
+    </Box>
+  );
+
+  const renderPoisTab = () => {
+    const assignedIds = Object.keys(assignedOrder).sort((a, b) => assignedOrder[a] - assignedOrder[b]);
+    const sortedPois = [...catalogPois].sort((a, b) => {
+      const aAssigned = a.id in assignedOrder;
+      const bAssigned = b.id in assignedOrder;
+      if (aAssigned && bAssigned) return assignedOrder[a.id] - assignedOrder[b.id];
+      if (aAssigned) return -1;
+      if (bAssigned) return 1;
+      return 0;
+    });
+
+    const assignedCount = assignedIds.length;
+
+    return (
+      <Box>
+        <Alert severity="info" sx={{ mb: 3, borderRadius: 2 }}>
+          Elige qué localizaciones del catálogo de la zona aparecen en la guía de este apartamento, y en qué orden.
+          El catálogo (nombres, fotos, categorías) solo puede editarlo el superadmin desde <strong>Localizaciones</strong>.
+        </Alert>
+        {poisError && <Alert severity="error" sx={{ mb: 2 }}>{poisError}</Alert>}
+
+        {poisLoading ? (
+          <Box sx={{ display: 'flex', justifyContent: 'center', py: 6 }}>
+            <CircularProgress />
+          </Box>
+        ) : catalogPois.length === 0 ? (
+          <Box sx={{ textAlign: 'center', py: 8, border: '1px dashed', borderColor: 'divider', borderRadius: 3 }}>
+            <LocationOnIcon sx={{ fontSize: 48, color: 'text.disabled', mb: 2 }} />
+            <Typography variant="subtitle1" fontWeight={600} color="text.secondary">
+              Sin localizaciones en esta zona todavía
+            </Typography>
+            <Typography variant="body2" color="text.secondary">
+              Pide al administrador que añada puntos de interés a esta zona turística.
+            </Typography>
+          </Box>
+        ) : (
+          <>
+            <Typography variant="body2" color="text.secondary" fontWeight={600} sx={{ mb: 1.5 }}>
+              {assignedCount} de {catalogPois.length} incluidas en la guía
+            </Typography>
+            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.5 }}>
+              {sortedPois.map(poi => {
+                const isAssigned = poi.id in assignedOrder;
+                const idx = assignedIds.indexOf(poi.id);
+                return (
+                  <Card
+                    key={poi.id}
+                    elevation={0}
+                    onClick={() => handleTogglePoi(poi.id, isAssigned)}
+                    sx={{
+                      border: '2px solid', borderColor: isAssigned ? 'success.main' : 'divider', borderRadius: 3,
+                      bgcolor: isAssigned ? 'rgba(107,125,84,0.08)' : 'transparent',
+                      cursor: 'pointer', transition: 'all 0.15s',
+                      '&:hover': { borderColor: isAssigned ? 'success.main' : 'primary.light', boxShadow: '0 2px 12px rgba(0,0,0,0.06)' },
+                    }}
+                  >
+                    <CardContent sx={{ display: 'flex', alignItems: 'center', gap: 2, p: '12px 16px !important' }}>
+                      <Box sx={{ flexGrow: 1, minWidth: 0 }}>
+                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                          <Typography variant="subtitle2" fontWeight={600} noWrap>
+                            {poi.name_es || poi.category}
+                          </Typography>
+                          <Chip label={poi.category} size="small" variant="outlined" sx={{ borderRadius: 1 }} />
+                        </Box>
+                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, mt: 0.5 }}>
+                          {!!poi.rating && (
+                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.3, color: '#f59e0b' }}>
+                              <StarIcon sx={{ fontSize: 14 }} />
+                              <Typography variant="caption" fontWeight={600}>{poi.rating}</Typography>
+                            </Box>
+                          )}
+                          {poi.travel_time_text && (
+                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.3, color: 'text.secondary' }}>
+                              {travelIcon(poi.travel_mode)}
+                              <Typography variant="caption">{poi.travel_time_text}</Typography>
+                            </Box>
+                          )}
+                        </Box>
+                      </Box>
+
+                      {isAssigned && (
+                        <Box sx={{ display: 'flex', flexDirection: 'column' }} onClick={(e) => e.stopPropagation()}>
+                          <IconButton size="small" disabled={idx === 0} onClick={() => handleReorderPoi(poi.id, -1)}>
+                            <ArrowUpIcon fontSize="small" />
+                          </IconButton>
+                          <IconButton size="small" disabled={idx === assignedIds.length - 1} onClick={() => handleReorderPoi(poi.id, 1)}>
+                            <ArrowDownIcon fontSize="small" />
+                          </IconButton>
+                        </Box>
+                      )}
+
+                      <Chip
+                        icon={isAssigned ? <CheckCircleIcon /> : <AddCircleOutlineIcon />}
+                        label={isAssigned ? 'Incluida' : 'Añadir'}
+                        color={isAssigned ? 'success' : 'default'}
+                        variant={isAssigned ? 'filled' : 'outlined'}
+                        sx={{ fontWeight: 700, pointerEvents: 'none', minWidth: 104 }}
+                      />
+                    </CardContent>
+                  </Card>
+                );
+              })}
+            </Box>
+          </>
+        )}
+      </Box>
+    );
+  };
+
+  const renderWelcomeTab = () => (
+    <Box sx={{ maxWidth: 640 }}>
+      <Alert severity="info" sx={{ mb: 3, borderRadius: 2 }}>
+        Se muestra cada vez que un huésped abre la guía de este apartamento. Siempre se puede cerrar sin usar el botón de acción.
+      </Alert>
+      {welcomeError && <Alert severity="error" sx={{ mb: 2 }}>{welcomeError}</Alert>}
+      {welcomeSuccess && <Alert severity="success" sx={{ mb: 2 }} onClose={() => setWelcomeSuccess(null)}>{welcomeSuccess}</Alert>}
+
+      {welcomeLoading ? (
+        <Box sx={{ display: 'flex', justifyContent: 'center', py: 6 }}>
+          <CircularProgress />
+        </Box>
+      ) : (
+        <Paper elevation={0} sx={{ p: 3, borderRadius: 3, border: '1px solid', borderColor: 'divider' }}>
+          <FormControlLabel
+            sx={{ mb: 2 }}
+            control={
+              <Switch
+                checked={welcomeForm.is_active}
+                onChange={(e) => setWelcomeForm(prev => ({ ...prev, is_active: e.target.checked }))}
+              />
+            }
+            label={<Typography fontWeight={600}>Activar ventana de bienvenida</Typography>}
+          />
+
+          <Divider sx={{ mb: 3 }} />
+
+          <Box sx={{ mb: 3 }}>
+            <Typography variant="subtitle2" fontWeight={600} sx={{ mb: 1 }}>Imagen (opcional)</Typography>
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, flexWrap: 'wrap' }}>
+              {welcomeForm.image_url && (
+                <Box sx={{ width: 96, height: 72, borderRadius: 2, overflow: 'hidden', border: '1px solid', borderColor: 'divider' }}>
+                  <img src={welcomeForm.image_url} alt="Bienvenida" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                </Box>
+              )}
+              <Button
+                variant="outlined" component="label" disabled={uploadingWelcomeImage}
+                startIcon={uploadingWelcomeImage ? <CircularProgress size={18} /> : <ImageIcon />}
+              >
+                {uploadingWelcomeImage ? 'Subiendo...' : welcomeForm.image_url ? 'Cambiar imagen' : 'Subir imagen'}
+                <input type="file" hidden accept="image/*" onChange={handleWelcomeImageUpload} />
+              </Button>
+            </Box>
+          </Box>
+
+          <Typography variant="subtitle2" fontWeight={600} color="text.secondary" sx={{ mb: 1.5 }}>Texto</Typography>
+          {LANGUAGES.slice(0, 3).map(lang => (
+            <Box key={lang.code} sx={{ p: 2, mb: 2, borderRadius: 2, border: '1px solid', borderColor: 'divider' }}>
+              <Typography variant="subtitle2" sx={{ mb: 1.5, fontWeight: 600 }}>{lang.label}</Typography>
+              <TextField
+                label="Título" fullWidth size="small" sx={{ mb: 1.5 }}
+                value={welcomeForm.translations[lang.code]?.title || ''}
+                onChange={(e) => setWelcomeForm(prev => ({
+                  ...prev, translations: { ...prev.translations, [lang.code]: { ...prev.translations[lang.code], title: e.target.value } }
+                }))}
+              />
+              <TextField
+                label="Mensaje" fullWidth multiline minRows={2} maxRows={5} size="small"
+                value={welcomeForm.translations[lang.code]?.body || ''}
+                onChange={(e) => setWelcomeForm(prev => ({
+                  ...prev, translations: { ...prev.translations, [lang.code]: { ...prev.translations[lang.code], body: e.target.value } }
+                }))}
+              />
+            </Box>
+          ))}
+
+          <Divider sx={{ my: 3 }} />
+
+          <FormControlLabel
+            sx={{ mb: 2 }}
+            control={
+              <Switch
+                checked={welcomeForm.action_enabled}
+                onChange={(e) => setWelcomeForm(prev => ({ ...prev, action_enabled: e.target.checked }))}
+              />
+            }
+            label={<Typography fontWeight={600}>Incluir botón de acción</Typography>}
+          />
+
+          {welcomeForm.action_enabled && (
+            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, pl: 1, borderLeft: '2px solid', borderColor: 'divider', ml: 1 }}>
+              <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap', pl: 2 }}>
+                <FormControl size="small" sx={{ minWidth: 180 }}>
+                  <InputLabel>Tipo de acción</InputLabel>
+                  <Select
+                    value={welcomeForm.action_type}
+                    label="Tipo de acción"
+                    onChange={(e) => setWelcomeForm(prev => ({ ...prev, action_type: e.target.value as any }))}
+                  >
+                    <MenuItem value="URL">Enlace Web (URL)</MenuItem>
+                    <MenuItem value="WHATSAPP">WhatsApp</MenuItem>
+                    <MenuItem value="PHONE">Llamar por teléfono</MenuItem>
+                  </Select>
+                </FormControl>
+                <TextField
+                  size="small" sx={{ flexGrow: 1, minWidth: 200 }}
+                  label={welcomeForm.action_type === 'PHONE' ? 'Número de teléfono' : welcomeForm.action_type === 'WHATSAPP' ? 'Número de WhatsApp' : 'URL de destino'}
+                  value={welcomeForm.action_data}
+                  onChange={(e) => setWelcomeForm(prev => ({ ...prev, action_data: e.target.value }))}
+                />
+              </Box>
+              <Box sx={{ pl: 2 }}>
+                <TextField
+                  size="small" label="Texto del botón (ES)" sx={{ minWidth: 240 }}
+                  value={welcomeForm.translations.es?.action_label || ''}
+                  onChange={(e) => setWelcomeForm(prev => ({
+                    ...prev, translations: { ...prev.translations, es: { ...prev.translations.es, action_label: e.target.value } }
+                  }))}
+                  placeholder="Ej: Ver oferta"
+                />
+              </Box>
+            </Box>
+          )}
+
+          <Divider sx={{ my: 3 }} />
+
+          <Box sx={{ display: 'flex', justifyContent: 'flex-end' }}>
+            <Button
+              variant="contained"
+              startIcon={welcomeSaving ? <CircularProgress size={18} color="inherit" /> : <SaveIcon />}
+              disabled={welcomeSaving || !welcomeForm.translations.es?.title}
+              onClick={handleSaveWelcome}
+              sx={{ px: 4 }}
+            >
+              {welcomeSaving ? 'Guardando...' : 'Guardar Cambios'}
+            </Button>
+          </Box>
+        </Paper>
+      )}
+    </Box>
+  );
+
+  const renderTvTab = () => {
+    const maxDay = Math.max(1, ...(tvStats?.impressionsLast7Days.map(d => d.count) || [1]));
+
+    return (
+      <Box>
+        <Alert severity="info" sx={{ mb: 3, borderRadius: 2 }}>
+          Empareja una Android TV con este apartamento para mostrar la pantalla de bienvenida
+          (WiFi, guía y alrededores). El código se introduce una sola vez en la app de la TV.
+        </Alert>
+        {tvError && <Alert severity="error" sx={{ mb: 2 }}>{tvError}</Alert>}
+
+        {/* Emparejar nueva TV */}
+        <Paper elevation={0} sx={{ p: 3, mb: 3, borderRadius: 3, border: '1px solid', borderColor: 'divider' }}>
+          <Typography variant="h6" fontWeight={600} gutterBottom sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+            <TvIcon color="primary" /> Emparejar una TV nueva
+          </Typography>
+          <Typography variant="body2" color="text.secondary" sx={{ mb: 2, maxWidth: 560 }}>
+            Genera un código y ábrelo en la app de VisualTaste TV instalada en el televisor
+            (o en <code>tv.visualtastes.com/#CODIGO</code> durante las pruebas).
+          </Typography>
+          <Box sx={{ display: 'flex', gap: 2, alignItems: 'center', flexWrap: 'wrap' }}>
+            <TextField
+              label="Etiqueta (opcional)" size="small" sx={{ minWidth: 220 }}
+              placeholder="Ej: TV Salón"
+              value={deviceLabelInput}
+              onChange={(e) => setDeviceLabelInput(e.target.value)}
+            />
+            <Button
+              variant="contained"
+              startIcon={pairing ? <CircularProgress size={18} color="inherit" /> : <AddIcon />}
+              disabled={pairing}
+              onClick={handlePairDevice}
+            >
+              {pairing ? 'Generando...' : 'Generar código'}
+            </Button>
+          </Box>
+
+          {newDevice && (
+            <Box sx={{ mt: 3, p: 3, borderRadius: 3, border: '1px dashed', borderColor: 'primary.main', bgcolor: 'rgba(18,128,153,0.06)', display: 'flex', gap: 3, alignItems: 'center', flexWrap: 'wrap' }}>
+              <QRCodeGenerator
+                ref={tvQrRef}
+                data={`https://tv.visualtastes.com/#${newDevice.pairingCode}`}
+                size={120}
+                dotsOptions={{ color: '#128099', type: 'rounded' }}
+                cornersSquareOptions={{ type: 'extra-rounded' }}
+                imageOptions={{ margin: 0 }}
+              />
+              <Box>
+                <Typography variant="caption" color="text.secondary" sx={{ textTransform: 'uppercase', letterSpacing: 1 }}>
+                  Código de emparejamiento{newDevice.deviceLabel ? ` · ${newDevice.deviceLabel}` : ''}
+                </Typography>
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                  <Typography variant="h4" fontWeight={800} letterSpacing={4} fontFamily="monospace">
+                    {newDevice.pairingCode}
+                  </Typography>
+                  <Tooltip title="Copiar código">
+                    <IconButton size="small" onClick={() => copyPairingCode(newDevice.pairingCode)}>
+                      <ContentCopyIcon fontSize="small" />
+                    </IconButton>
+                  </Tooltip>
+                </Box>
+              </Box>
+            </Box>
+          )}
+        </Paper>
+
+        {/* TVs emparejadas */}
+        <Paper elevation={0} sx={{ p: 3, mb: 3, borderRadius: 3, border: '1px solid', borderColor: 'divider' }}>
+          <Typography variant="h6" fontWeight={600} gutterBottom>TVs emparejadas</Typography>
+          {tvLoading ? (
+            <Box sx={{ display: 'flex', justifyContent: 'center', py: 4 }}><CircularProgress /></Box>
+          ) : tvDevices.length === 0 ? (
+            <Box sx={{ textAlign: 'center', py: 6, border: '1px dashed', borderColor: 'divider', borderRadius: 3 }}>
+              <TvIcon sx={{ fontSize: 40, color: 'text.disabled', mb: 1 }} />
+              <Typography variant="body2" color="text.secondary">Todavía no hay ninguna TV emparejada.</Typography>
+            </Box>
+          ) : (
+            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.5 }}>
+              {tvDevices.map(d => (
+                <Card key={d.id} elevation={0} sx={{ border: '1px solid', borderColor: 'divider', borderRadius: 3, opacity: d.is_active ? 1 : 0.55 }}>
+                  <CardContent sx={{ display: 'flex', alignItems: 'center', gap: 2, p: '12px 16px !important' }}>
+                    <DotIcon sx={{ fontSize: 14, color: isRecentlySeen(d.last_seen_at) ? 'success.main' : 'text.disabled' }} />
+                    <Box sx={{ flexGrow: 1, minWidth: 0 }}>
+                      <Typography variant="subtitle2" fontWeight={600}>
+                        {d.device_label || 'TV sin nombre'}
+                      </Typography>
+                      <Typography variant="caption" color="text.secondary">
+                        Última conexión: {formatRelativeTime(d.last_seen_at)}
+                      </Typography>
+                    </Box>
+                    <Chip label={d.pairing_code} size="small" sx={{ fontFamily: 'monospace', fontWeight: 700 }} />
+                    <Tooltip title={d.is_active ? 'Desactivar TV' : 'Activar TV'}>
+                      <Switch
+                        size="small"
+                        checked={d.is_active}
+                        onChange={(e) => handleToggleDevice(d.id, e.target.checked)}
+                      />
+                    </Tooltip>
+                  </CardContent>
+                </Card>
+              ))}
+            </Box>
+          )}
+        </Paper>
+
+        {/* KPIs */}
+        <Paper elevation={0} sx={{ p: 3, borderRadius: 3, border: '1px solid', borderColor: 'divider' }}>
+          <Typography variant="h6" fontWeight={600} gutterBottom>Actividad</Typography>
+          {tvLoading ? (
+            <Box sx={{ display: 'flex', justifyContent: 'center', py: 4 }}><CircularProgress /></Box>
+          ) : !tvStats ? (
+            <Typography variant="body2" color="text.secondary">No se pudieron cargar las estadísticas.</Typography>
+          ) : (
+            <>
+              <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: 2, mb: 3 }}>
+                {Object.entries(TV_EVENT_LABELS).map(([key, label]) => (
+                  <Box key={key} sx={{ p: 2, borderRadius: 2, bgcolor: 'action.hover', textAlign: 'center' }}>
+                    <Typography variant="h5" fontWeight={800}>{tvStats.totals[key] || 0}</Typography>
+                    <Typography variant="caption" color="text.secondary">{label}</Typography>
+                  </Box>
+                ))}
+              </Box>
+
+              <Typography variant="subtitle2" fontWeight={600} color="text.secondary" sx={{ mb: 1.5, display: 'flex', alignItems: 'center', gap: 1 }}>
+                <ImpressionIcon fontSize="small" /> Impresiones — últimos 7 días
+              </Typography>
+              {tvStats.impressionsLast7Days.length === 0 ? (
+                <Typography variant="body2" color="text.secondary">Todavía no hay actividad registrada.</Typography>
+              ) : (
+                <Box sx={{ display: 'flex', alignItems: 'flex-end', gap: 1.5, height: 90 }}>
+                  {tvStats.impressionsLast7Days.map(d => (
+                    <Tooltip key={d.day} title={`${d.day}: ${d.count}`}>
+                      <Box sx={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 0.5 }}>
+                        <Box sx={{
+                          width: '100%', maxWidth: 28, borderRadius: 1,
+                          height: `${Math.max(6, (d.count / maxDay) * 70)}px`,
+                          bgcolor: 'primary.main',
+                        }} />
+                        <Typography variant="caption" color="text.secondary" fontSize={10}>
+                          {d.day.slice(5)}
+                        </Typography>
+                      </Box>
+                    </Tooltip>
+                  ))}
+                </Box>
+              )}
+
+              {tvStats.byScreen.length > 0 && (
+                <>
+                  <Divider sx={{ my: 2.5 }} />
+                  <Typography variant="subtitle2" fontWeight={600} color="text.secondary" sx={{ mb: 1.5, display: 'flex', alignItems: 'center', gap: 1 }}>
+                    <QrScanIcon fontSize="small" /> Pantallas más vistas
+                  </Typography>
+                  <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
+                    {tvStats.byScreen.map(s => (
+                      <Chip key={s.screen} label={`${s.screen}: ${s.count}`} size="small" variant="outlined" />
+                    ))}
+                  </Box>
+                </>
+              )}
+            </>
+          )}
+        </Paper>
+      </Box>
+    );
+  };
+
+  return (
+    <Box sx={{ display: 'flex', height: 'calc(100vh - 120px)', gap: 3 }}>
+      {/* LEFT PANEL: Editor */}
+      <Box sx={{ flex: '1 1 60%', display: 'flex', flexDirection: 'column', minWidth: 400, overflowY: 'auto', pr: 1 }}>
+        {/* Header Left */}
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 3 }}>
+          <IconButton onClick={() => navigate('/guide/apartments')} size="small" sx={{ bgcolor: 'action.hover' }}>
+            <BackIcon />
+          </IconButton>
+          <Box sx={{ flexGrow: 1 }}>
+            <Typography variant="h5" fontWeight={700}>
+              {apartment ? apartment.name : 'Cargando...'}
+            </Typography>
+            <Typography variant="body2" color="text.secondary">
+              Configura lo que tus huéspedes verán al escanear
+            </Typography>
+          </Box>
+        </Box>
+
+        {/* Editor Tabs */}
+        <Tabs
+          value={activeMainTab}
+          onChange={(_, v) => setActiveMainTab(v)}
+          sx={{ borderBottom: 1, borderColor: 'divider', mb: 3 }}
+        >
+          <Tab label="Ajustes & QR" sx={{ fontWeight: 600 }} />
+          <Tab label="Guía y Normas" sx={{ fontWeight: 600 }} />
+          <Tab label="Localizaciones" icon={<LocationOnIcon fontSize="small" />} iconPosition="start" sx={{ fontWeight: 600 }} />
+          <Tab label="Bienvenida" icon={<CelebrationIcon fontSize="small" />} iconPosition="start" sx={{ fontWeight: 600 }} />
+          <Tab label="Pantalla TV" icon={<TvIcon fontSize="small" />} iconPosition="start" sx={{ fontWeight: 600 }} />
+        </Tabs>
+
+        {/* Tab Content */}
+        <Box sx={{ flexGrow: 1, pb: 4 }}>
+          {activeMainTab === 0 && renderSettingsTab()}
+          {activeMainTab === 1 && renderGuideTab()}
+          {activeMainTab === 2 && renderPoisTab()}
+          {activeMainTab === 3 && renderWelcomeTab()}
+          {activeMainTab === 4 && renderTvTab()}
+        </Box>
+      </Box>
+
+      {/* RIGHT PANEL: Live Preview (Mobile Mockup) */}
+      <Box sx={{
+        flex: '0 0 380px',
+        display: { xs: 'none', lg: 'flex' },
+        flexDirection: 'column',
+        alignItems: 'center',
+        bgcolor: '#f8fafc',
+        borderRadius: 4,
+        p: 3,
+        border: '1px solid',
+        borderColor: 'divider',
+        position: 'relative',
+      }}>
+        <Box sx={{ display: 'flex', justifyContent: 'space-between', width: '100%', mb: 2, px: 1 }}>
+          <Typography variant="subtitle2" fontWeight={700} sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+            <PhoneIcon fontSize="small" color="primary" />
+            Live Preview
+          </Typography>
+          <Tooltip title="Forzar recarga manual">
+            <IconButton size="small" onClick={handleRefreshPreview}>
+              <RefreshIcon fontSize="small" />
+            </IconButton>
+          </Tooltip>
+        </Box>
+
+        {/* Smartphone Frame */}
+        <Box sx={{
+          width: '100%',
+          maxWidth: 340,
+          aspectRatio: '9/19',
+          bgcolor: 'white',
+          borderRadius: '36px',
+          border: '10px solid #0f172a',
+          overflow: 'hidden',
+          boxShadow: '0 20px 25px -5px rgb(0 0 0 / 0.1), 0 8px 10px -6px rgb(0 0 0 / 0.1)',
+          position: 'relative'
+        }}>
+          {/* Notch */}
+          <Box sx={{
+            position: 'absolute', top: 0, left: '50%', transform: 'translateX(-50%)',
+            width: '40%', height: 24, bgcolor: '#0f172a',
+            borderBottomLeftRadius: 16, borderBottomRightRadius: 16, zIndex: 10
+          }} />
+
+          {apartment ? (
+            <iframe
+              src={`https://guide.visualtastes.com/${apartment.slug}?refresh=${previewKey}`}
+              style={{ width: '100%', height: '100%', border: 'none', backgroundColor: '#fff' }}
+              title="Live Preview"
+            />
+          ) : (
+            <Box sx={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', bgcolor: '#f1f5f9' }}>
+              <CircularProgress size={30} />
+            </Box>
+          )}
+        </Box>
+      </Box>
 
       {/* Create/Edit Dialog */}
       <Dialog open={dialogOpen} onClose={() => setDialogOpen(false)} maxWidth="md" fullWidth>
@@ -379,9 +1322,8 @@ export default function GuideApartmentDetail() {
           <TranslateIcon color="primary" />
           {editingItem ? `Editar: ${editingItem.info_key}` : 'Nueva Información'}
         </DialogTitle>
-        <DialogContent>
-          <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2.5, mt: 1 }}>
-            {/* Key selector (only for new) */}
+        <DialogContent dividers>
+          <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2.5 }}>
             {!editingItem && (
               <FormControl fullWidth>
                 <InputLabel>Tipo de información</InputLabel>
@@ -391,89 +1333,60 @@ export default function GuideApartmentDetail() {
                   onChange={(e) => handleSelectKey(e.target.value)}
                 >
                   {AVAILABLE_KEYS.map(k => (
-                    <MenuItem key={k.key} value={k.key}>
-                      {k.label}
-                    </MenuItem>
+                    <MenuItem key={k.key} value={k.key}>{k.label}</MenuItem>
                   ))}
                 </Select>
               </FormControl>
             )}
 
-            <Divider>
-              <Chip label="Traducciones" size="small" />
-            </Divider>
+            <Typography variant="subtitle2" fontWeight={600} color="text.secondary">Traducciones</Typography>
 
-            {/* Translation inputs for each language */}
-            {LANGUAGES.slice(0, 4).map(lang => (
-              <Box key={lang.code} sx={{ p: 2, borderRadius: 2, border: '1px solid', borderColor: 'divider' }}>
-                <Typography variant="subtitle2" sx={{ mb: 1.5, fontWeight: 600 }}>
-                  {lang.label}
-                </Typography>
+            {/* Show top 3 languages for quick edit in dialog, others could be expanded */}
+            {LANGUAGES.slice(0, 3).map(lang => (
+              <Box key={lang.code} sx={{ p: 2, borderRadius: 2, border: '1px solid', borderColor: 'divider', bgcolor: 'background.paper' }}>
+                <Typography variant="subtitle2" sx={{ mb: 1.5, fontWeight: 600 }}>{lang.label}</Typography>
                 <TextField
-                  label="Título"
-                  fullWidth
-                  size="small"
+                  label="Título" fullWidth size="small"
                   value={form.translations[lang.code]?.title || ''}
                   onChange={(e) => setForm(prev => ({
-                    ...prev,
-                    translations: {
-                      ...prev.translations,
-                      [lang.code]: {
-                        ...prev.translations[lang.code],
-                        title: e.target.value,
-                        content: prev.translations[lang.code]?.content || '',
-                      },
-                    },
+                    ...prev, translations: { ...prev.translations, [lang.code]: { ...prev.translations[lang.code], title: e.target.value, content: prev.translations[lang.code]?.content || '' } }
                   }))}
                   sx={{ mb: 1.5 }}
                 />
                 <TextField
-                  label="Contenido"
-                  fullWidth
-                  multiline
-                  minRows={2}
-                  maxRows={6}
-                  size="small"
+                  label="Contenido" fullWidth multiline minRows={2} maxRows={6} size="small"
                   value={form.translations[lang.code]?.content || ''}
                   onChange={(e) => setForm(prev => ({
-                    ...prev,
-                    translations: {
-                      ...prev.translations,
-                      [lang.code]: {
-                        title: prev.translations[lang.code]?.title || '',
-                        content: e.target.value,
-                      },
-                    },
+                    ...prev, translations: { ...prev.translations, [lang.code]: { title: prev.translations[lang.code]?.title || '', content: e.target.value } }
                   }))}
                   placeholder="Escribe aquí la información..."
                 />
               </Box>
             ))}
 
-            <Divider>
-              <Chip label="Fotos y Vídeos" size="small" />
-            </Divider>
-            
+            <Divider />
+
             <Box sx={{ p: 2, borderRadius: 2, border: '1px dashed', borderColor: 'divider', bgcolor: 'action.hover' }}>
+              <Typography variant="subtitle2" fontWeight={600} sx={{ mb: 1 }}>Fotos y Vídeos</Typography>
               <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-                Sube fotos para ayudar al huésped (ej: foto del router, de los mandos de la TV, etc).
+                Sube fotos para ayudar al huésped (ej: foto del router, de los mandos de la TV).
               </Typography>
-              
+
               {form.media.length > 0 && (
                 <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap', mb: 2 }}>
                   {form.media.map((m, index) => (
-                    <Box key={index} sx={{ position: 'relative', width: 100, height: 100 }}>
+                    <Box key={index} sx={{ position: 'relative', width: 80, height: 80 }}>
                       <Box sx={{ width: '100%', height: '100%', borderRadius: 2, overflow: 'hidden', border: '1px solid', borderColor: 'divider' }}>
                         {m.media_type === 'video' ? (
                           <Box sx={{ width: '100%', height: '100%', bgcolor: 'black', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                             <Typography variant="caption" color="white">VIDEO</Typography>
                           </Box>
                         ) : (
-                          <img src={`https://visualtasteworker.franciscotortosaestudios.workers.dev/media/${m.r2_key}`} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                          <img src={`${MEDIA_BASE}/media/${m.r2_key}`} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
                         )}
                       </Box>
-                      <IconButton 
-                        size="small" 
+                      <IconButton
+                        size="small"
                         onClick={() => handleRemoveMedia(index)}
                         sx={{ position: 'absolute', top: -8, right: -8, bgcolor: 'background.paper', border: '1px solid', borderColor: 'divider', '&:hover': { bgcolor: 'error.main', color: 'white' } }}
                       >
@@ -483,27 +1396,21 @@ export default function GuideApartmentDetail() {
                   ))}
                 </Box>
               )}
-              
-              <Button 
-                variant="outlined" 
-                component="label" 
-                disabled={uploadingMedia}
+
+              <Button
+                variant="outlined" component="label" disabled={uploadingMedia}
                 startIcon={uploadingMedia ? <CircularProgress size={20} /> : <AddIcon />}
               >
-                {uploadingMedia ? 'Subiendo...' : 'Añadir Imagen'}
+                {uploadingMedia ? 'Subiendo...' : 'Añadir Media'}
                 <input type="file" hidden accept="image/*,video/*" onChange={handleFileUpload} />
               </Button>
             </Box>
           </Box>
         </DialogContent>
-        <DialogActions>
-          <Button onClick={() => setDialogOpen(false)} disabled={saving}>Cancelar</Button>
-          <Button
-            onClick={handleSave}
-            variant="contained"
-            disabled={saving || !form.info_key}
-          >
-            {saving ? <CircularProgress size={20} /> : 'Guardar'}
+        <DialogActions sx={{ p: 2, bgcolor: 'background.default' }}>
+          <Button onClick={() => setDialogOpen(false)} disabled={saving} color="inherit">Cancelar</Button>
+          <Button onClick={handleSave} variant="contained" disabled={saving || !form.info_key} sx={{ px: 4 }}>
+            {saving ? <CircularProgress size={20} color="inherit" /> : 'Guardar y Actualizar Preview'}
           </Button>
         </DialogActions>
       </Dialog>

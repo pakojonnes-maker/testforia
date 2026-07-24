@@ -4,13 +4,14 @@ import { useParams } from 'react-router-dom';
 import { fetchGuidebook, trackSessionStart, trackSessionEnd, trackIntent, trackSectionView } from '../lib/api';
 
 import WelcomeHero from '../components/WelcomeHero';
-import QuickInfoBar from '../components/QuickInfoBar';
-import NavigationTabs from '../components/NavigationTabs';
+import Header from '../components/Header';
+import BottomNavBar from '../components/BottomNavBar';
 import InfoSection from '../components/InfoSection';
 import DiscoverSection from '../components/DiscoverSection';
-import EatSection from '../components/EatSection';
 import ServicesSection from '../components/ServicesSection';
-import { getTranslation } from '../lib/i18n';
+import ChatIASection from '../components/ChatIASection';
+import WelcomeModal, { WelcomeModalData } from '../components/WelcomeModal';
+import { getTranslation, ACTIVE_LANGUAGES } from '../lib/i18n';
 
 // Types
 interface GuidebookData {
@@ -40,9 +41,10 @@ interface GuidebookData {
     cover_image_url?: string;
   }>;
   meta: { lang: string; available_langs: string[]; active_devices_24h?: number };
+  welcome_modal: WelcomeModalData | null;
 }
 
-type TabKey = 'info' | 'discover' | 'restaurants' | 'services';
+type TabKey = 'info' | 'discover' | 'restaurants' | 'services' | 'chat';
 
 export default function GuidebookPage() {
   const { slug } = useParams<{ slug: string }>();
@@ -51,10 +53,12 @@ export default function GuidebookPage() {
   const [error, setError] = useState<string | null>(null);
   const [lang, setLang] = useState(() => {
     const browserLang = navigator.language?.split('-')[0] || 'es';
-    return ['es', 'en', 'fr', 'de', 'it', 'pt', 'nl'].includes(browserLang) ? browserLang : 'es';
+    return ACTIVE_LANGUAGES.includes(browserLang) ? browserLang : 'es';
   });
   const [activeTab, setActiveTab] = useState<TabKey>('info');
+  const [showWelcome, setShowWelcome] = useState(false);
   const sessionIdRef = useRef<string | null>(null);
+  const welcomeShownRef = useRef(false);
 
   // Fetch guidebook data
   useEffect(() => {
@@ -78,6 +82,14 @@ export default function GuidebookPage() {
 
     return () => { cancelled = true; };
   }, [slug, lang]);
+
+  // Show the welcome modal once per page load (not on every language toggle mid-visit)
+  useEffect(() => {
+    if (data?.welcome_modal?.title && !welcomeShownRef.current) {
+      welcomeShownRef.current = true;
+      setShowWelcome(true);
+    }
+  }, [data]);
 
   // Handle agency theming
   useEffect(() => {
@@ -154,7 +166,7 @@ export default function GuidebookPage() {
       <div className="loading-container" style={{ background: 'var(--blanco-puro)' }}>
         <div style={{ fontSize: '4rem', fontWeight: 800, color: 'var(--mar-claro)', lineHeight: 1 }}>404</div>
         <p style={{ fontSize: '1rem', color: 'var(--gris-texto)', marginTop: 'var(--sp-md)' }}>
-          {error || 'Guidebook no encontrado'}
+          {error || getTranslation('guidebook_not_found', lang)}
         </p>
       </div>
     );
@@ -163,46 +175,43 @@ export default function GuidebookPage() {
   const { apartment, zone, agency, pois, restaurants, experiences } = data;
 
   return (
-    <div className="guide-app">
-      <WelcomeHero 
-        apartmentName={apartment.name}
-        address={apartment.address}
-        coverImageUrl={apartment.cover_image_url}
-        agencyLogoUrl={agency.logo_url}
-        agencyName={agency.name}
-        currentLang={lang}
-        onLanguageChange={handleLanguageChange}
-        brandPrimaryColor={agency.primary_color || undefined}
-      />
+    <div className="guide-app font-body-md text-on-surface bg-background min-h-screen">
+      {showWelcome && data.welcome_modal && (
+        <WelcomeModal welcome={data.welcome_modal} onClose={() => setShowWelcome(false)} lang={lang} />
+      )}
 
-      <NavigationTabs 
+      <Header
         activeTab={activeTab} 
         onTabChange={setActiveTab} 
-        lang={lang} 
+        lang={lang}
+        onLanguageChange={handleLanguageChange}
+        apartmentName={apartment.name}
       />
 
-      <div style={{ minHeight: '50vh' }}>
+      <main className="max-w-container-max mx-auto px-margin-mobile md:px-margin-desktop py-8 flex flex-col gap-12">
         {activeTab === 'info' && (
-          <div style={{ animation: 'fadeIn 0.4s ease forwards' }}>
-            <QuickInfoBar infoItems={apartment.info} lang={lang} />
+          <div style={{ animation: 'fadeIn 0.4s ease forwards' }} className="flex flex-col gap-12">
+            <WelcomeHero 
+              apartmentName={apartment.name}
+              address={apartment.address}
+              coverImageUrl={apartment.cover_image_url}
+              agencyLogoUrl={agency.logo_url}
+              agencyName={agency.name}
+              currentLang={lang}
+              onLanguageChange={handleLanguageChange}
+              brandPrimaryColor={agency.primary_color || undefined}
+            />
+            {/* QuickInfoBar will be merged into InfoSection or updated later */}
             <InfoSection infoItems={apartment.info} lang={lang} />
           </div>
         )}
 
         {activeTab === 'discover' && (
           <DiscoverSection 
-            pois={pois} 
+            pois={pois}
+            restaurants={restaurants}
             zoneName={zone.name} 
             zoneDescription={zone.description} 
-            lang={lang} 
-            onIntent={(type, id, action) => logIntent(type, id, action)} 
-          />
-        )}
-
-        {activeTab === 'restaurants' && (
-          <EatSection 
-            restaurants={restaurants} 
-            zoneName={zone.name} 
             lang={lang} 
             onIntent={(type, id, action) => logIntent(type, id, action)} 
           />
@@ -216,12 +225,20 @@ export default function GuidebookPage() {
             onIntent={(type, id, action) => logIntent(type, id, action)} 
           />
         )}
-      </div>
+        {activeTab === 'chat' && (
+          <div style={{ animation: 'fadeIn 0.4s ease forwards' }}>
+            <ChatIASection lang={lang} apartmentId={data?.apartment?.id} apartmentName={data?.apartment?.name} />
+          </div>
+        )}
+      </main>
+
+      <BottomNavBar activeTab={activeTab} onTabChange={setActiveTab} lang={lang} />
 
       <footer style={{
         textAlign: 'center',
         padding: '32px 16px',
         marginTop: 'var(--sp-2xl)',
+        marginBottom: '80px', /* space for bottom nav */
         fontSize: '0.75rem',
         color: 'var(--gris-medio)'
       }}>

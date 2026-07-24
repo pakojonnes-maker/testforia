@@ -43,7 +43,6 @@ import TopCitiesChart from '../components/analytics/TopCitiesChart';
 // Tabs
 import DishesTab from '../components/analytics/DishesTab';
 import SectionsTab from '../components/analytics/SectionsTab';
-import CampaignsTab from '../components/analytics/CampaignsTab';
 import SessionsTab from '../components/analytics/SessionsTab';
 
 ChartJS.register(
@@ -60,7 +59,7 @@ ChartJS.register(
 );
 
 type TimeRange = 'today' | 'week' | 'month' | 'quarter';
-type TabValue = 'dishes' | 'kpis' | 'sections' | 'sessions' | 'campaigns';
+type TabValue = 'dishes' | 'kpis' | 'sections' | 'sessions';
 
 export default function AnalyticsPage() {
   const { currentRestaurant } = useAuth();
@@ -157,7 +156,6 @@ export default function AnalyticsPage() {
           <Tab label="KPIs" value="kpis" />
           <Tab label="Secciones" value="sections" />
           <Tab label="Sesiones" value="sessions" />
-          <Tab label="Campañas" value="campaigns" />
         </Tabs>
         <Divider sx={{ mt: '-1px' }} />
       </Box>
@@ -182,11 +180,6 @@ export default function AnalyticsPage() {
       {/* 4. Sesiones */}
       {activeTab === 'sessions' && (
         <SessionsTab timeRange={timeRange} />
-      )}
-
-      {/* 5. Campañas */}
-      {activeTab === 'campaigns' && (
-        <CampaignsTab timeRange={timeRange} />
       )}
 
     </Container>

@@ -1,4 +1,3 @@
-
 import { handleDashboardRequests } from './workerDashboard.js';
 import { handleAuthRequests, verifyJWT } from './workerAuthentication.js';
 import { handleAnalyticsRequests } from './workerAnalytics.js';
@@ -7,17 +6,20 @@ import { handleMenuRequests } from './workerMenus.js';
 import { handleDishRequests } from './workerDishes.js';
 import { handleSectionRequests } from './workerSections.js';
 import { handleRestaurantRequests } from './workerRestaurants.js';
-import { handleReelsRequests, handleLoyaltyRequests } from './workerReels.js';
+import { handleReelsRequests } from './workerReels.js';
 import { handleMediaRequests } from './workerMedia.js';
 import { handleTracking } from './workerTracking.js';
 import { handleLandingRequests } from './workerLanding.js';
 import { handleLandingAdminRequests } from './workerLandingAdmin.js';
 import { handleMarketingRequests } from './workerMarketing.js';
+import { handleLoyaltyRequests } from './workerLoyalty.js';
 import { handleReservationRequests } from './workerReservations.js';
 import { handleDeliveryRequests } from './workerDelivery.js';
 import { handleGuideRequests } from './workerGuide.js';
 import { handleGuideTracking } from './workerGuideTracking.js';
 import { handleGuideAdminRequests } from './workerGuideAdmin.js';
+import { handleGuideAI } from './workerGuideAI.js';
+import { handleTvScreenRequests } from './workerTvScreen.js';
 // ============================================================================
 // CORS - Dominios permitidos (CENTRALIZADO)
 // ============================================================================
@@ -26,9 +28,11 @@ const ALLOWED_ORIGINS = [
     'https://menu.visualtastes.com',
     'https://visualtastes.com',
     'https://guide.visualtastes.com',
+    'https://tv.visualtastes.com',
     'http://localhost:5173',
     'http://localhost:5174',
     'http://localhost:5175',
+    'http://localhost:5176',
     'http://menu.localhost:5173',
     'http://admin.localhost:5174'
 ];
@@ -94,27 +98,25 @@ const PUBLIC_ROUTES = [
     // Delivery (rutas legacy con /restaurants/)
     { method: 'GET', pattern: /^\/restaurants\/[^/]+\/delivery\/config$/ },
     { method: 'POST', pattern: /^\/restaurants\/[^/]+\/delivery\/orders$/ },
-    // Marketing/Leads público
-    { method: 'POST', pattern: /^\/api\/leads$/ },
-    { method: 'POST', pattern: /^\/restaurants\/[^/]+\/leads$/ },
-    { method: 'GET', pattern: /^\/api\/campaigns\/[a-zA-Z0-9-]+$/ },
-    { method: 'GET', pattern: /^\/restaurants\/[^/]+\/campaigns\// },
-    // Magic link / Redemption público
+    // Magic link / Redemption público (loyalty card claim, ver workerLoyalty.js)
     { method: 'GET', pattern: /^\/api\/r\/[a-zA-Z0-9]+$/ },
     { method: 'POST', pattern: /^\/api\/r\/[a-zA-Z0-9]+\/redeem$/ },
-    // Loyalty público
-    { method: 'ALL', pattern: /^\/restaurants\/[^/]+\/loyalty/ },
+    // Loyalty público (tarjeta de sellos: consulta y sello validado por PIN de sala)
+    { method: 'GET', pattern: /^\/api\/loyalty\/card$/ },
+    { method: 'POST', pattern: /^\/api\/loyalty\/stamp$/ },
 
-     { method: 'POST', pattern: /^\/api\/notifications\/subscribe$/ },
-         { method: 'GET', pattern: /^\/api\/restaurants\/[^/]+\/notifications\/subscribers$/ },
-    { method: 'POST', pattern: /^\/api\/loyalty\/scan$/ },
-    { method: 'POST', pattern: /^\/api\/loyalty\/play$/ },
-    { method: 'POST', pattern: /^\/api\/loyalty\/claim$/ },
+    { method: 'POST', pattern: /^\/api\/notifications\/subscribe$/ },
+    { method: 'GET', pattern: /^\/api\/restaurants\/[^/]+\/notifications\/subscribers$/ },
     // System icons
     { method: 'GET', pattern: /^\/system\/icons$/ },
     // Guidebook public routes
     { method: 'GET', pattern: /^\/guide\/[\w-]+$/ },
     { method: 'ALL', pattern: /^\/guide\/track\// },
+    { method: 'POST', pattern: /^\/guide\/ai\// },
+    // TV screens (guidebook on TV) — config + analytics son públicos;
+    // /guide/admin/tv/* queda protegido por el chequeo por defecto.
+    { method: 'GET', pattern: /^\/guide\/tv\/config\/[^/]+$/ },
+    { method: 'POST', pattern: /^\/guide\/tv\/track$/ },
 ];
 function isPublicRoute(method, pathname) {
     return PUBLIC_ROUTES.some(route => {
@@ -195,6 +197,19 @@ export default {
                     const response = await handleGuideTracking(request, env, ctx);
                     if (response) return addCorsHeaders(response, request);
                 }
+                // Guide AI assistant
+                if (url.pathname.startsWith('/guide/ai/')) {
+                    const response = await handleGuideAI(request, env);
+                    if (response) return addCorsHeaders(response, request);
+                }
+                // TV screens (guidebook on TV): config/track público + pairing/stats
+                // protegido. Debe ir ANTES de "Guide admin" porque /guide/admin/tv/*
+                // si no lo intercepta aquí, handleGuideAdminRequests le devolvería
+                // un 404 duro (no hace fallthrough con null para rutas desconocidas).
+                if (url.pathname.startsWith('/guide/tv/') || url.pathname.startsWith('/guide/admin/tv/')) {
+                    const response = await handleTvScreenRequests(request, env);
+                    if (response) return addCorsHeaders(response, request);
+                }
                 // Guide admin
                 if (url.pathname.startsWith('/guide/admin/')) {
                     const response = await handleGuideAdminRequests(request, env);
@@ -210,6 +225,9 @@ export default {
             // MARKETING
             const marketingResponse = await handleMarketingRequests(request.clone(), env);
             if (marketingResponse) return addCorsHeaders(marketingResponse, request);
+            // LOYALTY (tarjeta de sellos)
+            const loyaltyResponse = await handleLoyaltyRequests(request.clone(), env);
+            if (loyaltyResponse) return addCorsHeaders(loyaltyResponse, request);
             // RESERVATIONS
             const reservationsResponse = await handleReservationRequests(request.clone(), env);
             if (reservationsResponse) return addCorsHeaders(reservationsResponse, request);
@@ -219,9 +237,6 @@ export default {
             // REELS
             const reelsResponse = await handleReelsRequests(request.clone(), env);
             if (reelsResponse) return addCorsHeaders(reelsResponse, request);
-            // LOYALTY
-            const loyaltyResponse = await handleLoyaltyRequests(request.clone(), env);
-            if (loyaltyResponse) return addCorsHeaders(loyaltyResponse, request);
             // RESTAURANTES
             const restaurantResponse = await handleRestaurantRequests(request.clone(), env);
             if (restaurantResponse) return addCorsHeaders(restaurantResponse, request);

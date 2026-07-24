@@ -3,6 +3,7 @@ import React, { useEffect, useState, useMemo, Suspense } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { CssBaseline, ThemeProvider, createTheme, Box, CircularProgress, Typography } from '@mui/material';
 import { apiClient } from './lib/apiClient';
+import { seedReelsConfigCache } from './hooks/useReelsConfig';
 import { TrackingAndPushProvider } from './providers/TrackingAndPushProvider';
 import { SplashScreen } from './components/ui/SplashScreen';
 import { CookieConsentBanner } from './components/ui/CookieConsentBanner';
@@ -15,9 +16,7 @@ const RestaurantLanding = React.lazy(() => import('./pages/RestaurantLanding'));
 const NotFoundPage = React.lazy(() => import('./pages/NotFoundPage'));
 const PrivacyPolicyPage = React.lazy(() => import('./pages/PrivacyPolicyPage'));
 const ReservePage = React.lazy(() => import('./pages/ReservePage'));
-const LoyaltyPage = React.lazy(() => import('./pages/LoyaltyPage').then(module => ({ default: module.LoyaltyPage })));
 const RedemptionPage = React.lazy(() => import('./pages/RedemptionPage'));
-const EventLandingPage = React.lazy(() => import('./pages/EventLandingPage'));
 
 // ✅ Tema personalizado adaptable
 const createCustomTheme = (primaryColor?: string, secondaryColor?: string) => createTheme({
@@ -82,12 +81,12 @@ function App() {
       if (matches) {
         slug = matches[1];
         // Check for deep paths that are not valid known patterns
-        // Valid patterns: /{slug}, /{slug}/oferta/{token}, /{slug}/evento/{id}, /{slug}/loyalty
+        // Valid patterns: /{slug}, /{slug}/oferta/{token}
         // Invalid: /{slug}/dish/{id}, /{slug}/section/{id}, /{slug}/anything-else
         const pathSegments = path.split('/').filter(Boolean);
         if (pathSegments.length > 1) {
           const subPath = pathSegments[1];
-          const validSubPaths = ['oferta', 'evento', 'loyalty'];
+          const validSubPaths = ['oferta'];
           if (!validSubPaths.includes(subPath)) {
             // This is an invalid deep path like /xpecado/dish/123
             hasInvalidDeepPath = true;
@@ -107,16 +106,12 @@ function App() {
     if (path === '/' && !isMenuDomain) return 'home'; // Home solo en dominio principal
     if (path.startsWith('/legal/privacy')) return 'privacy';
     if (path.startsWith('/reserve/')) return 'reserve';
-    if (path.startsWith('/loyalty/') || path.startsWith('/l/') || path.match(/^\/[^/]+\/loyalty/)) return 'loyalty';
 
     // Magic link redemption - two formats:
     // 1. Legacy: /r/{16-char-token}
     // 2. New: /{slug}/oferta/{16-char-token}
     if (path.match(/^\/r\/[a-zA-Z0-9]{16}$/)) return 'redemption';
     if (path.match(/^\/[^/]+\/oferta\/[a-zA-Z0-9]{16}$/)) return 'redemption';
-
-    // Event landing page: /{slug}/evento/{campaignId}
-    if (path.match(/^\/[^/]+\/evento\/[^/]+$/)) return 'event';
 
     if (!slug) return 'notfound';
 
@@ -168,12 +163,16 @@ function App() {
 
         console.log('🚀 [App] Cargando menú para:', slug);
 
-        const result = await apiClient.getRestaurantReelsData(slug!);
+        const result = await apiClient.getRestaurantReelsData(slug!, 'es');
 
         if (!isMounted) return;
 
         if (result?.restaurant) {
           console.log('✅ [App] Datos cargados:', result.restaurant.name);
+
+          // ✅ Precargar la caché de useReelsConfig con esta misma respuesta ('es'),
+          // así ReelsContainer/ReservePage no repiten la petición pesada a /reels al montar.
+          seedReelsConfigCache(slug!, 'es', result);
 
           setRestaurantData({
             ...result,
@@ -256,18 +255,9 @@ function App() {
       );
     }
 
-    if (currentPage === 'loyalty') {
-      return <LoyaltyPage />;
-    }
-
     if (currentPage === 'redemption') {
       return <RedemptionPage />;
     }
-
-    if (currentPage === 'event') {
-      return <EventLandingPage />;
-    }
-
 
     // --- LOGICA REELS VIEW ---
     // Note: We don't return GlobalLoader here if loading is true, 

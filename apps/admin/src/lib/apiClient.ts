@@ -341,31 +341,6 @@ class AdminApiClient {
     }
   }
 
-  /**
-   * Obtener estadísticas de campañas de marketing
-   */
-  public async getCampaignAnalytics(restaurantId: string, params: any): Promise<any> {
-    try {
-      const queryParamsObj: any = {
-        restaurant_id: restaurantId,
-        time_range: params.timeRange || params.time_range || 'month',
-        from: params.from || undefined,
-        to: params.to || undefined
-      };
-
-      Object.keys(queryParamsObj).forEach(key => queryParamsObj[key] === undefined && delete queryParamsObj[key]);
-
-      const queryParams = new URLSearchParams(queryParamsObj).toString();
-
-      console.log(`[apiClient] Solicitando campaign analytics: /analytics/campaigns?${queryParams}`);
-      const response = await this.client.get(`/analytics/campaigns?${queryParams}`);
-      return response.data;
-    } catch (error) {
-      console.error('[apiClient] Error al obtener analytics de campañas:', error);
-      throw error;
-    }
-  }
-
   // Normalización de datos de medios para consistencia
   private normalizeMediaItems(items: DishMedia[]): DishMedia[] {
     if (!Array.isArray(items)) return [];

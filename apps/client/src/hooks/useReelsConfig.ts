@@ -64,6 +64,30 @@ const configCache = new Map<string, {
 
 const CACHE_TTL = 5 * 60 * 1000; // 5 minutes
 
+// ✅ Permite precargar la caché con datos ya obtenidos por otro fetch (p.ej. App.tsx),
+// evitando que ReelsContainer/ReservePage repitan la misma petición pesada al montar.
+export function seedReelsConfigCache(slug: string, language: string, rawData: any) {
+  if (!slug || !rawData) return;
+  const data: RestaurantConfig = {
+    restaurant: rawData.restaurant,
+    sections: rawData.sections || [],
+    dishesBySection: rawData.dishesBySection || {},
+    languages: rawData.languages || [],
+    template: rawData.template || null,
+    config: rawData.config || {},
+    overrides: rawData.overrides || {},
+    marketing: rawData.marketing,
+    reservationsEnabled: rawData.reservationsEnabled,
+    deliveryEnabled: rawData.deliveryEnabled,
+    deliverySettings: rawData.deliverySettings,
+    translations: rawData.translations
+  };
+  configCache.set(`${slug}-${language}`, {
+    data,
+    expiry: Date.now() + CACHE_TTL
+  });
+}
+
 // ✅ API call directo al worker
 async function fetchReelsData(slug: string, language = 'es'): Promise<RestaurantConfig> {
   const API_URL = import.meta.env.VITE_API_URL || "https://visualtasteworker.franciscotortosaestudios.workers.dev";

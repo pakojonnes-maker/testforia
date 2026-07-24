@@ -22,15 +22,9 @@ import {
   Remove,
   Close,
   ShoppingCart,
-  AddShoppingCart,
   WarningAmber,
   FormatListBulleted
 } from '@mui/icons-material';
-
-
-// ...
-
-<AddShoppingCart sx={{ fontSize: { xs: 22, sm: 26 } }} />
 import { useDishTracking } from '../../../../providers/TrackingAndPushProvider';
 import type { Allergen } from '../../../../lib/apiClient';
 import { motion } from 'framer-motion';
@@ -468,7 +462,8 @@ const ClassicDishCard: React.FC<DishCardProps> = ({
               loop
               muted
               playsInline
-              preload={isActive ? 'metadata' : 'none'}
+              // 'auto' en el plato activo: aprovecha la ventana del splash para bufferizar el vídeo de verdad, no solo sus metadatos
+              preload={isActive ? 'auto' : 'none'}
               onCanPlayThrough={() => {
                 // Video is ready to play without buffering
                 setVideoReady(true);
@@ -516,6 +511,8 @@ const ClassicDishCard: React.FC<DishCardProps> = ({
               component="img"
               src={media?.url || `https://via.placeholder.com/400x600/${colors.primary.replace('#', '')}/ffffff?text=${encodeURIComponent(dishName.substring(0, 10))}`}
               alt={dishName}
+              loading={isActive ? 'eager' : 'lazy'}
+              decoding="async"
               sx={{
                 position: 'absolute', // ✅ Force absolute so it doesn't stretch the flex container height!
                 inset: 0,
@@ -1317,4 +1314,4 @@ const ClassicDishCard: React.FC<DishCardProps> = ({
   );
 };
 
-export default ClassicDishCard;
+export default React.memo(ClassicDishCard);

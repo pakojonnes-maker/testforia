@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect, useCallback } from 'react';
+import React, { useState, useRef, useEffect, useCallback, useMemo } from 'react';
 import { Box, Typography, IconButton, Tooltip } from '@mui/material';
 import { Add, Remove, Favorite, FavoriteBorder, AddShoppingCart, ShoppingCart } from '@mui/icons-material';
 import { motion } from 'framer-motion';
@@ -52,10 +52,10 @@ interface DishListItemProps {
     onDishClick: (dish: any) => void;
     index: number;
     isActive: boolean;
-    onActivate: () => void;
+    onActivate: (dishId: string) => void;
 }
 
-const DishListItem: React.FC<DishListItemProps> = ({
+const DishListItem: React.FC<DishListItemProps> = React.memo(({
     dish,
     sectionId,
     currentLanguage,
@@ -178,8 +178,8 @@ const DishListItem: React.FC<DishListItemProps> = ({
             style={{ marginBottom: '16px', cursor: 'pointer' }}
             onClick={() => onDishClick(dish)}
             // ✅ Trigger Activation on Interaction
-            onTouchStart={() => onActivate()}
-            onMouseEnter={() => onActivate()}
+            onTouchStart={() => onActivate(dish.id)}
+            onMouseEnter={() => onActivate(dish.id)}
         >
             <Box
                 sx={{
@@ -263,6 +263,8 @@ const DishListItem: React.FC<DishListItemProps> = ({
                                             component="img"
                                             src={media?.thumbnail_url || mediaUrl}
                                             alt={dishName}
+                                            loading={isActive ? 'eager' : 'lazy'}
+                                            decoding="async"
                                             sx={{
                                                 position: isActive && isVideo && !videoError ? 'absolute' : 'relative',
                                                 inset: 0,
@@ -526,7 +528,7 @@ const DishListItem: React.FC<DishListItemProps> = ({
             </Box>
         </motion.div>
     );
-};
+});
 
 // ======================================================================
 // LIST VIEW CONTAINER ESTRUCTURA
@@ -557,13 +559,13 @@ const ListView: React.FC<ListViewProps> = ({
 }) => {
     const { t } = useTranslation();
     const branding = config?.restaurant?.branding || {};
-    const colors = {
+    const colors = useMemo(() => ({
         primary: branding.primary_color || branding.primaryColor || '#FF6B6B',
         secondary: branding.secondary_color || branding.secondaryColor || '#4ECDC4',
         accent: branding.accent_color || branding.accentColor || '#FF8C42',
         text: branding.text_color || branding.textColor || '#FFFFFF',
         background: branding.background_color || branding.backgroundColor || '#000000'
-    };
+    }), [branding.primary_color, branding.primaryColor, branding.secondary_color, branding.secondaryColor, branding.accent_color, branding.accentColor, branding.text_color, branding.textColor, branding.background_color, branding.backgroundColor]);
 
     const [activeDishId, setActiveDishId] = useState<string | null>(null);
     const sectionRefs = useRef<{ [key: string]: HTMLDivElement | null }>({});
@@ -718,7 +720,7 @@ const ListView: React.FC<ListViewProps> = ({
                                         cartQuantity={cart.find(item => item.dishId === dish.id)?.quantity || 0}
                                         onDishClick={onDishClick}
                                         isActive={activeDishId === dish.id}
-                                        onActivate={() => setActiveDishId(dish.id)}
+                                        onActivate={setActiveDishId}
                                     />
                                 ))}
                             </Box>

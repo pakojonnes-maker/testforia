@@ -89,7 +89,11 @@ export const SplashScreen = ({ isAppReady, onComplete, disableConsent = false }:
                     100% { transform: rotate(360deg); }
                 }
                 .logo-spinner {
-                    animation: smoothSpin 2.5s ease-in-out forwards;
+                    /* ✅ Antes 2.5s: daba tiempo de sobra al primer vídeo (solo precarga
+                    'metadata', unos KB) pero penalizaba TODAS las visitas, incluidas las
+                    repetidas sin banner de cookies. 1.4s sigue dando margen de sobra y
+                    reduce casi a la mitad la espera fija antes de mostrar el menú. */
+                    animation: smoothSpin 1.4s ease-in-out forwards;
                     will-change: transform;
                 }
                 .logo-spinner.spinning {

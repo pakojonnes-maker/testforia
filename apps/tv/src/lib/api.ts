@@ -1,0 +1,44 @@
+// API de la app TV. Habla con workerTvScreen.js: la TV se identifica por un
+// código de emparejamiento (no conoce el slug del alojamiento), que el backend
+// resuelve y devuelve la MISMA forma de datos que /guide/:slug.
+
+const API_URL = import.meta.env.VITE_API_URL || 'https://visualtasteworker.franciscotortosaestudios.workers.dev'
+
+// ---- Forma de datos del guidebook (espejo de GuidebookPage.tsx en apps/guide) ----
+export interface GuidebookData {
+  apartment: {
+    id: string; name: string; slug: string; address: string
+    cover_image_url: string
+    info: Array<{ id: string; key: string; icon: string; title: string; content: string; media: any[] }>
+  }
+  zone: { id: string; name: string; slug: string; region: string; description: string; cover_image_url: string }
+  agency: { id: string; name: string; logo_url: string; primary_color: string | null; secondary_color: string | null; accent_color: string | null }
+  pois: Array<{ id: string; name: string; description: string; category: string; google_maps_url: string; media: any[] }>
+  restaurants: Array<{ id: string; name: string; slug: string; cuisine_type: string; tier: string; cover_image: string }>
+  experiences: Array<{ id: string; name: string; description: string; category: string; service_subcategory: string | null; action_type: string; action_data: string; prefilled_message: string; price_display: string; is_featured: boolean; cta_label: string; cover_image_url?: string }>
+  meta: { lang: string; available_langs: string[] }
+}
+
+// GET /guide/tv/config/:pairingCode — resuelve la TV emparejada, hace heartbeat
+// y registra una impresión en el backend.
+export async function fetchTvConfig(pairingCode: string, lang = 'es'): Promise<GuidebookData & { success: boolean }> {
+  const res = await fetch(`${API_URL}/guide/tv/config/${encodeURIComponent(pairingCode)}?lang=${lang}`)
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}))
+    throw new Error((err as any).error || `HTTP ${res.status}`)
+  }
+  return res.json()
+}
+
+export type TvEventType = 'impression' | 'screen_view' | 'wifi_reveal' | 'poi_select' | 'menu_qr_shown' | 'booking_qr_shown'
+
+// POST /guide/tv/track — KPIs de la pantalla TV. Best-effort, no bloquea la UI.
+export async function trackTvEvent(pairingCode: string, eventType: TvEventType, extra?: { screen?: string; lang?: string }) {
+  try {
+    await fetch(`${API_URL}/guide/tv/track`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ pairingCode, eventType, ...extra }),
+    })
+  } catch { /* best effort */ }
+}

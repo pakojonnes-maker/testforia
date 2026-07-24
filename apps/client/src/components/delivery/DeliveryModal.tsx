@@ -118,9 +118,6 @@ const DeliveryModal: React.FC<DeliveryModalProps> = ({
         return deliveryConfig?.ui_strings?.[key] || t(`delivery.${key}`, fallback);
     };
 
-    // Debug: log payment methods
-    console.log('[Delivery] Payment methods config:', deliveryConfig?.payment_methods);
-
     // Calcular costes
     const { shippingCost, finalTotal, isFreeShipping, meetsMinimum } = useMemo(() => {
         if (!deliveryConfig) return { shippingCost: 0, finalTotal: cartTotal, isFreeShipping: true, meetsMinimum: true };

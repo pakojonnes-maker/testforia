@@ -1,143 +1,82 @@
-# VisualTaste - Guía de Despliegue del Sistema de Autenticación (Zero-Dependency)
+# VisualTaste — Autenticación (Zero-Dependency)
 
-## 📋 Descripción General
+> Actualizado (julio 2026) al estado real del código. Fuente de verdad ampliada: `CLAUDE.md`.
 
-Este documento describe cómo desplegar y configurar el sistema de autenticación segura para VisualTaste.
-**Actualización**: Se ha eliminado la dependencia de `bcryptjs`. Ahora usa **Web Crypto API** nativa, por lo que no requiere `npm install` ni pasos de compilación complejos. ¡Es copiar y pegar!
+## 📋 Resumen
 
-## 🔧 Archivos Creados
+Autenticación por **JWT (HS256, expiración 7 días)** con hashing de contraseñas mediante
+**Web Crypto API nativa (PBKDF2)** — sin `bcryptjs` ni dependencias externas.
 
-1. **`workerAuth.js`** - Worker de autenticación (Zero-Dependency)
-2. **`workerDashboard.js`** - Actualizado con verificación JWT
-3. **`create-admin-user.sql`** - Script SQL para crear el primer usuario administrador
+## 🔧 Archivos relevantes (código vigente)
 
-## 📦 Pasos de Despliegue
+| Archivo | Rol |
+|---|---|
+| `workerAuthentication.js` | Módulo de auth: `handleAuthRequests`, `verifyJWT`, `hashPassword`, `generateSecurePassword`. |
+| `worker.js` | Enrutador central: aplica auth a las rutas no públicas (`authenticateRequest` → `verifyJWT(token, env.JWT_SECRET)`). |
+| `workerCrypto.js` | Cripto de **Web Push (VAPID)**, NO de contraseñas. |
+| `create-admin-user.sql` | Script para crear el primer usuario admin. |
 
-### 1. Configurar el Worker de Autenticación
+> Nota: ya **no** existe `workerAuth.js` ni `workerDashboard.js` con auth propia; la
+> verificación JWT está centralizada en `worker.js` + `workerAuthentication.js`.
 
-#### 1.1. Cambiar el JWT Secret
+## 🔑 JWT_SECRET — vía entorno, NO hardcodeado
 
-⚠️ **CRÍTICO**: Antes de desplegar, debes cambiar el `JWT_SECRET` en **ambos archivos**:
-
-**En `workerAuth.js` (línea 12):**
-```javascript
-const JWT_SECRET = 'YOUR_SECRET_KEY_HERE_CHANGE_IN_PRODUCTION'; // ⚠️ CAMBIAR ESTO
-```
-
-**En `workerDashboard.js` (línea 17):**
-```javascript
-const JWT_SECRET = 'YOUR_SECRET_KEY_HERE_CHANGE_IN_PRODUCTION'; // ⚠️ CAMBIAR ESTO
-```
-
-#### 1.2. Desplegar a Cloudflare Workers
-
-Como ya no hay dependencias externas, es muy fácil:
-
-Opción A: **Crear un nuevo Worker en Cloudflare Dashboard**
-1. Ve a tu Cloudflare Dashboard
-2. Workers & Pages → Create Worker
-3. Llámalo `visualtaste-auth`
-4. Copia y pega el contenido de `workerAuth.js`
-5. Guarda y despliega
-
-Opción B: **Usar Wrangler CLI**
-```bash
-# Crear wrangler.toml
-cat > wrangler.toml << EOF
-name = "visualtaste-auth"
-main = "workerAuth.js"
-compatibility_date = "2024-01-01"
-
-[[d1_databases]]
-binding = "DB"
-database_name = "visualtaste"
-database_id = "YOUR_D1_DATABASE_ID"
-EOF
-
-# Desplegar
-npx wrangler deploy
-```
-
-### 2. Actualizar Worker Dashboard
-
-El `workerDashboard.js` ya fue actualizado con verificación JWT. Despliégalo:
+El secreto se lee de `env.JWT_SECRET` en todos los módulos que verifican JWT
+(`worker.js`, `workerAuthentication.js`, `workerGuideAdmin.js`, `workerSections.js`).
+Configúralo como secreto de Cloudflare:
 
 ```bash
-# Si usas Wrangler
-npx wrangler deploy --name visualtaste-dashboard
-
-# O copia el código actualizado en tu Cloudflare Dashboard
+npx wrangler secret put JWT_SECRET
 ```
 
-### 3. Crear el Usuario Administrador
+⚠️ Nunca escribas el secreto en el código ni un fallback por defecto. Si falta, la auth
+debe fallar.
 
-#### 3.1. Generar el Hash de Contraseña
+## 📦 Despliegue
 
-Como usamos un sistema seguro con "Salt" aleatorio, necesitas generar el hash tú mismo para la contraseña inicial.
+El backend es un worker único; no se despliega auth por separado:
 
-1. Abre la consola de tu navegador (F12 → Console).
-2. Pega este código y presiona Enter:
-
-```javascript
-async function generateHash(password) {
-  const encoder = new TextEncoder();
-  const salt = crypto.getRandomValues(new Uint8Array(16));
-  const keyMaterial = await crypto.subtle.importKey(
-    'raw', encoder.encode(password), { name: 'PBKDF2' }, false, ['deriveBits']
-  );
-  const hash = await crypto.subtle.deriveBits(
-    { name: 'PBKDF2', salt: salt, iterations: 100000, hash: 'SHA-256' },
-    keyMaterial, 256
-  );
-  
-  const buf2hex = b => [...new Uint8Array(b)].map(x => x.toString(16).padStart(2,'0')).join('');
-  console.log(`${buf2hex(salt)}:${buf2hex(hash)}`);
-}
-generateHash('admin123');
-```
-
-3. Copia la cadena que aparece (algo como `a1b2...:d4e5...`).
-
-#### 3.2. Editar el Script SQL
-
-Abre `create-admin-user.sql` y:
-1. Reemplaza el valor de `password_hash` con la cadena que copiaste.
-2. Reemplaza `'your_restaurant_id_here'` con el ID real de tu restaurante.
-
-#### 3.3. Ejecutar el Script
-
-**Opción A: Usando Wrangler**
 ```bash
-npx wrangler d1 execute visualtaste --file=create-admin-user.sql
+npx wrangler deploy   # bundlea worker.js + workerAuthentication.js + resto de módulos
 ```
 
-**Opción B: Cloudflare Dashboard**
-1. Ve a D1 Databases → visualtaste
-2. Console
-3. Pega el contenido de `create-admin-user.sql` (editado)
-4. Ejecuta
+## 👤 Crear el usuario administrador
 
-### 4. Configurar el Frontend
+1. **Generar el hash de la contraseña** (PBKDF2, formato `salt:hash`). En la consola del
+   navegador (F12 → Console):
 
-Actualiza la URL del API en `apps/admin/.env`:
+   ```javascript
+   async function generateHash(password) {
+     const encoder = new TextEncoder();
+     const salt = crypto.getRandomValues(new Uint8Array(16));
+     const keyMaterial = await crypto.subtle.importKey(
+       'raw', encoder.encode(password), { name: 'PBKDF2' }, false, ['deriveBits']
+     );
+     const hash = await crypto.subtle.deriveBits(
+       { name: 'PBKDF2', salt, iterations: 100000, hash: 'SHA-256' },
+       keyMaterial, 256
+     );
+     const hex = b => [...new Uint8Array(b)].map(x => x.toString(16).padStart(2,'0')).join('');
+     console.log(`${hex(salt)}:${hex(hash)}`);
+   }
+   generateHash('TU_PASSWORD');
+   ```
 
-```env
-VITE_API_URL=https://visualtaste-auth.tu-cuenta.workers.dev
-```
+   (Debe coincidir con el algoritmo de `hashPassword` en `workerAuthentication.js`; si ese
+   módulo cambia los parámetros, ajusta este snippet.)
 
-## 🧪 Probar el Sistema
+2. **Editar `create-admin-user.sql`**: pon el `password_hash` generado y el `restaurant_id` real.
 
-1. Ve a `http://localhost:5173/login`
-2. Usa `admin@visualtaste.com` / `admin123`
-3. Deberías entrar al dashboard.
+3. **Ejecutar**:
+   ```bash
+   npx wrangler d1 execute restaurant-menu-saas --remote --file=create-admin-user.sql
+   ```
 
-## 🐛 Solución de Problemas
+## 🧪 Probar
+1. Frontend admin → `/login`.
+2. Endpoint: `POST /auth/login` (ruta pública en `worker.js`).
+3. Con token válido, las rutas protegidas responden; sin él, 401 `{ success: false, message: 'No autorizado' }`.
 
-### Error: "Credenciales inválidas"
-
-1. Asegúrate de haber generado el hash correctamente en el paso 3.1.
-2. Verifica que copiaste TODA la cadena `salt:hash`.
-
-### Error: "No autorizado"
-
-1. Verifica que el `JWT_SECRET` sea idéntico en `workerAuth.js` y `workerDashboard.js`.
+## 🐛 Problemas comunes
+- **"Credenciales inválidas"**: hash mal generado o incompleto (falta la parte `salt:` o `:hash`).
+- **"No autorizado" (401)**: `JWT_SECRET` no configurado en el entorno del worker, o token ausente/expirado (>7 días).

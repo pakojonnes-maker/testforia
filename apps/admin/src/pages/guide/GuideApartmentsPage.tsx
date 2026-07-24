@@ -13,7 +13,6 @@ import {
 import {
   Add as AddIcon,
   Apartment as ApartmentIcon,
-  Edit as EditIcon,
   QrCode2 as QrIcon,
   LocationOn as LocationIcon,
   Visibility as ViewIcon,
@@ -43,7 +42,6 @@ export default function GuideApartmentsPage() {
   const [zones, setZones] = useState<Zone[]>([]);
   const [loading, setLoading] = useState(true);
   const [dialogOpen, setDialogOpen] = useState(false);
-  const [editingApt, setEditingApt] = useState<Apartment | null>(null);
   const [form, setForm] = useState({ name: '', address: '', zone_id: '' });
   const [saving, setSaving] = useState(false);
 
@@ -67,31 +65,17 @@ export default function GuideApartmentsPage() {
   useEffect(() => { loadData(); }, [currentAgency?.id]);
 
   const handleOpenCreate = () => {
-    setEditingApt(null);
     setForm({ name: '', address: '', zone_id: zones[0]?.id || '' });
-    setDialogOpen(true);
-  };
-
-  const handleOpenEdit = (apt: Apartment) => {
-    setEditingApt(apt);
-    setForm({ name: apt.name, address: apt.address || '', zone_id: apt.zone_id });
     setDialogOpen(true);
   };
 
   const handleSave = async () => {
     setSaving(true);
     try {
-      if (editingApt) {
-        await apiClient.request(`/guide/admin/apartments/${editingApt.id}`, {
-          method: 'PUT',
-          body: JSON.stringify(form),
-        });
-      } else {
-        await apiClient.request('/guide/admin/apartments', {
-          method: 'POST',
-          body: JSON.stringify({ ...form, agency_id: currentAgency.id }),
-        });
-      }
+      await apiClient.request('/guide/admin/apartments', {
+        method: 'POST',
+        body: JSON.stringify({ ...form, agency_id: currentAgency.id }),
+      });
       setDialogOpen(false);
       loadData();
     } catch (err) {
@@ -188,12 +172,7 @@ export default function GuideApartmentsPage() {
                   />
                 </CardContent>
                 <CardActions sx={{ px: 2, pb: 2, pt: 0 }}>
-                  <Tooltip title="Editar apartamento">
-                    <IconButton size="small" onClick={() => handleOpenEdit(apt)}>
-                      <EditIcon fontSize="small" />
-                    </IconButton>
-                  </Tooltip>
-                  <Tooltip title="Gestionar información">
+                  <Tooltip title="Editar / Gestionar">
                     <IconButton
                       size="small"
                       onClick={() => navigate(`/guide/apartments/${apt.id}`)}
@@ -217,7 +196,7 @@ export default function GuideApartmentsPage() {
       {/* Create/Edit Dialog */}
       <Dialog open={dialogOpen} onClose={() => setDialogOpen(false)} maxWidth="sm" fullWidth>
         <DialogTitle>
-          {editingApt ? 'Editar Apartamento' : 'Nuevo Apartamento'}
+          Nuevo Apartamento
         </DialogTitle>
         <DialogContent>
           <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, mt: 1 }}>
@@ -258,7 +237,7 @@ export default function GuideApartmentsPage() {
             variant="contained"
             disabled={saving || !form.name || !form.zone_id}
           >
-            {saving ? <CircularProgress size={20} /> : editingApt ? 'Guardar' : 'Crear'}
+            {saving ? <CircularProgress size={20} /> : 'Crear'}
           </Button>
         </DialogActions>
       </Dialog>

@@ -4,6 +4,10 @@
 // Returns complete guidebook data for a single apartment
 // ============================================
 
+import { ACTIVE_LANGUAGES } from './workerGuideAdmin.js';
+
+const FALLBACK_LANG = 'es'; // es is the source of truth (see CLAUDE.md §5)
+
 function jsonResponse(data, status = 200) {
     return new Response(JSON.stringify(data), {
         status,
@@ -37,9 +41,22 @@ export async function handleGuideRequests(request, env) {
 }
 
 /**
- * Load complete guidebook for an apartment
+ * Load complete guidebook for an apartment.
+ * Exported so other public entry points (e.g. workerTvScreen.js's TV pairing
+ * config) can return the exact same shape/cache without duplicating the query.
  */
-async function handleGetGuidebook(env, slug, lang) {
+export async function handleGetGuidebook(env, slug, lang) {
+    // KV Cache check
+    if (env.GUIDE_CACHE) {
+        const cacheKey = `guide:${slug}:${lang}`;
+        const cached = await env.GUIDE_CACHE.get(cacheKey);
+        if (cached) {
+            return new Response(cached, {
+                headers: { 'Content-Type': 'application/json', 'X-Cache': 'HIT' }
+            });
+        }
+    }
+
     // 1. Load apartment + zone + agency
     const apartment = await env.DB.prepare(`
         SELECT 
@@ -53,8 +70,14 @@ async function handleGetGuidebook(env, slug, lang) {
         return errorResponse('Apartment not found', 404);
     }
 
-    // 2. Parallel load: zone, agency, info, POIs, experiences, restaurants
-    const [zone, agency, apartmentInfo, pois, experiences, zoneRestaurants] = await Promise.all([
+    // Check if apartment has specific POI assignments
+    const aptPoisCheck = await env.DB.prepare(
+        'SELECT COUNT(*) as count FROM guide_apartment_pois WHERE apartment_id = ?'
+    ).bind(apartment.id).first();
+    const hasAssignedPois = aptPoisCheck?.count > 0;
+
+    // 2. Parallel load: zone, agency, info, POIs, experiences, restaurants, welcome modal
+    const [zone, agency, apartmentInfo, pois, experiences, zoneRestaurants, welcomeModal] = await Promise.all([
         // Zone
         env.DB.prepare(`
             SELECT id, name, slug, country, region, latitude, longitude, cover_image_url
@@ -67,74 +90,133 @@ async function handleGetGuidebook(env, slug, lang) {
             FROM guide_agencies WHERE id = ? AND is_active = TRUE
         `).bind(apartment.agency_id).first(),
 
-        // Apartment info with translations
+        // Apartment info with translations (falls back to Spanish when the
+        // requested language has no translation row yet)
         env.DB.prepare(`
-            SELECT 
+            SELECT
                 ai.id, ai.info_key, ai.icon_name, ai.order_index,
-                t_title.value AS title,
-                t_content.value AS content
+                COALESCE(t_title.value, t_title_es.value) AS title,
+                COALESCE(t_content.value, t_content_es.value) AS content
             FROM guide_apartment_info ai
-            LEFT JOIN translations t_title ON ai.id = t_title.entity_id 
-                AND t_title.entity_type = 'apartment_info' 
-                AND t_title.field = 'title' 
+            LEFT JOIN translations t_title ON ai.id = t_title.entity_id
+                AND t_title.entity_type = 'apartment_info'
+                AND t_title.field = 'title'
                 AND t_title.language_code = ?
-            LEFT JOIN translations t_content ON ai.id = t_content.entity_id 
+            LEFT JOIN translations t_title_es ON ai.id = t_title_es.entity_id
+                AND t_title_es.entity_type = 'apartment_info'
+                AND t_title_es.field = 'title'
+                AND t_title_es.language_code = ?
+            LEFT JOIN translations t_content ON ai.id = t_content.entity_id
                 AND t_content.entity_type = 'apartment_info'
-                AND t_content.field = 'content' 
+                AND t_content.field = 'content'
                 AND t_content.language_code = ?
+            LEFT JOIN translations t_content_es ON ai.id = t_content_es.entity_id
+                AND t_content_es.entity_type = 'apartment_info'
+                AND t_content_es.field = 'content'
+                AND t_content_es.language_code = ?
             WHERE ai.apartment_id = ?
             ORDER BY ai.order_index ASC
-        `).bind(lang, lang, apartment.id).all(),
+        `).bind(lang, FALLBACK_LANG, lang, FALLBACK_LANG, apartment.id).all(),
 
-        // POIs with translations
-        env.DB.prepare(`
-            SELECT 
+        // POIs with translations (falls back to Spanish when missing)
+        hasAssignedPois
+        ? env.DB.prepare(`
+            SELECT
                 p.id, p.category, p.latitude, p.longitude, p.google_maps_url,
-                t_name.value AS name,
-                t_desc.value AS description
-            FROM guide_pois p
-            LEFT JOIN translations t_name ON p.id = t_name.entity_id 
-                AND t_name.entity_type = 'poi' 
-                AND t_name.field = 'name' 
+                p.rating, p.travel_time_text, p.travel_mode, p.distance_text,
+                COALESCE(t_name.value, t_name_es.value) AS name,
+                COALESCE(t_desc.value, t_desc_es.value) AS description
+            FROM guide_apartment_pois gap
+            JOIN guide_pois p ON gap.poi_id = p.id AND p.is_active = TRUE
+            LEFT JOIN translations t_name ON p.id = t_name.entity_id
+                AND t_name.entity_type = 'poi'
+                AND t_name.field = 'name'
                 AND t_name.language_code = ?
-            LEFT JOIN translations t_desc ON p.id = t_desc.entity_id 
-                AND t_desc.entity_type = 'poi' 
-                AND t_desc.field = 'description' 
+            LEFT JOIN translations t_name_es ON p.id = t_name_es.entity_id
+                AND t_name_es.entity_type = 'poi'
+                AND t_name_es.field = 'name'
+                AND t_name_es.language_code = ?
+            LEFT JOIN translations t_desc ON p.id = t_desc.entity_id
+                AND t_desc.entity_type = 'poi'
+                AND t_desc.field = 'description'
                 AND t_desc.language_code = ?
+            LEFT JOIN translations t_desc_es ON p.id = t_desc_es.entity_id
+                AND t_desc_es.entity_type = 'poi'
+                AND t_desc_es.field = 'description'
+                AND t_desc_es.language_code = ?
+            WHERE gap.apartment_id = ?
+            ORDER BY gap.order_override ASC
+        `).bind(lang, FALLBACK_LANG, lang, FALLBACK_LANG, apartment.id).all()
+        : env.DB.prepare(`
+            SELECT
+                p.id, p.category, p.latitude, p.longitude, p.google_maps_url,
+                p.rating, p.travel_time_text, p.travel_mode, p.distance_text,
+                COALESCE(t_name.value, t_name_es.value) AS name,
+                COALESCE(t_desc.value, t_desc_es.value) AS description
+            FROM guide_pois p
+            LEFT JOIN translations t_name ON p.id = t_name.entity_id
+                AND t_name.entity_type = 'poi'
+                AND t_name.field = 'name'
+                AND t_name.language_code = ?
+            LEFT JOIN translations t_name_es ON p.id = t_name_es.entity_id
+                AND t_name_es.entity_type = 'poi'
+                AND t_name_es.field = 'name'
+                AND t_name_es.language_code = ?
+            LEFT JOIN translations t_desc ON p.id = t_desc.entity_id
+                AND t_desc.entity_type = 'poi'
+                AND t_desc.field = 'description'
+                AND t_desc.language_code = ?
+            LEFT JOIN translations t_desc_es ON p.id = t_desc_es.entity_id
+                AND t_desc_es.entity_type = 'poi'
+                AND t_desc_es.field = 'description'
+                AND t_desc_es.language_code = ?
             WHERE p.zone_id = ? AND p.is_active = TRUE
             ORDER BY p.order_index ASC
-        `).bind(lang, lang, apartment.zone_id).all(),
+        `).bind(lang, FALLBACK_LANG, lang, FALLBACK_LANG, apartment.zone_id).all(),
 
-        // Experiences with translations
+        // Experiences with translations (falls back to Spanish when missing)
         env.DB.prepare(`
-            SELECT 
+            SELECT
                 e.id, e.category, e.service_subcategory, e.action_type, e.action_data, e.action_prefilled_message,
                 e.price_display, e.cover_image_url, e.is_featured,
-                t_name.value AS name,
-                t_desc.value AS description,
-                t_cta.value AS cta_label
+                e.discount_display, e.original_price_display, e.badge_type,
+                COALESCE(t_name.value, t_name_es.value) AS name,
+                COALESCE(t_desc.value, t_desc_es.value) AS description,
+                COALESCE(t_cta.value, t_cta_es.value) AS cta_label
             FROM guide_experiences e
-            LEFT JOIN translations t_name ON e.id = t_name.entity_id 
-                AND t_name.entity_type = 'experience' 
-                AND t_name.field = 'name' 
+            LEFT JOIN translations t_name ON e.id = t_name.entity_id
+                AND t_name.entity_type = 'experience'
+                AND t_name.field = 'name'
                 AND t_name.language_code = ?
-            LEFT JOIN translations t_desc ON e.id = t_desc.entity_id 
-                AND t_desc.entity_type = 'experience' 
-                AND t_desc.field = 'description' 
+            LEFT JOIN translations t_name_es ON e.id = t_name_es.entity_id
+                AND t_name_es.entity_type = 'experience'
+                AND t_name_es.field = 'name'
+                AND t_name_es.language_code = ?
+            LEFT JOIN translations t_desc ON e.id = t_desc.entity_id
+                AND t_desc.entity_type = 'experience'
+                AND t_desc.field = 'description'
                 AND t_desc.language_code = ?
-            LEFT JOIN translations t_cta ON e.id = t_cta.entity_id 
-                AND t_cta.entity_type = 'experience' 
-                AND t_cta.field = 'cta_label' 
+            LEFT JOIN translations t_desc_es ON e.id = t_desc_es.entity_id
+                AND t_desc_es.entity_type = 'experience'
+                AND t_desc_es.field = 'description'
+                AND t_desc_es.language_code = ?
+            LEFT JOIN translations t_cta ON e.id = t_cta.entity_id
+                AND t_cta.entity_type = 'experience'
+                AND t_cta.field = 'cta_label'
                 AND t_cta.language_code = ?
+            LEFT JOIN translations t_cta_es ON e.id = t_cta_es.entity_id
+                AND t_cta_es.entity_type = 'experience'
+                AND t_cta_es.field = 'cta_label'
+                AND t_cta_es.language_code = ?
             WHERE e.zone_id = ? AND e.is_active = TRUE
             ORDER BY e.is_featured DESC, e.order_index ASC
-        `).bind(lang, lang, lang, apartment.zone_id).all(),
+        `).bind(lang, FALLBACK_LANG, lang, FALLBACK_LANG, lang, FALLBACK_LANG, apartment.zone_id).all(),
 
         // Zone restaurants (bridge to existing restaurants table)
         env.DB.prepare(`
             SELECT 
                 r.id, r.name, r.slug,
-                zr.tier,
+                zr.tier, zr.cuisine_type_override AS cuisine_type,
                 (SELECT dm.r2_key FROM dish_media dm 
                  JOIN dishes d ON dm.dish_id = d.id 
                  WHERE d.restaurant_id = r.id AND dm.is_primary = 1 
@@ -142,11 +224,28 @@ async function handleGetGuidebook(env, slug, lang) {
             FROM guide_zone_restaurants zr
             JOIN restaurants r ON zr.restaurant_id = r.id AND r.is_active = TRUE
             WHERE zr.zone_id = ? AND zr.is_active = TRUE
-            ORDER BY 
+            ORDER BY
                 CASE WHEN zr.tier = 'featured' THEN 0 ELSE 1 END,
-                CASE WHEN zr.order_override IS NOT NULL THEN zr.order_override 
+                CASE WHEN zr.order_override IS NOT NULL THEN zr.order_override
                      ELSE ABS(RANDOM()) % 1000 END
-        `).bind(apartment.zone_id).all()
+        `).bind(apartment.zone_id).all(),
+
+        // Welcome modal (with translations for the current language, falling back to Spanish)
+        env.DB.prepare(`
+            SELECT
+                w.id, w.image_url, w.action_enabled, w.action_type, w.action_data,
+                t_title.value AS title, t_title_es.value AS title_es,
+                t_body.value AS body, t_body_es.value AS body_es,
+                t_cta.value AS action_label, t_cta_es.value AS action_label_es
+            FROM guide_welcome_modals w
+            LEFT JOIN translations t_title ON w.id = t_title.entity_id AND t_title.entity_type = 'welcome_modal' AND t_title.field = 'title' AND t_title.language_code = ?
+            LEFT JOIN translations t_title_es ON w.id = t_title_es.entity_id AND t_title_es.entity_type = 'welcome_modal' AND t_title_es.field = 'title' AND t_title_es.language_code = 'es'
+            LEFT JOIN translations t_body ON w.id = t_body.entity_id AND t_body.entity_type = 'welcome_modal' AND t_body.field = 'body' AND t_body.language_code = ?
+            LEFT JOIN translations t_body_es ON w.id = t_body_es.entity_id AND t_body_es.entity_type = 'welcome_modal' AND t_body_es.field = 'body' AND t_body_es.language_code = 'es'
+            LEFT JOIN translations t_cta ON w.id = t_cta.entity_id AND t_cta.entity_type = 'welcome_modal' AND t_cta.field = 'action_label' AND t_cta.language_code = ?
+            LEFT JOIN translations t_cta_es ON w.id = t_cta_es.entity_id AND t_cta_es.entity_type = 'welcome_modal' AND t_cta_es.field = 'action_label' AND t_cta_es.language_code = 'es'
+            WHERE w.apartment_id = ? AND w.is_active = TRUE
+        `).bind(lang, lang, lang, apartment.id).first()
     ]);
 
     if (!zone) {
@@ -198,11 +297,13 @@ async function handleGetGuidebook(env, slug, lang) {
         }
     }
 
-    // 5. Get zone translated description
+    // 5. Get zone translated description (falls back to Spanish when missing)
     const zoneDesc = await env.DB.prepare(`
-        SELECT value FROM translations
-        WHERE entity_id = ? AND entity_type = 'zone' AND field = 'description' AND language_code = ?
-    `).bind(zone.id, lang).first();
+        SELECT COALESCE(
+            (SELECT value FROM translations WHERE entity_id = ? AND entity_type = 'zone' AND field = 'description' AND language_code = ?),
+            (SELECT value FROM translations WHERE entity_id = ? AND entity_type = 'zone' AND field = 'description' AND language_code = ?)
+        ) AS value
+    `).bind(zone.id, lang, zone.id, FALLBACK_LANG).first();
 
     const deviceCount = await env.DB.prepare(`
         SELECT COUNT(DISTINCT device_fingerprint) as count
@@ -228,13 +329,16 @@ async function handleGetGuidebook(env, slug, lang) {
             action_data: exp.action_data,
             prefilled_message: prefilled,
             price_display: exp.price_display,
+            original_price_display: exp.original_price_display,
+            discount_display: exp.discount_display,
+            badge_type: exp.badge_type,
             cover_image_url: exp.cover_image_url,
             is_featured: exp.is_featured === 1,
             cta_label: exp.cta_label || (exp.action_type === 'WHATSAPP' ? 'WhatsApp' : 'Reservar')
         };
     });
 
-    return jsonResponse({
+    const responseData = {
         success: true,
         apartment: {
             id: apartment.id,
@@ -275,20 +379,41 @@ async function handleGetGuidebook(env, slug, lang) {
             latitude: poi.latitude,
             longitude: poi.longitude,
             google_maps_url: poi.google_maps_url,
+            rating: poi.rating,
+            travel_time_text: poi.travel_time_text,
+            travel_mode: poi.travel_mode,
+            distance_text: poi.distance_text,
             media: poiMedia[poi.id] || []
         })),
         restaurants: (zoneRestaurants.results || []).map(r => ({
             id: r.id,
             name: r.name,
             slug: r.slug,
+            cuisine_type: r.cuisine_type,
             tier: r.tier,
             cover_image: r.cover_image ? `/media/${r.cover_image}` : null
         })),
         experiences: processedExperiences,
+        welcome_modal: welcomeModal ? {
+            image_url: welcomeModal.image_url,
+            title: welcomeModal.title || welcomeModal.title_es || '',
+            body: welcomeModal.body || welcomeModal.body_es || '',
+            action_enabled: welcomeModal.action_enabled === 1,
+            action_type: welcomeModal.action_type,
+            action_data: welcomeModal.action_data,
+            action_label: welcomeModal.action_label || welcomeModal.action_label_es || '',
+        } : null,
         meta: {
             lang,
-            available_langs: ['es', 'en', 'fr', 'de', 'it', 'pt', 'nl', 'ru', 'zh', 'ja', 'ko', 'ar'],
+            available_langs: ACTIVE_LANGUAGES,
             active_devices_24h: deviceCount?.count || 0
         }
-    });
+    };
+
+    if (env.GUIDE_CACHE) {
+        const cacheKey = `guide:${slug}:${lang}`;
+        await env.GUIDE_CACHE.put(cacheKey, JSON.stringify(responseData), { expirationTtl: 900 });
+    }
+
+    return jsonResponse(responseData);
 }

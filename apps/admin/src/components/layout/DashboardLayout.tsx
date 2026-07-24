@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, Fragment } from 'react';
 import { Outlet, useNavigate, Link, useLocation } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { useAuth } from '../../contexts/AuthContext';
@@ -50,6 +50,10 @@ import {
   Apartment as ApartmentIcon,
   Dashboard as GuideDashboardIcon,
   SwapHoriz as SwapIcon,
+  Palette as PaletteIcon,
+  LocationOn as LocationOnIcon,
+  LocalActivity as LocalActivityIcon,
+  Loyalty as LoyaltyIcon,
 } from '@mui/icons-material';
 import {
   Menu,
@@ -253,6 +257,12 @@ export default function DashboardLayout() {
       featureKey: 'delivery'
     },
     {
+      text: 'Lealtad',
+      icon: <LoyaltyIcon />,
+      path: '/loyalty',
+      featureKey: 'loyalty'
+    },
+    {
       text: 'Configuración',
       icon: <SettingsIcon />,
       path: '/settings',
@@ -261,6 +271,8 @@ export default function DashboardLayout() {
   ];
 
   // ✅ Guidebook Agency menu items
+  // `section` groups items under a labeled header in the sidebar (agency mode only);
+  // items without a `section` render at the top, unlabeled.
   const agencyMenuItems = [
     {
       text: 'Dashboard',
@@ -272,8 +284,34 @@ export default function DashboardLayout() {
       text: 'Apartamentos',
       icon: <ApartmentIcon />,
       path: '/guide/apartments',
-      featureKey: null
+      featureKey: null,
+      section: 'GESTIÓN'
     },
+    {
+      text: 'Diseño',
+      icon: <PaletteIcon />,
+      path: '/guide/design',
+      featureKey: null,
+      section: 'GESTIÓN'
+    },
+    // Read-only for agency staff (they see which promotions are active, nothing more);
+    // full CRUD + commission data is gated server-side to superadmin.
+    {
+      text: 'Experiencias',
+      icon: <LocalActivityIcon />,
+      path: '/guide/experiences',
+      featureKey: null,
+      section: 'CATÁLOGO'
+    },
+    ...(user?.is_superadmin ? [
+      {
+        text: 'Localizaciones',
+        icon: <LocationOnIcon />,
+        path: '/guide/pois',
+        featureKey: null,
+        section: 'CATÁLOGO'
+      },
+    ] : [])
   ];
 
   const allMenuItems = adminMode === 'agency' ? agencyMenuItems : restaurantMenuItems;
@@ -487,35 +525,84 @@ export default function DashboardLayout() {
         </Box>
       )}
       <List>
-        {menuItems.map((item) => {
-          const isActive = location.pathname === item.path;
+        {(() => {
+          const isAgency = adminMode === 'agency';
+          let lastSection: string | undefined;
 
-          return (
-            <ListItem
-              disablePadding
-              key={item.text}
-              onClick={isMobile ? handleDrawerToggle : undefined}
-            >
-              <ListItemButton
-                component={Link}
-                to={item.path}
-                selected={isActive}
-              // Theme handles selected state colors
-              >
-                <ListItemIcon sx={{ color: isActive ? 'primary.main' : 'text.secondary' }}>
-                  {item.icon}
-                </ListItemIcon>
-                <ListItemText
-                  primary={item.text}
-                  primaryTypographyProps={{
-                    color: isActive ? 'primary.main' : 'text.primary',
-                    fontWeight: isActive ? 600 : 500
-                  }}
-                />
-              </ListItemButton>
-            </ListItem>
-          );
-        })}
+          return menuItems.map((item) => {
+            const isActive = location.pathname === item.path;
+            const section = isAgency ? (item as { section?: string }).section : undefined;
+            const showSectionLabel = isAgency && !!section && section !== lastSection;
+            lastSection = section;
+
+            return (
+              <Fragment key={item.text}>
+                {showSectionLabel && (
+                  <Typography
+                    variant="overline"
+                    sx={{
+                      display: 'block',
+                      px: 2,
+                      pt: 2,
+                      pb: 0.5,
+                      fontSize: 11,
+                      fontWeight: 600,
+                      letterSpacing: '0.08em',
+                      lineHeight: 1.5,
+                      color: 'rgba(255,255,255,0.45)',
+                    }}
+                  >
+                    {section}
+                  </Typography>
+                )}
+                <ListItem
+                  disablePadding
+                  onClick={isMobile ? handleDrawerToggle : undefined}
+                >
+                  <ListItemButton
+                    component={Link}
+                    to={item.path}
+                    selected={isActive}
+                    sx={isAgency ? {
+                      borderLeft: '4px solid',
+                      borderLeftColor: isActive ? 'secondary.main' : 'transparent',
+                      bgcolor: isActive ? 'rgba(255,255,255,0.08)' : 'transparent',
+                      '&:hover': {
+                        bgcolor: isActive ? 'rgba(255,255,255,0.08)' : 'rgba(255,255,255,0.05)',
+                      },
+                      '&.Mui-selected': {
+                        bgcolor: 'rgba(255,255,255,0.08)',
+                      },
+                      '&.Mui-selected:hover': {
+                        bgcolor: 'rgba(255,255,255,0.08)',
+                      },
+                    } : undefined}
+                  // Restaurant mode: theme handles selected state colors
+                  >
+                    <ListItemIcon
+                      sx={{
+                        color: isAgency
+                          ? (isActive ? '#FFFFFF' : 'rgba(255,255,255,0.75)')
+                          : (isActive ? 'primary.main' : 'text.secondary'),
+                      }}
+                    >
+                      {item.icon}
+                    </ListItemIcon>
+                    <ListItemText
+                      primary={item.text}
+                      primaryTypographyProps={{
+                        color: isAgency
+                          ? (isActive ? '#FFFFFF' : 'rgba(255,255,255,0.75)')
+                          : (isActive ? 'primary.main' : 'text.primary'),
+                        fontWeight: isActive ? (isAgency ? 700 : 600) : 500
+                      }}
+                    />
+                  </ListItemButton>
+                </ListItem>
+              </Fragment>
+            );
+          });
+        })()}
       </List>
     </div>
   );

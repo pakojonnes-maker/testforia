@@ -1,4 +1,6 @@
 // src/lib/api.ts — API helper for the guide app
+import { getTranslation } from './i18n';
+
 const API_URL = import.meta.env.VITE_API_URL || 'https://visualtasteworker.franciscotortosaestudios.workers.dev';
 
 export async function fetchGuidebook(slug: string, lang: string = 'es') {
@@ -112,4 +114,71 @@ function getDeviceFingerprint(): string {
     hash = hash & hash;
   }
   return Math.abs(hash).toString(36);
+}
+
+export interface ChatMessage {
+  role: 'user' | 'assistant';
+  content: string;
+}
+
+/**
+ * Send a chat message to the AI assistant and stream the response.
+ * Calls POST /guide/ai/chat and reads the SSE stream.
+ * @param apartmentId - The apartment ID
+ * @param message - The user message
+ * @param history - Previous chat messages (max 10)
+ * @param lang - Language code
+ * @param onToken - Callback called with each text token as it arrives
+ * @param onDone - Callback called when the stream is complete
+ */
+export async function sendChatMessage(
+  apartmentId: string,
+  message: string,
+  history: ChatMessage[],
+  lang: string,
+  onToken: (token: string) => void,
+  onDone: () => void
+): Promise<void> {
+  try {
+    const res = await fetch(`${API_URL}/guide/ai/chat`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ apartmentId, message, history, lang }),
+    });
+
+    if (!res.ok || !res.body) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error((err as any).error || `HTTP ${res.status}`);
+    }
+
+    const reader = res.body.getReader();
+    const decoder = new TextDecoder();
+
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+
+      const chunk = decoder.decode(value, { stream: true });
+      // Workers AI streams SSE: "data: {...}\n\n"
+      const lines = chunk.split('\n');
+      for (const line of lines) {
+        if (!line.startsWith('data: ')) continue;
+        const data = line.slice(6).trim();
+        if (data === '[DONE]') break;
+        try {
+          const parsed = JSON.parse(data);
+          // Workers AI format: { response: "token" }
+          const token = parsed?.response ?? parsed?.choices?.[0]?.delta?.content ?? '';
+          if (token) onToken(token);
+        } catch {
+          // Non-JSON SSE line, skip
+        }
+      }
+    }
+  } catch (err: any) {
+    // On error emit a fallback message
+    onToken(getTranslation('chat_connection_error', lang));
+  } finally {
+    onDone();
+  }
 }

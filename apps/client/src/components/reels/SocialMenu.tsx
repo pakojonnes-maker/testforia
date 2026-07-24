@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { IconButton, Box, Snackbar, Alert as MuiAlert } from '@mui/material';
-import { Instagram, Star, EventAvailable, TwoWheeler, WhatsApp, Notifications, NotificationsActive, LocalOffer } from '@mui/icons-material';
+import { Instagram, Star, EventAvailable, TwoWheeler, WhatsApp, Notifications, NotificationsActive, LocalOffer, Loyalty } from '@mui/icons-material';
 import { useDishTracking } from '../../providers/TrackingAndPushProvider';
 import RatingModal from '../ui/RatingModal';
 interface SocialMenuProps {
@@ -11,10 +11,12 @@ interface SocialMenuProps {
     onOpenReservation?: () => void;
     deliveryEnabled?: boolean;
     onOpenDelivery?: () => void;
+    loyaltyEnabled?: boolean;
+    onOpenLoyalty?: () => void;
     previousRating?: number | null;
 }
 
-const SocialMenu: React.FC<SocialMenuProps> = ({ restaurant, onOpenOffer, hasCampaign = false, reservationsEnabled, onOpenReservation, deliveryEnabled, onOpenDelivery }) => {
+const SocialMenu: React.FC<SocialMenuProps> = ({ restaurant, onOpenOffer, hasCampaign = false, reservationsEnabled, onOpenReservation, deliveryEnabled, onOpenDelivery, loyaltyEnabled, onOpenLoyalty }) => {
 
     // Removed isOpen state since we're rendering icons inline
     const [loading, setLoading] = useState(false);
@@ -143,6 +145,29 @@ const SocialMenu: React.FC<SocialMenuProps> = ({ restaurant, onOpenOffer, hasCam
                     }}
                 >
                     <TwoWheeler sx={{ fontSize: 20 }} />
+                </IconButton>
+            )}
+
+            {/* Loyalty stamp card */}
+            {loyaltyEnabled && onOpenLoyalty && (
+                <IconButton
+                    onClick={onOpenLoyalty}
+                    sx={{
+                        width: 40,
+                        height: 40,
+                        bgcolor: 'rgba(0,0,0,0.3)',
+                        border: '1px solid rgba(255,255,255,0.2)',
+                        backdropFilter: 'blur(10px)',
+                        boxShadow: { xs: 'none', md: '0 2px 8px rgba(0,0,0,0.4)' },
+                        color: '#FFD700',
+                        transition: 'all 0.3s ease',
+                        '&:hover': {
+                            bgcolor: 'rgba(0,0,0,0.5)',
+                            transform: 'scale(1.05)'
+                        }
+                    }}
+                >
+                    <Loyalty sx={{ fontSize: 20 }} />
                 </IconButton>
             )}
 

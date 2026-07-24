@@ -312,12 +312,13 @@ export const apiClient = {
    * Obtiene datos completos del restaurante para reels
    * Usa el método del cliente base que ya funciona correctamente
    */
-  async getRestaurantReelsData(slug: string): Promise<RestaurantReelsData> {
+  async getRestaurantReelsData(slug: string, lang: string = 'es'): Promise<RestaurantReelsData> {
     console.log('🚀 [apiClient] Cargando datos de reels para:', slug);
 
     try {
-      // Usar endpoint directo para asegurar compatibilidad
-      const response = await baseApiClient.client.get(`/restaurants/${slug}/reels`);
+      // ✅ Mismo lang que usan ReelsContainer/ReservePage por defecto ('es'), para que
+      // esta respuesta pueda sembrar la caché de useReelsConfig y evitar un 2º fetch.
+      const response = await baseApiClient.client.get(`/restaurants/${slug}/reels?lang=${lang}`);
       const data = response.data;
 
       console.log('✅ [apiClient] Datos de reels obtenidos:', {

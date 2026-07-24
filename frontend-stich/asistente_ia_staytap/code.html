@@ -1,0 +1,244 @@
+<!DOCTYPE html><html lang="es"><head>
+<meta charset="utf-8">
+<meta content="width=device-width, initial-scale=1.0" name="viewport">
+<title>Chat IA - StayTap</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600&amp;family=Playfair+Display:wght@500;600;700&amp;display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet">
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    "colors": {
+                        "tertiary-container": "#687a52",
+                        "primary-fixed": "#ffdbcf",
+                        "surface-variant": "#e5e2dd",
+                        "on-error": "#ffffff",
+                        "on-secondary-fixed-variant": "#2d486d",
+                        "primary": "#944426",
+                        "on-primary-fixed-variant": "#793013",
+                        "inverse-surface": "#31302d",
+                        "inverse-primary": "#ffb59b",
+                        "outline": "#88726b",
+                        "on-secondary-container": "#3e5980",
+                        "on-tertiary-container": "#f9ffea",
+                        "on-tertiary": "#ffffff",
+                        "on-error-container": "#93000a",
+                        "on-secondary-fixed": "#001c3b",
+                        "surface-dim": "#dcdad5",
+                        "tertiary-fixed-dim": "#bacd9e",
+                        "on-tertiary-fixed-variant": "#3b4c28",
+                        "secondary-fixed-dim": "#adc8f5",
+                        "surface-bright": "#fcf9f4",
+                        "terracotta": "#C96D4B",
+                        "deep-sea": "#1E3A5F",
+                        "surface-container-highest": "#e5e2dd",
+                        "error-container": "#ffdad6",
+                        "surface-container-high": "#ebe8e3",
+                        "primary-fixed-dim": "#ffb59b",
+                        "on-surface-variant": "#55433d",
+                        "tertiary-fixed": "#d5eab9",
+                        "outline-variant": "#dbc1b9",
+                        "secondary-fixed": "#d5e3ff",
+                        "olive": "#6B7D54",
+                        "on-secondary": "#ffffff",
+                        "on-tertiary-fixed": "#111f02",
+                        "on-background": "#1c1c19",
+                        "surface-container": "#f0ede9",
+                        "tertiary": "#50613b",
+                        "on-primary-fixed": "#380d00",
+                        "warm-sand": "#F1EBE0",
+                        "surface-tint": "#974728",
+                        "on-primary-container": "#fffbff",
+                        "surface": "#fcf9f4",
+                        "primary-container": "#b35c3b",
+                        "surface-container-low": "#f6f3ee",
+                        "secondary-container": "#b5d0fd",
+                        "surface-container-lowest": "#ffffff",
+                        "error": "#ba1a1a",
+                        "inverse-on-surface": "#f3f0eb",
+                        "secondary": "#455f87",
+                        "on-primary": "#ffffff",
+                        "background": "#fcf9f4",
+                        "on-surface": "#1c1c19",
+                        "crisp-white": "#FFFFFF"
+                    },
+                    "borderRadius": {
+                        "DEFAULT": "0.25rem",
+                        "lg": "0.5rem",
+                        "xl": "0.75rem",
+                        "full": "9999px"
+                    },
+                    "spacing": {
+                        "margin-mobile": "20px",
+                        "gutter": "24px",
+                        "container-max": "1200px",
+                        "base": "8px",
+                        "margin-desktop": "64px"
+                    },
+                    "fontFamily": {
+                        "label-lg": ["Montserrat"],
+                        "body-md": ["Montserrat"],
+                        "display-lg": ["Playfair Display"],
+                        "headline-lg-mobile": ["Playfair Display"],
+                        "body-lg": ["Montserrat"],
+                        "headline-md": ["Playfair Display"],
+                        "headline-lg": ["Playfair Display"],
+                        "label-sm": ["Montserrat"]
+                    },
+                    "fontSize": {
+                        "label-lg": ["14px", { "lineHeight": "1.2", "letterSpacing": "0.05em", "fontWeight": "600" }],
+                        "body-md": ["16px", { "lineHeight": "1.5", "fontWeight": "400" }],
+                        "display-lg": ["48px", { "lineHeight": "1.1", "letterSpacing": "-0.02em", "fontWeight": "700" }],
+                        "headline-lg-mobile": ["28px", { "lineHeight": "1.2", "fontWeight": "600" }],
+                        "body-lg": ["18px", { "lineHeight": "1.6", "fontWeight": "400" }],
+                        "headline-md": ["24px", { "lineHeight": "1.3", "fontWeight": "500" }],
+                        "headline-lg": ["32px", { "lineHeight": "1.2", "fontWeight": "600" }],
+                        "label-sm": ["12px", { "lineHeight": "1.2", "letterSpacing": "0.02em", "fontWeight": "500" }]
+                    }
+                },
+            },
+        }
+    </script>
+<style>
+        body {
+            background-color: theme('colors.background');
+            color: theme('colors.on-background');
+        }
+        /* Custom scrollbar for chat area */
+        .chat-scroll::-webkit-scrollbar {
+            width: 4px;
+        }
+        .chat-scroll::-webkit-scrollbar-track {
+            background: transparent;
+        }
+        .chat-scroll::-webkit-scrollbar-thumb {
+            background-color: theme('colors.surface-variant');
+            border-radius: 20px;
+        }
+    </style>
+</head>
+<body class="flex flex-col min-h-screen font-body-md bg-surface text-on-surface">
+<!-- TopAppBar -->
+<header class="docked full-width top-0 bg-surface dark:bg-on-background shadow-sm flex flex-col w-full pt-4 px-margin-mobile gap-4 z-40 hidden md:flex">
+<div class="flex justify-between items-center w-full max-w-container-max mx-auto">
+<div class="flex items-center gap-3 cursor-pointer group">
+<span class="material-symbols-outlined text-terracotta dark:text-primary-fixed group-hover:scale-95 duration-150 ease-in-out">language</span>
+<h1 class="text-headline-md font-headline-md font-bold text-deep-sea dark:text-secondary-fixed">StayTap</h1>
+</div>
+<nav class="flex gap-6">
+<a class="text-on-surface-variant dark:text-surface-variant pb-2 text-label-lg font-label-lg hover:text-terracotta dark:hover:text-primary-fixed transition-colors" href="#">Casa</a>
+<a class="text-on-surface-variant dark:text-surface-variant pb-2 text-label-lg font-label-lg hover:text-terracotta dark:hover:text-primary-fixed transition-colors" href="#">Ubicaciones</a>
+<a class="text-on-surface-variant dark:text-surface-variant pb-2 text-label-lg font-label-lg hover:text-terracotta dark:hover:text-primary-fixed transition-colors" href="#">Promociones</a>
+<a class="text-olive border-b-2 border-olive pb-2 font-bold text-label-lg font-label-lg hover:text-terracotta dark:hover:text-primary-fixed transition-colors" href="#">Chat IA</a>
+</nav>
+<div class="flex items-center">
+<div class="w-10 h-10 rounded-full bg-surface-container-high overflow-hidden cursor-pointer hover:scale-95 duration-150 ease-in-out">
+<img alt="Profile" class="w-full h-full object-cover" data-alt="A small circular avatar showing a warmly lit, modern Mediterranean villa exterior with white walls and a glimpse of a blue pool." src="https://lh3.googleusercontent.com/aida-public/AB6AXuBDOebJJjhyPimrKietGNihgitkxCfLEnrvVbo9kmlA0zI0h0g5ZNkndLHbrCJcfVsLamI8YBQmawFeABJywvKq7CR-fFZA4n7cLqzaacUN0fhLahDLN7XmejqOn0fifzLpcAChjFONi7-Ks50G5gbsJRQ3KVd0av-_W3VjDrs0GkpO88V2Qdw4PXS5qo1zZdx6-8B_5jGexXV1-MYd2TbTWLiKTWuu1SgjvtW7-fjAYnOjlwWqNFil">
+</div>
+</div>
+</div>
+</header>
+<!-- Mobile Header (Simplified) -->
+<header class="md:hidden w-full pt-6 pb-4 px-margin-mobile flex justify-between items-center bg-surface sticky top-0 z-30 shadow-sm">
+<h1 class="text-headline-lg-mobile font-headline-lg-mobile text-deep-sea font-bold">Chat IA</h1>
+<div class="w-8 h-8 rounded-full overflow-hidden">
+<img alt="Profile" class="w-full h-full object-cover" data-alt="A small circular avatar showing a warmly lit, modern Mediterranean villa exterior with white walls and a glimpse of a blue pool." src="https://lh3.googleusercontent.com/aida-public/AB6AXuDKKDuf-yrKmQJODrjqSV7q59mC6FgfthowXHWOtq20LcbLrH9OZHchKe5P7aDoETKnTFPPKfqf3-HljPk_Tr1soVm4ppFnCNOhvD5EhkQGkGs6UgzwCsDVlqXXLVDqiWiJt1MVJJvyqqwkDRwgnXSvU8cY3UOwRJ8opo-xWJKivXS97dNDdJzWzPHuaZmLAYgd2aEnXFG26uwekFBwUxNCmLif5TkCo3iTr0Y3RLuvdM35WrD8vrPE">
+</div>
+</header>
+<!-- Main Content Canvas -->
+<main class="flex-grow flex flex-col w-full max-w-3xl mx-auto px-margin-mobile md:px-0 pt-4 pb-32 md:pb-12 relative h-[calc(100vh-140px)] md:h-[calc(100vh-180px)]">
+<!-- Welcome / AI Header -->
+<div class="text-center mb-8 shrink-0">
+<div class="w-16 h-16 bg-warm-sand rounded-full flex items-center justify-center mx-auto mb-4 shadow-[0px_4px_20px_rgba(201,109,75,0.08)]">
+<span class="material-symbols-outlined text-terracotta text-3xl" style="font-variation-settings: 'FILL' 1;">spark</span>
+</div>
+<h2 class="text-headline-md font-headline-md text-deep-sea mb-2">Asistente de Villa</h2>
+<p class="text-body-md font-body-md text-on-surface-variant max-w-md mx-auto">Hola. Estoy aquí para ayudarte a aprovechar al máximo tu estancia en Villa Méditerranée.</p>
+</div>
+<!-- Chat History Area -->
+<div class="flex-grow overflow-y-auto chat-scroll flex flex-col gap-6 px-2 mb-6">
+<!-- AI Message -->
+<div class="flex gap-3 max-w-[85%]">
+<div class="w-8 h-8 rounded-full bg-warm-sand flex-shrink-0 flex items-center justify-center mt-1">
+<span class="material-symbols-outlined text-terracotta text-sm" style="font-variation-settings: 'FILL' 1;">spark</span>
+</div>
+<div class="bg-crisp-white p-4 rounded-2xl rounded-tl-sm shadow-[0px_4px_20px_rgba(201,109,75,0.08)] text-body-md font-body-md text-on-surface">
+                    ¡Bienvenido! ¿En qué puedo ayudarte hoy? Puedes preguntarme sobre la casa, recomendaciones locales o cómo usar los electrodomésticos.
+                </div>
+</div>
+<!-- User Message -->
+<div class="flex gap-3 max-w-[85%] self-end flex-row-reverse">
+<div class="w-8 h-8 rounded-full bg-surface-container-high flex-shrink-0 overflow-hidden mt-1">
+<img alt="User" class="w-full h-full object-cover" data-alt="A small circular avatar showing a warmly lit, modern Mediterranean villa exterior with white walls and a glimpse of a blue pool." src="https://lh3.googleusercontent.com/aida-public/AB6AXuBw5F57NXGQY6AiUSJutuCX_bf7TTz22j1MiJuv1Grac4HmoG-5yYepbtBktFyk6E6ebvRHBEoaVLetpVj1hlcrrHH_Z1Z6048J5qhfgirkyZ6CyX9-kzSdZOD9ypT1VUZ8dB91or_gVpF8SohXoyvG72HS-qpZlhoaBY1bR5WbD-8MOqnv-1QdG671pZLxVdi8lHIEeqIXhfWN9L150IeXHlWMQT5wIermQ_YUgCXh_wACCsV8vuDh">
+</div>
+<div class="bg-terracotta text-crisp-white p-4 rounded-2xl rounded-tr-sm shadow-sm text-body-md font-body-md">
+                    ¿A qué hora es el check-out mañana?
+                </div>
+</div>
+<!-- AI Message -->
+<div class="flex gap-3 max-w-[85%]">
+<div class="w-8 h-8 rounded-full bg-warm-sand flex-shrink-0 flex items-center justify-center mt-1">
+<span class="material-symbols-outlined text-terracotta text-sm" style="font-variation-settings: 'FILL' 1;">spark</span>
+</div>
+<div class="bg-crisp-white p-4 rounded-2xl rounded-tl-sm shadow-[0px_4px_20px_rgba(201,109,75,0.08)] text-body-md font-body-md text-on-surface">
+                    El check-out estándar es a las 11:00 AM. Por favor, asegúrate de dejar las llaves en la caja de seguridad junto a la puerta principal. ¿Necesitas ayuda con algo más?
+                </div>
+</div>
+<!-- Spacer to ensure scroll past quick actions -->
+<div class="h-4 w-full"></div>
+</div>
+<!-- Input Area (Fixed to bottom of canvas) -->
+<div class="shrink-0 bg-surface pb-2">
+<!-- Quick Action Chips -->
+<div class="flex overflow-x-auto gap-3 pb-4 chat-scroll no-scrollbar" style="scrollbar-width: none;">
+<button class="whitespace-nowrap px-4 py-2 rounded-full bg-olive/10 text-deep-sea text-label-sm font-label-sm border border-olive/20 hover:bg-olive/20 transition-colors flex items-center gap-2">
+<span class="material-symbols-outlined text-[16px]">wifi</span>
+                    ¿Cuál es la clave del WiFi?
+                </button>
+<button class="whitespace-nowrap px-4 py-2 rounded-full bg-deep-sea/10 text-deep-sea text-label-sm font-label-sm border border-deep-sea/20 hover:bg-deep-sea/20 transition-colors flex items-center gap-2">
+<span class="material-symbols-outlined text-[16px]">fireplace</span>
+                    ¿Cómo encender la chimenea?
+                </button>
+<button class="whitespace-nowrap px-4 py-2 rounded-full bg-terracotta/10 text-deep-sea text-label-sm font-label-sm border border-terracotta/20 hover:bg-terracotta/20 transition-colors flex items-center gap-2">
+<span class="material-symbols-outlined text-[16px]">restaurant</span>
+                    Recomienda un restaurante
+                </button>
+</div>
+<!-- Text Input -->
+<div class="relative bg-warm-sand rounded-xl p-2 flex items-center shadow-inner transition-colors focus-within:bg-crisp-white focus-within:ring-1 focus-within:ring-deep-sea">
+<input class="w-full bg-transparent border-none focus:ring-0 text-body-md font-body-md text-on-surface placeholder:text-on-surface-variant/60 px-4 py-3" placeholder="Escribe tu mensaje aquí..." type="text">
+<button class="w-12 h-12 rounded-lg bg-terracotta text-crisp-white flex items-center justify-center hover:bg-surface-tint transition-colors ml-2 shrink-0 shadow-sm">
+<span class="material-symbols-outlined">send</span>
+</button>
+</div>
+</div>
+</main>
+<!-- BottomNavBar (Mobile Only) -->
+<nav class="fixed bottom-0 left-0 w-full flex justify-around items-center py-3 px-4 bg-crisp-white dark:bg-inverse-surface shadow-[0px_-4px_20px_rgba(201,109,75,0.08)] z-50 rounded-t-xl md:hidden">
+<a class="flex flex-col items-center justify-center text-on-surface-variant dark:text-surface-variant hover:bg-warm-sand dark:hover:bg-tertiary-container/30 p-2 rounded-lg transition-colors" href="#">
+<span class="material-symbols-outlined mb-1">home</span>
+<span class="text-label-sm font-label-sm">Casa</span>
+</a>
+<a class="flex flex-col items-center justify-center text-on-surface-variant dark:text-surface-variant hover:bg-warm-sand dark:hover:bg-tertiary-container/30 p-2 rounded-lg transition-colors" href="#">
+<span class="material-symbols-outlined mb-1">location_on</span>
+<span class="text-label-sm font-label-sm">Ubicaciones</span>
+</a>
+<a class="flex flex-col items-center justify-center text-on-surface-variant dark:text-surface-variant hover:bg-warm-sand dark:hover:bg-tertiary-container/30 p-2 rounded-lg transition-colors" href="#">
+<span class="material-symbols-outlined mb-1">sell</span>
+<span class="text-label-sm font-label-sm">Promociones</span>
+</a>
+<a class="flex flex-col items-center justify-center text-terracotta dark:text-primary-fixed font-bold bg-primary-fixed/20 rounded-xl px-3 py-1 scale-90 transition-transform" href="#">
+<span class="material-symbols-outlined mb-1" style="font-variation-settings: 'FILL' 1;">spark</span>
+<span class="text-label-sm font-label-sm">Chat IA</span>
+</a>
+</nav>
+<style>
+        /* Hide scrollbar for quick actions but allow scroll */
+        .no-scrollbar::-webkit-scrollbar {
+            display: none;
+        }
+    </style>
+</body></html>

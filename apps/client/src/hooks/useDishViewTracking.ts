@@ -33,19 +33,14 @@ export function useDishViewTracking({
       return;
     }
 
-    console.debug('👁️ [useDishViewTracking] Configurando observer para:', dishId);
-
     // Crear observer
     observerRef.current = new IntersectionObserver(
       (entries) => {
         entries.forEach((entry) => {
           if (entry.isIntersecting && entry.intersectionRatio >= threshold) {
-            console.debug('👁️ [useDishViewTracking] Plato visible:', dishId);
-
             // Iniciar timer
             timerRef.current = window.setTimeout(() => {
               if (!hasTrackedRef.current && isReady()) {
-                console.log('✅ [useDishViewTracking] Registrando vista:', dishId, 'sectionId:', sectionId);
                 viewDish(dishId, sectionId);
                 hasTrackedRef.current = true;
 

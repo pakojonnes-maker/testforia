@@ -124,40 +124,26 @@ export async function handleReelsRequests(request, env) {
             // ✅ 12. TEMPLATE CONFIG
             const finalTemplateId = reelConfig?.template_id || templateInfo?.id || 'tpl_classic';
             const templateConfig = await buildTemplateConfig(env, finalTemplateId, configOverrides);
-            // ✅ 12.5 [ENHANCED] MARKETING CAMPAIGNS - Load all active campaign types
+            // ✅ 12.5 MARKETING CAMPAIGNS - Welcome modal (only campaign type in use)
             const allCampaigns = await env.DB.prepare(`
-                SELECT * FROM marketing_campaigns 
-                WHERE restaurant_id = ? AND is_active = TRUE
-                ORDER BY type, priority DESC, created_at DESC
+                SELECT * FROM marketing_campaigns
+                WHERE restaurant_id = ? AND is_active = TRUE AND type = 'welcome_modal'
+                ORDER BY priority DESC, created_at DESC
+                LIMIT 1
             `).bind(restaurant.id).all();
-            // Organize campaigns by type
-            let marketingCampaign = undefined;  // welcome_modal (primary)
-            let scratchWinCampaign = undefined; // scratch_win with display settings
-            let eventCampaigns = [];            // events with show_in_menu
-            for (const campaign of (allCampaigns.results || [])) {
+            let marketingCampaign = undefined;
+            const campaignRow = (allCampaigns.results || [])[0];
+            if (campaignRow) {
                 try {
-                    const parsedCampaign = {
-                        id: campaign.id,
-                        name: campaign.name,
-                        type: campaign.type,
-                        content: JSON.parse(campaign.content || '{}'),
-                        settings: JSON.parse(campaign.settings || '{}'),
-                        start_date: campaign.start_date,
-                        end_date: campaign.end_date
+                    marketingCampaign = {
+                        id: campaignRow.id,
+                        name: campaignRow.name,
+                        type: campaignRow.type,
+                        content: JSON.parse(campaignRow.content || '{}'),
+                        settings: JSON.parse(campaignRow.settings || '{}'),
+                        start_date: campaignRow.start_date,
+                        end_date: campaignRow.end_date
                     };
-                    if (campaign.type === 'welcome_modal' && !marketingCampaign) {
-                        marketingCampaign = parsedCampaign;
-                    } else if (campaign.type === 'scratch_win' && !scratchWinCampaign) {
-                        // Only include if display_mode is not 'hidden'
-                        if (parsedCampaign.settings?.display_mode && parsedCampaign.settings.display_mode !== 'hidden') {
-                            scratchWinCampaign = parsedCampaign;
-                        }
-                    } else if (campaign.type === 'event') {
-                        // Only include if show_in_menu is true
-                        if (parsedCampaign.settings?.show_in_menu === true) {
-                            eventCampaigns.push(parsedCampaign);
-                        }
-                    }
                 } catch (e) {
                     console.error("Error parsing campaign JSON", e);
                 }
@@ -194,6 +180,40 @@ export async function handleReelsRequests(request, env) {
                     ORDER BY created_at DESC LIMIT 1
                  `).bind(restaurant.id, visitorId).first();
                 if (ratingEntry) previousRating = ratingEntry.rating;
+            }
+            // ✅ 12.10 [NEW] LOYALTY PROGRAM (tarjeta de sellos)
+            let loyaltyProgram = null;
+            let loyaltyCard = null;
+            const loyaltyProgramRow = await env.DB.prepare(
+                'SELECT * FROM loyalty_programs WHERE restaurant_id = ? AND is_active = 1'
+            ).bind(restaurant.id).first();
+            if (loyaltyProgramRow) {
+                loyaltyProgram = {
+                    stamps_required: loyaltyProgramRow.stamps_required,
+                    reward_name: loyaltyProgramRow.reward_name,
+                    reward_description: loyaltyProgramRow.reward_description,
+                    reward_image_url: loyaltyProgramRow.reward_image_url,
+                    stamp_icon: loyaltyProgramRow.stamp_icon || '⭐',
+                    card_color: loyaltyProgramRow.card_color,
+                    terms: loyaltyProgramRow.terms
+                };
+                if (visitorId) {
+                    const cardRow = await env.DB.prepare(`
+                        SELECT * FROM loyalty_cards
+                        WHERE restaurant_id = ? AND visitor_id = ? AND status IN ('active', 'completed')
+                        ORDER BY created_at DESC LIMIT 1
+                    `).bind(restaurant.id, visitorId).first();
+                    if (cardRow) {
+                        loyaltyCard = {
+                            id: cardRow.id,
+                            stamps: cardRow.stamps,
+                            status: cardRow.status,
+                            magic_link_token: cardRow.status === 'completed' ? cardRow.magic_link_token : undefined,
+                            expires_at: cardRow.expires_at,
+                            completed_at: cardRow.completed_at
+                        };
+                    }
+                }
             }
             // ✅ 13. RESPUESTA FINAL
             const response = {
@@ -236,8 +256,7 @@ export async function handleReelsRequests(request, env) {
                     backgroundColor: restaurant.background_color || '#000000',
                 },
                 marketing: marketingCampaign, // Welcome modal campaign
-                scratchWin: scratchWinCampaign, // Scratch & Win with visibility settings
-                events: eventCampaigns, // Events with show_in_menu
+                loyalty: { program: loyaltyProgram, card: loyaltyCard }, // [NEW] Stamp card program
                 reservationsEnabled: reservationsEnabled, // [NEW] Reservations
                 deliveryEnabled: deliveryEnabled, // [NEW] Delivery enabled flag
                 deliverySettings: deliverySettings ? {
@@ -265,22 +284,6 @@ export async function handleReelsRequests(request, env) {
                 error: error.message
             }, 500);
         }
-    }
-    // NUEVAS RUTAS: Marketing y Loyalty
-    if (url.pathname.startsWith('/marketing/active')) {
-        return handleMarketingActive(request, env);
-    }
-    if (url.pathname.startsWith('/marketing/interact')) {
-        return handleMarketingInteract(request, env);
-    }
-    if (url.pathname.startsWith('/loyalty/scan')) {
-        return handleLoyaltyScan(request, env);
-    }
-    if (url.pathname.startsWith('/loyalty/play')) {
-        return handleLoyaltyPlay(request, env);
-    }
-    if (url.pathname.startsWith('/loyalty/claim')) {
-        return handleLoyaltyClaim(request, env);
     }
     // ✅ Endpoint: POST /restaurants/:slug/rating
     if (request.method === "POST" && url.pathname.match(/^\/restaurants\/[^/]+\/rating$/)) {
@@ -580,299 +583,4 @@ export function createResponse(data, status = 200) {
             "Cache-Control": status === 200 ? "public, max-age=60" : "no-cache"
         },
     });
-}
-export async function handleLoyaltyRequests(request, env) {
-    const url = new URL(request.url);
-    const pathname = url.pathname;
-    console.log(`[Loyalty] Request: ${request.method} ${pathname}`);
-    if (pathname === '/api/loyalty/scan') return handleLoyaltyScan(request, env);
-    if (pathname === '/api/loyalty/play') return handleLoyaltyPlay(request, env);
-    if (pathname === '/api/loyalty/claim') return handleLoyaltyClaim(request, env);
-    console.log(`[Loyalty] No match for ${pathname}`);
-    return null;
-}
-// ============================================
-// MARKETING & LOYALTY HANDLERS
-// ============================================
-async function handleMarketingActive(request, env) {
-    if (request.method !== 'GET') return createResponse('Method not allowed', 405);
-    const url = new URL(request.url);
-    const restaurantId = url.searchParams.get('restaurant_id');
-    if (!restaurantId) return createResponse({ error: 'restaurant_id required' }, 400);
-    const campaigns = await env.DB.prepare(`
-        SELECT * FROM marketing_campaigns 
-        WHERE restaurant_id = ? AND is_active = TRUE 
-        ORDER BY priority DESC, created_at DESC
-    `).bind(restaurantId).all();
-    const results = (campaigns.results || []).map(c => {
-        try {
-            return {
-                ...c,
-                content: JSON.parse(c.content || '{}'),
-                settings: JSON.parse(c.settings || '{}')
-            };
-        } catch (e) {
-            return c;
-        }
-    });
-    return createResponse({ campaigns: results });
-}
-async function handleMarketingInteract(request, env) {
-    if (request.method !== 'POST') return createResponse('Method not allowed', 405);
-    try {
-        const body = await request.json();
-        const { restaurant_id, campaign_id, type, contact_value, metadata } = body;
-        await env.DB.prepare(`
-            INSERT INTO marketing_leads (id, restaurant_id, campaign_id, type, contact_value, metadata)
-            VALUES (?, ?, ?, ?, ?, ?)
-        `).bind(crypto.randomUUID(), restaurant_id, campaign_id, type, contact_value, JSON.stringify(metadata || {})).run();
-        return createResponse({ success: true });
-    } catch (e) {
-        return createResponse({ error: e.message }, 500);
-    }
-}
-async function handleLoyaltyScan(request, env) {
-    if (request.method !== 'POST') return createResponse('Method not allowed', 405);
-    try {
-        const { qr_id } = await request.json();
-        if (!qr_id) return createResponse({ error: 'Invalid QR' }, 400);
-        let restaurantId = null;
-        let qrCodeId = qr_id;
-        // 1. Try to find in qr_codes table first
-        const qrCode = await env.DB.prepare(`
-            SELECT * FROM qr_codes WHERE id = ?
-        `).bind(qr_id).first();
-        if (qrCode) {
-            restaurantId = qrCode.restaurant_id;
-        } else {
-            // ✅ FALLBACK: Try as campaign ID (admin QR uses campaign.id directly)
-            const campaignAsCampaign = await env.DB.prepare(`
-                SELECT id, restaurant_id, name, content FROM marketing_campaigns 
-                WHERE id = ? AND type = 'scratch_win' AND is_active = TRUE
-            `).bind(qr_id).first();
-            if (campaignAsCampaign) {
-                restaurantId = campaignAsCampaign.restaurant_id;
-                // Create an implicit QR entry so future scans are faster
-                qrCodeId = `qr_auto_${qr_id.substring(0, 8)}`;
-                try {
-                    await env.DB.prepare(`
-                        INSERT OR IGNORE INTO qr_codes (id, restaurant_id, type, created_at)
-                        VALUES (?, ?, 'loyalty', CURRENT_TIMESTAMP)
-                    `).bind(qrCodeId, restaurantId).run();
-                } catch (e) {
-                    // Non-critical: may fail if table structure differs, continue anyway
-                    console.warn('[Loyalty] Auto QR creation skipped:', e.message);
-                    qrCodeId = qr_id; // Use original ID for session
-                }
-                // Return directly with campaign data
-                const restaurant = await env.DB.prepare(`
-                    SELECT id, name, slug, logo_url FROM restaurants WHERE id = ?
-                `).bind(restaurantId).first();
-                const sessionId = crypto.randomUUID();
-                try {
-                    await env.DB.prepare(`
-                        INSERT INTO sessions (id, restaurant_id, qr_code_id, started_at)
-                        VALUES (?, ?, ?, CURRENT_TIMESTAMP)
-                    `).bind(sessionId, restaurantId, qrCodeId).run();
-                } catch (e) {
-                    console.warn('[Loyalty] Session creation failed (non-critical):', e.message);
-                }
-                return createResponse({
-                    session_id: sessionId,
-                    restaurant_id: restaurantId,
-                    restaurant_name: restaurant?.name || '',
-                    restaurant_slug: restaurant?.slug || '',
-                    restaurant_logo: restaurant?.logo_url || '',
-                    has_game: true,
-                    campaign: {
-                        id: campaignAsCampaign.id,
-                        name: campaignAsCampaign.name,
-                        content: JSON.parse(campaignAsCampaign.content || '{}')
-                    }
-                });
-            }
-            return createResponse({ error: 'Invalid QR' }, 404);
-        }
-        // 2. Get restaurant branding for frontend display
-        const restaurant = await env.DB.prepare(`
-            SELECT id, name, slug, logo_url FROM restaurants WHERE id = ?
-        `).bind(restaurantId).first();
-        // 3. Start Session (attributed to waiter if exists)
-        const sessionId = crypto.randomUUID();
-        await env.DB.prepare(`
-            INSERT INTO sessions (id, restaurant_id, qr_code_id, started_at)
-            VALUES (?, ?, ?, CURRENT_TIMESTAMP)
-        `).bind(sessionId, restaurantId, qr_id).run();
-        // 4. Find active Scratch Campaign for this restaurant
-        const campaign = await env.DB.prepare(`
-            SELECT * FROM marketing_campaigns 
-            WHERE restaurant_id = ? AND type = 'scratch_win' AND is_active = TRUE
-            ORDER BY priority DESC LIMIT 1
-        `).bind(restaurantId).first();
-        if (!campaign) {
-            return createResponse({
-                session_id: sessionId,
-                has_game: false,
-                message: "No active game",
-                restaurant_id: restaurantId,
-                restaurant_name: restaurant?.name || '',
-                restaurant_slug: restaurant?.slug || '',
-                restaurant_logo: restaurant?.logo_url || ''
-            });
-        }
-        return createResponse({
-            session_id: sessionId,
-            restaurant_id: restaurantId,
-            restaurant_name: restaurant?.name || '',
-            restaurant_slug: restaurant?.slug || '',
-            restaurant_logo: restaurant?.logo_url || '',
-            has_game: true,
-            campaign: {
-                id: campaign.id,
-                name: campaign.name,
-                content: JSON.parse(campaign.content || '{}')
-            }
-        });
-    } catch (e) {
-        return createResponse({ error: e.message }, 500);
-    }
-}
-async function handleLoyaltyPlay(request, env) {
-    if (request.method !== 'POST') return createResponse('Method not allowed', 405);
-    try {
-        const { session_id, campaign_id, visitor_id } = await request.json();
-        const clientIp = request.headers.get('CF-Connecting-IP') || 'unknown';
-        // FRAUD PREVENTION: Check cooldown by visitor_id OR IP (Bug #5 fix)
-        // Always check - never skip even if visitor_id is null
-        const identifiers = [];
-        if (visitor_id) identifiers.push({ field: 'visitor_id', value: visitor_id });
-        identifiers.push({ field: 'ip_address', value: clientIp });
-        for (const id of identifiers) {
-            const recentPlay = await env.DB.prepare(`
-                SELECT id FROM campaign_events 
-                WHERE campaign_id = ? 
-                  AND ${id.field} = ? 
-                  AND event_type = 'game_played'
-                  AND created_at > datetime('now', '-24 hours')
-                LIMIT 1
-            `).bind(campaign_id, id.value).first();
-            if (recentPlay) {
-                return createResponse({
-                    win: false,
-                    cooldown: true,
-                    message: "Ya has jugado hoy. ¡Vuelve mañana!"
-                });
-            }
-        }
-        // 1. Get available rewards for this campaign
-        const rewards = await env.DB.prepare(`
-            SELECT * FROM campaign_rewards 
-            WHERE campaign_id = ? AND is_active = TRUE AND (max_quantity IS NULL OR max_quantity > 0)
-        `).bind(campaign_id).all();
-        if (!rewards.results || rewards.results.length === 0) {
-            return createResponse({ win: false, message: "No prizes available" });
-        }
-        // 2. Simple weighted probability logic
-        let selectedReward = null;
-        const roll = Math.random();
-        let cumulative = 0.0;
-        for (const r of rewards.results) {
-            cumulative += r.probability;
-            if (roll < cumulative) {
-                selectedReward = r;
-                break;
-            }
-        }
-        // 3. Track the play attempt ALWAYS (for fraud prevention via visitor_id AND IP)
-        await env.DB.prepare(`
-            INSERT INTO campaign_events (id, campaign_id, visitor_id, session_id, event_type, ip_address, metadata, created_at)
-            VALUES (?, ?, ?, ?, 'game_played', ?, ?, CURRENT_TIMESTAMP)
-        `).bind(
-            crypto.randomUUID(),
-            campaign_id,
-            visitor_id || null,
-            session_id || null,
-            clientIp,
-            JSON.stringify({ won: !!selectedReward, reward_id: selectedReward?.id || null })
-        ).run();
-        if (selectedReward) {
-            return createResponse({
-                win: true,
-                reward: {
-                    id: selectedReward.id,
-                    name: selectedReward.name,
-                    image_url: selectedReward.image_url,
-                    description: selectedReward.description
-                }
-            });
-        } else {
-            return createResponse({ win: false, message: "Try again next time!" });
-        }
-    } catch (e) {
-        return createResponse({ error: e.message }, 500);
-    }
-}
-async function handleLoyaltyClaim(request, env) {
-    if (request.method !== 'POST') return createResponse('Method not allowed', 405);
-    try {
-        const { session_id, reward_id, campaign_id, contact, restaurant_id, visitor_id } = await request.json();
-        // 1. Verify reward EXISTS and BELONGS to this campaign (Bug #2 fix)
-        const reward = await env.DB.prepare(
-            'SELECT * FROM campaign_rewards WHERE id = ? AND campaign_id = ?'
-        ).bind(reward_id, campaign_id).first();
-        if (!reward) return createResponse({ error: 'Invalid reward for this campaign' }, 400);
-        // 2. Verify the user actually WON this reward (Bug #3 fix)
-        const gameEvent = await env.DB.prepare(`
-            SELECT id FROM campaign_events 
-            WHERE campaign_id = ? AND session_id = ? AND event_type = 'game_played'
-            AND metadata LIKE '%"won":true%' AND metadata LIKE ?
-            LIMIT 1
-        `).bind(campaign_id, session_id, `%${reward_id}%`).first();
-        if (!gameEvent) return createResponse({ error: 'No winning game found for this session' }, 403);
-        // 3. Check stock is still available (Bug #7 fix)
-        if (reward.max_quantity !== null && reward.max_quantity <= 0) {
-            return createResponse({ error: 'Prize out of stock' }, 410);
-        }
-        // 4. Prevent double claim for same session
-        const existingClaim = await env.DB.prepare(`
-            SELECT id FROM campaign_claims WHERE session_id = ? AND campaign_id = ?
-        `).bind(session_id, campaign_id).first();
-        if (existingClaim) return createResponse({ error: 'Already claimed' }, 409);
-        // 5. Create Claim with 16-char token (Bug #9 fix)
-        const claimId = crypto.randomUUID();
-        const magicToken = crypto.randomUUID().split('-').join('').substring(0, 16);
-        await env.DB.prepare(`
-            INSERT INTO campaign_claims (id, restaurant_id, campaign_id, reward_id, session_id, customer_contact, magic_link_token, visitor_id)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-        `).bind(claimId, restaurant_id, campaign_id, reward_id, session_id, contact, magicToken, visitor_id || null).run();
-        // 6. Decrement inventory with race condition protection (Bug #4 fix)
-        if (reward.max_quantity !== null && reward.max_quantity > 0) {
-            const updateResult = await env.DB.prepare(
-                'UPDATE campaign_rewards SET max_quantity = max_quantity - 1 WHERE id = ? AND max_quantity > 0'
-            ).bind(reward_id).run();
-            if (!updateResult.meta?.changes) {
-                // Rollback claim if stock depleted between check and decrement
-                await env.DB.prepare('DELETE FROM campaign_claims WHERE id = ?').bind(claimId).run();
-                return createResponse({ error: 'Prize just ran out of stock' }, 410);
-            }
-        }
-        // 7. Get Google Review URL & restaurant slug for magic link
-        const details = await env.DB.prepare(
-            'SELECT google_review_url FROM restaurant_details WHERE restaurant_id = ?'
-        ).bind(restaurant_id).first();
-        const restaurant = await env.DB.prepare(
-            'SELECT slug FROM restaurants WHERE id = ?'
-        ).bind(restaurant_id).first();
-        // 8. Build correct magic link URL (Bug #8 fix)
-        const magicLink = restaurant?.slug
-            ? `https://menu.visualtastes.com/${restaurant.slug}/oferta/${magicToken}`
-            : `https://menu.visualtastes.com/r/${magicToken}`;
-        return createResponse({
-            success: true,
-            magic_link: magicLink,
-            google_review_url: details?.google_review_url || null
-        });
-    } catch (e) {
-        return createResponse({ error: e.message }, 500);
-    }
 }

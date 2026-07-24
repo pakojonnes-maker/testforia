@@ -45,6 +45,22 @@ function generateId(prefix = 'g') {
     return `${prefix}_${Date.now().toString(36)}_${Math.random().toString(36).substring(2, 8)}`;
 }
 
+async function getApartmentSlug(env, aptId) {
+    const apt = await env.DB.prepare('SELECT slug FROM guide_apartments WHERE id = ?').bind(aptId).first();
+    return apt?.slug;
+}
+
+// 13 active languages for this project (see CLAUDE.md §5). 'nl' (Dutch) and other
+// legacy codes were removed project-wide; keep this list in sync with the rest of the app.
+export const ACTIVE_LANGUAGES = ['es', 'en', 'fr', 'de', 'it', 'pt', 'ca', 'ar', 'ru', 'uk', 'zh', 'ja', 'ko'];
+
+async function invalidateGuideCache(env, slug) {
+    if (!env.GUIDE_CACHE || !slug) return;
+    for (const l of ACTIVE_LANGUAGES) {
+        await env.GUIDE_CACHE.delete(`guide:${slug}:${l}`);
+    }
+}
+
 /**
  * Main handler
  */
@@ -129,6 +145,56 @@ export async function handleGuideAdminRequests(request, env) {
             return await getApartmentStats(env, aptId, url.searchParams, isSuperAdmin, userAgencyIds);
         }
 
+        // ============ WELCOME MODAL ============
+        if (path.match(/^apartments\/[^/]+\/welcome$/) && method === 'GET') {
+            const aptId = path.split('/')[1];
+            return await getWelcomeModal(env, aptId, isSuperAdmin, userAgencyIds);
+        }
+        if (path.match(/^apartments\/[^/]+\/welcome$/) && method === 'PUT') {
+            const aptId = path.split('/')[1];
+            return await upsertWelcomeModal(env, aptId, await request.json(), isSuperAdmin, userAgencyIds);
+        }
+
+        // ============ APARTMENT POIS ============
+        if (path.match(/^apartments\/[^/]+\/pois$/) && method === 'GET') {
+            const aptId = path.split('/')[1];
+            return await listApartmentPois(env, aptId, isSuperAdmin, userAgencyIds);
+        }
+        if (path.match(/^apartments\/[^/]+\/pois$/) && method === 'POST') {
+            const aptId = path.split('/')[1];
+            return await assignApartmentPoi(env, aptId, await request.json(), isSuperAdmin, userAgencyIds);
+        }
+        if (path.match(/^apartments\/[^/]+\/pois\/reorder$/) && method === 'PUT') {
+            const aptId = path.split('/')[1];
+            return await reorderApartmentPois(env, aptId, await request.json(), isSuperAdmin, userAgencyIds);
+        }
+        if (path.match(/^apartments\/[^/]+\/pois\/[^/]+$/) && method === 'DELETE') {
+            const parts = path.split('/');
+            return await removeApartmentPoi(env, parts[1], parts[3], isSuperAdmin, userAgencyIds);
+        }
+
+        // ============ GUIDE INFO STEPS ============
+        if (path.match(/^apartments\/[^/]+\/info\/[^/]+\/steps$/) && method === 'GET') {
+            const parts = path.split('/');
+            return await listGuideInfoSteps(env, parts[1], parts[3], isSuperAdmin, userAgencyIds);
+        }
+        if (path.match(/^apartments\/[^/]+\/info\/[^/]+\/steps$/) && method === 'POST') {
+            const parts = path.split('/');
+            return await createGuideInfoStep(env, parts[1], parts[3], await request.json(), isSuperAdmin, userAgencyIds);
+        }
+        if (path.match(/^apartments\/[^/]+\/info\/[^/]+\/steps\/reorder$/) && method === 'PUT') {
+            const parts = path.split('/');
+            return await reorderGuideInfoSteps(env, parts[1], parts[3], await request.json(), isSuperAdmin, userAgencyIds);
+        }
+        if (path.match(/^apartments\/[^/]+\/info\/[^/]+\/steps\/[^/]+$/) && method === 'PUT') {
+            const parts = path.split('/');
+            return await updateGuideInfoStep(env, parts[1], parts[3], parts[5], await request.json(), isSuperAdmin, userAgencyIds);
+        }
+        if (path.match(/^apartments\/[^/]+\/info\/[^/]+\/steps\/[^/]+$/) && method === 'DELETE') {
+            const parts = path.split('/');
+            return await deleteGuideInfoStep(env, parts[1], parts[3], parts[5], isSuperAdmin, userAgencyIds);
+        }
+
         // ============ ZONES (superadmin only) ============
         if (path === 'zones' && method === 'GET') {
             return await listZones(env);
@@ -157,11 +223,21 @@ export async function handleGuideAdminRequests(request, env) {
             const id = path.split('/')[1];
             return await updatePOI(env, id, await request.json());
         }
+        if (path.match(/^pois\/[^/]+\/media$/) && method === 'POST') {
+            if (!isSuperAdmin) return errorResponse('Only superadmin can manage POIs', 403);
+            const id = path.split('/')[1];
+            return await addPoiMedia(env, id, request);
+        }
+        if (path.match(/^pois\/[^/]+\/media\/[^/]+$/) && method === 'DELETE') {
+            if (!isSuperAdmin) return errorResponse('Only superadmin can manage POIs', 403);
+            const parts = path.split('/');
+            return await deletePoiMedia(env, parts[1], parts[3]);
+        }
 
-        // ============ EXPERIENCES (superadmin only) ============
+        // ============ EXPERIENCES ============
         if (path === 'experiences' && method === 'GET') {
             const zoneId = url.searchParams.get('zone_id');
-            return await listExperiences(env, zoneId);
+            return await listExperiences(env, zoneId, isSuperAdmin);
         }
         if (path === 'experiences' && method === 'POST') {
             if (!isSuperAdmin) return errorResponse('Only superadmin can manage experiences', 403);
@@ -171,6 +247,11 @@ export async function handleGuideAdminRequests(request, env) {
             if (!isSuperAdmin) return errorResponse('Only superadmin can manage experiences', 403);
             const id = path.split('/')[1];
             return await updateExperience(env, id, await request.json());
+        }
+        if (path.match(/^experiences\/[^/]+$/) && method === 'DELETE') {
+            if (!isSuperAdmin) return errorResponse('Only superadmin can manage experiences', 403);
+            const id = path.split('/')[1];
+            return await deleteExperience(env, id);
         }
 
         // ============ ZONE-RESTAURANTS (superadmin only) ============
@@ -187,11 +268,50 @@ export async function handleGuideAdminRequests(request, env) {
             return await unlinkZoneRestaurant(env, await request.json());
         }
 
-        // ============ STATS ============
+        // ============ STATS & COMMISSIONS ============
         if (path === 'stats' && method === 'GET') {
             const agencyId = url.searchParams.get('agency_id');
             if (!isSuperAdmin && !userAgencyIds.includes(agencyId)) return errorResponse('Forbidden', 403);
             return await getAgencyStats(env, agencyId, url.searchParams);
+        }
+        if (path === 'stats/dashboard' && method === 'GET') {
+            const agencyId = url.searchParams.get('agency_id');
+            if (!isSuperAdmin && !userAgencyIds.includes(agencyId)) return errorResponse('Forbidden', 403);
+            return await getStatsDashboard(env, agencyId, url.searchParams);
+        }
+        if (path === 'stats/devices' && method === 'GET') {
+            const aptId = url.searchParams.get('apartment_id');
+            return await getStatsDevices(env, aptId, url.searchParams, isSuperAdmin, userAgencyIds);
+        }
+        if (path === 'stats/experiences' && method === 'GET') {
+            const zoneId = url.searchParams.get('zone_id');
+            // Assuming this is superadmin or requires specific zone check. We'll leave it superadmin for simplicity unless agency is given.
+            return await getStatsExperiences(env, zoneId, url.searchParams);
+        }
+        if (path === 'stats/sessions' && method === 'GET') {
+            const agencyId = url.searchParams.get('agency_id');
+            if (!isSuperAdmin && !userAgencyIds.includes(agencyId)) return errorResponse('Forbidden', 403);
+            return await getSessionsLog(env, agencyId, url.searchParams);
+        }
+        if (path.match(/^stats\/sessions\/[^/]+$/) && method === 'GET') {
+            const sessionId = path.split('/')[2];
+            return await getSessionDetail(env, sessionId, isSuperAdmin, userAgencyIds);
+        }
+
+        // ============ COMMISSIONS ============
+        if (path === 'commissions' && method === 'GET') {
+            const agencyId = url.searchParams.get('agency_id');
+            if (!isSuperAdmin && !userAgencyIds.includes(agencyId)) return errorResponse('Forbidden', 403);
+            return await listCommissions(env, agencyId, url.searchParams);
+        }
+        if (path === 'commissions/summary' && method === 'GET') {
+            const agencyId = url.searchParams.get('agency_id');
+            if (!isSuperAdmin && !userAgencyIds.includes(agencyId)) return errorResponse('Forbidden', 403);
+            return await getCommissionsSummary(env, agencyId);
+        }
+        if (path.match(/^commissions\/[^/]+$/) && method === 'PUT') {
+            const id = path.split('/')[1];
+            return await updateCommission(env, id, await request.json(), isSuperAdmin, userAgencyIds);
         }
 
         return null; // Not a guide admin route
@@ -317,6 +437,10 @@ async function updateApartment(env, id, data, isSuperAdmin, userAgencyIds) {
     sets.push('modified_at = CURRENT_TIMESTAMP');
     vals.push(id);
     await env.DB.prepare(`UPDATE guide_apartments SET ${sets.join(', ')} WHERE id = ?`).bind(...vals).run();
+    
+    const slug = apt.slug || await getApartmentSlug(env, id);
+    if (slug) await invalidateGuideCache(env, slug);
+    
     return jsonResponse({ success: true });
 }
 
@@ -430,7 +554,70 @@ async function upsertApartmentInfo(env, aptId, data, isSuperAdmin, userAgencyIds
         }
     }
 
+    const slug = apt.slug || await getApartmentSlug(env, aptId);
+    if (slug) await invalidateGuideCache(env, slug);
+
     return jsonResponse({ success: true, infoId });
+}
+
+// ============================================
+// WELCOME MODAL (per-apartment greeting popup)
+// ============================================
+async function getWelcomeModal(env, aptId, isSuperAdmin, userAgencyIds) {
+    const apt = await env.DB.prepare('SELECT agency_id FROM guide_apartments WHERE id = ?').bind(aptId).first();
+    if (!apt) return errorResponse('Apartment not found', 404);
+    if (!isSuperAdmin && !userAgencyIds.includes(apt.agency_id)) return errorResponse('Forbidden', 403);
+
+    const modal = await env.DB.prepare('SELECT * FROM guide_welcome_modals WHERE apartment_id = ?').bind(aptId).first();
+    if (!modal) return jsonResponse({ success: true, welcome: null });
+
+    const translations = await env.DB.prepare(
+        `SELECT field, language_code, value FROM translations WHERE entity_id = ? AND entity_type = 'welcome_modal'`
+    ).bind(modal.id).all();
+
+    const byLang = {};
+    for (const t of (translations.results || [])) {
+        if (!byLang[t.language_code]) byLang[t.language_code] = {};
+        byLang[t.language_code][t.field] = t.value;
+    }
+
+    return jsonResponse({ success: true, welcome: { ...modal, translations: byLang } });
+}
+
+async function upsertWelcomeModal(env, aptId, data, isSuperAdmin, userAgencyIds) {
+    const apt = await env.DB.prepare('SELECT agency_id, slug FROM guide_apartments WHERE id = ?').bind(aptId).first();
+    if (!apt) return errorResponse('Apartment not found', 404);
+    if (!isSuperAdmin && !userAgencyIds.includes(apt.agency_id)) return errorResponse('Forbidden', 403);
+
+    const existing = await env.DB.prepare('SELECT id FROM guide_welcome_modals WHERE apartment_id = ?').bind(aptId).first();
+    const id = existing?.id || generateId('welcome');
+
+    await env.DB.prepare(`
+        INSERT INTO guide_welcome_modals (id, apartment_id, is_active, image_url, action_enabled, action_type, action_data)
+        VALUES (?, ?, ?, ?, ?, ?, ?)
+        ON CONFLICT(apartment_id) DO UPDATE SET
+            is_active = excluded.is_active,
+            image_url = excluded.image_url,
+            action_enabled = excluded.action_enabled,
+            action_type = excluded.action_type,
+            action_data = excluded.action_data,
+            modified_at = CURRENT_TIMESTAMP
+    `).bind(
+        id, aptId,
+        data.is_active ? 1 : 0,
+        data.image_url || null,
+        data.action_enabled ? 1 : 0,
+        data.action_type || null,
+        data.action_data || null
+    ).run();
+
+    if (data.translations && typeof data.translations === 'object') {
+        await saveTranslations(env, id, 'welcome_modal', data.translations);
+    }
+
+    if (apt.slug) await invalidateGuideCache(env, apt.slug);
+
+    return jsonResponse({ success: true, id });
 }
 
 // ============================================
@@ -478,10 +665,20 @@ async function updateZone(env, id, data) {
 // POIs (superadmin only)
 // ============================================
 async function listPOIs(env, zoneId) {
-    let query = 'SELECT * FROM guide_pois WHERE is_active = TRUE';
+    let query = `SELECT p.*, t_name.value AS name_es, t_name_en.value AS name_en, t_desc.value AS description_es, t_desc_en.value AS description_en
+        FROM guide_pois p
+        LEFT JOIN translations t_name ON p.id = t_name.entity_id
+            AND t_name.entity_type = 'poi' AND t_name.field = 'name' AND t_name.language_code = 'es'
+        LEFT JOIN translations t_name_en ON p.id = t_name_en.entity_id
+            AND t_name_en.entity_type = 'poi' AND t_name_en.field = 'name' AND t_name_en.language_code = 'en'
+        LEFT JOIN translations t_desc ON p.id = t_desc.entity_id
+            AND t_desc.entity_type = 'poi' AND t_desc.field = 'description' AND t_desc.language_code = 'es'
+        LEFT JOIN translations t_desc_en ON p.id = t_desc_en.entity_id
+            AND t_desc_en.entity_type = 'poi' AND t_desc_en.field = 'description' AND t_desc_en.language_code = 'en'
+        WHERE p.is_active = TRUE`;
     const params = [];
-    if (zoneId) { query += ' AND zone_id = ?'; params.push(zoneId); }
-    query += ' ORDER BY order_index ASC';
+    if (zoneId) { query += ' AND p.zone_id = ?'; params.push(zoneId); }
+    query += ' ORDER BY p.order_index ASC';
     const result = await env.DB.prepare(query).bind(...params).all();
     return jsonResponse({ success: true, pois: result.results || [] });
 }
@@ -496,8 +693,17 @@ async function createPOI(env, data) {
         data.latitude || null, data.longitude || null, data.google_maps_url || null, data.order_index || 0
     ).run();
 
-    // Save translations if provided
-    if (data.translations) {
+    const translations = {};
+    const langs = ['es', 'en'];
+    for (const lang of langs) {
+        const fields = {};
+        if (data[`name_${lang}`]) fields.name = data[`name_${lang}`];
+        if (data[`description_${lang}`]) fields.description = data[`description_${lang}`];
+        if (Object.keys(fields).length > 0) translations[lang] = fields;
+    }
+    if (Object.keys(translations).length > 0) {
+        await saveTranslations(env, id, 'poi', translations);
+    } else if (data.translations) {
         await saveTranslations(env, id, 'poi', data.translations);
     }
     return jsonResponse({ success: true, id });
@@ -515,7 +721,17 @@ async function updatePOI(env, id, data) {
         vals.push(id);
         await env.DB.prepare(`UPDATE guide_pois SET ${sets.join(', ')} WHERE id = ?`).bind(...vals).run();
     }
-    if (data.translations) {
+    const translations = {};
+    const langs = ['es', 'en'];
+    for (const lang of langs) {
+        const fields = {};
+        if (data[`name_${lang}`]) fields.name = data[`name_${lang}`];
+        if (data[`description_${lang}`]) fields.description = data[`description_${lang}`];
+        if (Object.keys(fields).length > 0) translations[lang] = fields;
+    }
+    if (Object.keys(translations).length > 0) {
+        await saveTranslations(env, id, 'poi', translations);
+    } else if (data.translations) {
         await saveTranslations(env, id, 'poi', data.translations);
     }
     return jsonResponse({ success: true });
@@ -524,13 +740,31 @@ async function updatePOI(env, id, data) {
 // ============================================
 // EXPERIENCES (superadmin only)
 // ============================================
-async function listExperiences(env, zoneId) {
-    let query = 'SELECT * FROM guide_experiences WHERE is_active = TRUE';
+async function listExperiences(env, zoneId, isSuperAdmin) {
+    let query = `SELECT e.*, t_name.value AS name_es, t_name_en.value AS name_en
+        FROM guide_experiences e
+        LEFT JOIN translations t_name ON e.id = t_name.entity_id
+            AND t_name.entity_type = 'experience' AND t_name.field = 'name' AND t_name.language_code = 'es'
+        LEFT JOIN translations t_name_en ON e.id = t_name_en.entity_id
+            AND t_name_en.entity_type = 'experience' AND t_name_en.field = 'name' AND t_name_en.language_code = 'en'
+        WHERE 1=1`;
     const params = [];
-    if (zoneId) { query += ' AND zone_id = ?'; params.push(zoneId); }
-    query += ' ORDER BY is_featured DESC, order_index ASC';
+    // Superadmin manages the full catalog and needs to see inactive experiences too
+    // (otherwise there's no way to re-activate one once toggled off). Agency users only
+    // ever see the live, active catalog.
+    if (!isSuperAdmin) query += ' AND e.is_active = TRUE';
+    if (zoneId) { query += ' AND e.zone_id = ?'; params.push(zoneId); }
+    query += ' ORDER BY e.is_featured DESC, e.order_index ASC';
     const result = await env.DB.prepare(query).bind(...params).all();
-    return jsonResponse({ success: true, experiences: result.results || [] });
+    let experiences = result.results || [];
+
+    // Commissions and internal action config are superadmin-only business data —
+    // agency staff can see which promotions are active, not how they're wired or paid.
+    if (!isSuperAdmin) {
+        experiences = experiences.map(({ commission_type, commission_value, action_data, action_prefilled_message, ...rest }) => rest);
+    }
+
+    return jsonResponse({ success: true, experiences });
 }
 
 async function createExperience(env, data) {
@@ -548,7 +782,18 @@ async function createExperience(env, data) {
         data.cover_image_url || null, data.order_index || 0, data.is_featured ? 1 : 0
     ).run();
 
-    if (data.translations) {
+    const translations = {};
+    const langs = ['es', 'en'];
+    for (const lang of langs) {
+        const fields = {};
+        if (data[`name_${lang}`]) fields.name = data[`name_${lang}`];
+        if (data[`description_${lang}`]) fields.description = data[`description_${lang}`];
+        if (data[`cta_label_${lang}`]) fields.cta_label = data[`cta_label_${lang}`];
+        if (Object.keys(fields).length > 0) translations[lang] = fields;
+    }
+    if (Object.keys(translations).length > 0) {
+        await saveTranslations(env, id, 'experience', translations);
+    } else if (data.translations) {
         await saveTranslations(env, id, 'experience', data.translations);
     }
     return jsonResponse({ success: true, id });
@@ -568,9 +813,25 @@ async function updateExperience(env, id, data) {
         vals.push(id);
         await env.DB.prepare(`UPDATE guide_experiences SET ${sets.join(', ')} WHERE id = ?`).bind(...vals).run();
     }
-    if (data.translations) {
+    const translations = {};
+    const langs = ['es', 'en'];
+    for (const lang of langs) {
+        const fields = {};
+        if (data[`name_${lang}`]) fields.name = data[`name_${lang}`];
+        if (data[`description_${lang}`]) fields.description = data[`description_${lang}`];
+        if (data[`cta_label_${lang}`]) fields.cta_label = data[`cta_label_${lang}`];
+        if (Object.keys(fields).length > 0) translations[lang] = fields;
+    }
+    if (Object.keys(translations).length > 0) {
+        await saveTranslations(env, id, 'experience', translations);
+    } else if (data.translations) {
         await saveTranslations(env, id, 'experience', data.translations);
     }
+    return jsonResponse({ success: true });
+}
+
+async function deleteExperience(env, id) {
+    await env.DB.prepare('UPDATE guide_experiences SET is_active = FALSE WHERE id = ?').bind(id).run();
     return jsonResponse({ success: true });
 }
 
@@ -756,4 +1017,416 @@ async function getApartmentStats(env, aptId, params, isSuperAdmin, userAgencyIds
         },
         period_days: days
     });
+}
+// ============================================
+// APARTMENT POIS
+// ============================================
+async function checkAptAccess(env, aptId, isSuperAdmin, userAgencyIds) {
+    const apt = await env.DB.prepare('SELECT agency_id, slug FROM guide_apartments WHERE id = ?').bind(aptId).first();
+    if (!apt) return { error: errorResponse('Apartment not found', 404) };
+    if (!isSuperAdmin && !userAgencyIds.includes(apt.agency_id)) return { error: errorResponse('Forbidden', 403) };
+    return { apt };
+}
+
+async function listApartmentPois(env, aptId, isSuperAdmin, userAgencyIds) {
+    const access = await checkAptAccess(env, aptId, isSuperAdmin, userAgencyIds);
+    if (access.error) return access.error;
+
+    const result = await env.DB.prepare(`
+        SELECT gap.poi_id, gap.order_override, p.* 
+        FROM guide_apartment_pois gap
+        JOIN guide_pois p ON gap.poi_id = p.id
+        WHERE gap.apartment_id = ?
+        ORDER BY gap.order_override ASC
+    `).bind(aptId).all();
+
+    return jsonResponse({ success: true, pois: result.results || [] });
+}
+
+async function assignApartmentPoi(env, aptId, data, isSuperAdmin, userAgencyIds) {
+    const access = await checkAptAccess(env, aptId, isSuperAdmin, userAgencyIds);
+    if (access.error) return access.error;
+    if (!data.poi_id) return errorResponse('poi_id required');
+
+    await env.DB.prepare(`
+        INSERT INTO guide_apartment_pois (apartment_id, poi_id, order_override)
+        VALUES (?, ?, ?)
+        ON CONFLICT(apartment_id, poi_id) DO UPDATE SET order_override = excluded.order_override
+    `).bind(aptId, data.poi_id, data.order_override || 0).run();
+
+    await invalidateGuideCache(env, access.apt.slug);
+    return jsonResponse({ success: true });
+}
+
+async function reorderApartmentPois(env, aptId, data, isSuperAdmin, userAgencyIds) {
+    const access = await checkAptAccess(env, aptId, isSuperAdmin, userAgencyIds);
+    if (access.error) return access.error;
+    if (!data.items || !Array.isArray(data.items)) return errorResponse('items array required');
+
+    const statements = data.items.map(i => 
+        env.DB.prepare('UPDATE guide_apartment_pois SET order_override = ? WHERE apartment_id = ? AND poi_id = ?')
+        .bind(i.order_override, aptId, i.poi_id)
+    );
+    if (statements.length > 0) await env.DB.batch(statements);
+
+    await invalidateGuideCache(env, access.apt.slug);
+    return jsonResponse({ success: true });
+}
+
+async function removeApartmentPoi(env, aptId, poiId, isSuperAdmin, userAgencyIds) {
+    const access = await checkAptAccess(env, aptId, isSuperAdmin, userAgencyIds);
+    if (access.error) return access.error;
+
+    await env.DB.prepare('DELETE FROM guide_apartment_pois WHERE apartment_id = ? AND poi_id = ?').bind(aptId, poiId).run();
+    await invalidateGuideCache(env, access.apt.slug);
+    return jsonResponse({ success: true });
+}
+
+// ============================================
+// GUIDE INFO STEPS
+// ============================================
+async function listGuideInfoSteps(env, aptId, infoId, isSuperAdmin, userAgencyIds) {
+    const access = await checkAptAccess(env, aptId, isSuperAdmin, userAgencyIds);
+    if (access.error) return access.error;
+
+    const result = await env.DB.prepare('SELECT * FROM guide_info_steps WHERE apartment_info_id = ? ORDER BY step_number ASC').bind(infoId).all();
+    return jsonResponse({ success: true, steps: result.results || [] });
+}
+
+async function createGuideInfoStep(env, aptId, infoId, data, isSuperAdmin, userAgencyIds) {
+    const access = await checkAptAccess(env, aptId, isSuperAdmin, userAgencyIds);
+    if (access.error) return access.error;
+
+    const id = generateId('step');
+    await env.DB.prepare(`
+        INSERT INTO guide_info_steps (id, apartment_info_id, step_number)
+        VALUES (?, ?, ?)
+    `).bind(id, infoId, data.step_number || 0).run();
+
+    if (data.title_es || data.content_es || data.checklist_items_es) {
+        await saveTranslations(env, id, 'guide_step', {
+            es: { title: data.title_es, content: data.content_es, checklist_items: data.checklist_items_es },
+            en: { title: data.title_en, content: data.content_en, checklist_items: data.checklist_items_en }
+        });
+    }
+
+    await invalidateGuideCache(env, access.apt.slug);
+    return jsonResponse({ success: true, id });
+}
+
+async function reorderGuideInfoSteps(env, aptId, infoId, data, isSuperAdmin, userAgencyIds) {
+    const access = await checkAptAccess(env, aptId, isSuperAdmin, userAgencyIds);
+    if (access.error) return access.error;
+    if (!data.items || !Array.isArray(data.items)) return errorResponse('items array required');
+
+    const statements = data.items.map(i => 
+        env.DB.prepare('UPDATE guide_info_steps SET step_number = ? WHERE id = ? AND apartment_info_id = ?')
+        .bind(i.step_number, i.id, infoId)
+    );
+    if (statements.length > 0) await env.DB.batch(statements);
+
+    await invalidateGuideCache(env, access.apt.slug);
+    return jsonResponse({ success: true });
+}
+
+async function updateGuideInfoStep(env, aptId, infoId, stepId, data, isSuperAdmin, userAgencyIds) {
+    const access = await checkAptAccess(env, aptId, isSuperAdmin, userAgencyIds);
+    if (access.error) return access.error;
+
+    const sets = [];
+    const vals = [];
+    if (data.step_number !== undefined) { sets.push('step_number = ?'); vals.push(data.step_number); }
+    
+    if (sets.length > 0) {
+        vals.push(stepId);
+        await env.DB.prepare(`UPDATE guide_info_steps SET ${sets.join(', ')} WHERE id = ?`).bind(...vals).run();
+    }
+
+    if (data.title_es || data.content_es || data.checklist_items_es) {
+        await saveTranslations(env, stepId, 'guide_step', {
+            es: { title: data.title_es, content: data.content_es, checklist_items: data.checklist_items_es },
+            en: { title: data.title_en, content: data.content_en, checklist_items: data.checklist_items_en }
+        });
+    }
+
+    await invalidateGuideCache(env, access.apt.slug);
+    return jsonResponse({ success: true });
+}
+
+async function deleteGuideInfoStep(env, aptId, infoId, stepId, isSuperAdmin, userAgencyIds) {
+    const access = await checkAptAccess(env, aptId, isSuperAdmin, userAgencyIds);
+    if (access.error) return access.error;
+
+    await env.DB.prepare('DELETE FROM guide_info_steps WHERE id = ?').bind(stepId).run();
+    await env.DB.prepare('DELETE FROM translations WHERE entity_id = ? AND entity_type = ?').bind(stepId, 'guide_step').run();
+
+    await invalidateGuideCache(env, access.apt.slug);
+    return jsonResponse({ success: true });
+}
+
+// ============================================
+// COMMISSIONS
+// ============================================
+async function listCommissions(env, agencyId, params) {
+    let query = `
+        SELECT c.*, a.name as agency_name
+        FROM guide_commission_ledger c
+        LEFT JOIN guide_agencies a ON c.agency_id = a.id
+        WHERE 1=1
+    `;
+    const qParams = [];
+    
+    if (agencyId) { query += ' AND c.agency_id = ?'; qParams.push(agencyId); }
+    if (params.get('status')) { query += ' AND c.status = ?'; qParams.push(params.get('status')); }
+    if (params.get('from')) { query += ' AND c.created_at >= ?'; qParams.push(params.get('from') + 'T00:00:00'); }
+    if (params.get('to')) { query += ' AND c.created_at <= ?'; qParams.push(params.get('to') + 'T23:59:59'); }
+
+    query += ' ORDER BY c.created_at DESC';
+    const result = await env.DB.prepare(query).bind(...qParams).all();
+    return jsonResponse({ success: true, commissions: result.results || [] });
+}
+
+async function getCommissionsSummary(env, agencyId) {
+    let query = `
+        SELECT status, COUNT(*) as count, SUM(amount) as total_amount
+        FROM guide_commission_ledger
+        WHERE 1=1
+    `;
+    const params = [];
+    if (agencyId) { query += ' AND agency_id = ?'; params.push(agencyId); }
+    query += ' GROUP BY status';
+    
+    const result = await env.DB.prepare(query).bind(...params).all();
+    return jsonResponse({ success: true, summary: result.results || [] });
+}
+
+async function updateCommission(env, id, data, isSuperAdmin, userAgencyIds) {
+    const comm = await env.DB.prepare('SELECT agency_id FROM guide_commission_ledger WHERE id = ?').bind(id).first();
+    if (!comm) return errorResponse('Not found', 404);
+    if (!isSuperAdmin && !userAgencyIds.includes(comm.agency_id)) return errorResponse('Forbidden', 403);
+
+    const sets = [];
+    const vals = [];
+    if (data.status) { sets.push('status = ?'); vals.push(data.status); }
+    if (data.notes !== undefined) { sets.push('notes = ?'); vals.push(data.notes); }
+    
+    if (sets.length === 0) return errorResponse('No fields to update');
+    vals.push(id);
+    await env.DB.prepare(`UPDATE guide_commission_ledger SET ${sets.join(', ')} WHERE id = ?`).bind(...vals).run();
+    return jsonResponse({ success: true });
+}
+
+// ============================================
+// ENHANCED STATS
+// ============================================
+async function getStatsDashboard(env, agencyId, params) {
+    const fromTs = params.get('from') ? params.get('from') + 'T00:00:00' : new Date(Date.now() - 30 * 86400000).toISOString();
+    const toTs = params.get('to') ? params.get('to') + 'T23:59:59' : new Date().toISOString();
+
+    const apartments = await env.DB.prepare('SELECT id, name FROM guide_apartments WHERE agency_id = ? AND is_active = TRUE').bind(agencyId).all();
+    const aptIds = (apartments.results || []).map(a => a.id);
+    if (aptIds.length === 0) return jsonResponse({ success: true, dashboard: {} });
+
+    const placeholders = aptIds.map(() => '?').join(',');
+
+    const [sessions, devices, intents, languages, exps, aptActivity] = await Promise.all([
+        env.DB.prepare(`SELECT COUNT(*) as c, AVG(duration_seconds) as d, DATE(started_at) as date FROM guide_sessions WHERE apartment_id IN (${placeholders}) AND started_at BETWEEN ? AND ? GROUP BY DATE(started_at)`).bind(...aptIds, fromTs, toTs).all(),
+        env.DB.prepare(`SELECT COUNT(DISTINCT device_fingerprint) as c FROM guide_sessions WHERE apartment_id IN (${placeholders}) AND started_at BETWEEN ? AND ? AND device_fingerprint IS NOT NULL`).bind(...aptIds, fromTs, toTs).first(),
+        env.DB.prepare(`SELECT COUNT(*) as c FROM guide_affiliate_intents WHERE agency_id = ? AND created_at BETWEEN ? AND ?`).bind(agencyId, fromTs, toTs).first(),
+        env.DB.prepare(`SELECT language_code as code, COUNT(*) as count FROM guide_sessions WHERE apartment_id IN (${placeholders}) AND started_at BETWEEN ? AND ? GROUP BY language_code`).bind(...aptIds, fromTs, toTs).all(),
+        env.DB.prepare(`SELECT e.id, COALESCE(t.value, e.category) AS name, COUNT(i.id) as clicks FROM guide_experiences e LEFT JOIN translations t ON e.id = t.entity_id AND t.entity_type = 'experience' AND t.field = 'name' AND t.language_code = 'es' JOIN guide_affiliate_intents i ON e.id = i.target_id WHERE i.target_type = 'experience' AND i.agency_id = ? AND i.created_at BETWEEN ? AND ? GROUP BY e.id ORDER BY clicks DESC LIMIT 5`).bind(agencyId, fromTs, toTs).all(),
+        env.DB.prepare(`SELECT apartment_id, COUNT(DISTINCT device_fingerprint) as unique_devices_today, MAX(started_at) as last_session_at FROM guide_sessions WHERE apartment_id IN (${placeholders}) AND started_at >= date('now') GROUP BY apartment_id`).bind(...aptIds).all()
+    ]);
+
+    const totalSessions = (sessions.results || []).reduce((sum, r) => sum + r.c, 0);
+    const avgDuration = (sessions.results || []).reduce((sum, r) => sum + r.d, 0) / (sessions.results?.length || 1);
+    const totalIntents = intents?.c || 0;
+
+    return jsonResponse({
+        success: true,
+        dashboard: {
+            total_sessions: totalSessions,
+            unique_devices: devices?.c || 0,
+            avg_duration_seconds: Math.round(avgDuration),
+            total_intents: totalIntents,
+            conversion_rate: totalSessions > 0 ? (totalIntents / totalSessions) : 0,
+            sessions_by_day: (sessions.results || []).map(r => ({ date: r.date, count: r.c })),
+            languages: languages.results || [],
+            top_experiences: exps.results || [],
+            apartments_activity: (apartments.results || []).map(a => {
+                const act = (aptActivity.results || []).find(ac => ac.apartment_id === a.id);
+                return { id: a.id, name: a.name, unique_devices_today: act?.unique_devices_today || 0, last_session_at: act?.last_session_at || null };
+            })
+        }
+    });
+}
+
+async function getStatsDevices(env, aptId, params, isSuperAdmin, userAgencyIds) {
+    if (!aptId) return errorResponse('apartment_id required');
+    const access = await checkAptAccess(env, aptId, isSuperAdmin, userAgencyIds);
+    if (access.error) return access.error;
+
+    const date = params.get('date') || new Date().toISOString().split('T')[0];
+    const sessions = await env.DB.prepare(`
+        SELECT device_fingerprint, started_at, language_code as language, country_code as country
+        FROM guide_sessions
+        WHERE apartment_id = ? AND DATE(started_at) = ? AND device_fingerprint IS NOT NULL
+        ORDER BY started_at DESC
+    `).bind(aptId, date).all();
+
+    const uniqueDevices = new Set((sessions.results || []).map(s => s.device_fingerprint)).size;
+
+    return jsonResponse({
+        success: true,
+        date,
+        unique_devices: uniqueDevices,
+        sessions: (sessions.results || []).map(s => ({ started_at: s.started_at, language: s.language, country: s.country }))
+    });
+}
+
+async function getStatsExperiences(env, zoneId, params) {
+    if (!zoneId) return errorResponse('zone_id required');
+    const fromTs = params.get('from') ? params.get('from') + 'T00:00:00' : new Date(Date.now() - 30 * 86400000).toISOString();
+    const toTs = params.get('to') ? params.get('to') + 'T23:59:59' : new Date().toISOString();
+
+    const exps = await env.DB.prepare(`
+        SELECT e.id, COALESCE(t.value, e.category) AS name, e.action_type, COUNT(i.id) as clicks, SUM(i.commission_value) as commission_earned
+        FROM guide_experiences e
+        LEFT JOIN translations t ON e.id = t.entity_id AND t.entity_type = 'experience' AND t.field = 'name' AND t.language_code = 'es'
+        LEFT JOIN guide_affiliate_intents i ON e.id = i.target_id AND i.target_type = 'experience' AND i.created_at BETWEEN ? AND ?
+        WHERE e.zone_id = ?
+        GROUP BY e.id
+        ORDER BY clicks DESC
+    `).bind(fromTs, toTs, zoneId).all();
+
+    return jsonResponse({ success: true, experiences: exps.results || [] });
+}
+
+// ============================================
+// SESSION LOG (per-visitor detail: who saw what, when, from where)
+// ============================================
+async function getSessionsLog(env, agencyId, params) {
+    if (!agencyId) return errorResponse('agency_id is required');
+
+    const fromDate = params.get('from') || new Date(Date.now() - 30 * 86400000).toISOString().split('T')[0];
+    const toDate = params.get('to') || new Date().toISOString().split('T')[0];
+    const fromTs = fromDate + 'T00:00:00';
+    const toTs = toDate + 'T23:59:59';
+    const apartmentId = params.get('apartment_id');
+    // Default/max raised vs a typical page size: rows are grouped into visitors client-side,
+    // so we need enough raw sessions in range for repeat-visit grouping to be meaningful.
+    const limit = Math.min(parseInt(params.get('limit') || '200', 10) || 200, 300);
+    const offset = parseInt(params.get('offset') || '0', 10) || 0;
+
+    let query = `
+        SELECT s.id, s.apartment_id, a.name as apartment_name, s.device_type, s.os_name, s.browser,
+               s.country, s.city, s.language_code, s.started_at, s.ended_at, s.duration_seconds,
+               s.device_fingerprint,
+               (SELECT COUNT(*) FROM guide_affiliate_intents i WHERE i.session_id = s.id) as intents_count,
+               (SELECT COUNT(*) FROM guide_section_views sv WHERE sv.session_id = s.id) as sections_count
+        FROM guide_sessions s
+        JOIN guide_apartments a ON s.apartment_id = a.id
+        WHERE a.agency_id = ? AND s.started_at BETWEEN ? AND ?
+    `;
+    const qParams = [agencyId, fromTs, toTs];
+    if (apartmentId) { query += ' AND s.apartment_id = ?'; qParams.push(apartmentId); }
+    query += ' ORDER BY s.started_at DESC LIMIT ? OFFSET ?';
+    qParams.push(limit, offset);
+
+    const result = await env.DB.prepare(query).bind(...qParams).all();
+    return jsonResponse({ success: true, sessions: result.results || [] });
+}
+
+async function getSessionDetail(env, sessionId, isSuperAdmin, userAgencyIds) {
+    const session = await env.DB.prepare(`
+        SELECT s.*, a.name as apartment_name, a.agency_id
+        FROM guide_sessions s JOIN guide_apartments a ON s.apartment_id = a.id
+        WHERE s.id = ?
+    `).bind(sessionId).first();
+    if (!session) return errorResponse('Session not found', 404);
+    if (!isSuperAdmin && !userAgencyIds.includes(session.agency_id)) return errorResponse('Forbidden', 403);
+
+    const [intents, sections] = await Promise.all([
+        env.DB.prepare('SELECT target_type, target_id, action_taken, created_at FROM guide_affiliate_intents WHERE session_id = ? ORDER BY created_at ASC').bind(sessionId).all(),
+        env.DB.prepare('SELECT section, duration_seconds, created_at FROM guide_section_views WHERE session_id = ? ORDER BY created_at ASC').bind(sessionId).all(),
+    ]);
+
+    const intentRows = intents.results || [];
+
+    // Resolve human-readable names for what was clicked (restaurants / experiences)
+    // in a couple of batched lookups rather than a complex conditional JOIN.
+    const restaurantIds = [...new Set(intentRows.filter(i => i.target_type === 'restaurant').map(i => i.target_id))];
+    const experienceIds = [...new Set(intentRows.filter(i => i.target_type === 'experience').map(i => i.target_id))];
+    const nameMap = {};
+    if (restaurantIds.length > 0) {
+        const ph = restaurantIds.map(() => '?').join(',');
+        const rows = await env.DB.prepare(`SELECT id, name FROM restaurants WHERE id IN (${ph})`).bind(...restaurantIds).all();
+        for (const r of (rows.results || [])) nameMap[`restaurant:${r.id}`] = r.name;
+    }
+    if (experienceIds.length > 0) {
+        const ph = experienceIds.map(() => '?').join(',');
+        const rows = await env.DB.prepare(`
+            SELECT e.id, COALESCE(t.value, e.category) as name FROM guide_experiences e
+            LEFT JOIN translations t ON e.id = t.entity_id AND t.entity_type = 'experience' AND t.field = 'name' AND t.language_code = 'es'
+            WHERE e.id IN (${ph})
+        `).bind(...experienceIds).all();
+        for (const r of (rows.results || [])) nameMap[`experience:${r.id}`] = r.name;
+    }
+
+    const timeline = [
+        ...intentRows.map(i => ({
+            type: 'intent',
+            target_type: i.target_type,
+            target_name: nameMap[`${i.target_type}:${i.target_id}`] || i.target_id,
+            action: i.action_taken,
+            at: i.created_at,
+        })),
+        ...(sections.results || []).map(s => ({
+            type: 'section',
+            section: s.section,
+            duration_seconds: s.duration_seconds,
+            at: s.created_at,
+        })),
+    ].sort((a, b) => new Date(a.at).getTime() - new Date(b.at).getTime());
+
+    return jsonResponse({ success: true, session, timeline });
+}
+
+// ============================================
+// POI MEDIA
+// ============================================
+async function addPoiMedia(env, poiId, request) {
+    try {
+        const formData = await request.formData();
+        const file = formData.get('file');
+        if (!file) return errorResponse('file required');
+
+        const ext = file.name.split('.').pop();
+        const uuid = generateId('');
+        const r2Key = `guide/pois/${poiId}/${uuid}.${ext}`;
+
+        await env.R2_BUCKET.put(r2Key, file.stream(), {
+            httpMetadata: { contentType: file.type }
+        });
+
+        const id = generateId('pm');
+        await env.DB.prepare(`
+            INSERT INTO guide_poi_media (id, poi_id, r2_key, media_type)
+            VALUES (?, ?, ?, 'image')
+        `).bind(id, poiId, r2Key).run();
+
+        return jsonResponse({ success: true, id, r2_key: r2Key });
+    } catch (err) {
+        return errorResponse('Upload failed: ' + err.message, 500);
+    }
+}
+
+async function deletePoiMedia(env, poiId, mediaId) {
+    const media = await env.DB.prepare('SELECT r2_key FROM guide_poi_media WHERE id = ? AND poi_id = ?').bind(mediaId, poiId).first();
+    if (!media) return errorResponse('Not found', 404);
+
+    await env.R2_BUCKET.delete(media.r2_key);
+    await env.DB.prepare('DELETE FROM guide_poi_media WHERE id = ?').bind(mediaId).run();
+
+    return jsonResponse({ success: true });
 }

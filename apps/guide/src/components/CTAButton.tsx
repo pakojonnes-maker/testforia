@@ -42,7 +42,7 @@ export default function CTAButton({ experience, lang, onIntent }: CTAButtonProps
   };
 
   let iconName = 'arrow_forward';
-  let defaultLabelKey = 'see_more';
+  let defaultLabelKey = 'show_more';
   let bgColors = 'var(--brand-primary)';
   
   if (action_type === 'WHATSAPP') {

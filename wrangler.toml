@@ -13,3 +13,14 @@ database_id = "7e8d1efe-2a54-4849-9a06-4c47152392bd"
 [[r2_buckets]]
 binding = "R2_BUCKET"
 bucket_name = "mediabucket"
+
+# KV namespace for guidebook payload caching (TTL 15 min per entry)
+# Create with: wrangler kv namespace create GUIDE_CACHE
+# Then update the id below with the output
+[[kv_namespaces]]
+binding = "GUIDE_CACHE"
+id = "89c387501e00410b9d4f0d80dc563bf2"
+
+# Workers AI binding for the guidebook AI assistant
+[ai]
+binding = "AI"

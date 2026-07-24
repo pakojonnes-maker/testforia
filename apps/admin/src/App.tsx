@@ -16,6 +16,7 @@ const WebPage = lazy(() => import('./pages/WebPage'));
 const ConfigurationPage = lazy(() => import('./pages/ConfigurationPage'));
 const StylingPage = lazy(() => import('./pages/StylingPage'));
 const MarketingPage = lazy(() => import('./pages/MarketingPage'));
+const LoyaltyPage = lazy(() => import('./pages/LoyaltyPage'));
 const AnalyticsPage = lazy(() => import('./pages/AnalyticsPage'));
 const UsersPage = lazy(() => import('./pages/UsersPage'));
 const QRGeneratorPage = lazy(() => import('./pages/QRGeneratorPage'));
@@ -25,7 +26,12 @@ const DeliveryPage = lazy(() => import('./pages/DeliveryPage'));
 const GuideAgencyDashboard = lazy(() => import('./pages/guide/GuideAgencyDashboard'));
 const GuideApartmentsPage = lazy(() => import('./pages/guide/GuideApartmentsPage'));
 const GuideApartmentDetail = lazy(() => import('./pages/guide/GuideApartmentDetail'));
+const GuideDesignPage = lazy(() => import('./pages/guide/GuideDesignPage'));
+const GuidePoisPage = lazy(() => import('./pages/guide/GuidePoisPage'));
+const GuideExperiencesPage = lazy(() => import('./pages/guide/GuideExperiencesPage'));
 
+
+import { guideTheme } from './theme/guideTheme';
 
 // Componente para proteger rutas
 const ProtectedRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
@@ -43,8 +49,10 @@ const ProtectedRoute: React.FC<{ children: React.ReactNode }> = ({ children }) =
 };
 
 function App() {
+  const { adminMode } = useAuth();
+
   return (
-    <ThemeProvider theme={theme}>
+    <ThemeProvider theme={adminMode === 'agency' ? guideTheme : theme}>
       <CssBaseline />
       <Routes>
         <Route path="/login" element={<LoginPage />} />
@@ -95,6 +103,14 @@ function App() {
             element={
               <Suspense fallback={<LinearProgress />}>
                 <MarketingPage />
+              </Suspense>
+            }
+          />
+          <Route
+            path="loyalty"
+            element={
+              <Suspense fallback={<LinearProgress />}>
+                <LoyaltyPage />
               </Suspense>
             }
           />
@@ -154,6 +170,30 @@ function App() {
             element={
               <Suspense fallback={<LinearProgress />}>
                 <GuideApartmentDetail />
+              </Suspense>
+            }
+          />
+          <Route
+            path="guide/design"
+            element={
+              <Suspense fallback={<LinearProgress />}>
+                <GuideDesignPage />
+              </Suspense>
+            }
+          />
+          <Route
+            path="guide/pois"
+            element={
+              <Suspense fallback={<LinearProgress />}>
+                <GuidePoisPage />
+              </Suspense>
+            }
+          />
+          <Route
+            path="guide/experiences"
+            element={
+              <Suspense fallback={<LinearProgress />}>
+                <GuideExperiencesPage />
               </Suspense>
             }
           />

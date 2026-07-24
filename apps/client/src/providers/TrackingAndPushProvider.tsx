@@ -280,6 +280,12 @@ class OptimizedTracker implements TrackerApi {
   private scheduleFlush() {
     if (this.isDestroyed || this.timer) return;
     this.timer = window.setTimeout(() => {
+      // ✅ FIX: sin este reset, `this.timer` quedaba con el id (ya consumido) del
+      // primer setTimeout para siempre, y el guard de arriba bloqueaba cualquier
+      // scheduleFlush() posterior: el flush periódico solo se disparaba UNA VEZ
+      // en toda la sesión, y los eventos solo salían al llegar a BATCH_SIZE (8)
+      // o al cerrar/ocultar la pestaña (sendBeacon).
+      this.timer = null;
       if (!this.isDestroyed) {
         this.flush().catch(error => {
           console.warn('⚠️ [Tracker] Error flush programado:', error);
@@ -1115,6 +1121,9 @@ export function useDishTracking() {
     trackSectionTime: (sectionId: string, duration: number, dishesViewed: number) => tracker?.trackSectionTime(sectionId, duration, dishesViewed),
     trackScrollDepth: (sectionId: string, dishIndex: number, totalDishes: number) => tracker?.trackScrollDepth(sectionId, dishIndex, totalDishes),
     trackMediaError: (dishId: string, errorType: string, mediaUrl?: string) => tracker?.trackMediaError(dishId, errorType, mediaUrl),
+    // ✅ Acceso genérico a la cola con batching (usado por eventos de carrito, etc.)
+    // en vez de disparar un POST individual por evento.
+    track: (ev: TrackEvent) => tracker?.track(ev),
     isReady: () => tracker?.isReady() ?? false,
     revokeConsent,
     subscribeToPush,
