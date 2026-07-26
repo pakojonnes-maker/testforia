@@ -3,6 +3,7 @@ import { Suspense, lazy } from 'react';
 import { LinearProgress, ThemeProvider, CssBaseline } from '@mui/material';
 import DashboardLayout from './components/layout/DashboardLayout';
 import LoginPage from './pages/LoginPage';
+import AcceptInvitePage from './pages/AcceptInvitePage';
 import { useAuth } from './contexts/AuthContext';
 import theme from './theme';
 
@@ -56,6 +57,7 @@ function App() {
       <CssBaseline />
       <Routes>
         <Route path="/login" element={<LoginPage />} />
+        <Route path="/accept-invite" element={<AcceptInvitePage />} />
         <Route
           path="/"
           element={

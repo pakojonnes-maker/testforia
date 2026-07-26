@@ -54,6 +54,8 @@ import {
   LocationOn as LocationOnIcon,
   LocalActivity as LocalActivityIcon,
   Loyalty as LoyaltyIcon,
+  Shield as ShieldIcon,
+  ContentCopy as ContentCopyIcon,
 } from '@mui/icons-material';
 import {
   Menu,
@@ -68,6 +70,7 @@ import {
   CircularProgress,
 } from '@mui/material';
 import { RestaurantSelectorDialog } from '../common/RestaurantSelectorDialog';
+import QRCodeGenerator from '../QRCodeGenerator';
 
 const drawerWidth = 240;
 
@@ -95,6 +98,16 @@ export default function DashboardLayout() {
   const [passwordLoading, setPasswordLoading] = useState(false);
   const [passwordError, setPasswordError] = useState<string | null>(null);
   const [passwordSuccess, setPasswordSuccess] = useState(false);
+
+  // MFA (TOTP)
+  const [mfaSetupOpen, setMfaSetupOpen] = useState(false);
+  const [mfaSetupData, setMfaSetupData] = useState<{ secret: string; provisioningUri: string } | null>(null);
+  const [mfaCode, setMfaCode] = useState('');
+  const [mfaLoading, setMfaLoading] = useState(false);
+  const [mfaError, setMfaError] = useState<string | null>(null);
+  const [mfaRecoveryCodes, setMfaRecoveryCodes] = useState<string[] | null>(null);
+  const [mfaDisableOpen, setMfaDisableOpen] = useState(false);
+  const [mfaDisablePassword, setMfaDisablePassword] = useState('');
 
   // ✅ Query para obtener reservas pendientes (polling cada 5 minutos)
   const { data: pendingReservations = [] } = useQuery({
@@ -176,8 +189,10 @@ export default function DashboardLayout() {
       setPasswordError('Las contraseñas no coinciden');
       return;
     }
-    if (passwordForm.newPassword.length < 6) {
-      setPasswordError('La nueva contraseña debe tener al menos 6 caracteres');
+    // Debe coincidir con MIN_PASSWORD_LENGTH en workerAuthentication.js.
+    // Esto solo evita un viaje al servidor; la validación real está allí.
+    if (passwordForm.newPassword.length < 12) {
+      setPasswordError('La nueva contraseña debe tener al menos 12 caracteres');
       return;
     }
 
@@ -197,9 +212,69 @@ export default function DashboardLayout() {
     }
   };
 
-  const onLogout = () => {
+  const handleOpenMfaSetup = async () => {
     handleUserMenuClose();
-    logout();
+    setMfaError(null);
+    setMfaCode('');
+    setMfaRecoveryCodes(null);
+    setMfaSetupOpen(true);
+    setMfaLoading(true);
+    try {
+      const data = await apiClient.mfaSetup();
+      setMfaSetupData(data);
+    } catch (err: any) {
+      setMfaError(err.response?.data?.message || 'No se pudo iniciar la activación de MFA');
+    } finally {
+      setMfaLoading(false);
+    }
+  };
+
+  const handleConfirmMfaEnable = async () => {
+    if (!mfaSetupData) return;
+    setMfaLoading(true);
+    setMfaError(null);
+    try {
+      const { recoveryCodes } = await apiClient.mfaEnable(mfaSetupData.secret, mfaCode.trim());
+      setMfaRecoveryCodes(recoveryCodes);
+    } catch (err: any) {
+      setMfaError(err.response?.data?.message || 'Código incorrecto');
+    } finally {
+      setMfaLoading(false);
+    }
+  };
+
+  const handleCloseMfaSetup = () => {
+    setMfaSetupOpen(false);
+    setMfaSetupData(null);
+    setMfaCode('');
+    setMfaRecoveryCodes(null);
+    setMfaError(null);
+  };
+
+  const handleOpenMfaDisable = () => {
+    handleUserMenuClose();
+    setMfaDisablePassword('');
+    setMfaError(null);
+    setMfaDisableOpen(true);
+  };
+
+  const handleConfirmMfaDisable = async () => {
+    setMfaLoading(true);
+    setMfaError(null);
+    try {
+      await apiClient.mfaDisable(mfaDisablePassword);
+      setMfaDisableOpen(false);
+      window.location.reload(); // refresca user.mfaEnabled vía /auth/me
+    } catch (err: any) {
+      setMfaError(err.response?.data?.message || 'Contraseña incorrecta');
+    } finally {
+      setMfaLoading(false);
+    }
+  };
+
+  const onLogout = async () => {
+    handleUserMenuClose();
+    await logout();
     navigate('/login');
   };
 
@@ -700,6 +775,10 @@ export default function DashboardLayout() {
                 <ListItemIcon><KeyIcon fontSize="small" /></ListItemIcon>
                 <ListItemText>Cambiar Contraseña</ListItemText>
               </MenuItem>
+              <MenuItem onClick={user?.mfaEnabled ? handleOpenMfaDisable : handleOpenMfaSetup}>
+                <ListItemIcon><ShieldIcon fontSize="small" /></ListItemIcon>
+                <ListItemText>{user?.mfaEnabled ? 'Desactivar verificación en 2 pasos' : 'Activar verificación en 2 pasos'}</ListItemText>
+              </MenuItem>
               <MenuItem onClick={onLogout}>
                 <ListItemIcon><LogoutIcon fontSize="small" /></ListItemIcon>
                 <ListItemText>Cerrar Sesión</ListItemText>
@@ -817,7 +896,7 @@ export default function DashboardLayout() {
               fullWidth
               value={passwordForm.newPassword}
               onChange={(e) => setPasswordForm({ ...passwordForm, newPassword: e.target.value })}
-              helperText="Mínimo 6 caracteres"
+              helperText="Mínimo 12 caracteres. Una frase que recuerdes es mejor que algo corto y retorcido."
               InputProps={{
                 endAdornment: (
                   <InputAdornment position="end">
@@ -847,6 +926,107 @@ export default function DashboardLayout() {
             disabled={passwordLoading || !passwordForm.currentPassword || !passwordForm.newPassword || !passwordForm.confirmPassword}
           >
             {passwordLoading ? <CircularProgress size={20} /> : 'Cambiar Contraseña'}
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* MFA Setup Dialog */}
+      <Dialog open={mfaSetupOpen} onClose={handleCloseMfaSetup} maxWidth="sm" fullWidth>
+        <DialogTitle sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+          <ShieldIcon color="primary" />
+          Verificación en 2 pasos
+        </DialogTitle>
+        <DialogContent>
+          {mfaError && <AlertComponent severity="error" sx={{ mb: 2 }}>{mfaError}</AlertComponent>}
+
+          {mfaRecoveryCodes ? (
+            <>
+              <AlertComponent severity="success" sx={{ mb: 2 }}>
+                Activado. Guarda estos códigos de recuperación — cada uno
+                sirve una sola vez si pierdes el acceso a tu app de
+                autenticación. No se volverán a mostrar.
+              </AlertComponent>
+              <Box
+                sx={{
+                  fontFamily: 'monospace', fontSize: '1rem', display: 'grid',
+                  gridTemplateColumns: '1fr 1fr', gap: 1, p: 2, bgcolor: 'grey.100', borderRadius: 1,
+                }}
+              >
+                {mfaRecoveryCodes.map((code) => <div key={code}>{code}</div>)}
+              </Box>
+              <Button
+                startIcon={<ContentCopyIcon />}
+                sx={{ mt: 2 }}
+                onClick={() => navigator.clipboard.writeText(mfaRecoveryCodes.join('\n'))}
+              >
+                Copiar todos
+              </Button>
+            </>
+          ) : mfaLoading && !mfaSetupData ? (
+            <Box display="flex" justifyContent="center" py={4}><CircularProgress /></Box>
+          ) : mfaSetupData ? (
+            <>
+              <Typography variant="body2" sx={{ mb: 2 }}>
+                Escanea este código con Google Authenticator, Authy o similar,
+                y escribe el código de 6 dígitos que te muestre.
+              </Typography>
+              <Box display="flex" justifyContent="center" mb={2}>
+                <QRCodeGenerator data={mfaSetupData.provisioningUri} size={200} />
+              </Box>
+              <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 2, textAlign: 'center' }}>
+                ¿No puedes escanear? Clave manual: <code>{mfaSetupData.secret}</code>
+              </Typography>
+              <TextField
+                label="Código de 6 dígitos"
+                fullWidth
+                autoFocus
+                value={mfaCode}
+                onChange={(e) => setMfaCode(e.target.value)}
+                disabled={mfaLoading}
+                inputProps={{ maxLength: 6 }}
+              />
+            </>
+          ) : null}
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={handleCloseMfaSetup}>{mfaRecoveryCodes ? 'Cerrar' : 'Cancelar'}</Button>
+          {!mfaRecoveryCodes && mfaSetupData && (
+            <Button
+              onClick={handleConfirmMfaEnable}
+              variant="contained"
+              disabled={mfaLoading || mfaCode.length !== 6}
+            >
+              {mfaLoading ? <CircularProgress size={20} /> : 'Activar'}
+            </Button>
+          )}
+        </DialogActions>
+      </Dialog>
+
+      {/* MFA Disable Dialog */}
+      <Dialog open={mfaDisableOpen} onClose={() => setMfaDisableOpen(false)} maxWidth="sm" fullWidth>
+        <DialogTitle sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+          <ShieldIcon color="warning" />
+          Desactivar verificación en 2 pasos
+        </DialogTitle>
+        <DialogContent>
+          {mfaError && <AlertComponent severity="error" sx={{ mb: 2 }}>{mfaError}</AlertComponent>}
+          <Typography variant="body2" sx={{ mb: 2 }}>
+            Confirma tu contraseña para desactivarla.
+          </Typography>
+          <TextField
+            label="Contraseña actual"
+            type="password"
+            fullWidth
+            autoFocus
+            value={mfaDisablePassword}
+            onChange={(e) => setMfaDisablePassword(e.target.value)}
+            disabled={mfaLoading}
+          />
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setMfaDisableOpen(false)} disabled={mfaLoading}>Cancelar</Button>
+          <Button onClick={handleConfirmMfaDisable} variant="contained" color="warning" disabled={mfaLoading || !mfaDisablePassword}>
+            {mfaLoading ? <CircularProgress size={20} /> : 'Desactivar'}
           </Button>
         </DialogActions>
       </Dialog>

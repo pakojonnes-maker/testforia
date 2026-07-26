@@ -12,7 +12,8 @@ interface AuthContextType {
   isAuthenticated: boolean;
   isLoading: boolean;
   login: (email: string, password: string) => Promise<any>;
-  logout: () => void;
+  loginWithMfa: (ticket: string, code: string) => Promise<any>;
+  logout: () => Promise<void>;
   // Restaurant context (existing)
   currentRestaurant?: any;
   setCurrentRestaurant: (restaurant: any) => void;
@@ -139,44 +140,61 @@ export function AuthProvider({ children }: AuthProviderProps) {
     }
   }, [currentAgency]);
 
-  // Función de inicio de sesión
+  // Persiste una respuesta de sesión (token + user), venga de login directo o
+  // de completar el desafío de MFA — ambos terminan en el mismo estado.
+  const persistSession = (response: any) => {
+    localStorage.setItem('auth_token', response.token);
+    setAuthToken(response.token);
+
+    if (response.user) {
+      localStorage.setItem('user_data', JSON.stringify(response.user));
+      setUser(response.user);
+
+      if (response.user.restaurants && response.user.restaurants.length > 0) {
+        setCurrentRestaurant(response.user.restaurants[0]);
+      }
+      if (response.user.agencies && response.user.agencies.length > 0) {
+        setCurrentAgency(response.user.agencies[0]);
+      }
+
+      const hasRest = response.user.restaurants && response.user.restaurants.length > 0;
+      const hasAgen = response.user.agencies && response.user.agencies.length > 0;
+      if (!hasRest && hasAgen) {
+        setAdminMode('agency');
+      }
+    }
+  };
+
+  // Función de inicio de sesión. Si la cuenta tiene MFA, el backend no emite
+  // token todavía: devuelve { mfaRequired: true, ticket }, y es LoginPage
+  // quien pide el segundo factor y llama a loginWithMfa.
   const login = async (email: string, password: string) => {
     try {
       const response = await apiClient.login(email, password);
-
-      if (response.token) {
-        localStorage.setItem('auth_token', response.token);
-        setAuthToken(response.token);
-
-        // Guardar datos del usuario en localStorage
-        if (response.user) {
-          localStorage.setItem('user_data', JSON.stringify(response.user));
-          setUser(response.user);
-
-          // Auto-seleccionar el primer restaurante al hacer login
-          if (response.user.restaurants && response.user.restaurants.length > 0) {
-            setCurrentRestaurant(response.user.restaurants[0]);
-          }
-
-          // Auto-seleccionar la primera agencia al hacer login
-          if (response.user.agencies && response.user.agencies.length > 0) {
-            setCurrentAgency(response.user.agencies[0]);
-          }
-
-          // Auto-detect mode for agency-only users
-          const hasRest = response.user.restaurants && response.user.restaurants.length > 0;
-          const hasAgen = response.user.agencies && response.user.agencies.length > 0;
-          if (!hasRest && hasAgen) {
-            setAdminMode('agency');
-          }
-        }
-
+      if (response.mfaRequired) {
         return response;
       }
-
+      if (response.token) {
+        persistSession(response);
+        return response;
+      }
       throw new Error('No se recibió token de autenticación');
     } catch (error) {
       console.error("Error de inicio de sesión:", error);
+      throw error;
+    }
+  };
+
+  const loginWithMfa = async (ticket: string, code: string) => {
+    try {
+      const response = await apiClient.mfaVerify(ticket, code);
+      if (response.token) {
+        persistSession(response);
+        return response;
+      }
+      throw new Error('No se pudo completar la verificación');
+    } catch (error) {
+      console.error("Error verificando MFA:", error);
       throw error;
     }
   };
@@ -201,8 +219,11 @@ export function AuthProvider({ children }: AuthProviderProps) {
     }
   };
 
-  // Función de cierre de sesión
-  const logout = () => {
+  // Función de cierre de sesión. Revoca la sesión en el servidor (invalida
+  // el token vía token_version) antes de limpiar el estado local — antes
+  // logout solo borraba localStorage y el token de 7 días seguía sirviendo.
+  const logout = async () => {
+    await apiClient.logoutOnServer();
     localStorage.removeItem('auth_token');
     localStorage.removeItem('current_restaurant');
     localStorage.removeItem('current_agency');
@@ -226,6 +247,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
     isAuthenticated: !!authToken,
     isLoading,
     login,
+    loginWithMfa,
     logout,
     currentRestaurant,
     setCurrentRestaurant,

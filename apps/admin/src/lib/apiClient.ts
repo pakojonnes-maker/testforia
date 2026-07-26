@@ -757,6 +757,50 @@ class AdminApiClient {
     }
   }
 
+  // ============================================
+  // SESIONES / MFA / INVITACIONES
+  // ============================================
+
+  public async logoutOnServer(): Promise<void> {
+    try {
+      await this.baseClient.client.post(`/auth/logout`);
+    } catch (error) {
+      // El logout local (borrar el token) no debe bloquearse porque el
+      // servidor no responda — igualmente ya no se podrá usar el token viejo.
+      console.error('[apiClient] Error al cerrar sesión en el servidor:', error);
+    }
+  }
+
+  public async mfaSetup(): Promise<{ secret: string; provisioningUri: string }> {
+    const response = await this.baseClient.client.post(`/auth/mfa/setup`);
+    return response.data;
+  }
+
+  public async mfaEnable(secret: string, code: string): Promise<{ recoveryCodes: string[] }> {
+    const response = await this.baseClient.client.post(`/auth/mfa/enable`, { secret, code });
+    return response.data;
+  }
+
+  public async mfaDisable(password: string): Promise<any> {
+    const response = await this.baseClient.client.post(`/auth/mfa/disable`, { password });
+    return response.data;
+  }
+
+  public async mfaVerify(ticket: string, code: string): Promise<any> {
+    const response = await this.baseClient.client.post(`/auth/mfa/verify`, { ticket, code });
+    return response.data;
+  }
+
+  public async getInvitation(token: string): Promise<any> {
+    const response = await this.baseClient.client.get(`/auth/invitations/${token}`);
+    return response.data;
+  }
+
+  public async acceptInvitation(token: string, password: string): Promise<any> {
+    const response = await this.baseClient.client.post(`/auth/invitations/${token}/accept`, { password });
+    return response.data;
+  }
+
   // Configuración de React Query
   public get queryDefaults() {
     return getQueryDefaults();

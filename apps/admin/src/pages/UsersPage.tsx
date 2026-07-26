@@ -21,8 +21,7 @@ import {
     MenuItem,
     Alert,
     CircularProgress,
-    Tooltip,
-    InputAdornment
+    Tooltip
 } from '@mui/material';
 import {
     Add as AddIcon,
@@ -30,8 +29,6 @@ import {
     Person as PersonIcon,
     Key as KeyIcon,
     ContentCopy as CopyIcon,
-    Visibility as VisibilityIcon,
-    VisibilityOff as VisibilityOffIcon,
     Warning as WarningIcon
 } from '@mui/icons-material';
 import { apiClient } from '../lib/apiClient';
@@ -65,14 +62,16 @@ const UsersPage: React.FC = () => {
     const [newUser, setNewUser] = useState({ email: '', name: '', role: 'staff' });
     const [actionLoading, setActionLoading] = useState(false);
 
-    // Password reveal dialog
-    const [credentialsDialog, setCredentialsDialog] = useState(false);
-    const [generatedCredentials, setGeneratedCredentials] = useState<{
+    // Invite link reveal dialog (antes mostraba una contraseña en claro; ahora
+    // un enlace de un solo uso que el propio usuario canjea eligiendo su
+    // contraseña — ver AcceptInvitePage.tsx)
+    const [inviteDialog, setInviteDialog] = useState(false);
+    const [inviteResult, setInviteResult] = useState<{
         email: string;
-        password: string;
+        inviteUrl: string;
+        emailSent: boolean;
         isReset?: boolean;
     } | null>(null);
-    const [showPassword, setShowPassword] = useState(false);
     const [copied, setCopied] = useState(false);
 
     useEffect(() => {
@@ -99,14 +98,16 @@ const UsersPage: React.FC = () => {
             setError(null);
             const response = await apiClient.addRestaurantUser(currentRestaurant.id, newUser);
 
-            // If we got a generated password, show it in the credentials dialog
-            if (response.generatedPassword) {
-                setGeneratedCredentials({
+            // Si el email ya tenía cuenta, se añadió directamente (no hay
+            // invitación que mostrar). Si es nuevo, hay un enlace que compartir.
+            if (response.inviteUrl) {
+                setInviteResult({
                     email: newUser.email,
-                    password: response.generatedPassword,
+                    inviteUrl: response.inviteUrl,
+                    emailSent: !!response.emailSent,
                     isReset: false
                 });
-                setCredentialsDialog(true);
+                setInviteDialog(true);
             } else {
                 setSuccessMessage('Usuario existente añadido al restaurante');
             }
@@ -122,20 +123,21 @@ const UsersPage: React.FC = () => {
     };
 
     const handleResetPassword = async (user: User) => {
-        if (!window.confirm(`¿Estás seguro de que quieres resetear la contraseña de ${user.display_name || user.email}?`)) return;
+        if (!window.confirm(`¿Enviar un enlace para restablecer la contraseña de ${user.display_name || user.email}?`)) return;
 
         try {
             setActionLoading(true);
             setError(null);
             const response = await apiClient.resetUserPassword(currentRestaurant.id, user.id);
 
-            if (response.generatedPassword) {
-                setGeneratedCredentials({
+            if (response.inviteUrl) {
+                setInviteResult({
                     email: user.email,
-                    password: response.generatedPassword,
+                    inviteUrl: response.inviteUrl,
+                    emailSent: !!response.emailSent,
                     isReset: true
                 });
-                setCredentialsDialog(true);
+                setInviteDialog(true);
             }
         } catch (err: any) {
             setError(err.response?.data?.message || err.message || 'Error al resetear contraseña');
@@ -160,19 +162,16 @@ const UsersPage: React.FC = () => {
         }
     };
 
-    const handleCopyCredentials = async () => {
-        if (!generatedCredentials) return;
-
-        const text = `Email: ${generatedCredentials.email}\nContraseña: ${generatedCredentials.password}`;
-        await navigator.clipboard.writeText(text);
+    const handleCopyInviteLink = async () => {
+        if (!inviteResult) return;
+        await navigator.clipboard.writeText(inviteResult.inviteUrl);
         setCopied(true);
         setTimeout(() => setCopied(false), 2000);
     };
 
-    const handleCloseCredentialsDialog = () => {
-        setCredentialsDialog(false);
-        setGeneratedCredentials(null);
-        setShowPassword(false);
+    const handleCloseInviteDialog = () => {
+        setInviteDialog(false);
+        setInviteResult(null);
         setCopied(false);
     };
 
@@ -339,68 +338,51 @@ const UsersPage: React.FC = () => {
                 </DialogActions>
             </Dialog>
 
-            {/* Credentials Reveal Dialog */}
+            {/* Invite Link Dialog */}
             <Dialog
-                open={credentialsDialog}
-                onClose={handleCloseCredentialsDialog}
+                open={inviteDialog}
+                onClose={handleCloseInviteDialog}
                 maxWidth="sm"
                 fullWidth
             >
                 <DialogTitle sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                    <KeyIcon color="warning" />
-                    {generatedCredentials?.isReset
-                        ? 'Contraseña Reseteada'
-                        : 'Usuario Creado'}
+                    <KeyIcon color={inviteResult?.emailSent ? 'success' : 'warning'} />
+                    {inviteResult?.isReset ? 'Enlace de recuperación' : 'Invitación creada'}
                 </DialogTitle>
                 <DialogContent>
-                    <Alert severity="warning" sx={{ mb: 3 }} icon={<WarningIcon />}>
-                        <strong>¡Importante!</strong> Guarda estas credenciales.
-                        La contraseña no se volverá a mostrar.
-                    </Alert>
+                    {inviteResult?.emailSent ? (
+                        <Alert severity="success" sx={{ mb: 3 }}>
+                            Se ha enviado un email a <strong>{inviteResult.email}</strong> con
+                            el enlace. También puedes copiarlo aquí por si no le llega.
+                        </Alert>
+                    ) : (
+                        <Alert severity="warning" sx={{ mb: 3 }} icon={<WarningIcon />}>
+                            No hay envío de email configurado todavía. Copia este enlace
+                            y compártelo tú mismo con <strong>{inviteResult?.email}</strong>.
+                        </Alert>
+                    )}
 
-                    <Box display="flex" flexDirection="column" gap={2}>
-                        <TextField
-                            label="Email"
-                            value={generatedCredentials?.email || ''}
-                            fullWidth
-                            InputProps={{ readOnly: true }}
-                        />
-                        <TextField
-                            label="Contraseña"
-                            type={showPassword ? 'text' : 'password'}
-                            value={generatedCredentials?.password || ''}
-                            fullWidth
-                            InputProps={{
-                                readOnly: true,
-                                endAdornment: (
-                                    <InputAdornment position="end">
-                                        <IconButton
-                                            onClick={() => setShowPassword(!showPassword)}
-                                            edge="end"
-                                        >
-                                            {showPassword ? <VisibilityOffIcon /> : <VisibilityIcon />}
-                                        </IconButton>
-                                    </InputAdornment>
-                                )
-                            }}
-                        />
-                    </Box>
+                    <TextField
+                        label="Enlace"
+                        value={inviteResult?.inviteUrl || ''}
+                        fullWidth
+                        InputProps={{ readOnly: true }}
+                    />
 
                     <Typography variant="body2" color="text.secondary" sx={{ mt: 2 }}>
-                        Comparte estas credenciales con el usuario de forma segura
-                        (en persona, WhatsApp, etc.). El usuario puede cambiar su
-                        contraseña desde su perfil después del primer login.
+                        Caduca en 72 horas y solo puede usarse una vez. Quien lo abra
+                        elige su propia contraseña — nunca la ves tú.
                     </Typography>
                 </DialogContent>
                 <DialogActions>
                     <Button
-                        onClick={handleCopyCredentials}
+                        onClick={handleCopyInviteLink}
                         startIcon={<CopyIcon />}
                         color={copied ? 'success' : 'primary'}
                     >
-                        {copied ? '¡Copiado!' : 'Copiar Credenciales'}
+                        {copied ? '¡Copiado!' : 'Copiar Enlace'}
                     </Button>
-                    <Button onClick={handleCloseCredentialsDialog} variant="contained">
+                    <Button onClick={handleCloseInviteDialog} variant="contained">
                         Cerrar
                     </Button>
                 </DialogActions>
