@@ -1,5 +1,12 @@
 
 import { verifyJWT } from './workerAuthentication.js';
+import { touchMenuVersion } from './workerGuideCache.js';
+
+async function touchMenuVersionByRestaurantId(env, restaurantId) {
+    const r = await env.DB.prepare('SELECT slug FROM restaurants WHERE id = ?').bind(restaurantId).first();
+    await touchMenuVersion(env, r?.slug);
+}
+
 function createResponse(body, status = 200) {
     return new Response(JSON.stringify(body), {
         status,
@@ -233,6 +240,7 @@ export async function handleSectionRequests(request, env) {
                         await env.DB.batch(translationStatements);
                     }
                 }
+                await touchMenuVersionByRestaurantId(env, restaurant_id);
                 return createResponse({
                     success: true,
                     sectionId,
@@ -287,6 +295,7 @@ export async function handleSectionRequests(request, env) {
                     env.DB.prepare(`DELETE FROM sections WHERE id = ?`).bind(sectionId)
                 ];
                 await env.DB.batch(deleteStatements);
+                await touchMenuVersionByRestaurantId(env, restaurantId);
                 return createResponse({
                     success: true,
                     message: "Sección eliminada correctamente"

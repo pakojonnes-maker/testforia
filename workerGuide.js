@@ -5,6 +5,7 @@
 // ============================================
 
 import { ACTIVE_LANGUAGES } from './workerGuideAdmin.js';
+import { getGuideVersion } from './workerGuideCache.js';
 
 const FALLBACK_LANG = 'es'; // es is the source of truth (see CLAUDE.md §5)
 // Media URLs must be absolute: the guide/TV frontends live on a different
@@ -52,9 +53,14 @@ export async function handleGuideRequests(request, env) {
  * config) can return the exact same shape/cache without duplicating the query.
  */
 export async function handleGetGuidebook(env, slug, lang, origin) {
-    // KV Cache check
+    // KV Cache check. The key embeds a version bumped by the admin panel on any
+    // edit (see workerGuideCache.js), so a 24h TTL is safe here: content changes
+    // land on a fresh key instantly instead of relying on the TTL to expire stale
+    // data.
+    let cacheKey = null;
     if (env.GUIDE_CACHE) {
-        const cacheKey = `guide:${slug}:${lang}`;
+        const version = await getGuideVersion(env, slug);
+        cacheKey = `guide:${slug}:${lang}:v${version}`;
         const cached = await env.GUIDE_CACHE.get(cacheKey);
         if (cached) {
             return new Response(cached, {
@@ -420,9 +426,8 @@ export async function handleGetGuidebook(env, slug, lang, origin) {
         }
     };
 
-    if (env.GUIDE_CACHE) {
-        const cacheKey = `guide:${slug}:${lang}`;
-        await env.GUIDE_CACHE.put(cacheKey, JSON.stringify(responseData), { expirationTtl: 900 });
+    if (env.GUIDE_CACHE && cacheKey) {
+        await env.GUIDE_CACHE.put(cacheKey, JSON.stringify(responseData), { expirationTtl: 86400 });
     }
 
     return jsonResponse(responseData);

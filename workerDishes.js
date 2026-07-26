@@ -1,3 +1,10 @@
+import { touchMenuVersion } from './workerGuideCache.js';
+
+async function touchMenuVersionByRestaurantId(env, restaurantId) {
+    const r = await env.DB.prepare('SELECT slug FROM restaurants WHERE id = ?').bind(restaurantId).first();
+    await touchMenuVersion(env, r?.slug);
+}
+
 export async function handleDishRequests(request, env) {
     const url = new URL(request.url);
     console.log(`[Dishes] Procesando: ${request.method} ${url.pathname}`);
@@ -356,6 +363,7 @@ export async function handleDishRequests(request, env) {
                         await env.DB.batch(allergenStatements);
                     }
                 }
+                await touchMenuVersionByRestaurantId(env, restaurantId);
                 return createResponse({
                     success: true,
                     dishId,
@@ -434,6 +442,7 @@ export async function handleDishRequests(request, env) {
                 await env.DB.batch(statements);
                 console.log(`[Dishes] Se ejecutaron ${statements.length} operaciones en batch`);
             }
+            await touchMenuVersionByRestaurantId(env, restaurantId);
             return createResponse({
                 success: true,
                 message: `Orden de platos actualizado correctamente. ${statements.length} operaciones realizadas.`
@@ -501,6 +510,7 @@ export async function handleDishRequests(request, env) {
                         mediaKeys.results.map(m => env.R2_BUCKET.delete(m.r2_key))
                     ).catch(e => console.error("Error eliminando archivos de R2:", e));
                 }
+                await touchMenuVersionByRestaurantId(env, restaurantId);
                 return createResponse({
                     success: true,
                     message: "Plato eliminado correctamente"

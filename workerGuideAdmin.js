@@ -29,6 +29,7 @@
 // ============================================
 
 import { verifyJWT } from './workerAuthentication.js';
+import { touchGuideVersion, touchZoneGuideVersions } from './workerGuideCache.js';
 
 function jsonResponse(data, status = 200) {
     return new Response(JSON.stringify(data), {
@@ -54,12 +55,9 @@ async function getApartmentSlug(env, aptId) {
 // legacy codes were removed project-wide; keep this list in sync with the rest of the app.
 export const ACTIVE_LANGUAGES = ['es', 'en', 'fr', 'de', 'it', 'pt', 'ca', 'ar', 'ru', 'uk', 'zh', 'ja', 'ko'];
 
-async function invalidateGuideCache(env, slug) {
-    if (!env.GUIDE_CACHE || !slug) return;
-    for (const l of ACTIVE_LANGUAGES) {
-        await env.GUIDE_CACHE.delete(`guide:${slug}:${l}`);
-    }
-}
+// Cache invalidation now lives in workerGuideCache.js (touchGuideVersion /
+// touchZoneGuideVersions) — bumping a version instead of deleting one KV key
+// per active language. See that file for why.
 
 /**
  * Main handler
@@ -439,7 +437,7 @@ async function updateApartment(env, id, data, isSuperAdmin, userAgencyIds) {
     await env.DB.prepare(`UPDATE guide_apartments SET ${sets.join(', ')} WHERE id = ?`).bind(...vals).run();
     
     const slug = apt.slug || await getApartmentSlug(env, id);
-    if (slug) await invalidateGuideCache(env, slug);
+    if (slug) await touchGuideVersion(env, slug);
     
     return jsonResponse({ success: true });
 }
@@ -555,7 +553,7 @@ async function upsertApartmentInfo(env, aptId, data, isSuperAdmin, userAgencyIds
     }
 
     const slug = apt.slug || await getApartmentSlug(env, aptId);
-    if (slug) await invalidateGuideCache(env, slug);
+    if (slug) await touchGuideVersion(env, slug);
 
     return jsonResponse({ success: true, infoId });
 }
@@ -615,7 +613,7 @@ async function upsertWelcomeModal(env, aptId, data, isSuperAdmin, userAgencyIds)
         await saveTranslations(env, id, 'welcome_modal', data.translations);
     }
 
-    if (apt.slug) await invalidateGuideCache(env, apt.slug);
+    if (apt.slug) await touchGuideVersion(env, apt.slug);
 
     return jsonResponse({ success: true, id });
 }
@@ -658,6 +656,7 @@ async function updateZone(env, id, data) {
     sets.push('modified_at = CURRENT_TIMESTAMP');
     vals.push(id);
     await env.DB.prepare(`UPDATE guide_zones SET ${sets.join(', ')} WHERE id = ?`).bind(...vals).run();
+    await touchZoneGuideVersions(env, id);
     return jsonResponse({ success: true });
 }
 
@@ -736,6 +735,7 @@ async function createPOI(env, data) {
     } else if (data.translations) {
         await saveTranslations(env, id, 'poi', data.translations);
     }
+    await touchZoneGuideVersions(env, data.zone_id);
     return jsonResponse({ success: true, id });
 }
 
@@ -759,6 +759,9 @@ async function updatePOI(env, id, data) {
     } else if (data.translations) {
         await saveTranslations(env, id, 'poi', data.translations);
     }
+    // zone_id is immutable via POI_WRITABLE_FIELDS, so a post-update lookup is fine.
+    const poi = await env.DB.prepare('SELECT zone_id FROM guide_pois WHERE id = ?').bind(id).first();
+    await touchZoneGuideVersions(env, poi?.zone_id);
     return jsonResponse({ success: true });
 }
 
@@ -840,6 +843,7 @@ async function createExperience(env, data) {
     } else if (d.translations) {
         await saveTranslations(env, id, 'poi', d.translations);
     }
+    await touchZoneGuideVersions(env, d.zone_id);
     return jsonResponse({ success: true, id });
 }
 
@@ -864,11 +868,16 @@ async function updateExperience(env, id, data) {
     } else if (d.translations) {
         await saveTranslations(env, id, 'poi', d.translations);
     }
+    // zone_id is immutable via POI_WRITABLE_FIELDS, so a post-update lookup is fine.
+    const exp = await env.DB.prepare('SELECT zone_id FROM guide_pois WHERE id = ?').bind(id).first();
+    await touchZoneGuideVersions(env, exp?.zone_id);
     return jsonResponse({ success: true });
 }
 
 async function deleteExperience(env, id) {
+    const exp = await env.DB.prepare('SELECT zone_id FROM guide_pois WHERE id = ?').bind(id).first();
     await env.DB.prepare('UPDATE guide_pois SET is_active = FALSE WHERE id = ?').bind(id).run();
+    await touchZoneGuideVersions(env, exp?.zone_id);
     return jsonResponse({ success: true });
 }
 
@@ -895,6 +904,7 @@ async function linkZoneRestaurant(env, data) {
         ON CONFLICT(zone_id, restaurant_id) DO UPDATE SET
             tier = excluded.tier, order_override = excluded.order_override, is_active = TRUE
     `).bind(data.zone_id, data.restaurant_id, data.tier || 'basic', data.order_override || null).run();
+    await touchZoneGuideVersions(env, data.zone_id);
     return jsonResponse({ success: true });
 }
 
@@ -903,6 +913,7 @@ async function unlinkZoneRestaurant(env, data) {
     await env.DB.prepare(
         'UPDATE guide_zone_restaurants SET is_active = FALSE WHERE zone_id = ? AND restaurant_id = ?'
     ).bind(data.zone_id, data.restaurant_id).run();
+    await touchZoneGuideVersions(env, data.zone_id);
     return jsonResponse({ success: true });
 }
 
@@ -1113,7 +1124,7 @@ async function assignApartmentPoi(env, aptId, data, isSuperAdmin, userAgencyIds)
         ON CONFLICT(apartment_id, poi_id) DO UPDATE SET order_override = excluded.order_override
     `).bind(aptId, data.poi_id, data.order_override || 0).run();
 
-    await invalidateGuideCache(env, access.apt.slug);
+    await touchGuideVersion(env, access.apt.slug);
     return jsonResponse({ success: true });
 }
 
@@ -1128,7 +1139,7 @@ async function reorderApartmentPois(env, aptId, data, isSuperAdmin, userAgencyId
     );
     if (statements.length > 0) await env.DB.batch(statements);
 
-    await invalidateGuideCache(env, access.apt.slug);
+    await touchGuideVersion(env, access.apt.slug);
     return jsonResponse({ success: true });
 }
 
@@ -1137,7 +1148,7 @@ async function removeApartmentPoi(env, aptId, poiId, isSuperAdmin, userAgencyIds
     if (access.error) return access.error;
 
     await env.DB.prepare('DELETE FROM guide_apartment_pois WHERE apartment_id = ? AND poi_id = ?').bind(aptId, poiId).run();
-    await invalidateGuideCache(env, access.apt.slug);
+    await touchGuideVersion(env, access.apt.slug);
     return jsonResponse({ success: true });
 }
 
@@ -1169,7 +1180,7 @@ async function createGuideInfoStep(env, aptId, infoId, data, isSuperAdmin, userA
         });
     }
 
-    await invalidateGuideCache(env, access.apt.slug);
+    await touchGuideVersion(env, access.apt.slug);
     return jsonResponse({ success: true, id });
 }
 
@@ -1184,7 +1195,7 @@ async function reorderGuideInfoSteps(env, aptId, infoId, data, isSuperAdmin, use
     );
     if (statements.length > 0) await env.DB.batch(statements);
 
-    await invalidateGuideCache(env, access.apt.slug);
+    await touchGuideVersion(env, access.apt.slug);
     return jsonResponse({ success: true });
 }
 
@@ -1208,7 +1219,7 @@ async function updateGuideInfoStep(env, aptId, infoId, stepId, data, isSuperAdmi
         });
     }
 
-    await invalidateGuideCache(env, access.apt.slug);
+    await touchGuideVersion(env, access.apt.slug);
     return jsonResponse({ success: true });
 }
 
@@ -1219,7 +1230,7 @@ async function deleteGuideInfoStep(env, aptId, infoId, stepId, isSuperAdmin, use
     await env.DB.prepare('DELETE FROM guide_info_steps WHERE id = ?').bind(stepId).run();
     await env.DB.prepare('DELETE FROM translations WHERE entity_id = ? AND entity_type = ?').bind(stepId, 'guide_step').run();
 
-    await invalidateGuideCache(env, access.apt.slug);
+    await touchGuideVersion(env, access.apt.slug);
     return jsonResponse({ success: true });
 }
 
@@ -1489,6 +1500,9 @@ async function addPoiMedia(env, poiId, request) {
             VALUES (?, ?, ?, 'image', 'PRIMARY_IMAGE', ?)
         `).bind(id, poiId, r2Key, existingCount?.c || 0).run();
 
+        const poi = await env.DB.prepare('SELECT zone_id FROM guide_pois WHERE id = ?').bind(poiId).first();
+        await touchZoneGuideVersions(env, poi?.zone_id);
+
         const origin = new URL(request.url).origin;
         return jsonResponse({ success: true, id, r2_key: r2Key, url: `${origin}/media/${r2Key}`, role: 'PRIMARY_IMAGE' });
     } catch (err) {
@@ -1502,6 +1516,9 @@ async function deletePoiMedia(env, poiId, mediaId) {
 
     await env.R2_BUCKET.delete(media.r2_key);
     await env.DB.prepare('DELETE FROM guide_poi_media WHERE id = ?').bind(mediaId).run();
+
+    const poi = await env.DB.prepare('SELECT zone_id FROM guide_pois WHERE id = ?').bind(poiId).first();
+    await touchZoneGuideVersions(env, poi?.zone_id);
 
     return jsonResponse({ success: true });
 }
