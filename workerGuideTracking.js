@@ -85,10 +85,30 @@ async function handleSessionStart(request, env) {
     const sessionId = generateUUID();
     const country = request.cf?.country || null;
     const city = request.cf?.city || null;
+    const now = new Date().toISOString();
+    const today = now.slice(0, 10);
+
+    // Identidad del visitante. Hasta ahora la única señal era `device_fingerprint`,
+    // un hash de 32 bits de UA+idioma+pantalla+zona horaria: en producción 66
+    // sesiones colapsaban en 9 identidades, porque dos iPhone del mismo modelo con
+    // el mismo idioma y zona horaria — el caso normal en un edificio de apartamentos
+    // turísticos — producen el mismo hash. Ahora la identidad es un UUID que la app
+    // persiste en localStorage, y el fingerprint queda solo como fallback.
+    const visitorId = data.visitorId || generateUUID();
+
+    // Recurrencia por DÍAS distintos, no por sesiones: recargar o cambiar de idioma
+    // no debe convertir a un huésped en "recurrente".
+    let visitCount = 1;
+    const prior = await env.DB.prepare(`
+        SELECT COUNT(DISTINCT DATE(started_at)) AS prior_days
+        FROM guide_sessions
+        WHERE visitor_id = ? AND apartment_id = ? AND DATE(started_at) <> ?
+    `).bind(visitorId, apartment.id, today).first();
+    visitCount = (prior?.prior_days || 0) + 1;
 
     await env.DB.prepare(`
-        INSERT INTO guide_sessions (id, apartment_id, zone_id, device_type, os_name, browser, country, city, language_code, device_fingerprint, started_at)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        INSERT INTO guide_sessions (id, apartment_id, zone_id, device_type, os_name, browser, country, city, language_code, device_fingerprint, visitor_id, visit_count, started_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `).bind(
         sessionId,
         apartment.id,
@@ -100,12 +120,16 @@ async function handleSessionStart(request, env) {
         city,
         data.language || 'es',
         data.deviceFingerprint || null,
-        new Date().toISOString()
+        visitorId,
+        visitCount,
+        now
     ).run();
 
     return jsonResponse({
         success: true,
         sessionId,
+        visitorId,
+        visitCount,
         apartmentId: apartment.id,
         zoneId: apartment.zone_id
     });
@@ -140,9 +164,12 @@ async function handleSessionEnd(request, env) {
         }
     }
 
+    // La app llama aquí en cada `visibilitychange`, no solo al cerrar. Si el huésped
+    // vuelve y sigue navegando, la duración debe crecer, nunca encogerse: por eso se
+    // toma el máximo en vez de sobrescribir.
     const result = await env.DB.prepare(
-        'UPDATE guide_sessions SET ended_at = ?, duration_seconds = ? WHERE id = ?'
-    ).bind(endedAt, duration, sessionId).run();
+        'UPDATE guide_sessions SET ended_at = ?, duration_seconds = MAX(COALESCE(duration_seconds, 0), ?) WHERE id = ?'
+    ).bind(endedAt, duration || 0, sessionId).run();
 
     if (result.changes === 0) {
         return errorResponse('Session not found', 404);

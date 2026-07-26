@@ -1,3 +1,17 @@
+-- =====================================================
+-- BDschemaFinal.sql — ESQUEMA REAL DE PRODUCCION
+-- =====================================================
+-- Base de datos D1: restaurant-menu-saas (7e8d1efe-2a54-4849-9a06-4c47152392bd)
+-- Exportado el 2026-07-26 desde la BD en produccion. 78 tablas, 81 indices.
+--
+-- NO editar a mano. Para regenerar:
+--   npx wrangler d1 export restaurant-menu-saas --remote --no-data --output BDschemaFinal.sql
+--
+-- La version anterior de este archivo estaba 24 tablas por detras (le faltaba
+-- todo el guidebook, TV, loyalty y delivery, y conservaba 3 tablas ya borradas
+-- en la migracion 0057).
+-- =====================================================
+
 PRAGMA defer_foreign_keys=TRUE;
 CREATE TABLE accounts (
   id TEXT PRIMARY KEY,
@@ -34,7 +48,7 @@ CREATE TABLE sections (
   icon_url TEXT,
   bg_color TEXT,
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-  modified_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  modified_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, is_visible BOOLEAN DEFAULT TRUE,
   FOREIGN KEY (menu_id) REFERENCES menus(id),
   FOREIGN KEY (restaurant_id) REFERENCES restaurants(id)
 );
@@ -57,7 +71,7 @@ CREATE TABLE dishes (
   view_count INTEGER DEFAULT 0,
   favorite_count INTEGER DEFAULT 0,
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-  modified_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, total_view_time INTEGER DEFAULT 0,
+  modified_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, total_view_time INTEGER DEFAULT 0, has_half_portion BOOLEAN DEFAULT FALSE, half_price REAL,
   FOREIGN KEY (restaurant_id) REFERENCES restaurants(id)
 );
 CREATE TABLE section_dishes (
@@ -153,17 +167,6 @@ CREATE TABLE user_ratings (
   FOREIGN KEY (dish_id) REFERENCES dishes(id),
   FOREIGN KEY (restaurant_id) REFERENCES restaurants(id)
 );
-CREATE TABLE notification_tokens (
-  id TEXT PRIMARY KEY,
-  user_id TEXT, -- Nullable now
-  visitor_id TEXT, -- Linked to cookies
-  token TEXT NOT NULL,
-  device_type TEXT,
-  is_active BOOLEAN DEFAULT TRUE,
-  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-  last_used TIMESTAMP,
-  FOREIGN KEY (user_id) REFERENCES users(id)
-);
 CREATE TABLE notifications (
   id TEXT PRIMARY KEY,
   restaurant_id TEXT NOT NULL,
@@ -177,19 +180,6 @@ CREATE TABLE notifications (
   target_type TEXT DEFAULT 'all',  -- 'all', 'favorites', 'recent', 'custom'
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   FOREIGN KEY (restaurant_id) REFERENCES restaurants(id)
-);
-CREATE TABLE notification_targets (
-  notification_id TEXT NOT NULL,
-  user_id TEXT NOT NULL,
-  sent BOOLEAN DEFAULT FALSE,
-  opened BOOLEAN DEFAULT FALSE,
-  clicked BOOLEAN DEFAULT FALSE,
-  sent_at TIMESTAMP,
-  opened_at TIMESTAMP,
-  clicked_at TIMESTAMP,
-  PRIMARY KEY (notification_id, user_id),
-  FOREIGN KEY (notification_id) REFERENCES notifications(id),
-  FOREIGN KEY (user_id) REFERENCES users(id)
 );
 CREATE TABLE restaurant_languages (
   restaurant_id TEXT NOT NULL,
@@ -277,9 +267,7 @@ CREATE TABLE qr_codes (
   utm_source TEXT,
   utm_medium TEXT,
   utm_campaign TEXT,
-  type TEXT DEFAULT 'menu', -- 'menu', 'loyalty', 'staff'
-  assigned_staff_id TEXT, -- Link to specific staff member
-  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, type TEXT DEFAULT 'menu', assigned_staff_id TEXT,
   FOREIGN KEY (restaurant_id) REFERENCES restaurants(id)
 );
 CREATE TABLE sessions (
@@ -506,7 +494,6 @@ CREATE TABLE restaurant_details (
   tiktok_url TEXT,
   youtube_url TEXT,
   tripadvisor_url TEXT,
-  google_review_url TEXT,
   
   -- Información adicional
   accepts_credit_cards BOOLEAN DEFAULT TRUE,
@@ -524,7 +511,7 @@ CREATE TABLE restaurant_details (
   
   -- Auditoría
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-  modified_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  modified_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, google_review_url TEXT, redeem_pin TEXT,
   
   FOREIGN KEY (restaurant_id) REFERENCES restaurants(id) ON DELETE CASCADE
 );
@@ -669,52 +656,6 @@ CREATE TABLE marketing_campaigns (
     
     FOREIGN KEY (restaurant_id) REFERENCES restaurants(id) ON DELETE CASCADE
 );
-CREATE TABLE marketing_leads (
-    id TEXT PRIMARY KEY,
-    restaurant_id TEXT NOT NULL,
-    campaign_id TEXT,                -- Link to the specific campaign (optional but recommended)
-    
-    type TEXT NOT NULL CHECK(type IN ('email', 'phone')),
-    contact_value TEXT NOT NULL,
-    
-    -- Metadata
-    source TEXT,                     -- 'welcome_modal', 'footer', etc. (redundant if campaign_id is used, but good for backup)
-    consent_given BOOLEAN DEFAULT TRUE,
-    metadata JSON,                   -- { device: 'mobile', url: '/menu', ... }
-    
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    
-    FOREIGN KEY (restaurant_id) REFERENCES restaurants(id) ON DELETE CASCADE,
-    FOREIGN KEY (restaurant_id) REFERENCES restaurants(id) ON DELETE CASCADE,
-    FOREIGN KEY (campaign_id) REFERENCES marketing_campaigns(id) ON DELETE SET NULL
-);
-CREATE TABLE campaign_rewards (
-  id TEXT PRIMARY KEY,
-  campaign_id TEXT NOT NULL,
-  name TEXT NOT NULL,
-  description TEXT,
-  probability REAL DEFAULT 0, -- 0.0 to 1.0 (for probabilistic games)
-  max_quantity INTEGER, -- Inventory limit
-  image_url TEXT,
-  is_active BOOLEAN DEFAULT TRUE,
-  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-  FOREIGN KEY (campaign_id) REFERENCES marketing_campaigns(id) ON DELETE CASCADE
-);
-CREATE TABLE campaign_claims (
-  id TEXT PRIMARY KEY,
-  restaurant_id TEXT NOT NULL,
-  campaign_id TEXT NOT NULL,
-  reward_id TEXT, -- Nullable if campaign is just "viewed" or generic
-  session_id TEXT NOT NULL,
-  customer_contact TEXT,
-  magic_link_token TEXT UNIQUE,
-  status TEXT DEFAULT 'active', -- active, redeemed, expired
-  redeemed_at TIMESTAMP,
-  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-  FOREIGN KEY (campaign_id) REFERENCES marketing_campaigns(id),
-  FOREIGN KEY (reward_id) REFERENCES campaign_rewards(id),
-  FOREIGN KEY (restaurant_id) REFERENCES restaurants(id)
-);
 CREATE TABLE reservation_settings (
   restaurant_id TEXT PRIMARY KEY,
   is_enabled BOOLEAN DEFAULT FALSE, -- Master toggle
@@ -740,7 +681,7 @@ CREATE TABLE reservation_settings (
   booking_availability JSON, 
   
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-  modified_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  modified_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, closed_dates TEXT, advance_days INTEGER DEFAULT 30, holiday_closures TEXT,
   FOREIGN KEY (restaurant_id) REFERENCES restaurants(id) ON DELETE CASCADE
 );
 CREATE TABLE reservations (
@@ -766,7 +707,7 @@ CREATE TABLE reservations (
   ip_address TEXT,
   
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, cancellation_reason TEXT,
+  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, cancellation_reason TEXT, magic_link_token TEXT, reminder_sent BOOLEAN DEFAULT FALSE, admin_notes TEXT, table_assignment TEXT,
   
   FOREIGN KEY (restaurant_id) REFERENCES restaurants(id) ON DELETE CASCADE
 );
@@ -799,6 +740,404 @@ CREATE TABLE reservation_logs (
   reason TEXT,
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   FOREIGN KEY (reservation_id) REFERENCES reservations(id) ON DELETE CASCADE
+);
+CREATE TABLE restaurant_ratings (
+  id TEXT PRIMARY KEY,
+  restaurant_id TEXT NOT NULL,
+  rating INTEGER NOT NULL, -- 1-5
+  comment TEXT,
+  
+  -- Tracking Identity
+  user_id TEXT,             -- Optional: Link if logged in
+  visitor_id TEXT,          -- Critical: Persistent anonymous ID
+  session_id TEXT,          -- Context: Link to session metrics
+  
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (restaurant_id) REFERENCES restaurants(id),
+  FOREIGN KEY (user_id) REFERENCES users(id),
+  FOREIGN KEY (session_id) REFERENCES sessions(id)
+);
+CREATE TABLE notification_tokens (id TEXT PRIMARY KEY, user_id TEXT, visitor_id TEXT, token TEXT NOT NULL, device_type TEXT, restaurant_id TEXT, is_active BOOLEAN DEFAULT TRUE, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, last_used TIMESTAMP, FOREIGN KEY (user_id) REFERENCES users(id));
+CREATE TABLE notification_targets (
+  notification_id TEXT NOT NULL,
+  visitor_id TEXT NOT NULL,         -- Identificador principal del dispositivo (puede ser 'anon' o el ID real)
+  user_id TEXT,                     -- Opcional: Solo si el usuario estaba logueado
+  
+  -- Estado
+  sent BOOLEAN DEFAULT FALSE,
+  opened BOOLEAN DEFAULT FALSE,
+  clicked BOOLEAN DEFAULT FALSE,
+  
+  -- Timestamps
+  sent_at TIMESTAMP,
+  opened_at TIMESTAMP,
+  clicked_at TIMESTAMP,
+  
+  -- Constraints
+  PRIMARY KEY (notification_id, visitor_id), -- Clave primaria compuesta correcta
+  FOREIGN KEY (notification_id) REFERENCES notifications(id) ON DELETE CASCADE,
+  FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE SET NULL
+);
+CREATE TABLE delivery_settings (
+  restaurant_id TEXT PRIMARY KEY,
+  is_enabled BOOLEAN DEFAULT FALSE,
+  
+  -- Contacto
+  show_whatsapp BOOLEAN DEFAULT TRUE,
+  show_phone BOOLEAN DEFAULT FALSE,
+  custom_whatsapp TEXT,  -- Override de restaurant_details.whatsapp_number
+  custom_phone TEXT,     -- Override de restaurants.phone
+  
+  -- Horarios y Disponibilidad (JSON)
+  -- Formato: {"monday": [{"start":"12:00","end":"22:00"}], "tuesday": [], ...}
+  delivery_hours TEXT,
+  -- Formato: ["2026-01-25", "2026-01-26"]
+  closed_dates TEXT,
+  
+  -- Métodos de Pago (JSON)
+  -- Formato: {"cash": true, "card": false}
+  payment_methods TEXT DEFAULT '{"cash":true,"card":false}',
+  
+  -- Costes
+  shipping_cost REAL DEFAULT 0,            -- Coste fijo de envío en €
+  free_shipping_threshold REAL DEFAULT 0,  -- 0 = siempre gratis si shipping_cost=0
+  minimum_order REAL DEFAULT 0,            -- Pedido mínimo en €
+  
+  -- Mensaje personalizado (fallback si no hay traducción)
+  custom_message TEXT,
+  
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  modified_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  
+  FOREIGN KEY (restaurant_id) REFERENCES restaurants(id) ON DELETE CASCADE
+);
+CREATE TABLE delivery_orders (
+  id TEXT PRIMARY KEY,
+  restaurant_id TEXT NOT NULL,
+  -- Customer info
+  customer_name TEXT,
+  customer_phone TEXT NOT NULL,
+  customer_address TEXT NOT NULL,
+  customer_notes TEXT,
+  -- Order details
+  items TEXT NOT NULL, -- JSON array of {dish_id, name, quantity, price}
+  subtotal REAL NOT NULL,
+  shipping_cost REAL DEFAULT 0,
+  total REAL NOT NULL,
+  payment_method TEXT, -- 'cash' | 'card'
+  -- Status tracking
+  status TEXT DEFAULT 'pending', -- pending, confirmed, preparing, delivered, cancelled
+  -- Metadata
+  session_id TEXT,
+  visitor_id TEXT,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, order_source TEXT DEFAULT 'whatsapp',
+  
+  FOREIGN KEY (restaurant_id) REFERENCES restaurants(id)
+);
+CREATE TABLE guide_zones (
+  id TEXT PRIMARY KEY,
+  name TEXT NOT NULL,
+  slug TEXT UNIQUE NOT NULL,
+  country TEXT DEFAULT 'ES',
+  region TEXT,
+  latitude REAL,
+  longitude REAL,
+  timezone TEXT DEFAULT 'Europe/Madrid',
+  cover_image_url TEXT,
+  is_active BOOLEAN DEFAULT TRUE,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  modified_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+CREATE TABLE guide_agencies (
+  id TEXT PRIMARY KEY,
+  name TEXT NOT NULL,
+  slug TEXT UNIQUE NOT NULL,
+  contact_email TEXT,
+  contact_phone TEXT,
+  logo_url TEXT,
+  is_active BOOLEAN DEFAULT TRUE,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  modified_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+, primary_color TEXT, secondary_color TEXT, accent_color TEXT, font_family TEXT);
+CREATE TABLE guide_agency_staff (
+  agency_id TEXT NOT NULL,
+  user_id TEXT NOT NULL,
+  role TEXT NOT NULL DEFAULT 'admin',
+  is_active BOOLEAN DEFAULT TRUE,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (agency_id, user_id),
+  FOREIGN KEY (agency_id) REFERENCES guide_agencies(id) ON DELETE CASCADE,
+  FOREIGN KEY (user_id) REFERENCES users(id)
+);
+CREATE TABLE guide_apartments (
+  id TEXT PRIMARY KEY,
+  agency_id TEXT NOT NULL,
+  zone_id TEXT NOT NULL,
+  name TEXT NOT NULL,
+  slug TEXT UNIQUE NOT NULL,
+  address TEXT,
+  latitude REAL,
+  longitude REAL,
+  cover_image_url TEXT,
+  qr_code_url TEXT,
+  is_active BOOLEAN DEFAULT TRUE,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  modified_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (agency_id) REFERENCES guide_agencies(id),
+  FOREIGN KEY (zone_id) REFERENCES guide_zones(id)
+);
+CREATE TABLE guide_apartment_info (
+  id TEXT PRIMARY KEY,
+  apartment_id TEXT NOT NULL,
+  info_key TEXT NOT NULL,
+  icon_name TEXT,
+  order_index INTEGER DEFAULT 0,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  modified_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, is_sequential BOOLEAN DEFAULT FALSE, guide_group TEXT, has_checklist BOOLEAN DEFAULT FALSE,
+  FOREIGN KEY (apartment_id) REFERENCES guide_apartments(id) ON DELETE CASCADE,
+  UNIQUE(apartment_id, info_key)
+);
+CREATE TABLE guide_apartment_media (
+  id TEXT PRIMARY KEY,
+  apartment_info_id TEXT NOT NULL,
+  r2_key TEXT NOT NULL,
+  media_type TEXT NOT NULL CHECK(media_type IN ('image', 'video')),
+  order_index INTEGER DEFAULT 0,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (apartment_info_id) REFERENCES guide_apartment_info(id) ON DELETE CASCADE
+);
+CREATE TABLE guide_pois (
+  id TEXT PRIMARY KEY,
+  zone_id TEXT NOT NULL,
+  category TEXT NOT NULL,
+  latitude REAL,
+  longitude REAL,
+  google_maps_url TEXT,
+  order_index INTEGER DEFAULT 0,
+  is_active BOOLEAN DEFAULT TRUE,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  modified_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, rating REAL, travel_time_text TEXT, travel_mode TEXT CHECK(travel_mode IN ('walk', 'drive', 'bike')), distance_text TEXT, poi_type    TEXT NOT NULL DEFAULT 'sight', subcategory TEXT, access_type TEXT NOT NULL DEFAULT 'free', address          TEXT, google_place_id  TEXT, what3words        TEXT, rating_count        INTEGER, google_rating       REAL, google_rating_count INTEGER, opening_hours TEXT, phone         TEXT, website_url   TEXT, booking_url   TEXT, duration_text TEXT, price_amount           REAL, price_currency         TEXT DEFAULT 'EUR', price_display          TEXT, original_price_display TEXT, discount_display       TEXT, is_bookable             BOOLEAN DEFAULT FALSE, action_type             TEXT, action_data             TEXT, action_prefilled_message TEXT, commission_type         TEXT, commission_value        REAL DEFAULT 0, badge_type              TEXT, cover_image_url TEXT, is_featured     BOOLEAN DEFAULT FALSE, source          TEXT, external_id     TEXT,
+  FOREIGN KEY (zone_id) REFERENCES guide_zones(id)
+);
+CREATE TABLE guide_poi_media (
+  id TEXT PRIMARY KEY,
+  poi_id TEXT NOT NULL,
+  r2_key TEXT NOT NULL,
+  media_type TEXT NOT NULL CHECK(media_type IN ('image', 'video', 'thumbnail')),
+  role TEXT CHECK(role IN ('PRIMARY_VIDEO', 'PRIMARY_IMAGE', 'GALLERY_IMAGE', 'THUMBNAIL')),
+  width INTEGER,
+  height INTEGER,
+  duration INTEGER,
+  file_size INTEGER,
+  order_index INTEGER DEFAULT 0,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (poi_id) REFERENCES guide_pois(id) ON DELETE CASCADE
+);
+CREATE TABLE guide_experiences (
+  id TEXT PRIMARY KEY,
+  zone_id TEXT NOT NULL,
+  category TEXT NOT NULL,
+  action_type TEXT NOT NULL CHECK(action_type IN ('URL', 'WHATSAPP', 'PHONE', 'COUPON', 'IN_APP')),
+  action_data TEXT NOT NULL,
+  action_prefilled_message TEXT,
+  commission_type TEXT CHECK(commission_type IN ('percentage', 'fixed', 'none')),
+  commission_value REAL DEFAULT 0,
+  price_display TEXT,
+  cover_image_url TEXT,
+  order_index INTEGER DEFAULT 0,
+  is_featured BOOLEAN DEFAULT FALSE,
+  is_active BOOLEAN DEFAULT TRUE,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  modified_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, service_subcategory TEXT, discount_display TEXT, original_price_display TEXT, badge_type TEXT CHECK(badge_type IN ('discount', 'courtesy', 'exclusive', 'new')),
+  FOREIGN KEY (zone_id) REFERENCES guide_zones(id)
+);
+CREATE TABLE guide_zone_restaurants (
+  zone_id TEXT NOT NULL,
+  restaurant_id TEXT NOT NULL,
+  tier TEXT NOT NULL DEFAULT 'basic' CHECK(tier IN ('basic', 'featured')),
+  order_override INTEGER,
+  is_active BOOLEAN DEFAULT TRUE,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, cuisine_type_override TEXT,
+  PRIMARY KEY (zone_id, restaurant_id),
+  FOREIGN KEY (zone_id) REFERENCES guide_zones(id),
+  FOREIGN KEY (restaurant_id) REFERENCES restaurants(id) ON DELETE CASCADE
+);
+CREATE TABLE guide_sessions (
+  id TEXT PRIMARY KEY,
+  apartment_id TEXT NOT NULL,
+  zone_id TEXT NOT NULL,
+  device_type TEXT,
+  os_name TEXT,
+  browser TEXT,
+  country TEXT,
+  city TEXT,
+  language_code TEXT DEFAULT 'es',
+  started_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  ended_at TIMESTAMP,
+  duration_seconds INTEGER, device_fingerprint TEXT,
+  FOREIGN KEY (apartment_id) REFERENCES guide_apartments(id)
+);
+CREATE TABLE guide_affiliate_intents (
+  id TEXT PRIMARY KEY,
+  session_id TEXT,
+  apartment_id TEXT,
+  agency_id TEXT,
+  zone_id TEXT NOT NULL,
+  target_type TEXT NOT NULL CHECK(target_type IN ('restaurant', 'experience', 'product')),
+  target_id TEXT NOT NULL,
+  action_taken TEXT NOT NULL,
+  user_agent TEXT,
+  ip_country TEXT,
+  ip_city TEXT,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (session_id) REFERENCES guide_sessions(id),
+  FOREIGN KEY (apartment_id) REFERENCES guide_apartments(id),
+  FOREIGN KEY (agency_id) REFERENCES guide_agencies(id),
+  FOREIGN KEY (zone_id) REFERENCES guide_zones(id)
+);
+CREATE TABLE guide_commission_ledger (
+  id TEXT PRIMARY KEY,
+  agency_id TEXT NOT NULL,
+  intent_id TEXT,
+  amount REAL NOT NULL,
+  currency TEXT DEFAULT 'EUR',
+  source_type TEXT NOT NULL,
+  source_id TEXT NOT NULL,
+  status TEXT DEFAULT 'pending' CHECK(status IN ('pending', 'confirmed', 'paid', 'disputed')),
+  notes TEXT,
+  confirmed_at TIMESTAMP,
+  paid_at TIMESTAMP,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (agency_id) REFERENCES guide_agencies(id),
+  FOREIGN KEY (intent_id) REFERENCES guide_affiliate_intents(id)
+);
+CREATE TABLE guide_section_views (
+  id TEXT PRIMARY KEY,
+  session_id TEXT,
+  apartment_id TEXT NOT NULL,
+  zone_id TEXT NOT NULL,
+  section TEXT NOT NULL CHECK(section IN ('info', 'discover', 'restaurants', 'services')),
+  duration_seconds INTEGER DEFAULT 0,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (session_id) REFERENCES guide_sessions(id),
+  FOREIGN KEY (apartment_id) REFERENCES guide_apartments(id)
+);
+CREATE TABLE guide_apartment_pois (
+  apartment_id TEXT NOT NULL,
+  poi_id       TEXT NOT NULL,
+  order_override INTEGER DEFAULT 0,
+  is_hidden    BOOLEAN DEFAULT FALSE,
+  created_at   TIMESTAMP DEFAULT CURRENT_TIMESTAMP, travel_time_text TEXT, travel_mode      TEXT, distance_text    TEXT,
+  PRIMARY KEY (apartment_id, poi_id),
+  FOREIGN KEY (apartment_id) REFERENCES guide_apartments(id) ON DELETE CASCADE,
+  FOREIGN KEY (poi_id) REFERENCES guide_pois(id) ON DELETE CASCADE
+);
+CREATE TABLE guide_info_steps (
+  id                  TEXT PRIMARY KEY,
+  apartment_info_id   TEXT NOT NULL,
+  step_number         INTEGER NOT NULL,
+  created_at          TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  UNIQUE(apartment_info_id, step_number),
+  FOREIGN KEY (apartment_info_id) REFERENCES guide_apartment_info(id) ON DELETE CASCADE
+);
+CREATE TABLE guide_info_step_media (
+  id          TEXT PRIMARY KEY,
+  step_id     TEXT NOT NULL,
+  r2_key      TEXT NOT NULL,
+  media_type  TEXT NOT NULL CHECK(media_type IN ('image', 'video')),
+  order_index INTEGER DEFAULT 0,
+  created_at  TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (step_id) REFERENCES guide_info_steps(id) ON DELETE CASCADE
+);
+CREATE TABLE guide_coupons (
+  id              TEXT PRIMARY KEY,
+  experience_id   TEXT NOT NULL,
+  code            TEXT NOT NULL UNIQUE,
+  discount_type   TEXT CHECK(discount_type IN ('percentage', 'fixed')),
+  discount_value  REAL NOT NULL,
+  max_uses        INTEGER,
+  current_uses    INTEGER DEFAULT 0,
+  valid_from      TIMESTAMP,
+  valid_until     TIMESTAMP,
+  is_active       BOOLEAN DEFAULT TRUE,
+  created_at      TIMESTAMP DEFAULT CURRENT_TIMESTAMP, poi_id TEXT,
+  FOREIGN KEY (experience_id) REFERENCES guide_experiences(id)
+);
+CREATE TABLE guide_welcome_modals (
+  id              TEXT PRIMARY KEY,
+  apartment_id    TEXT NOT NULL UNIQUE,
+  is_active       BOOLEAN DEFAULT FALSE,
+  image_url       TEXT,
+  action_enabled  BOOLEAN DEFAULT FALSE,
+  action_type     TEXT CHECK(action_type IN ('URL', 'WHATSAPP', 'PHONE')),
+  action_data     TEXT,
+  created_at      TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  modified_at     TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (apartment_id) REFERENCES guide_apartments(id) ON DELETE CASCADE
+);
+CREATE TABLE guide_tv_devices (
+  id              TEXT PRIMARY KEY,
+  apartment_id    TEXT NOT NULL,
+  pairing_code    TEXT UNIQUE NOT NULL,
+  device_label    TEXT,
+  is_active       BOOLEAN DEFAULT TRUE,
+  paired_at       TIMESTAMP,
+  last_seen_at    TIMESTAMP,
+  created_at      TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (apartment_id) REFERENCES guide_apartments(id) ON DELETE CASCADE
+);
+CREATE TABLE guide_tv_events (
+  id              TEXT PRIMARY KEY,
+  apartment_id    TEXT NOT NULL,
+  device_id       TEXT,
+  event_type      TEXT NOT NULL CHECK(event_type IN (
+                    'impression', 'screen_view', 'wifi_reveal',
+                    'poi_select', 'menu_qr_shown', 'booking_qr_shown'
+                  )),
+  screen          TEXT,
+  lang            TEXT,
+  created_at      TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (apartment_id) REFERENCES guide_apartments(id) ON DELETE CASCADE,
+  FOREIGN KEY (device_id) REFERENCES guide_tv_devices(id) ON DELETE SET NULL
+);
+CREATE TABLE loyalty_programs (
+  restaurant_id TEXT PRIMARY KEY,
+  is_active INTEGER NOT NULL DEFAULT 0,
+  stamps_required INTEGER NOT NULL DEFAULT 8,
+  reward_name TEXT,
+  reward_description TEXT,
+  reward_image_url TEXT,
+  stamp_icon TEXT DEFAULT '⭐',
+  card_color TEXT,
+  expiry_days INTEGER, -- null = sin caducidad tras completar
+  terms TEXT,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (restaurant_id) REFERENCES restaurants(id) ON DELETE CASCADE
+);
+CREATE TABLE loyalty_cards (
+  id TEXT PRIMARY KEY,
+  restaurant_id TEXT NOT NULL,
+  visitor_id TEXT NOT NULL,
+  stamps INTEGER NOT NULL DEFAULT 0,
+  status TEXT NOT NULL DEFAULT 'active', -- active | completed | redeemed | expired
+  magic_link_token TEXT UNIQUE,
+  expires_at TIMESTAMP,
+  completed_at TIMESTAMP,
+  redeemed_at TIMESTAMP,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (restaurant_id) REFERENCES restaurants(id) ON DELETE CASCADE
+);
+CREATE TABLE loyalty_stamps (
+  id TEXT PRIMARY KEY,
+  card_id TEXT NOT NULL,
+  restaurant_id TEXT NOT NULL,
+  visitor_id TEXT NOT NULL,
+  session_id TEXT,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (card_id) REFERENCES loyalty_cards(id) ON DELETE CASCADE
 );
 CREATE INDEX idx_dishes_restaurant ON dishes(restaurant_id);
 CREATE INDEX idx_sections_restaurant ON sections(restaurant_id);
@@ -837,9 +1176,50 @@ CREATE INDEX idx_cartsessions_session ON cart_sessions(sessionid);
 CREATE INDEX idx_cartsessions_restaurant_status ON cart_sessions(restaurantid, status);
 CREATE INDEX idx_cartsessions_created ON cart_sessions(createdat);
 CREATE INDEX idx_marketing_campaigns_restaurant ON marketing_campaigns(restaurant_id, is_active);
-CREATE INDEX idx_marketing_leads_restaurant ON marketing_leads(restaurant_id);
-CREATE INDEX idx_marketing_leads_campaign ON marketing_leads(campaign_id);
 CREATE INDEX idx_reservations_restaurant_date ON reservations(restaurant_id, reservation_date);
 CREATE INDEX idx_reservations_status ON reservations(status);
 CREATE INDEX idx_waitlist_restaurant_date ON reservation_waitlist(restaurant_id, desired_date);
 CREATE INDEX idx_sessions_visitor ON sessions(visitor_id, restaurant_id);
+CREATE INDEX idx_rest_ratings_visitor ON restaurant_ratings(restaurant_id, visitor_id);
+CREATE INDEX idx_sections_visible ON sections(restaurant_id, menu_id, is_visible, order_index);
+CREATE INDEX idx_reservations_token ON reservations(magic_link_token);
+CREATE INDEX idx_delivery_settings_enabled ON delivery_settings(restaurant_id, is_enabled);
+CREATE INDEX idx_delivery_orders_restaurant ON delivery_orders(restaurant_id);
+CREATE INDEX idx_delivery_orders_status ON delivery_orders(status);
+CREATE INDEX idx_delivery_orders_created ON delivery_orders(created_at DESC);
+CREATE INDEX idx_guide_apartments_zone ON guide_apartments(zone_id, is_active);
+CREATE INDEX idx_guide_apartments_agency ON guide_apartments(agency_id);
+CREATE INDEX idx_guide_apartments_slug ON guide_apartments(slug);
+CREATE INDEX idx_guide_pois_zone ON guide_pois(zone_id, is_active, order_index);
+CREATE INDEX idx_guide_experiences_zone ON guide_experiences(zone_id, is_active, order_index);
+CREATE INDEX idx_guide_zone_rest_zone ON guide_zone_restaurants(zone_id, is_active);
+CREATE INDEX idx_guide_zone_rest_tier ON guide_zone_restaurants(zone_id, tier, is_active);
+CREATE INDEX idx_guide_intents_apartment ON guide_affiliate_intents(apartment_id, created_at);
+CREATE INDEX idx_guide_intents_agency ON guide_affiliate_intents(agency_id, created_at);
+CREATE INDEX idx_guide_intents_target ON guide_affiliate_intents(target_type, target_id, created_at);
+CREATE INDEX idx_guide_ledger_agency ON guide_commission_ledger(agency_id, status);
+CREATE INDEX idx_guide_sessions_apartment ON guide_sessions(apartment_id, started_at);
+CREATE INDEX idx_guide_sessions_zone ON guide_sessions(zone_id, started_at);
+CREATE INDEX idx_guide_agency_staff_user ON guide_agency_staff(user_id);
+CREATE INDEX idx_guide_sessions_fingerprint ON guide_sessions(device_fingerprint, apartment_id);
+CREATE INDEX idx_guide_section_views_apt ON guide_section_views(apartment_id, section, created_at);
+CREATE INDEX idx_guide_section_views_session ON guide_section_views(session_id);
+CREATE INDEX idx_guide_apt_pois_apt ON guide_apartment_pois(apartment_id, is_hidden, order_override);
+CREATE INDEX idx_guide_info_steps ON guide_info_steps(apartment_info_id, step_number);
+CREATE INDEX idx_guide_step_media ON guide_info_step_media(step_id, order_index);
+CREATE INDEX idx_guide_coupons_exp ON guide_coupons(experience_id, is_active);
+CREATE INDEX idx_guide_pois_zone_active ON guide_pois(zone_id, is_active, order_index);
+CREATE INDEX idx_guide_welcome_modals_apartment ON guide_welcome_modals(apartment_id, is_active);
+CREATE INDEX idx_guide_tv_devices_apartment ON guide_tv_devices(apartment_id);
+CREATE INDEX idx_guide_tv_devices_pairing_code ON guide_tv_devices(pairing_code);
+CREATE INDEX idx_guide_tv_events_apartment ON guide_tv_events(apartment_id, created_at);
+CREATE INDEX idx_guide_tv_events_type ON guide_tv_events(event_type);
+CREATE UNIQUE INDEX idx_loyalty_cards_open
+  ON loyalty_cards(restaurant_id, visitor_id)
+  WHERE status IN ('active', 'completed');
+CREATE INDEX idx_loyalty_cards_token ON loyalty_cards(magic_link_token);
+CREATE INDEX idx_loyalty_cards_restaurant_status ON loyalty_cards(restaurant_id, status);
+CREATE INDEX idx_loyalty_stamps_card ON loyalty_stamps(card_id);
+CREATE INDEX idx_guide_pois_bookable ON guide_pois(zone_id, is_bookable, is_active, is_featured, order_index);
+CREATE INDEX idx_guide_pois_type     ON guide_pois(zone_id, poi_type, is_active);
+CREATE INDEX idx_guide_pois_coords   ON guide_pois(zone_id, is_active, latitude);

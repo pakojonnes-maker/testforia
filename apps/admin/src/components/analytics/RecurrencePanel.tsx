@@ -19,8 +19,13 @@ interface Props {
 
 
 export default function RecurrencePanel({ newVisitors, returningVisitors, uniqueVisitors, totalSessions }: Props) {
-    const returnRate = uniqueVisitors > 0
-        ? ((returningVisitors / uniqueVisitors) * 100)
+    // La tasa de retorno se calcula sobre el total nuevos+recurrentes, no sobre
+    // uniqueVisitors: son dos consultas distintas y usar el denominador de otra
+    // podía dar porcentajes >100%. Ahora además el backend garantiza que cada
+    // visitante cae en un solo cubo, así que ambos totales coinciden.
+    const classified = newVisitors + returningVisitors;
+    const returnRate = classified > 0
+        ? ((returningVisitors / classified) * 100)
         : 0;
 
     const avgVisitsPerUser = uniqueVisitors > 0
@@ -182,7 +187,7 @@ export default function RecurrencePanel({ newVisitors, returningVisitors, unique
                                 </Tooltip>
 
                                 {returningVisitors >= 5 && (
-                                    <Tooltip title="Visitantes con alta fidelidad (aportan el mayor valor)" arrow>
+                                    <Tooltip title="Visitantes que han vuelto en un día distinto" arrow>
                                         <Box sx={{
                                             display: 'flex', justifyContent: 'space-between',
                                             alignItems: 'center',
@@ -194,7 +199,7 @@ export default function RecurrencePanel({ newVisitors, returningVisitors, unique
                                             <Stack direction="row" spacing={1} alignItems="center">
                                                 <StarIcon sx={{ fontSize: 16, color: '#f59e0b' }} />
                                                 <Typography variant="caption" sx={{ fontWeight: 500, color: 'text.secondary' }}>
-                                                    Super fans
+                                                    Clientes fieles
                                                 </Typography>
                                             </Stack>
                                             <Typography variant="body2" sx={{ fontWeight: 700, color: '#f59e0b' }}>

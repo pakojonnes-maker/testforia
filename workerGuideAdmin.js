@@ -627,8 +627,8 @@ async function listZones(env) {
     const result = await env.DB.prepare(`
         SELECT z.*, 
             (SELECT COUNT(*) FROM guide_apartments WHERE zone_id = z.id AND is_active = TRUE) as apartment_count,
-            (SELECT COUNT(*) FROM guide_pois WHERE zone_id = z.id AND is_active = TRUE) as poi_count,
-            (SELECT COUNT(*) FROM guide_experiences WHERE zone_id = z.id AND is_active = TRUE) as experience_count
+            (SELECT COUNT(*) FROM guide_pois WHERE zone_id = z.id AND is_active = TRUE AND (is_bookable = 0 OR is_bookable IS NULL)) as poi_count,
+            (SELECT COUNT(*) FROM guide_pois WHERE zone_id = z.id AND is_active = TRUE AND is_bookable = 1) as experience_count
         FROM guide_zones z WHERE z.is_active = TRUE ORDER BY z.name ASC
     `).all();
     return jsonResponse({ success: true, zones: result.results || [] });
@@ -665,7 +665,8 @@ async function updateZone(env, id, data) {
 // POIs (superadmin only)
 // ============================================
 async function listPOIs(env, zoneId) {
-    let query = `SELECT p.*, t_name.value AS name_es, t_name_en.value AS name_en, t_desc.value AS description_es, t_desc_en.value AS description_en
+    let query = `SELECT p.*, t_name.value AS name_es, t_name_en.value AS name_en, t_desc.value AS description_es, t_desc_en.value AS description_en,
+            t_tip.value AS short_tip_es, t_tip_en.value AS short_tip_en
         FROM guide_pois p
         LEFT JOIN translations t_name ON p.id = t_name.entity_id
             AND t_name.entity_type = 'poi' AND t_name.field = 'name' AND t_name.language_code = 'es'
@@ -675,7 +676,11 @@ async function listPOIs(env, zoneId) {
             AND t_desc.entity_type = 'poi' AND t_desc.field = 'description' AND t_desc.language_code = 'es'
         LEFT JOIN translations t_desc_en ON p.id = t_desc_en.entity_id
             AND t_desc_en.entity_type = 'poi' AND t_desc_en.field = 'description' AND t_desc_en.language_code = 'en'
-        WHERE p.is_active = TRUE`;
+        LEFT JOIN translations t_tip ON p.id = t_tip.entity_id
+            AND t_tip.entity_type = 'poi' AND t_tip.field = 'short_tip' AND t_tip.language_code = 'es'
+        LEFT JOIN translations t_tip_en ON p.id = t_tip_en.entity_id
+            AND t_tip_en.entity_type = 'poi' AND t_tip_en.field = 'short_tip' AND t_tip_en.language_code = 'en'
+        WHERE p.is_active = TRUE AND (p.is_bookable = 0 OR p.is_bookable IS NULL)`;
     const params = [];
     if (zoneId) { query += ' AND p.zone_id = ?'; params.push(zoneId); }
     query += ' ORDER BY p.order_index ASC';
@@ -683,24 +688,49 @@ async function listPOIs(env, zoneId) {
     return jsonResponse({ success: true, pois: result.results || [] });
 }
 
+// Columns on the unified guide_pois table that admins may set directly.
+// Kept in one place so createPOI / updatePOI / experiences stay in sync.
+const POI_WRITABLE_FIELDS = [
+    'category', 'subcategory', 'poi_type', 'access_type',
+    'latitude', 'longitude', 'address', 'google_maps_url', 'google_place_id', 'what3words',
+    'rating', 'rating_count', 'google_rating', 'google_rating_count',
+    'opening_hours', 'phone', 'website_url', 'booking_url', 'duration_text',
+    'price_amount', 'price_currency', 'price_display', 'original_price_display', 'discount_display',
+    'action_type', 'action_data', 'action_prefilled_message',
+    'commission_type', 'commission_value', 'badge_type',
+    'cover_image_url', 'source', 'external_id', 'order_index'
+];
+
+function collectPoiTranslations(data, fields) {
+    const translations = {};
+    for (const lang of ['es', 'en']) {
+        const t = {};
+        for (const f of fields) {
+            if (data[`${f}_${lang}`]) t[f] = data[`${f}_${lang}`];
+        }
+        if (Object.keys(t).length > 0) translations[lang] = t;
+    }
+    return translations;
+}
+
 async function createPOI(env, data) {
     if (!data.zone_id || !data.category) return errorResponse('zone_id and category are required');
     const id = generateId('poi');
-    await env.DB.prepare(`
-        INSERT INTO guide_pois (id, zone_id, category, latitude, longitude, google_maps_url, order_index)
-        VALUES (?, ?, ?, ?, ?, ?, ?)
-    `).bind(id, data.zone_id, data.category,
-        data.latitude || null, data.longitude || null, data.google_maps_url || null, data.order_index || 0
-    ).run();
 
-    const translations = {};
-    const langs = ['es', 'en'];
-    for (const lang of langs) {
-        const fields = {};
-        if (data[`name_${lang}`]) fields.name = data[`name_${lang}`];
-        if (data[`description_${lang}`]) fields.description = data[`description_${lang}`];
-        if (Object.keys(fields).length > 0) translations[lang] = fields;
+    const cols = ['id', 'zone_id'];
+    const vals = [id, data.zone_id];
+    for (const field of POI_WRITABLE_FIELDS) {
+        if (data[field] !== undefined) { cols.push(field); vals.push(data[field]); }
     }
+    for (const boolField of ['is_bookable', 'is_featured']) {
+        if (data[boolField] !== undefined) { cols.push(boolField); vals.push(data[boolField] ? 1 : 0); }
+    }
+    const placeholders = cols.map(() => '?').join(', ');
+    await env.DB.prepare(
+        `INSERT INTO guide_pois (${cols.join(', ')}) VALUES (${placeholders})`
+    ).bind(...vals).run();
+
+    const translations = collectPoiTranslations(data, ['name', 'description', 'short_tip', 'cta_label']);
     if (Object.keys(translations).length > 0) {
         await saveTranslations(env, id, 'poi', translations);
     } else if (data.translations) {
@@ -712,23 +742,18 @@ async function createPOI(env, data) {
 async function updatePOI(env, id, data) {
     const sets = [];
     const vals = [];
-    for (const field of ['category', 'latitude', 'longitude', 'google_maps_url', 'order_index']) {
+    for (const field of POI_WRITABLE_FIELDS) {
         if (data[field] !== undefined) { sets.push(`${field} = ?`); vals.push(data[field]); }
     }
-    if (data.is_active !== undefined) { sets.push('is_active = ?'); vals.push(data.is_active ? 1 : 0); }
+    for (const boolField of ['is_bookable', 'is_featured', 'is_active']) {
+        if (data[boolField] !== undefined) { sets.push(`${boolField} = ?`); vals.push(data[boolField] ? 1 : 0); }
+    }
     if (sets.length > 0) {
         sets.push('modified_at = CURRENT_TIMESTAMP');
         vals.push(id);
         await env.DB.prepare(`UPDATE guide_pois SET ${sets.join(', ')} WHERE id = ?`).bind(...vals).run();
     }
-    const translations = {};
-    const langs = ['es', 'en'];
-    for (const lang of langs) {
-        const fields = {};
-        if (data[`name_${lang}`]) fields.name = data[`name_${lang}`];
-        if (data[`description_${lang}`]) fields.description = data[`description_${lang}`];
-        if (Object.keys(fields).length > 0) translations[lang] = fields;
-    }
+    const translations = collectPoiTranslations(data, ['name', 'description', 'short_tip', 'cta_label']);
     if (Object.keys(translations).length > 0) {
         await saveTranslations(env, id, 'poi', translations);
     } else if (data.translations) {
@@ -741,13 +766,25 @@ async function updatePOI(env, id, data) {
 // EXPERIENCES (superadmin only)
 // ============================================
 async function listExperiences(env, zoneId, isSuperAdmin) {
-    let query = `SELECT e.*, t_name.value AS name_es, t_name_en.value AS name_en
-        FROM guide_experiences e
+    // Experiences are the bookable slice of the unified guide_pois table.
+    // service_subcategory is aliased from subcategory to keep the admin API shape.
+    let query = `SELECT e.*, e.subcategory AS service_subcategory, t_name.value AS name_es, t_name_en.value AS name_en,
+            t_desc.value AS description_es, t_desc_en.value AS description_en,
+            t_cta.value AS cta_label_es, t_cta_en.value AS cta_label_en
+        FROM guide_pois e
         LEFT JOIN translations t_name ON e.id = t_name.entity_id
-            AND t_name.entity_type = 'experience' AND t_name.field = 'name' AND t_name.language_code = 'es'
+            AND t_name.entity_type = 'poi' AND t_name.field = 'name' AND t_name.language_code = 'es'
         LEFT JOIN translations t_name_en ON e.id = t_name_en.entity_id
-            AND t_name_en.entity_type = 'experience' AND t_name_en.field = 'name' AND t_name_en.language_code = 'en'
-        WHERE 1=1`;
+            AND t_name_en.entity_type = 'poi' AND t_name_en.field = 'name' AND t_name_en.language_code = 'en'
+        LEFT JOIN translations t_desc ON e.id = t_desc.entity_id
+            AND t_desc.entity_type = 'poi' AND t_desc.field = 'description' AND t_desc.language_code = 'es'
+        LEFT JOIN translations t_desc_en ON e.id = t_desc_en.entity_id
+            AND t_desc_en.entity_type = 'poi' AND t_desc_en.field = 'description' AND t_desc_en.language_code = 'en'
+        LEFT JOIN translations t_cta ON e.id = t_cta.entity_id
+            AND t_cta.entity_type = 'poi' AND t_cta.field = 'cta_label' AND t_cta.language_code = 'es'
+        LEFT JOIN translations t_cta_en ON e.id = t_cta_en.entity_id
+            AND t_cta_en.entity_type = 'poi' AND t_cta_en.field = 'cta_label' AND t_cta_en.language_code = 'en'
+        WHERE e.is_bookable = TRUE`;
     const params = [];
     // Superadmin manages the full catalog and needs to see inactive experiences too
     // (otherwise there's no way to re-activate one once toggled off). Agency users only
@@ -767,71 +804,71 @@ async function listExperiences(env, zoneId, isSuperAdmin) {
     return jsonResponse({ success: true, experiences });
 }
 
+// Experiences are stored in guide_pois as bookable rows (is_bookable = 1).
+// The admin sends `service_subcategory`; we normalize it to the `subcategory` column.
+function normalizeExperienceData(data) {
+    const d = { ...data };
+    if (d.service_subcategory !== undefined && d.subcategory === undefined) {
+        d.subcategory = d.service_subcategory;
+    }
+    return d;
+}
+
 async function createExperience(env, data) {
     if (!data.zone_id || !data.category || !data.action_type || !data.action_data) {
         return errorResponse('zone_id, category, action_type, and action_data are required');
     }
+    const d = normalizeExperienceData(data);
     const id = generateId('exp');
-    await env.DB.prepare(`
-        INSERT INTO guide_experiences (id, zone_id, category, action_type, action_data, action_prefilled_message,
-            commission_type, commission_value, price_display, cover_image_url, order_index, is_featured)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-    `).bind(id, data.zone_id, data.category, data.action_type, data.action_data,
-        data.action_prefilled_message || null, data.commission_type || 'none',
-        data.commission_value || 0, data.price_display || null,
-        data.cover_image_url || null, data.order_index || 0, data.is_featured ? 1 : 0
-    ).run();
 
-    const translations = {};
-    const langs = ['es', 'en'];
-    for (const lang of langs) {
-        const fields = {};
-        if (data[`name_${lang}`]) fields.name = data[`name_${lang}`];
-        if (data[`description_${lang}`]) fields.description = data[`description_${lang}`];
-        if (data[`cta_label_${lang}`]) fields.cta_label = data[`cta_label_${lang}`];
-        if (Object.keys(fields).length > 0) translations[lang] = fields;
+    const cols = ['id', 'zone_id', 'is_bookable', 'poi_type', 'access_type'];
+    const vals = [id, d.zone_id, 1, d.poi_type || 'experience', d.access_type || 'paid'];
+    for (const field of POI_WRITABLE_FIELDS) {
+        if (d[field] !== undefined) { cols.push(field); vals.push(d[field]); }
     }
+    if (d.is_featured !== undefined) { cols.push('is_featured'); vals.push(d.is_featured ? 1 : 0); }
+    // commission defaults preserved from the old experiences handler
+    if (d.commission_type === undefined) { cols.push('commission_type'); vals.push('none'); }
+    const placeholders = cols.map(() => '?').join(', ');
+    await env.DB.prepare(
+        `INSERT INTO guide_pois (${cols.join(', ')}) VALUES (${placeholders})`
+    ).bind(...vals).run();
+
+    const translations = collectPoiTranslations(d, ['name', 'description', 'short_tip', 'cta_label']);
     if (Object.keys(translations).length > 0) {
-        await saveTranslations(env, id, 'experience', translations);
-    } else if (data.translations) {
-        await saveTranslations(env, id, 'experience', data.translations);
+        await saveTranslations(env, id, 'poi', translations);
+    } else if (d.translations) {
+        await saveTranslations(env, id, 'poi', d.translations);
     }
     return jsonResponse({ success: true, id });
 }
 
 async function updateExperience(env, id, data) {
+    const d = normalizeExperienceData(data);
     const sets = [];
     const vals = [];
-    for (const field of ['category', 'action_type', 'action_data', 'action_prefilled_message',
-        'commission_type', 'commission_value', 'price_display', 'cover_image_url', 'order_index']) {
-        if (data[field] !== undefined) { sets.push(`${field} = ?`); vals.push(data[field]); }
+    for (const field of POI_WRITABLE_FIELDS) {
+        if (d[field] !== undefined) { sets.push(`${field} = ?`); vals.push(d[field]); }
     }
-    if (data.is_featured !== undefined) { sets.push('is_featured = ?'); vals.push(data.is_featured ? 1 : 0); }
-    if (data.is_active !== undefined) { sets.push('is_active = ?'); vals.push(data.is_active ? 1 : 0); }
+    for (const boolField of ['is_featured', 'is_active', 'is_bookable']) {
+        if (d[boolField] !== undefined) { sets.push(`${boolField} = ?`); vals.push(d[boolField] ? 1 : 0); }
+    }
     if (sets.length > 0) {
         sets.push('modified_at = CURRENT_TIMESTAMP');
         vals.push(id);
-        await env.DB.prepare(`UPDATE guide_experiences SET ${sets.join(', ')} WHERE id = ?`).bind(...vals).run();
+        await env.DB.prepare(`UPDATE guide_pois SET ${sets.join(', ')} WHERE id = ?`).bind(...vals).run();
     }
-    const translations = {};
-    const langs = ['es', 'en'];
-    for (const lang of langs) {
-        const fields = {};
-        if (data[`name_${lang}`]) fields.name = data[`name_${lang}`];
-        if (data[`description_${lang}`]) fields.description = data[`description_${lang}`];
-        if (data[`cta_label_${lang}`]) fields.cta_label = data[`cta_label_${lang}`];
-        if (Object.keys(fields).length > 0) translations[lang] = fields;
-    }
+    const translations = collectPoiTranslations(d, ['name', 'description', 'short_tip', 'cta_label']);
     if (Object.keys(translations).length > 0) {
-        await saveTranslations(env, id, 'experience', translations);
-    } else if (data.translations) {
-        await saveTranslations(env, id, 'experience', data.translations);
+        await saveTranslations(env, id, 'poi', translations);
+    } else if (d.translations) {
+        await saveTranslations(env, id, 'poi', d.translations);
     }
     return jsonResponse({ success: true });
 }
 
 async function deleteExperience(env, id) {
-    await env.DB.prepare('UPDATE guide_experiences SET is_active = FALSE WHERE id = ?').bind(id).run();
+    await env.DB.prepare('UPDATE guide_pois SET is_active = FALSE WHERE id = ?').bind(id).run();
     return jsonResponse({ success: true });
 }
 
@@ -896,9 +933,13 @@ async function getAgencyStats(env, agencyId, params) {
     const placeholders = aptIds.map(() => '?').join(',');
 
     const [scanStats, intentStats, langBreakdown, topRestaurants] = await Promise.all([
-        // QR scans + avg duration
+        // Sesiones de guía + visitantes únicos + duración media.
+        // OJO: esto NO son escaneos de QR (se exponía como `qr_scans`, que hacía leer
+        // "150 escaneos" cuando eran ~40 huéspedes). Son aperturas de la guía.
         env.DB.prepare(`
-            SELECT COUNT(*) as total_scans, AVG(duration_seconds) as avg_duration
+            SELECT COUNT(*) as total_sessions,
+                   COUNT(DISTINCT COALESCE(visitor_id, device_fingerprint, id)) as unique_visitors,
+                   AVG(COALESCE(duration_seconds, 0)) as avg_duration
             FROM guide_sessions
             WHERE apartment_id IN (${placeholders}) AND started_at BETWEEN ? AND ?
         `).bind(...aptIds, fromTs, toTs).first(),
@@ -933,7 +974,11 @@ async function getAgencyStats(env, agencyId, params) {
     return jsonResponse({
         success: true,
         stats: {
-            qr_scans: scanStats?.total_scans || 0,
+            guide_sessions: scanStats?.total_sessions || 0,
+            unique_visitors: scanStats?.unique_visitors || 0,
+            // Alias conservado para no romper el dashboard existente mientras se
+            // actualiza la UI; usa `guide_sessions`, que es lo que realmente mide.
+            qr_scans: scanStats?.total_sessions || 0,
             avg_duration: Math.round(scanStats?.avg_duration || 0),
             restaurant_clicks: intentStats?.restaurant_clicks || 0,
             experience_clicks: intentStats?.experience_clicks || 0,
@@ -983,14 +1028,23 @@ async function getApartmentStats(env, aptId, params, isSuperAdmin, userAgencyIds
     const fromTs = new Date(Date.now() - days * 86400000).toISOString();
 
     const [sessionStats, deviceStats, sectionStats, langStats] = await Promise.all([
+        // AVG(duration_seconds) ignoraba los NULL. Como el 79% de las sesiones nunca
+        // dispararon session/end (móvil que se apaga, app cerrada en frío) y son
+        // justo las más cortas, la media salía sesgada al alza: 150 s declarados
+        // frente a 32 s reales. Ahora las sesiones sin cierre cuentan como 0.
         env.DB.prepare(`
-            SELECT COUNT(*) as total_sessions, AVG(duration_seconds) as avg_duration
+            SELECT COUNT(*) as total_sessions,
+                   AVG(COALESCE(duration_seconds, 0)) as avg_duration,
+                   SUM(CASE WHEN duration_seconds IS NULL THEN 1 ELSE 0 END) as sessions_without_end,
+                   SUM(CASE WHEN visit_count > 1 THEN 1 ELSE 0 END) as returning_sessions
             FROM guide_sessions WHERE apartment_id = ? AND started_at >= ?
         `).bind(aptId, fromTs).first(),
 
+        // Visitantes únicos por visitor_id (UUID estable). device_fingerprint solo
+        // como respaldo para las sesiones antiguas que no lo tienen.
         env.DB.prepare(`
-            SELECT COUNT(DISTINCT device_fingerprint) as unique_devices
-            FROM guide_sessions WHERE apartment_id = ? AND device_fingerprint IS NOT NULL AND started_at >= ?
+            SELECT COUNT(DISTINCT COALESCE(visitor_id, device_fingerprint, id)) as unique_devices
+            FROM guide_sessions WHERE apartment_id = ? AND started_at >= ?
         `).bind(aptId, fromTs).first(),
 
         env.DB.prepare(`
@@ -1012,6 +1066,11 @@ async function getApartmentStats(env, aptId, params, isSuperAdmin, userAgencyIds
             total_sessions: sessionStats?.total_sessions || 0,
             avg_duration_seconds: Math.round(sessionStats?.avg_duration || 0),
             unique_devices: deviceStats?.unique_devices || 0,
+            // Transparencia sobre la calidad del dato: qué porcentaje de sesiones
+            // nunca cerró, que es lo que hace que la media de duración sea un mínimo
+            // y no un valor exacto.
+            sessions_without_end: sessionStats?.sessions_without_end || 0,
+            returning_sessions: sessionStats?.returning_sessions || 0,
             section_views: sectionStats.results || [],
             by_language: langStats.results || [],
         },
@@ -1231,11 +1290,11 @@ async function getStatsDashboard(env, agencyId, params) {
 
     const [sessions, devices, intents, languages, exps, aptActivity] = await Promise.all([
         env.DB.prepare(`SELECT COUNT(*) as c, AVG(duration_seconds) as d, DATE(started_at) as date FROM guide_sessions WHERE apartment_id IN (${placeholders}) AND started_at BETWEEN ? AND ? GROUP BY DATE(started_at)`).bind(...aptIds, fromTs, toTs).all(),
-        env.DB.prepare(`SELECT COUNT(DISTINCT device_fingerprint) as c FROM guide_sessions WHERE apartment_id IN (${placeholders}) AND started_at BETWEEN ? AND ? AND device_fingerprint IS NOT NULL`).bind(...aptIds, fromTs, toTs).first(),
+        env.DB.prepare(`SELECT COUNT(DISTINCT COALESCE(visitor_id, device_fingerprint, id)) as c FROM guide_sessions WHERE apartment_id IN (${placeholders}) AND started_at BETWEEN ? AND ?`).bind(...aptIds, fromTs, toTs).first(),
         env.DB.prepare(`SELECT COUNT(*) as c FROM guide_affiliate_intents WHERE agency_id = ? AND created_at BETWEEN ? AND ?`).bind(agencyId, fromTs, toTs).first(),
         env.DB.prepare(`SELECT language_code as code, COUNT(*) as count FROM guide_sessions WHERE apartment_id IN (${placeholders}) AND started_at BETWEEN ? AND ? GROUP BY language_code`).bind(...aptIds, fromTs, toTs).all(),
-        env.DB.prepare(`SELECT e.id, COALESCE(t.value, e.category) AS name, COUNT(i.id) as clicks FROM guide_experiences e LEFT JOIN translations t ON e.id = t.entity_id AND t.entity_type = 'experience' AND t.field = 'name' AND t.language_code = 'es' JOIN guide_affiliate_intents i ON e.id = i.target_id WHERE i.target_type = 'experience' AND i.agency_id = ? AND i.created_at BETWEEN ? AND ? GROUP BY e.id ORDER BY clicks DESC LIMIT 5`).bind(agencyId, fromTs, toTs).all(),
-        env.DB.prepare(`SELECT apartment_id, COUNT(DISTINCT device_fingerprint) as unique_devices_today, MAX(started_at) as last_session_at FROM guide_sessions WHERE apartment_id IN (${placeholders}) AND started_at >= date('now') GROUP BY apartment_id`).bind(...aptIds).all()
+        env.DB.prepare(`SELECT e.id, COALESCE(t.value, e.category) AS name, COUNT(i.id) as clicks FROM guide_pois e LEFT JOIN translations t ON e.id = t.entity_id AND t.entity_type = 'poi' AND t.field = 'name' AND t.language_code = 'es' JOIN guide_affiliate_intents i ON e.id = i.target_id WHERE i.target_type = 'experience' AND i.agency_id = ? AND i.created_at BETWEEN ? AND ? GROUP BY e.id ORDER BY clicks DESC LIMIT 5`).bind(agencyId, fromTs, toTs).all(),
+        env.DB.prepare(`SELECT apartment_id, COUNT(DISTINCT COALESCE(visitor_id, device_fingerprint, id)) as unique_devices_today, MAX(started_at) as last_session_at FROM guide_sessions WHERE apartment_id IN (${placeholders}) AND started_at >= date('now') GROUP BY apartment_id`).bind(...aptIds).all()
     ]);
 
     const totalSessions = (sessions.results || []).reduce((sum, r) => sum + r.c, 0);
@@ -1267,14 +1326,18 @@ async function getStatsDevices(env, aptId, params, isSuperAdmin, userAgencyIds) 
     if (access.error) return access.error;
 
     const date = params.get('date') || new Date().toISOString().split('T')[0];
+    // FIX: seleccionaba `country_code`, columna que no existe en guide_sessions
+    // (la columna real es `country`), así que este endpoint devolvía 500 siempre.
+    // Y filtraba por device_fingerprint IS NOT NULL, descartando sesiones válidas.
     const sessions = await env.DB.prepare(`
-        SELECT device_fingerprint, started_at, language_code as language, country_code as country
+        SELECT COALESCE(visitor_id, device_fingerprint, id) AS visitor_key,
+               started_at, language_code as language, country
         FROM guide_sessions
-        WHERE apartment_id = ? AND DATE(started_at) = ? AND device_fingerprint IS NOT NULL
+        WHERE apartment_id = ? AND DATE(started_at) = ?
         ORDER BY started_at DESC
     `).bind(aptId, date).all();
 
-    const uniqueDevices = new Set((sessions.results || []).map(s => s.device_fingerprint)).size;
+    const uniqueDevices = new Set((sessions.results || []).map(s => s.visitor_key)).size;
 
     return jsonResponse({
         success: true,
@@ -1291,10 +1354,10 @@ async function getStatsExperiences(env, zoneId, params) {
 
     const exps = await env.DB.prepare(`
         SELECT e.id, COALESCE(t.value, e.category) AS name, e.action_type, COUNT(i.id) as clicks, SUM(i.commission_value) as commission_earned
-        FROM guide_experiences e
-        LEFT JOIN translations t ON e.id = t.entity_id AND t.entity_type = 'experience' AND t.field = 'name' AND t.language_code = 'es'
+        FROM guide_pois e
+        LEFT JOIN translations t ON e.id = t.entity_id AND t.entity_type = 'poi' AND t.field = 'name' AND t.language_code = 'es'
         LEFT JOIN guide_affiliate_intents i ON e.id = i.target_id AND i.target_type = 'experience' AND i.created_at BETWEEN ? AND ?
-        WHERE e.zone_id = ?
+        WHERE e.zone_id = ? AND e.is_bookable = 1
         GROUP BY e.id
         ORDER BY clicks DESC
     `).bind(fromTs, toTs, zoneId).all();
@@ -1366,8 +1429,8 @@ async function getSessionDetail(env, sessionId, isSuperAdmin, userAgencyIds) {
     if (experienceIds.length > 0) {
         const ph = experienceIds.map(() => '?').join(',');
         const rows = await env.DB.prepare(`
-            SELECT e.id, COALESCE(t.value, e.category) as name FROM guide_experiences e
-            LEFT JOIN translations t ON e.id = t.entity_id AND t.entity_type = 'experience' AND t.field = 'name' AND t.language_code = 'es'
+            SELECT e.id, COALESCE(t.value, e.category) as name FROM guide_pois e
+            LEFT JOIN translations t ON e.id = t.entity_id AND t.entity_type = 'poi' AND t.field = 'name' AND t.language_code = 'es'
             WHERE e.id IN (${ph})
         `).bind(...experienceIds).all();
         for (const r of (rows.results || [])) nameMap[`experience:${r.id}`] = r.name;

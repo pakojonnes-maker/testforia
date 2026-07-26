@@ -57,7 +57,7 @@ export async function handleTvScreenRequests(request, env) {
         // ---- Público ----
         const configMatch = url.pathname.match(/^\/guide\/tv\/config\/([^/]+)$/);
         if (configMatch && request.method === 'GET') {
-            return await handleTvConfig(env, configMatch[1], url.searchParams.get('lang') || 'es');
+            return await handleTvConfig(env, configMatch[1], url.searchParams.get('lang') || 'es', url.origin);
         }
 
         if (url.pathname === '/guide/tv/track' && request.method === 'POST') {
@@ -133,26 +133,27 @@ async function resolveDevice(env, pairingCode) {
     `).bind(pairingCode).first();
 }
 
-async function handleTvConfig(env, pairingCode, lang) {
+async function handleTvConfig(env, pairingCode, lang, origin) {
     const device = await resolveDevice(env, pairingCode);
     if (!device || !device.is_active) {
         return errorResponse('TV no emparejada o inactiva', 404);
     }
 
     const now = new Date().toISOString();
+    // Solo heartbeat técnico. Antes cada fetch de config registraba una
+    // 'impression', y como el shell reconsulta al cambiar de idioma o al
+    // reconectar, "impresiones" acababa midiendo arranques de app y cambios de
+    // idioma, no huéspedes mirando la pantalla. Ahora la impresión la emite la
+    // app una sola vez por sesión de TV vía POST /guide/tv/track.
     await env.DB.prepare('UPDATE guide_tv_devices SET last_seen_at = ? WHERE id = ?').bind(now, device.id).run();
-    await env.DB.prepare(`
-        INSERT INTO guide_tv_events (id, apartment_id, device_id, event_type, lang, created_at)
-        VALUES (?, ?, ?, 'impression', ?, ?)
-    `).bind(generateId('tve'), device.apartment_id, device.id, lang, now).run();
 
     // Misma forma de datos que GET /guide/:slug (y misma caché KV) — sin duplicar la query.
-    return handleGetGuidebook(env, device.apartment_slug, lang);
+    return handleGetGuidebook(env, device.apartment_slug, lang, origin);
 }
 
 async function handleTvTrack(request, env) {
     const data = await request.json();
-    const { pairingCode, eventType, screen, lang } = data;
+    const { pairingCode, eventType, screen, lang, targetId, tvSessionId } = data;
 
     if (!pairingCode || !eventType) {
         return errorResponse('pairingCode y eventType son obligatorios');
@@ -166,12 +167,19 @@ async function handleTvTrack(request, env) {
         return errorResponse('TV no emparejada', 404);
     }
 
+    const now = new Date().toISOString();
     await env.DB.prepare(`
-        INSERT INTO guide_tv_events (id, apartment_id, device_id, event_type, screen, lang, created_at)
-        VALUES (?, ?, ?, ?, ?, ?, ?)
+        INSERT INTO guide_tv_events (id, apartment_id, device_id, event_type, screen, lang, target_id, tv_session_id, created_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
     `).bind(
-        generateId('tve'), device.apartment_id, device.id, eventType, screen || null, lang || null, new Date().toISOString()
+        generateId('tve'), device.apartment_id, device.id, eventType,
+        screen || null, lang || null, targetId || null, tvSessionId || null, now
     ).run();
+
+    // El heartbeat de last_seen_at solo se actualizaba al pedir la config. Como
+    // en producción el shell va empaquetado en el APK y no la repide, ese campo
+    // no servía para saber si la TV sigue viva. Ahora cualquier evento lo refresca.
+    await env.DB.prepare('UPDATE guide_tv_devices SET last_seen_at = ? WHERE id = ?').bind(now, device.id).run();
 
     return jsonResponse({ success: true });
 }
@@ -261,7 +269,7 @@ async function handleTvStats(env, apartmentId, auth, range = '30d') {
         WHERE apartment_id = ? ${dateClause}
         GROUP BY day ORDER BY day ASC`;
 
-    const [totals, byScreen, daily, devices] = await Promise.all([
+    const [totals, byScreen, daily, devices, sessions, topPois] = await Promise.all([
         env.DB.prepare(`
             SELECT event_type, COUNT(*) as count
             FROM guide_tv_events WHERE apartment_id = ? ${dateClause}
@@ -279,6 +287,31 @@ async function handleTvStats(env, apartmentId, auth, range = '30d') {
                 SUM(CASE WHEN is_active = TRUE THEN 1 ELSE 0 END) AS active
             FROM guide_tv_devices WHERE apartment_id = ?
         `).bind(apartmentId).first(),
+        // Estancias: agrupar por tv_session_id convierte "eventos sueltos" en algo
+        // que un anfitrión entiende ("cuántas veces se ha usado la pantalla, y
+        // cuánto se hace en cada uso").
+        env.DB.prepare(`
+            SELECT COUNT(DISTINCT tv_session_id) AS total_sessions,
+                   CAST(COUNT(*) AS REAL) / NULLIF(COUNT(DISTINCT tv_session_id), 0) AS events_per_session,
+                   SUM(CASE WHEN event_type = 'wifi_reveal' THEN 1 ELSE 0 END) AS wifi_reveals
+            FROM guide_tv_events
+            WHERE apartment_id = ? AND tv_session_id IS NOT NULL ${dateClause}
+        `).bind(apartmentId).first(),
+        // Top POIs seleccionados desde la TV. Antes 'poi_select' se registraba sin
+        // saber QUÉ punto de interés se había elegido.
+        env.DB.prepare(`
+            SELECT e.target_id,
+                   COALESCE(t.value, p.category, e.target_id) AS name,
+                   COUNT(*) AS selections
+            FROM guide_tv_events e
+            LEFT JOIN guide_pois p ON p.id = e.target_id
+            LEFT JOIN translations t ON t.entity_id = e.target_id
+                 AND t.entity_type = 'poi' AND t.field = 'name' AND t.language_code = 'es'
+            WHERE e.apartment_id = ? AND e.event_type = 'poi_select'
+              AND e.target_id IS NOT NULL ${dateClause.replace(/created_at/g, 'e.created_at')}
+            GROUP BY e.target_id, name
+            ORDER BY selections DESC LIMIT 10
+        `).bind(apartmentId).all(),
     ]);
 
     return jsonResponse({
@@ -288,5 +321,15 @@ async function handleTvStats(env, apartmentId, auth, range = '30d') {
         byScreen: byScreen.results || [],
         daily: daily.results || [],
         devices: { total: devices?.total || 0, active: devices?.active || 0 },
+        sessions: {
+            total: sessions?.total_sessions || 0,
+            events_per_session: Number(sessions?.events_per_session || 0),
+            // % de usos de la pantalla en los que el huésped consultó el WiFi,
+            // que es el motivo nº1 por el que se enciende.
+            wifi_reveal_rate: sessions?.total_sessions
+                ? (sessions.wifi_reveals || 0) / sessions.total_sessions
+                : 0,
+        },
+        topPois: topPois.results || [],
     });
 }

@@ -12,6 +12,40 @@ export async function fetchGuidebook(slug: string, lang: string = 'es') {
   return res.json();
 }
 
+const VISITOR_KEY = 'vt_guide_visitor_id';
+const VISITOR_TTL = 365 * 24 * 60 * 60 * 1000; // 12 meses
+
+/**
+ * Identificador anónimo y estable del visitante, persistido en localStorage.
+ *
+ * Sustituye a `getDeviceFingerprint()` como identidad principal: aquel hash de
+ * 32 bits sobre UA + idioma + resolución + zona horaria colisionaba de forma
+ * masiva (dos iPhone del mismo modelo, idioma y zona horaria daban el mismo
+ * valor, que es justo el caso normal en un edificio de apartamentos turísticos).
+ * En producción, 66 sesiones se agrupaban en solo 9 identidades.
+ */
+export function getVisitorId(): string {
+  try {
+    const raw = localStorage.getItem(VISITOR_KEY);
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      if (parsed?.value && Date.now() <= parsed.expiry) return parsed.value;
+    }
+  } catch {
+    // localStorage bloqueado (modo privado, cookies de terceros): seguimos abajo.
+  }
+  const id = crypto.randomUUID
+    ? crypto.randomUUID()
+    : 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, c => {
+      const r = (Math.random() * 16) | 0;
+      return (c === 'x' ? r : (r & 0x3) | 0x8).toString(16);
+    });
+  try {
+    localStorage.setItem(VISITOR_KEY, JSON.stringify({ value: id, expiry: Date.now() + VISITOR_TTL }));
+  } catch { /* sin storage: el id vive solo esta sesión */ }
+  return id;
+}
+
 export async function trackSessionStart(apartmentId: string, language: string) {
   try {
     const res = await fetch(`${API_URL}/guide/track/session/start`, {
@@ -23,6 +57,8 @@ export async function trackSessionStart(apartmentId: string, language: string) {
         deviceType: /Mobile|Android|iPhone/i.test(navigator.userAgent) ? 'mobile' : 'desktop',
         osName: getOS(),
         browser: getBrowser(),
+        visitorId: getVisitorId(),
+        // Se sigue enviando como respaldo para navegadores sin localStorage.
         deviceFingerprint: getDeviceFingerprint(),
       }),
     });
@@ -33,11 +69,30 @@ export async function trackSessionStart(apartmentId: string, language: string) {
   }
 }
 
-export async function trackSessionEnd(sessionId: string) {
+/**
+ * URL del menú de un restaurante con la atribución del guidebook incrustada.
+ *
+ * Sin estos parámetros los dos mundos no se tocan: al abrir el menú se creaba
+ * una sesión que no sabía nada del apartamento de origen, así que era imposible
+ * responder "cuántos clientes le manda este alojamiento a este restaurante".
+ */
+export function buildMenuUrl(menuBase: string, slug: string, apartmentId: string, sessionId: string | null): string {
+  const url = new URL(`${menuBase.replace(/\/$/, '')}/${slug}`);
+  url.searchParams.set('ref', 'guide');
+  url.searchParams.set('apt', apartmentId);
+  if (sessionId) url.searchParams.set('gsid', sessionId);
+  return url.toString();
+}
+
+export async function trackSessionEnd(sessionId: string, duration?: number) {
   try {
+    // La duración la calcula el cliente porque el servidor solo veía `started_at`
+    // y, al llamarse esto en cada `visibilitychange`, la sesión quedaba cerrada
+    // en el primer cambio de pestaña aunque el huésped siguiera navegando.
+    // El backend se queda con el máximo, así que reenviar es seguro.
     navigator.sendBeacon(
       `${API_URL}/guide/track/session/end`,
-      JSON.stringify({ sessionId })
+      JSON.stringify({ sessionId, duration })
     );
   } catch {
     // Best-effort

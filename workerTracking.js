@@ -77,13 +77,12 @@ const EVENT_HANDLERS = {
     'cart_item_added': {},
     'cart_item_removed': {},
     'cart_item_quantity': {},
+    'cart_opened': {},
     'cart_shown_to_staff': {},
     'cart_abandoned': {},
-    // ✅ Heartbeat for session duration tracking
-    'heartbeat': {
-        // Heartbeat events update session duration on-the-fly
-        // Value is the cumulative duration in seconds
-    },
+    // Heartbeat: NO se persiste como fila en `events` (ver handleEvents).
+    // Solo actualiza sessions.duration_seconds.
+    'heartbeat': {},
     // ✅ Delivery events for analytics
     'click_delivery': {},           // User clicked delivery icon in menu
     'delivery_order_initiated': {}, // User clicked "Send to WhatsApp" button
@@ -108,7 +107,14 @@ async function handleSessionStart(request, env) {
             languages = 'es',
             timezone = null,
             qrcode = null,
-            visitorId: clientVisitorId = null
+            visitorId: clientVisitorId = null,
+            // Atribución cruzada: de dónde viene esta sesión de menú.
+            referralSource = null,
+            referralApartmentId = null,
+            referralSessionId = null,
+            // El cliente manda su decisión del banner de cookies. Si no la manda
+            // (versiones antiguas), asumimos 1 para no romper el histórico.
+            consentAnalytics = true
         } = data;
         // ✅ FIX: Generate visitor_id if client doesn't have one (first visit)
         const visitorId = clientVisitorId || generateUUID();
@@ -125,30 +131,63 @@ async function handleSessionStart(request, env) {
         restaurantId = restaurant.id;
         const sessionId = generateUUID();
         const now = new Date().toISOString();
+        const today = toSqlDateUTC();
         const country = request.cf?.country || null;
         const city = request.cf?.city || null;
         const finalUserId = userid || null;
-        // Calculate visit count for returning visitors
+        // ✅ FIX: visit_count contaba SESIONES, no visitas: recargar la página o
+        // volver desde WhatsApp convertía a un cliente en "recurrente" al minuto.
+        // Ahora cuenta DÍAS DISTINTOS de visita, que es lo que un hostelero
+        // entiende por "ha vuelto". Todas las sesiones del mismo día comparten
+        // visit_count, así que el reparto nuevo/recurrente deja de solaparse.
         let visitCount = 1;
+        let isInternal = 0;
         if (visitorId) {
-            const prevSessions = await env.DB.prepare(
-                'SELECT count(*) as count FROM sessions WHERE visitor_id = ? AND restaurant_id = ?'
-            ).bind(visitorId, restaurantId).first();
-            if (prevSessions) visitCount = prevSessions.count + 1;
+            const prior = await env.DB.prepare(`
+                SELECT COUNT(DISTINCT DATE(started_at)) AS prior_days,
+                       MAX(is_internal) AS was_internal
+                FROM sessions
+                WHERE visitor_id = ? AND restaurant_id = ? AND DATE(started_at) <> ?
+            `).bind(visitorId, restaurantId, today).first();
+            visitCount = (prior?.prior_days || 0) + 1;
+            // Un visitante marcado como interno lo sigue siendo en sesiones futuras.
+            isInternal = prior?.was_internal ? 1 : 0;
+        }
+        // ✅ FIX: el parámetro ?qr= se guardaba a ciegas en qr_code_id (FK a
+        // qr_codes) y qr_scans no se escribía nunca, así que la atribución por QR
+        // estaba permanentemente a 0. Ahora se valida contra qr_codes y, si el
+        // código existe, se registra el escaneo.
+        let validQrCodeId = null;
+        if (qrcode) {
+            const qr = await env.DB.prepare(
+                'SELECT id FROM qr_codes WHERE id = ? AND restaurant_id = ?'
+            ).bind(qrcode, restaurantId).first();
+            validQrCodeId = qr?.id || null;
         }
         await env.DB.prepare(`
             INSERT INTO sessions (
                 id, user_id, restaurant_id, device_type, os_name, browser,
                 country, city, referrer, utm_source, utm_medium, utm_campaign,
-                started_at, language_code, timezone_offset, network_type, 
-                pwa_installed, consent_analytics, qr_code_id, visitor_id, visit_count
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                started_at, language_code, timezone_offset, network_type,
+                pwa_installed, consent_analytics, qr_code_id, visitor_id, visit_count,
+                referral_source, referral_apartment_id, referral_session_id, is_internal
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         `).bind(
             sessionId, finalUserId, restaurantId, devicetype, osname, browser,
             country, city, referrer, utm.source || null, utm.medium || null, utm.campaign || null,
-            now, languages, timezone, networktype,
-            ispwa ? 1 : 0, 1, qrcode, visitorId, visitCount
+            // timezone_offset es INTEGER: el cliente mandaba un string IANA
+            // ("Europe/Madrid") que acababa guardado como texto en una columna
+            // numérica. Ahora se normaliza a minutos de offset.
+            now, languages, normalizeTimezoneOffset(timezone), networktype,
+            ispwa ? 1 : 0, consentAnalytics === false ? 0 : 1,
+            validQrCodeId, visitorId, visitCount,
+            referralSource, referralApartmentId, referralSessionId, isInternal
         ).run();
+        if (validQrCodeId) {
+            await env.DB.prepare(
+                'INSERT INTO qr_scans (id, qr_code_id, session_id, scanned_at) VALUES (?, ?, ?, ?)'
+            ).bind(generateId('qrs'), validQrCodeId, sessionId, now).run();
+        }
         return jsonResponse({
             success: true,
             sessionId,
@@ -161,6 +200,28 @@ async function handleSessionStart(request, env) {
     } catch (error) {
         console.error('[SessionStart] Error:', error);
         return errorResponse('Error creating session', 500, error.message);
+    }
+}
+// Acepta tanto un offset numérico en minutos como un identificador IANA
+// ("Europe/Madrid") y devuelve siempre minutos respecto a UTC, o null.
+function normalizeTimezoneOffset(timezone) {
+    if (timezone === null || timezone === undefined || timezone === '') return null;
+    if (typeof timezone === 'number' && Number.isFinite(timezone)) return Math.trunc(timezone);
+    if (typeof timezone !== 'string') return null;
+    const asNumber = Number(timezone);
+    if (Number.isFinite(asNumber)) return Math.trunc(asNumber);
+    try {
+        // Intl da el offset real de esa zona en este instante (contempla DST).
+        const parts = new Intl.DateTimeFormat('en-US', {
+            timeZone: timezone, timeZoneName: 'longOffset'
+        }).formatToParts(new Date());
+        const name = parts.find(p => p.type === 'timeZoneName')?.value || '';
+        const match = name.match(/GMT([+-])(\d{1,2})(?::(\d{2}))?/);
+        if (!match) return 0; // "GMT" a secas = UTC
+        const sign = match[1] === '-' ? -1 : 1;
+        return sign * (parseInt(match[2], 10) * 60 + parseInt(match[3] || '0', 10));
+    } catch {
+        return null;
     }
 }
 async function handleSessionEnd(request, env) {
@@ -217,6 +278,19 @@ async function handleEvents(request, env, ctx) {
         for (const event of events) {
             const eventId = generateId('evt');
             const timestamp = event.ts || new Date().toISOString();
+            // ✅ HEARTBEAT: solo actualiza la duración de la sesión; NO se guarda
+            // como evento. Antes se insertaba una fila cada 30 s y suponía el 50%
+            // de la tabla `events` (12.046 de 24.111 filas en producción), que
+            // además se escanea entera en cada consulta de analítica.
+            if (event.type === 'heartbeat') {
+                if (typeof event.value === 'number' && event.value >= 0) {
+                    eventInsertStatements.push(
+                        env.DB.prepare('UPDATE sessions SET duration_seconds = ? WHERE id = ?')
+                            .bind(event.value, sessionId)
+                    );
+                }
+                continue;
+            }
             // Sanitize values for D1
             const valueToStore = (event.value !== undefined && event.value !== null)
                 ? (typeof event.value === 'string' ? event.value : JSON.stringify(event.value))
@@ -320,15 +394,6 @@ async function handleEvents(request, env, ctx) {
                         INSERT INTO user_favorites (user_id, dish_id, restaurant_id, created_at)
                         VALUES (?, ?, ?, ?) ON CONFLICT(user_id, dish_id) DO NOTHING
                     `).bind(session.user_id, event.entityId, restaurantId, timestamp)
-                );
-            }
-            // ✅ HEARTBEAT: Update session duration in real-time
-            // This ensures we always have accurate duration even if session end never fires
-            if (event.type === 'heartbeat' && typeof event.value === 'number') {
-                eventInsertStatements.push(
-                    env.DB.prepare(`
-                        UPDATE sessions SET duration_seconds = ? WHERE id = ?
-                    `).bind(event.value, sessionId)
                 );
             }
         }
@@ -486,66 +551,6 @@ async function handleCartEvent(db, event, session, restaurantId) {
         console.error('[Cart] Error:', error);
     }
 }
-// ============================================
-// AGGREGATION FUNCTIONS
-// ============================================
-async function aggregateDailyAnalytics(db, restaurantId, date) {
-    try {
-        const dateStart = date + 'T00:00:00';
-        const dateEnd = date + 'T23:59:59';
-        const [sessionStats, visitorStats, eventStats] = await Promise.all([
-            // ✅ IMPROVED: Smart fallback for duration calculation
-            db.prepare(`
-                SELECT COUNT(*) as total_sessions, 
-                       AVG(COALESCE(
-                           duration_seconds,
-                           (SELECT MAX(CAST((julianday(e.created_at) - julianday(s.started_at)) * 86400 AS INTEGER))
-                            FROM events e WHERE e.session_id = s.id)
-                       )) as avg_session_duration
-                FROM sessions s 
-                WHERE s.restaurant_id = ? AND s.started_at BETWEEN ? AND ? AND s.consent_analytics = 1
-            `).bind(restaurantId, dateStart, dateEnd).first(),
-            // ✅ IMPROVED: Count sessions as unique visitors when visitor_id is NULL
-            db.prepare(`
-                SELECT COUNT(DISTINCT COALESCE(visitor_id, id)) as unique_visitors,
-                       COUNT(DISTINCT CASE WHEN visit_count = 1 THEN COALESCE(visitor_id, id) END) as new_visitors,
-                       COUNT(DISTINCT CASE WHEN visit_count > 1 THEN COALESCE(visitor_id, id) END) as returning_visitors
-                FROM sessions WHERE restaurant_id = ? AND started_at BETWEEN ? AND ?
-            `).bind(restaurantId, dateStart, dateEnd).first(),
-            db.prepare(`
-                SELECT SUM(CASE WHEN event_type = 'viewdish' THEN 1 ELSE 0 END) as dish_views,
-                       COUNT(CASE WHEN event_type = 'favorite' AND (value = 'true' OR value = '1') THEN 1 END) as favorites_added,
-                       COUNT(CASE WHEN event_type = 'rating' THEN 1 END) as ratings_submitted,
-                       COUNT(CASE WHEN event_type = 'share' THEN 1 END) as shares,
-                       AVG(CASE WHEN event_type = 'dish_view_duration' THEN numeric_value END) as avg_dish_view_duration,
-                       AVG(CASE WHEN event_type = 'section_time' THEN numeric_value END) as avg_section_time,
-                       AVG(CASE WHEN event_type = 'scroll_depth' THEN numeric_value END) as avg_scroll_depth,
-                       COUNT(CASE WHEN event_type = 'media_error' THEN 1 END) as media_errors
-                FROM events WHERE restaurant_id = ? AND created_at BETWEEN ? AND ?
-            `).bind(restaurantId, dateStart, dateEnd).first()
-        ]);
-        await db.prepare(`
-            INSERT INTO daily_analytics (restaurant_id, date, total_views, unique_visitors, total_sessions, avg_session_duration, dish_views, favorites_added, ratings_submitted, shares, avg_dish_view_duration, avg_section_time, avg_scroll_depth, media_errors, new_visitors, returning_visitors, reserve_clicks, call_clicks, directions_clicks)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, 0, 0)
-            ON CONFLICT(restaurant_id, date) DO UPDATE SET
-                total_views = excluded.total_views, unique_visitors = excluded.unique_visitors, total_sessions = excluded.total_sessions,
-                avg_session_duration = excluded.avg_session_duration, dish_views = excluded.dish_views, favorites_added = excluded.favorites_added,
-                ratings_submitted = excluded.ratings_submitted, shares = excluded.shares, avg_dish_view_duration = excluded.avg_dish_view_duration,
-                avg_section_time = excluded.avg_section_time, avg_scroll_depth = excluded.avg_scroll_depth, media_errors = excluded.media_errors,
-                new_visitors = excluded.new_visitors, returning_visitors = excluded.returning_visitors
-        `).bind(
-            restaurantId, date, sessionStats?.total_sessions || 0,
-            visitorStats?.unique_visitors || sessionStats?.total_sessions || 0,
-            sessionStats?.total_sessions || 0, sessionStats?.avg_session_duration || 0,
-            eventStats?.dish_views || 0, eventStats?.favorites_added || 0, eventStats?.ratings_submitted || 0,
-            eventStats?.shares || 0, Math.round((eventStats?.avg_dish_view_duration || 0) * 100) / 100,
-            Math.round((eventStats?.avg_section_time || 0) * 100) / 100, Math.round(eventStats?.avg_scroll_depth || 0),
-            eventStats?.media_errors || 0, visitorStats?.new_visitors || 0, visitorStats?.returning_visitors || 0
-        ).run();
-    } catch (error) {
-        console.error('[Analytics] Daily aggregation error:', error);
-    }
-}
 async function aggregateCartMetrics(db, restaurantId, date) {
     try {
         const stats = await db.prepare(`
@@ -580,42 +585,20 @@ async function aggregateCartMetrics(db, restaurantId, date) {
 // ============================================
 // ANALYTICS QUERY ENDPOINTS
 // ============================================
-async function handleDailyAnalytics(request, env) {
-    try {
-        const { restaurantId, date } = await request.json();
-        if (!restaurantId) return errorResponse('restaurantId es requerido');
-        await aggregateDailyAnalytics(env.DB, restaurantId, date || toSqlDateUTC());
-        return jsonResponse({ success: true, restaurantId, date: date || toSqlDateUTC() });
-    } catch (error) {
-        console.error('[DailyAnalytics] Error:', error);
-        return errorResponse('Error aggregating daily analytics', 500, error.message);
-    }
-}
+// NOTA: `aggregateDailyAnalytics` y los endpoints /track/analytics/daily se
+// eliminaron el 2026-07-26. La agregación se había desactivado del flujo de
+// eventos en enero, así que la tabla `daily_analytics` quedó congelada el
+// 2026-01-18 (34 filas, con ese último día cortado a media jornada: 8 sesiones
+// guardadas frente a 28 reales). El problema no era que estuviera vacía, sino
+// que workerAnalytics.js la consultaba PRIMERO y solo caía al cálculo en vivo
+// si el resultado venía completamente vacío: cualquier rango que incluyera
+// diciembre-enero servía datos rancios y ocultaba los seis meses siguientes.
+// Ahora todo se calcula on-demand desde las tablas fuente.
 async function handleAnalyticsQuery(request, env) {
     const pathParts = new URL(request.url).pathname.split('/');
-    if (pathParts[3] === 'daily') return handleDailyAnalyticsQuery(request, env);
     if (pathParts[3] === 'dishes') return handleDishAnalyticsQuery(request, env);
     if (pathParts[3] === 'sections') return handleSectionAnalyticsQuery(request, env);
     return errorResponse('Analytics endpoint not found', 404);
-}
-async function handleDailyAnalyticsQuery(request, env) {
-    try {
-        const url = new URL(request.url);
-        const restaurantId = url.searchParams.get('restaurant_id');
-        const startDate = url.searchParams.get('start_date');
-        const endDate = url.searchParams.get('end_date') || toSqlDateUTC();
-        if (!restaurantId) return errorResponse('restaurant_id es requerido');
-        let query = 'SELECT * FROM daily_analytics WHERE restaurant_id = ?';
-        const params = [restaurantId];
-        if (startDate) { query += ' AND date >= ?'; params.push(startDate); }
-        query += ' AND date <= ? ORDER BY date DESC LIMIT 30';
-        params.push(endDate);
-        const results = await env.DB.prepare(query).bind(...params).all();
-        return jsonResponse({ success: true, data: results.results || [], restaurantId, dateRange: { start: startDate, end: endDate } });
-    } catch (error) {
-        console.error('[DailyAnalyticsQuery] Error:', error);
-        return errorResponse('Error querying daily analytics', 500, error.message);
-    }
 }
 async function handleDishAnalyticsQuery(request, env) {
     try {
@@ -694,7 +677,6 @@ export async function handleTracking(request, env, ctx) {
         if (url.pathname === '/track/session/start' && request.method === 'POST') return await handleSessionStart(request, env);
         if (url.pathname === '/track/session/end' && request.method === 'POST') return await handleSessionEnd(request, env);
         if (url.pathname === '/track/events' && request.method === 'POST') return await handleEvents(request, env, ctx);
-        if (url.pathname === '/track/analytics/daily' && request.method === 'POST') return await handleDailyAnalytics(request, env);
         if (url.pathname.startsWith('/track/analytics/') && request.method === 'GET') return await handleAnalyticsQuery(request, env);
         if (url.pathname === '/track/privacy/forget' && request.method === 'POST') return await handlePrivacyForget(request, env);
         return errorResponse('Tracking endpoint not found', 404);

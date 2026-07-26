@@ -16,7 +16,8 @@ export function NearbyScreen({ data }: { data: GuidebookData }) {
     if (focusedId?.startsWith('poi-')) {
       const id = focusedId.slice(4)
       setActiveId(id)
-      track('poi_select', { screen: 'nearby' })
+      // targetId: sin él solo sabíamos que alguien pulsó un POI, no cuál.
+      track('poi_select', { screen: 'nearby', targetId: id })
     }
   }, [focusedId])
 

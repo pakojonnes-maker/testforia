@@ -50,7 +50,7 @@ function RecCard({ rec, autoFocus, onSelect }: { rec: Rec; autoFocus?: boolean; 
   )
 }
 
-function DetailOverlay({ rec, onClose }: { rec: Rec; onClose: () => void }) {
+function DetailOverlay({ rec, apartmentId, onClose }: { rec: Rec; apartmentId: string; onClose: () => void }) {
   const v = categoryVisual(rec.category)
 
   // Backspace/Escape cierran el detalle (botón "atrás" habitual de un mando de TV).
@@ -62,8 +62,11 @@ function DetailOverlay({ rec, onClose }: { rec: Rec; onClose: () => void }) {
     return () => window.removeEventListener('keydown', onKey)
   }, [onClose])
 
+  // El QR del menú lleva incrustada la atribución al alojamiento: cuando el
+  // huésped lo escanea con el móvil, la sesión del menú sabe que viene de esta
+  // TV y de este apartamento. Sin esto, el ROI de la pantalla era inmedible.
   const qrData = rec.kind === 'restaurant' && rec.slug
-    ? `${MENU_URL}/${rec.slug}`
+    ? `${MENU_URL}/${rec.slug}?ref=tv&apt=${encodeURIComponent(apartmentId)}`
     : rec.kind === 'experience' && rec.whatsappPhone
       ? `https://wa.me/${rec.whatsappPhone.replace(/[^+\d]/g, '')}${rec.prefilledMessage ? `?text=${encodeURIComponent(rec.prefilledMessage)}` : ''}`
       : null
@@ -71,7 +74,7 @@ function DetailOverlay({ rec, onClose }: { rec: Rec; onClose: () => void }) {
   const qrLabel = rec.kind === 'restaurant' ? 'Escanea para ver la carta completa' : 'Escanea para reservar por WhatsApp'
 
   useEffect(() => {
-    if (qrData) track(rec.kind === 'restaurant' ? 'menu_qr_shown' : 'booking_qr_shown', { screen: 'guide' })
+    if (qrData) track(rec.kind === 'restaurant' ? 'menu_qr_shown' : 'booking_qr_shown', { screen: 'guide', targetId: rec.id })
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [rec.id])
 
@@ -168,7 +171,7 @@ export function GuideScreen({ data }: { data: GuidebookData }) {
         ))}
       </div>
 
-      {selected && <DetailOverlay rec={selected} onClose={() => setSelected(null)} />}
+      {selected && <DetailOverlay rec={selected} apartmentId={data.apartment.id} onClose={() => setSelected(null)} />}
     </div>
   )
 }

@@ -194,10 +194,42 @@ function setVisitorId(id: string) {
   localStorage.setItem(VISITOR_KEY, JSON.stringify(item));
 }
 
+function hasRejectedAnalytics(): boolean {
+  if (typeof window === 'undefined') return false;
+  try {
+    return localStorage.getItem(CONSENT_KEY) === 'false';
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Ejerce el derecho al olvido en el servidor. El endpoint /track/privacy/forget
+ * existía desde el principio pero no lo llamaba nadie, así que "revocar" solo
+ * borraba el id local y dejaba intactas las sesiones ya registradas.
+ */
+function requestPrivacyForget() {
+  if (typeof window === 'undefined') return;
+  const visitorId = getVisitorId();
+  if (!visitorId) return;
+  const url = `${import.meta.env.VITE_API_URL || 'https://visualtasteworker.franciscotortosaestudios.workers.dev'}/track/privacy/forget`;
+  const body = JSON.stringify({ visitorId });
+  try {
+    if (navigator.sendBeacon) {
+      navigator.sendBeacon(url, new Blob([body], { type: 'application/json' }));
+    } else {
+      fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body, keepalive: true });
+    }
+  } catch { /* best-effort: la preferencia local ya está guardada */ }
+}
+
 function revokeConsentHelper() {
   if (typeof window === 'undefined') return;
-  localStorage.removeItem(VISITOR_KEY);
   localStorage.setItem(CONSENT_KEY, 'false');
+  requestPrivacyForget();
+  // OJO: vt_visitor_id es también la identidad de la tarjeta de fidelización
+  // (useLoyaltyCard). Borrarlo aquí hacía que el cliente perdiera sus sellos al
+  // rechazar analítica. Se conserva; lo que se corta es el envío de datos.
   window.location.reload();
 }
 
@@ -568,6 +600,12 @@ function detectEnvironment() {
     campaign: urlParams.get('utm_campaign') || undefined
   };
 
+  // Atribución cruzada: el guidebook y la TV del alojamiento añaden estos
+  // parámetros al enlazar al menú, de modo que la sesión sepa de qué apartamento
+  // viene el cliente. Se persisten en sessionStorage porque el huésped puede
+  // navegar dentro del menú y perder la query string.
+  const referral = readReferral(urlParams);
+
   return {
     devicetype,
     osname,
@@ -575,14 +613,53 @@ function detectEnvironment() {
     networktype,
     ispwa,
     languages: navigator.language,
-    timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+    // El backend espera minutos de offset. Antes se enviaba el identificador
+    // IANA ("Europe/Madrid"), que acababa guardado como texto en una columna
+    // INTEGER y dejaba inservible el desglose por hora local.
+    timezone: -new Date().getTimezoneOffset(),
     referrer: document?.referrer || undefined,
     utm,
-    qrcode: urlParams.get('qrcode') || urlParams.get('qr') || undefined
+    qrcode: urlParams.get('qrcode') || urlParams.get('qr') || undefined,
+    referralSource: referral.source,
+    referralApartmentId: referral.apartmentId,
+    referralSessionId: referral.sessionId
   };
 }
 
+const REFERRAL_KEY = 'vt_referral';
+
+function readReferral(urlParams: URLSearchParams): {
+  source?: string; apartmentId?: string; sessionId?: string;
+} {
+  const source = urlParams.get('ref') || undefined;
+  if (source) {
+    const referral = {
+      source,
+      apartmentId: urlParams.get('apt') || undefined,
+      sessionId: urlParams.get('gsid') || urlParams.get('tvsid') || undefined
+    };
+    try {
+      sessionStorage.setItem(REFERRAL_KEY, JSON.stringify(referral));
+    } catch { /* sin storage: la atribución vive solo en esta carga */ }
+    return referral;
+  }
+  try {
+    const stored = sessionStorage.getItem(REFERRAL_KEY);
+    if (stored) return JSON.parse(stored);
+  } catch { /* ignorar */ }
+  return {};
+}
+
 async function startTrackingSession(restaurantId: string): Promise<{ sessionId: string | null; visitorId: string | null }> {
+  // ✅ FIX: el banner de cookies era decorativo. "Rechazar" escribía
+  // vt_consent_analytics='false' en localStorage y nadie lo leía nunca: la sesión
+  // arrancaba igual y el backend insertaba consent_analytics=1 a fuego. Ahora un
+  // rechazo explícito impide crear la sesión y, por tanto, cualquier evento.
+  if (hasRejectedAnalytics()) {
+    console.log('🚫 [Session] Analítica rechazada por el usuario, no se inicia sesión');
+    return { sessionId: null, visitorId: null };
+  }
+
   const env = detectEnvironment();
   const existingVisitorId = getVisitorId();
 
@@ -592,7 +669,8 @@ async function startTrackingSession(restaurantId: string): Promise<{ sessionId: 
     const response = await apiClient.tracking.startSession({
       restaurantId,
       ...env,
-      visitorId: existingVisitorId || undefined
+      visitorId: existingVisitorId || undefined,
+      consentAnalytics: true
     });
 
     if (response?.success && response?.sessionId) {
@@ -691,8 +769,22 @@ export function TrackingAndPushProvider({ restaurantId, children }: Props) {
       }
     };
 
+    // Rechazo explícito del banner: se para el tracker en caliente (sin recargar)
+    // y se pide al backend que anonimice lo ya registrado.
+    const handleConsentRevoked = () => {
+      console.log('🚫 [Provider] Consentimiento revocado, deteniendo tracking');
+      trackerInstance.cleanup();
+      setTracker(null);
+      setSessionId(null);
+      requestPrivacyForget();
+    };
+
     window.addEventListener('vt-consent-update', handleConsentUpdate);
-    return () => window.removeEventListener('vt-consent-update', handleConsentUpdate);
+    window.addEventListener('vt-consent-revoked', handleConsentRevoked);
+    return () => {
+      window.removeEventListener('vt-consent-update', handleConsentUpdate);
+      window.removeEventListener('vt-consent-revoked', handleConsentRevoked);
+    };
   }, [restaurantId, trackerInstance, sessionId]);
 
   // ✅ HEARTBEAT SYSTEM: With inactivity detection to prevent infinite requests

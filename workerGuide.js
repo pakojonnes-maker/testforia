@@ -7,6 +7,12 @@
 import { ACTIVE_LANGUAGES } from './workerGuideAdmin.js';
 
 const FALLBACK_LANG = 'es'; // es is the source of truth (see CLAUDE.md §5)
+// Media URLs must be absolute: the guide/TV frontends live on a different
+// origin (Pages) than the worker that serves /media/*, so a bare "/media/..."
+// path resolves against the *frontend's* origin and 404s (SPA fallback masks
+// it as a 200 text/html). Fall back to the workers.dev origin only for
+// callers that don't have a request to derive it from.
+const DEFAULT_MEDIA_ORIGIN = 'https://visualtasteworker.franciscotortosaestudios.workers.dev';
 
 function jsonResponse(data, status = 200) {
     return new Response(JSON.stringify(data), {
@@ -33,7 +39,7 @@ export async function handleGuideRequests(request, env) {
     const lang = url.searchParams.get('lang') || 'es';
 
     try {
-        return await handleGetGuidebook(env, slug, lang);
+        return await handleGetGuidebook(env, slug, lang, url.origin);
     } catch (error) {
         console.error('[Guide] Error:', error);
         return errorResponse('Error loading guidebook: ' + error.message, 500);
@@ -45,7 +51,7 @@ export async function handleGuideRequests(request, env) {
  * Exported so other public entry points (e.g. workerTvScreen.js's TV pairing
  * config) can return the exact same shape/cache without duplicating the query.
  */
-export async function handleGetGuidebook(env, slug, lang) {
+export async function handleGetGuidebook(env, slug, lang, origin) {
     // KV Cache check
     if (env.GUIDE_CACHE) {
         const cacheKey = `guide:${slug}:${lang}`;
@@ -144,7 +150,7 @@ export async function handleGetGuidebook(env, slug, lang) {
                 AND t_desc_es.entity_type = 'poi'
                 AND t_desc_es.field = 'description'
                 AND t_desc_es.language_code = ?
-            WHERE gap.apartment_id = ?
+            WHERE gap.apartment_id = ? AND p.latitude IS NOT NULL
             ORDER BY gap.order_override ASC
         `).bind(lang, FALLBACK_LANG, lang, FALLBACK_LANG, apartment.id).all()
         : env.DB.prepare(`
@@ -170,45 +176,47 @@ export async function handleGetGuidebook(env, slug, lang) {
                 AND t_desc_es.entity_type = 'poi'
                 AND t_desc_es.field = 'description'
                 AND t_desc_es.language_code = ?
-            WHERE p.zone_id = ? AND p.is_active = TRUE
+            WHERE p.zone_id = ? AND p.is_active = TRUE AND p.latitude IS NOT NULL
             ORDER BY p.order_index ASC
         `).bind(lang, FALLBACK_LANG, lang, FALLBACK_LANG, apartment.zone_id).all(),
 
-        // Experiences with translations (falls back to Spanish when missing)
+        // Experiences = bookable items, now sourced from the unified guide_pois
+        // table (is_bookable = TRUE). Translations live under entity_type='poi'.
+        // subcategory is aliased back to service_subcategory to keep the API shape.
         env.DB.prepare(`
             SELECT
-                e.id, e.category, e.service_subcategory, e.action_type, e.action_data, e.action_prefilled_message,
+                e.id, e.category, e.subcategory AS service_subcategory, e.action_type, e.action_data, e.action_prefilled_message,
                 e.price_display, e.cover_image_url, e.is_featured,
                 e.discount_display, e.original_price_display, e.badge_type,
                 COALESCE(t_name.value, t_name_es.value) AS name,
                 COALESCE(t_desc.value, t_desc_es.value) AS description,
                 COALESCE(t_cta.value, t_cta_es.value) AS cta_label
-            FROM guide_experiences e
+            FROM guide_pois e
             LEFT JOIN translations t_name ON e.id = t_name.entity_id
-                AND t_name.entity_type = 'experience'
+                AND t_name.entity_type = 'poi'
                 AND t_name.field = 'name'
                 AND t_name.language_code = ?
             LEFT JOIN translations t_name_es ON e.id = t_name_es.entity_id
-                AND t_name_es.entity_type = 'experience'
+                AND t_name_es.entity_type = 'poi'
                 AND t_name_es.field = 'name'
                 AND t_name_es.language_code = ?
             LEFT JOIN translations t_desc ON e.id = t_desc.entity_id
-                AND t_desc.entity_type = 'experience'
+                AND t_desc.entity_type = 'poi'
                 AND t_desc.field = 'description'
                 AND t_desc.language_code = ?
             LEFT JOIN translations t_desc_es ON e.id = t_desc_es.entity_id
-                AND t_desc_es.entity_type = 'experience'
+                AND t_desc_es.entity_type = 'poi'
                 AND t_desc_es.field = 'description'
                 AND t_desc_es.language_code = ?
             LEFT JOIN translations t_cta ON e.id = t_cta.entity_id
-                AND t_cta.entity_type = 'experience'
+                AND t_cta.entity_type = 'poi'
                 AND t_cta.field = 'cta_label'
                 AND t_cta.language_code = ?
             LEFT JOIN translations t_cta_es ON e.id = t_cta_es.entity_id
-                AND t_cta_es.entity_type = 'experience'
+                AND t_cta_es.entity_type = 'poi'
                 AND t_cta_es.field = 'cta_label'
                 AND t_cta_es.language_code = ?
-            WHERE e.zone_id = ? AND e.is_active = TRUE
+            WHERE e.zone_id = ? AND e.is_active = TRUE AND e.is_bookable = TRUE
             ORDER BY e.is_featured DESC, e.order_index ASC
         `).bind(lang, FALLBACK_LANG, lang, FALLBACK_LANG, lang, FALLBACK_LANG, apartment.zone_id).all(),
 
@@ -252,6 +260,8 @@ export async function handleGetGuidebook(env, slug, lang) {
         return errorResponse('Zone not found for this apartment', 404);
     }
 
+    const mediaOrigin = origin || DEFAULT_MEDIA_ORIGIN;
+
     // 3. Load POI media
     const poiIds = (pois.results || []).map(p => p.id);
     let poiMedia = {};
@@ -268,7 +278,7 @@ export async function handleGetGuidebook(env, slug, lang) {
             if (!poiMedia[media.poi_id]) poiMedia[media.poi_id] = [];
             poiMedia[media.poi_id].push({
                 id: media.id,
-                url: `/media/${media.r2_key}`,
+                url: `${mediaOrigin}/media/${media.r2_key}`,
                 type: media.media_type,
                 role: media.role
             });
@@ -291,7 +301,7 @@ export async function handleGetGuidebook(env, slug, lang) {
             if (!aptMedia[media.apartment_info_id]) aptMedia[media.apartment_info_id] = [];
             aptMedia[media.apartment_info_id].push({
                 id: media.id,
-                url: `/media/${media.r2_key}`,
+                url: `${mediaOrigin}/media/${media.r2_key}`,
                 type: media.media_type
             });
         }
@@ -391,7 +401,7 @@ export async function handleGetGuidebook(env, slug, lang) {
             slug: r.slug,
             cuisine_type: r.cuisine_type,
             tier: r.tier,
-            cover_image: r.cover_image ? `/media/${r.cover_image}` : null
+            cover_image: r.cover_image ? `${mediaOrigin}/media/${r.cover_image}` : null
         })),
         experiences: processedExperiences,
         welcome_modal: welcomeModal ? {

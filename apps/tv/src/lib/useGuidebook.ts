@@ -30,6 +30,10 @@ export function useGuidebook(lang = 'es') {
       .catch(() => { if (!cancelled) { setData(MOCK_GUIDE); setUsingMock(true) } })
 
     return () => { cancelled = true }
+    // `lang` es dependencia a propósito: el guidebook viene ya traducido del
+    // backend, así que cambiar de idioma exige recargar los datos. Lo que ya NO
+    // ocurre es que ese refetch cuente como una impresión nueva (el backend dejó
+    // de registrarla en /config; la emite la app una vez por sesión de TV).
   }, [lang])
 
   return { data, usingMock, pairingCode }

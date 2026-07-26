@@ -60,16 +60,16 @@ async function buildContext(env, apartmentId, lang = 'es') {
                     e.action_data,
                     e.action_prefilled_message,
                     t_desc.value AS description
-                FROM guide_experiences e
+                FROM guide_pois e
                 LEFT JOIN translations t_name ON e.id = t_name.entity_id
-                    AND t_name.entity_type = 'experience'
+                    AND t_name.entity_type = 'poi'
                     AND t_name.field = 'name'
                     AND t_name.language_code = ?
                 LEFT JOIN translations t_desc ON e.id = t_desc.entity_id
-                    AND t_desc.entity_type = 'experience'
+                    AND t_desc.entity_type = 'poi'
                     AND t_desc.field = 'description'
                     AND t_desc.language_code = ?
-                WHERE e.zone_id = ? AND e.is_active = TRUE
+                WHERE e.zone_id = ? AND e.is_active = TRUE AND e.is_bookable = TRUE
                 ORDER BY e.is_featured DESC, e.order_index ASC
                 LIMIT 10
             `).bind(lang, lang, aptZone.zone_id).all();

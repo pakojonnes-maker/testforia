@@ -28,6 +28,10 @@ export const CookieConsentBanner = () => {
     const handleReject = () => {
         localStorage.setItem(CONSENT_KEY, 'false');
         setIsVisible(false);
+        // Antes esto solo escribía en localStorage y nadie lo leía: la sesión
+        // seguía corriendo y el backend guardaba consent_analytics=1. Ahora se
+        // avisa al provider para que corte el envío y solicite el borrado.
+        window.dispatchEvent(new Event('vt-consent-revoked'));
     };
 
     if (!isVisible) return null;

@@ -9,7 +9,13 @@ import {
   CircularProgress, Alert, Divider, Tooltip, Card, CardContent,
   Dialog, DialogTitle, DialogContent, DialogActions, Switch, FormControlLabel,
   FormControl, InputLabel, Select, MenuItem, Tabs, Tab,
+  ToggleButtonGroup, ToggleButton, Stack, alpha, LinearProgress,
 } from '@mui/material';
+import { Line } from 'react-chartjs-2';
+import {
+  Chart as ChartJS, CategoryScale, LinearScale, PointElement, LineElement,
+  Title as ChartTitle, Tooltip as ChartTooltip, Legend, Filler,
+} from 'chart.js';
 import {
   ArrowBack as BackIcon,
   Add as AddIcon,
@@ -41,9 +47,15 @@ import {
   ContentCopy as ContentCopyIcon,
   FiberManualRecord as DotIcon,
   Visibility as ImpressionIcon,
-  QrCodeScanner as QrScanIcon,
+  Explore as ExploreIcon,
+  Insights as InsightsIcon,
+  DevicesOther as DevicesIcon,
 } from '@mui/icons-material';
 import QRCodeGenerator, { QRCodeHandle } from '../../components/QRCodeGenerator';
+
+// Registro de Chart.js (idempotente; el resto del admin lo registra en AnalyticsPage,
+// que se carga aparte, así que lo aseguramos aquí para el gráfico de la pestaña TV).
+ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, ChartTitle, ChartTooltip, Legend, Filler);
 
 interface ApartmentInfo {
   id: string;
@@ -80,20 +92,51 @@ interface TvDevice {
   last_seen_at: string | null;
 }
 
-interface TvStats {
-  totals: Record<string, number>;
-  byScreen: { screen: string; count: number }[];
-  impressionsLast7Days: { day: string; count: number }[];
+interface TvDailyRow {
+  day: string;
+  impression: number;
+  screen_view: number;
+  wifi_reveal: number;
+  poi_select: number;
+  menu_qr_shown: number;
+  booking_qr_shown: number;
 }
 
-const TV_EVENT_LABELS: Record<string, string> = {
-  impression: 'Impresiones',
-  screen_view: 'Vistas de pantalla',
-  wifi_reveal: 'WiFi mostrado',
-  poi_select: 'Localizaciones vistas',
-  menu_qr_shown: 'QR de carta mostrado',
-  booking_qr_shown: 'QR de reserva mostrado',
+interface TvStats {
+  range: string;
+  totals: Record<string, number>;
+  byScreen: { screen: string; count: number }[];
+  daily: TvDailyRow[];
+  devices: { total: number; active: number };
+}
+
+type TvRange = '7d' | '30d' | '90d' | 'all';
+
+const TV_RANGE_OPTIONS: { value: TvRange; label: string }[] = [
+  { value: '7d', label: '7 días' },
+  { value: '30d', label: '30 días' },
+  { value: '90d', label: '90 días' },
+  { value: 'all', label: 'Todo' },
+];
+
+// Etiquetas legibles para el anfitrión de cada pantalla de la TV.
+const TV_SCREEN_LABELS: Record<string, string> = {
+  home: 'Inicio',
+  wifi: 'WiFi',
+  guide: 'Guía',
+  nearby: 'Alrededores',
+  info: 'Información',
 };
+
+// Columnas del CSV de exportación (clave del evento → cabecera legible).
+const TV_CSV_COLUMNS: { key: keyof Omit<TvDailyRow, 'day'>; label: string }[] = [
+  { key: 'impression', label: 'Impresiones' },
+  { key: 'wifi_reveal', label: 'WiFi mostrado' },
+  { key: 'poi_select', label: 'Localizaciones vistas' },
+  { key: 'menu_qr_shown', label: 'QR carta mostrado' },
+  { key: 'booking_qr_shown', label: 'QR reserva mostrado' },
+  { key: 'screen_view', label: 'Vistas de pantalla' },
+];
 
 const MEDIA_BASE = import.meta.env.VITE_API_URL || 'https://visualtasteworker.franciscotortosaestudios.workers.dev';
 
@@ -194,8 +237,10 @@ export default function GuideApartmentDetail() {
   // Pantalla TV tab state
   const [tvDevices, setTvDevices] = useState<TvDevice[]>([]);
   const [tvStats, setTvStats] = useState<TvStats | null>(null);
-  const [tvLoading, setTvLoading] = useState(false);
+  const [tvLoading, setTvLoading] = useState(false);        // carga inicial (dispositivos)
+  const [tvStatsLoading, setTvStatsLoading] = useState(false); // recarga de stats al cambiar rango
   const [tvError, setTvError] = useState<string | null>(null);
+  const [tvRange, setTvRange] = useState<TvRange>('30d');
   const [pairing, setPairing] = useState(false);
   const [deviceLabelInput, setDeviceLabelInput] = useState('');
   const [newDevice, setNewDevice] = useState<{ pairingCode: string; deviceLabel: string | null } | null>(null);
@@ -279,21 +324,31 @@ export default function GuideApartmentDetail() {
     }
   };
 
-  const loadTv = async () => {
+  const loadTvDevices = async () => {
     if (!id) return;
     setTvLoading(true);
     setTvError(null);
     try {
-      const [devicesRes, statsRes] = await Promise.all([
-        apiClient.request(`/guide/admin/tv/devices?apartment_id=${id}`),
-        apiClient.request(`/guide/admin/tv/stats/${id}`),
-      ]);
+      const devicesRes = await apiClient.request(`/guide/admin/tv/devices?apartment_id=${id}`);
       setTvDevices(devicesRes.devices || []);
-      setTvStats(statsRes);
     } catch (err: any) {
-      setTvError(err.message || 'Error al cargar la pantalla TV');
+      setTvError(err.message || 'Error al cargar las TVs');
     } finally {
       setTvLoading(false);
+    }
+  };
+
+  const loadTvStats = async (range: TvRange) => {
+    if (!id) return;
+    setTvStatsLoading(true);
+    try {
+      const statsRes = await apiClient.request(`/guide/admin/tv/stats/${id}?range=${range}`);
+      setTvStats(statsRes);
+    } catch (err: any) {
+      setTvStats(null);
+      setTvError(err.message || 'Error al cargar las estadísticas');
+    } finally {
+      setTvStatsLoading(false);
     }
   };
 
@@ -304,9 +359,13 @@ export default function GuideApartmentDetail() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [apartment?.zone_id]);
   useEffect(() => {
-    if (activeMainTab === 4 && id) loadTv();
+    if (activeMainTab === 4 && id) { loadTvDevices(); loadTvStats(tvRange); }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeMainTab, id]);
+  useEffect(() => {
+    if (activeMainTab === 4 && id) loadTvStats(tvRange);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tvRange]);
 
   const handleOpenCreate = () => {
     setEditingItem(null);
@@ -548,7 +607,7 @@ export default function GuideApartmentDetail() {
       });
       setNewDevice({ pairingCode: res.device.pairingCode, deviceLabel: res.device.deviceLabel });
       setDeviceLabelInput('');
-      await loadTv();
+      await Promise.all([loadTvDevices(), loadTvStats(tvRange)]);
     } catch (err: any) {
       setTvError(err.message || 'Error al emparejar la TV');
     } finally {
@@ -589,6 +648,22 @@ export default function GuideApartmentDetail() {
     const hours = Math.floor(mins / 60);
     if (hours < 24) return `Hace ${hours} h`;
     return `Hace ${Math.floor(hours / 24)} d`;
+  };
+
+  // Exporta la serie diaria a CSV (extracción de datos para el anfitrión/agencia).
+  const exportTvCsv = () => {
+    if (!tvStats || tvStats.daily.length === 0) return;
+    const header = ['Fecha', ...TV_CSV_COLUMNS.map(c => c.label)];
+    const rows = tvStats.daily.map(d => [d.day, ...TV_CSV_COLUMNS.map(c => d[c.key] ?? 0)]);
+    const total = ['TOTAL', ...TV_CSV_COLUMNS.map(c => tvStats.daily.reduce((s, d) => s + (d[c.key] ?? 0), 0))];
+    const csv = [header, ...rows, total].map(r => r.join(',')).join('\n');
+    const blob = new Blob(['﻿' + csv], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `tv-stats-${apartment?.slug || id}-${tvStats.range}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
   };
 
   const travelIcon = (mode?: string) =>
@@ -1049,9 +1124,157 @@ export default function GuideApartmentDetail() {
     </Box>
   );
 
-  const renderTvTab = () => {
-    const maxDay = Math.max(1, ...(tvStats?.impressionsLast7Days.map(d => d.count) || [1]));
+  const renderTvStats = () => {
+    const header = (
+      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 2, mb: 3, flexWrap: 'wrap' }}>
+        <Typography variant="h6" fontWeight={600}>Actividad de las TVs</Typography>
+        <Stack direction="row" spacing={1} alignItems="center">
+          <ToggleButtonGroup
+            value={tvRange} exclusive size="small"
+            onChange={(_, v) => v && setTvRange(v)}
+          >
+            {TV_RANGE_OPTIONS.map(o => (
+              <ToggleButton key={o.value} value={o.value} sx={{ px: 1.5, py: 0.4, textTransform: 'none', fontWeight: 600 }}>
+                {o.label}
+              </ToggleButton>
+            ))}
+          </ToggleButtonGroup>
+          <Button
+            size="small" variant="outlined" startIcon={<DownloadIcon />}
+            disabled={!tvStats || tvStats.daily.length === 0}
+            onClick={exportTvCsv}
+          >
+            CSV
+          </Button>
+        </Stack>
+      </Box>
+    );
 
+    let body: React.ReactNode;
+    if (tvStatsLoading) {
+      body = <Box sx={{ display: 'flex', justifyContent: 'center', py: 5 }}><CircularProgress /></Box>;
+    } else if (!tvStats) {
+      body = <Typography variant="body2" color="text.secondary">No se pudieron cargar las estadísticas.</Typography>;
+    } else {
+      const t = tvStats.totals;
+      const impressions = t.impression || 0;
+      const wifi = t.wifi_reveal || 0;
+      const guideInteractions = (t.poi_select || 0) + (t.menu_qr_shown || 0) + (t.booking_qr_shown || 0);
+      const wifiRate = impressions > 0 ? Math.round((wifi / impressions) * 100) : 0;
+      const hasActivity = impressions > 0 || wifi > 0 || guideInteractions > 0;
+
+      const cards = [
+        { icon: <ImpressionIcon />, color: '#128099', value: impressions, label: 'Impresiones', sub: 'veces que se encendió la pantalla' },
+        { icon: <WifiIcon />, color: '#2e7d32', value: wifi, label: 'WiFi consultado', sub: 'huéspedes que vieron la contraseña' },
+        { icon: <ExploreIcon />, color: '#e07a5f', value: guideInteractions, label: 'Interacción con la guía', sub: 'recomendaciones y QRs abiertos' },
+        { icon: <DevicesIcon />, color: '#6a1b9a', value: tvStats.devices.active, label: 'TVs activas', sub: `de ${tvStats.devices.total} emparejadas` },
+      ];
+
+      const chartLabels = tvStats.daily.map(d => new Date(d.day).toLocaleDateString('es-ES', { day: 'numeric', month: 'short' }));
+      const chartData = {
+        labels: chartLabels,
+        datasets: [
+          {
+            label: 'Impresiones', data: tvStats.daily.map(d => d.impression),
+            borderColor: '#128099', backgroundColor: 'rgba(18,128,153,0.12)', fill: true,
+            borderWidth: 2.5, tension: 0.35, pointRadius: tvStats.daily.length > 20 ? 0 : 3, pointHoverRadius: 5,
+          },
+          {
+            label: 'WiFi consultado', data: tvStats.daily.map(d => d.wifi_reveal),
+            borderColor: '#2e7d32', backgroundColor: 'transparent',
+            borderWidth: 2, tension: 0.35, pointRadius: tvStats.daily.length > 20 ? 0 : 3, pointHoverRadius: 5,
+          },
+        ],
+      };
+      const chartOptions = {
+        responsive: true, maintainAspectRatio: false,
+        interaction: { mode: 'index' as const, intersect: false },
+        plugins: {
+          legend: { display: true, position: 'top' as const, labels: { usePointStyle: true, boxWidth: 8, font: { size: 11 } } },
+          tooltip: { cornerRadius: 10, padding: 10 },
+        },
+        scales: {
+          x: { grid: { display: false }, ticks: { color: '#94a3b8', font: { size: 10 }, autoSkip: true, maxTicksLimit: 10 } },
+          y: { beginAtZero: true, ticks: { color: '#94a3b8', font: { size: 10 }, precision: 0 }, grid: { color: 'rgba(148,163,184,0.1)' } },
+        },
+      };
+
+      const screenTotal = tvStats.byScreen.reduce((s, x) => s + x.count, 0);
+
+      body = (
+        <>
+          {/* Métricas destacadas, con contexto de negocio */}
+          <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(190px, 1fr))', gap: 2, mb: 3 }}>
+            {cards.map(c => (
+              <Box key={c.label} sx={{ p: 2, borderRadius: 3, border: '1px solid', borderColor: 'divider', display: 'flex', gap: 1.5, alignItems: 'flex-start' }}>
+                <Box sx={{ p: 1, borderRadius: 2, bgcolor: alpha(c.color, 0.12), color: c.color, display: 'flex' }}>{c.icon}</Box>
+                <Box sx={{ minWidth: 0 }}>
+                  <Typography variant="h4" fontWeight={800} lineHeight={1.1}>{c.value.toLocaleString('es-ES')}</Typography>
+                  <Typography variant="subtitle2" fontWeight={600}>{c.label}</Typography>
+                  <Typography variant="caption" color="text.secondary">{c.sub}</Typography>
+                </Box>
+              </Box>
+            ))}
+          </Box>
+
+          {/* Insight derivado: cuenta una historia, no solo números */}
+          {impressions > 0 && (
+            <Alert icon={<InsightsIcon />} severity="success" sx={{ mb: 3, borderRadius: 2, bgcolor: 'rgba(46,125,50,0.08)' }}>
+              <strong>{wifiRate}%</strong> de las veces que se encendió la pantalla, el huésped consultó el WiFi
+              {guideInteractions > 0 && <> · <strong>{guideInteractions}</strong> interacciones con tus recomendaciones</>}.
+            </Alert>
+          )}
+
+          {!hasActivity ? (
+            <Box sx={{ textAlign: 'center', py: 5, border: '1px dashed', borderColor: 'divider', borderRadius: 3 }}>
+              <ImpressionIcon sx={{ fontSize: 40, color: 'text.disabled', mb: 1 }} />
+              <Typography variant="body2" color="text.secondary">Todavía no hay actividad registrada en este periodo.</Typography>
+            </Box>
+          ) : (
+            <>
+              <Typography variant="subtitle2" fontWeight={600} color="text.secondary" sx={{ mb: 1 }}>
+                Evolución diaria
+              </Typography>
+              <Box sx={{ height: 240, mb: 3 }}>
+                <Line data={chartData} options={chartOptions} />
+              </Box>
+
+              {screenTotal > 0 && (
+                <>
+                  <Typography variant="subtitle2" fontWeight={600} color="text.secondary" sx={{ mb: 1.5 }}>
+                    Pantallas más vistas
+                  </Typography>
+                  <Stack spacing={1.2}>
+                    {tvStats.byScreen.map(s => {
+                      const pct = Math.round((s.count / screenTotal) * 100);
+                      return (
+                        <Box key={s.screen}>
+                          <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 0.3 }}>
+                            <Typography variant="body2" fontWeight={600}>{TV_SCREEN_LABELS[s.screen] || s.screen}</Typography>
+                            <Typography variant="caption" color="text.secondary">{s.count} · {pct}%</Typography>
+                          </Box>
+                          <LinearProgress variant="determinate" value={pct} sx={{ height: 8, borderRadius: 5 }} />
+                        </Box>
+                      );
+                    })}
+                  </Stack>
+                </>
+              )}
+            </>
+          )}
+        </>
+      );
+    }
+
+    return (
+      <Paper elevation={0} sx={{ p: 3, borderRadius: 3, border: '1px solid', borderColor: 'divider' }}>
+        {header}
+        {body}
+      </Paper>
+    );
+  };
+
+  const renderTvTab = () => {
     return (
       <Box>
         <Alert severity="info" sx={{ mb: 3, borderRadius: 2 }}>
@@ -1154,64 +1377,8 @@ export default function GuideApartmentDetail() {
           )}
         </Paper>
 
-        {/* KPIs */}
-        <Paper elevation={0} sx={{ p: 3, borderRadius: 3, border: '1px solid', borderColor: 'divider' }}>
-          <Typography variant="h6" fontWeight={600} gutterBottom>Actividad</Typography>
-          {tvLoading ? (
-            <Box sx={{ display: 'flex', justifyContent: 'center', py: 4 }}><CircularProgress /></Box>
-          ) : !tvStats ? (
-            <Typography variant="body2" color="text.secondary">No se pudieron cargar las estadísticas.</Typography>
-          ) : (
-            <>
-              <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: 2, mb: 3 }}>
-                {Object.entries(TV_EVENT_LABELS).map(([key, label]) => (
-                  <Box key={key} sx={{ p: 2, borderRadius: 2, bgcolor: 'action.hover', textAlign: 'center' }}>
-                    <Typography variant="h5" fontWeight={800}>{tvStats.totals[key] || 0}</Typography>
-                    <Typography variant="caption" color="text.secondary">{label}</Typography>
-                  </Box>
-                ))}
-              </Box>
-
-              <Typography variant="subtitle2" fontWeight={600} color="text.secondary" sx={{ mb: 1.5, display: 'flex', alignItems: 'center', gap: 1 }}>
-                <ImpressionIcon fontSize="small" /> Impresiones — últimos 7 días
-              </Typography>
-              {tvStats.impressionsLast7Days.length === 0 ? (
-                <Typography variant="body2" color="text.secondary">Todavía no hay actividad registrada.</Typography>
-              ) : (
-                <Box sx={{ display: 'flex', alignItems: 'flex-end', gap: 1.5, height: 90 }}>
-                  {tvStats.impressionsLast7Days.map(d => (
-                    <Tooltip key={d.day} title={`${d.day}: ${d.count}`}>
-                      <Box sx={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 0.5 }}>
-                        <Box sx={{
-                          width: '100%', maxWidth: 28, borderRadius: 1,
-                          height: `${Math.max(6, (d.count / maxDay) * 70)}px`,
-                          bgcolor: 'primary.main',
-                        }} />
-                        <Typography variant="caption" color="text.secondary" fontSize={10}>
-                          {d.day.slice(5)}
-                        </Typography>
-                      </Box>
-                    </Tooltip>
-                  ))}
-                </Box>
-              )}
-
-              {tvStats.byScreen.length > 0 && (
-                <>
-                  <Divider sx={{ my: 2.5 }} />
-                  <Typography variant="subtitle2" fontWeight={600} color="text.secondary" sx={{ mb: 1.5, display: 'flex', alignItems: 'center', gap: 1 }}>
-                    <QrScanIcon fontSize="small" /> Pantallas más vistas
-                  </Typography>
-                  <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
-                    {tvStats.byScreen.map(s => (
-                      <Chip key={s.screen} label={`${s.screen}: ${s.count}`} size="small" variant="outlined" />
-                    ))}
-                  </Box>
-                </>
-              )}
-            </>
-          )}
-        </Paper>
+        {/* Estadísticas */}
+        {renderTvStats()}
       </Box>
     );
   };

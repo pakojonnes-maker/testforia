@@ -26,22 +26,37 @@ interface Zone {
   name: string;
 }
 
+const ACCESS_TYPES = [
+  { value: 'free', label: 'Gratuito' },
+  { value: 'paid', label: 'De pago' },
+  { value: 'mixed', label: 'Mixto' },
+];
+
 interface POI {
   id: string;
   zone_id: string;
   category: string;
+  access_type: string;
   name_es: string;
   name_en: string;
   description_es: string;
   description_en: string;
+  short_tip_es?: string;
+  short_tip_en?: string;
   google_maps_url: string;
+  google_place_id?: string;
+  address?: string;
   latitude: number;
   longitude: number;
   rating: number;
   travel_mode: string;
   travel_time_text: string;
   distance_text: string;
-  image_url: string;
+  phone?: string;
+  website_url?: string;
+  opening_hours?: string;
+  duration_text?: string;
+  cover_image_url: string;
   is_active: boolean;
 }
 
@@ -120,9 +135,10 @@ export default function GuidePoisPage() {
       setFormData({ ...poi });
     } else {
       setEditingPoi(null);
-      setFormData({ 
+      setFormData({
         zone_id: selectedZone,
         category: CATEGORIES[0],
+        access_type: 'free',
         travel_mode: 'walk',
         rating: 4.5,
         is_active: true
@@ -137,18 +153,27 @@ export default function GuidePoisPage() {
       const payload = {
         zone_id: formData.zone_id,
         category: formData.category,
+        access_type: formData.access_type,
         google_maps_url: formData.google_maps_url,
+        google_place_id: formData.google_place_id,
+        address: formData.address,
         latitude: formData.latitude,
         longitude: formData.longitude,
         rating: formData.rating,
         travel_mode: formData.travel_mode,
         travel_time_text: formData.travel_time_text,
         distance_text: formData.distance_text,
+        phone: formData.phone,
+        website_url: formData.website_url,
+        opening_hours: formData.opening_hours,
+        duration_text: formData.duration_text,
         name_es: formData.name_es,
         name_en: formData.name_en,
         description_es: formData.description_es,
         description_en: formData.description_en,
-        image_url: formData.image_url,
+        short_tip_es: formData.short_tip_es,
+        short_tip_en: formData.short_tip_en,
+        cover_image_url: formData.cover_image_url,
       };
 
       if (editingPoi) {
@@ -201,7 +226,7 @@ export default function GuidePoisPage() {
       });
       const data = await uploadRes.json();
       if (data.success && data.url) {
-        setFormData({ ...formData, image_url: data.url });
+        setFormData({ ...formData, cover_image_url: data.url });
       } else {
         throw new Error(data.message);
       }
@@ -368,9 +393,33 @@ export default function GuidePoisPage() {
             <Grid item xs={12} md={6}>
               <TextField fullWidth size="small" multiline rows={3} label="Descripción (EN)" value={formData.description_en || ''} onChange={e => setFormData({...formData, description_en: e.target.value})} />
             </Grid>
+            <Grid item xs={12} md={6}>
+              <TextField fullWidth size="small" label="Tip rápido (ES)" placeholder="Ej. Entrada gratuita. Cerrado los lunes." value={formData.short_tip_es || ''} onChange={e => setFormData({...formData, short_tip_es: e.target.value})} />
+            </Grid>
+            <Grid item xs={12} md={6}>
+              <TextField fullWidth size="small" label="Tip rápido (EN)" value={formData.short_tip_en || ''} onChange={e => setFormData({...formData, short_tip_en: e.target.value})} />
+            </Grid>
+
+            <Grid item xs={12} md={8}>
+              <TextField fullWidth size="small" label="Dirección" value={formData.address || ''} onChange={e => setFormData({...formData, address: e.target.value})} />
+            </Grid>
+            <Grid item xs={12} md={4}>
+              <FormControl fullWidth size="small">
+                <InputLabel>Acceso</InputLabel>
+                <Select value={formData.access_type || 'free'} label="Acceso" onChange={e => setFormData({...formData, access_type: e.target.value})}>
+                  {ACCESS_TYPES.map(a => <MenuItem key={a.value} value={a.value}>{a.label}</MenuItem>)}
+                </Select>
+              </FormControl>
+            </Grid>
 
             <Grid item xs={12}>
               <TextField fullWidth size="small" label="Google Maps URL" value={formData.google_maps_url || ''} onChange={e => setFormData({...formData, google_maps_url: e.target.value})} />
+            </Grid>
+            <Grid item xs={12} md={6}>
+              <TextField fullWidth size="small" label="Google Place ID (opcional, para sync futuro)" value={formData.google_place_id || ''} onChange={e => setFormData({...formData, google_place_id: e.target.value})} />
+            </Grid>
+            <Grid item xs={12} md={6}>
+              <TextField fullWidth size="small" label="Web oficial" value={formData.website_url || ''} onChange={e => setFormData({...formData, website_url: e.target.value})} />
             </Grid>
 
             <Grid item xs={6} md={3}>
@@ -393,16 +442,26 @@ export default function GuidePoisPage() {
               </FormControl>
             </Grid>
 
-            <Grid item xs={6}>
+            <Grid item xs={6} md={3}>
               <TextField fullWidth size="small" label="Tiempo (ej. 5 min)" value={formData.travel_time_text || ''} onChange={e => setFormData({...formData, travel_time_text: e.target.value})} />
             </Grid>
-            <Grid item xs={6}>
+            <Grid item xs={6} md={3}>
               <TextField fullWidth size="small" label="Distancia (ej. 450 m)" value={formData.distance_text || ''} onChange={e => setFormData({...formData, distance_text: e.target.value})} />
+            </Grid>
+            <Grid item xs={6} md={3}>
+              <TextField fullWidth size="small" label="Teléfono" value={formData.phone || ''} onChange={e => setFormData({...formData, phone: e.target.value})} />
+            </Grid>
+            <Grid item xs={6} md={3}>
+              <TextField fullWidth size="small" label="Duración visita (ej. 1-2 h)" value={formData.duration_text || ''} onChange={e => setFormData({...formData, duration_text: e.target.value})} />
+            </Grid>
+
+            <Grid item xs={12}>
+              <TextField fullWidth size="small" label="Horario (texto libre, ej. Mar-Sáb 10:00-18:00, Dom 10:00-16:00, cerrado Lun)" value={formData.opening_hours || ''} onChange={e => setFormData({...formData, opening_hours: e.target.value})} />
             </Grid>
 
             <Grid item xs={12}>
               <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-                {formData.image_url && <img src={formData.image_url} alt="POI" style={{ height: 60, borderRadius: 4 }} />}
+                {formData.cover_image_url && <img src={formData.cover_image_url} alt="POI" style={{ height: 60, borderRadius: 4 }} />}
                 <Button variant="outlined" component="label" startIcon={<UploadIcon />}>
                   Subir Imagen
                   <input type="file" hidden accept="image/*" onChange={handleImageUpload} />

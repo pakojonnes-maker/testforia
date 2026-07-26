@@ -36,6 +36,7 @@ import SummaryKPIs from '../components/analytics/SummaryKPIs';
 import TimeSeriesChart from '../components/analytics/TimeSeriesChart';
 import HourlyTrafficChart from '../components/analytics/HourlyTrafficChart';
 import RecurrencePanel from '../components/analytics/RecurrencePanel';
+import AttributionPanel from '../components/analytics/AttributionPanel';
 import TopDishesChart from '../components/analytics/TopDishesChart';
 import ConversionFunnel from '../components/analytics/ConversionFunnel';
 import TopCitiesChart from '../components/analytics/TopCitiesChart';
@@ -227,6 +228,15 @@ function KPIsTab({ data, timeRange }: any) {
       </Grid>
       <Grid item xs={12} md={6}>
         <ConversionFunnel data={funnelData} />
+      </Grid>
+
+      {/* Origen del tráfico: guidebook / TV / QR / directo, y qué alojamientos
+          envían más clientes. */}
+      <Grid item xs={12} md={6}>
+        <AttributionPanel
+          attribution={data.attribution || []}
+          topApartments={data.topApartments || []}
+        />
       </Grid>
 
       {/* Row 4: Top Platos (6 cols) + Top Ciudades (6 cols) */}

@@ -33,9 +33,11 @@ interface DiscoverSectionProps {
   zoneDescription: string;
   lang: string;
   onIntent: (type: 'restaurant' | 'experience' | 'product', id: string, action: string) => void;
+  /** Construye la URL del menú de un restaurante con la atribución del guidebook. */
+  buildRestaurantUrl: (slug: string) => string;
 }
 
-export default function DiscoverSection({ pois, restaurants = [], zoneName, zoneDescription, lang, onIntent }: DiscoverSectionProps) {
+export default function DiscoverSection({ pois, restaurants = [], zoneName, zoneDescription, lang, onIntent, buildRestaurantUrl }: DiscoverSectionProps) {
   const ALL_FILTER = 'todos';
   const [activeFilter, setActiveFilter] = useState<string>(ALL_FILTER);
   const [showMap, setShowMap] = useState(false);
@@ -47,7 +49,11 @@ export default function DiscoverSection({ pois, restaurants = [], zoneName, zone
       id: r.id, type: 'restaurant' as const, name: r.name,
       description: r.cuisine_type ? getTranslation('cuisine_label', lang).replace('{cuisine}', r.cuisine_type) : '',
       category: categoryRestaurants, image: r.cover_image,
-      url: r.slug ? `/r/${r.slug}` : undefined,
+      // FIX: apuntaba a `/r/{slug}`, una ruta relativa al dominio del guidebook
+      // que no existe en su router (solo hay `/` y `/:slug`), así que el enlace
+      // al menú del restaurante llevaba a una página en blanco. Ahora apunta al
+      // menú real y lleva incrustada la atribución al apartamento de origen.
+      url: r.slug ? buildRestaurantUrl(r.slug) : undefined,
       tier: r.tier, rating: undefined, travel_time_text: undefined, travel_mode: undefined, distance_text: undefined
     })),
     ...pois.map(p => ({
@@ -140,7 +146,7 @@ export default function DiscoverSection({ pois, restaurants = [], zoneName, zone
                     )}
                     <button 
                       onClick={() => {
-                        if (item.type === 'restaurant') onIntent('restaurant', item.id, 'view_details');
+                        if (item.type === 'restaurant') onIntent('restaurant', item.id, 'click_menu');
                         if (item.url) window.open(item.url, '_blank');
                       }}
                       className="text-terracotta font-label-lg text-label-lg flex items-center gap-1 hover:text-primary-container transition-colors group/btn"
@@ -186,7 +192,7 @@ export default function DiscoverSection({ pois, restaurants = [], zoneName, zone
                 <div className="mt-auto pt-3">
                   <button 
                     onClick={() => {
-                      if (item.type === 'restaurant') onIntent('restaurant', item.id, 'view_details');
+                      if (item.type === 'restaurant') onIntent('restaurant', item.id, 'click_menu');
                       if (item.url) window.open(item.url, '_blank');
                     }}
                     className="w-full py-2 rounded-lg border border-deep-sea text-deep-sea font-label-lg text-label-lg hover:bg-deep-sea hover:text-crisp-white transition-colors text-center"

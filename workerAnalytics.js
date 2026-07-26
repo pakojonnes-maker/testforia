@@ -1,3 +1,13 @@
+// Filtro común a todas las consultas sobre `sessions`. Excluye:
+//   - is_internal: dispositivos de desarrollo/pruebas y personal del local.
+//     Un solo visitor_id acumulaba 184 de las 1009 sesiones históricas (18%) y
+//     contaminaba todas las medias del panel.
+//   - consent_analytics = 0: visitantes que rechazaron el banner de cookies.
+// SESSION_FILTER asume que la tabla está aliasada como `s`; SESSION_FILTER_RAW
+// es la variante sin alias.
+const SESSION_FILTER = 'AND s.is_internal = 0 AND s.consent_analytics = 1';
+const SESSION_FILTER_RAW = 'AND is_internal = 0 AND consent_analytics = 1';
+
 export async function handleAnalyticsRequests(request, env) {
     const url = new URL(request.url);
     // CORS preflight
@@ -109,7 +119,7 @@ export async function handleAnalyticsRequests(request, env) {
             // - Falls back to calculating from last event timestamp
             // - Counts sessions as unique visitors when visitor_id is NULL
             const sessionStats = await env.DB.prepare(
-                `SELECT 
+                `SELECT
                    COUNT(*) AS total_sessions,
                    COUNT(DISTINCT COALESCE(visitor_id, id)) AS unique_visitors,
                    AVG(
@@ -122,35 +132,81 @@ export async function handleAnalyticsRequests(request, env) {
                        )
                    ) AS avg_session_duration
                  FROM sessions s
-                 WHERE s.restaurant_id = ? AND s.started_at BETWEEN ? AND ?`
+                 WHERE s.restaurant_id = ? AND s.started_at BETWEEN ? AND ? ${SESSION_FILTER}`
             ).bind(restaurantId, fromTs, toTs).first();
             // Get event stats
+            // ✅ FIX: 'favorite' se contaba entero, incluidos los DES-favoritos
+            // (value='false'), inflando el engagement. Ahora solo cuentan los que
+            // marcan como favorito, igual que hacía la agregación diaria.
             const eventStats = await env.DB.prepare(
-                `SELECT 
-                   SUM(CASE WHEN event_type = 'viewdish' THEN 1 ELSE 0 END) AS dish_views,
-                   SUM(CASE WHEN event_type = 'favorite' THEN 1 ELSE 0 END) AS favorites,
-                   SUM(CASE WHEN event_type = 'rating' THEN 1 ELSE 0 END) AS ratings,
-                   SUM(CASE WHEN event_type = 'share' THEN 1 ELSE 0 END) AS shares
-                 FROM events
-                 WHERE restaurant_id = ? AND created_at BETWEEN ? AND ?`
-            ).bind(restaurantId, fromTs, toTs).first();
-            // Get avg dish view duration from dish_daily_metrics
+                `SELECT
+                   SUM(CASE WHEN e.event_type = 'viewdish' THEN 1 ELSE 0 END) AS dish_views,
+                   SUM(CASE WHEN e.event_type = 'favorite' AND (e.value = 'true' OR e.value = '1') THEN 1 ELSE 0 END) AS favorites,
+                   SUM(CASE WHEN e.event_type = 'rating' THEN 1 ELSE 0 END) AS ratings,
+                   SUM(CASE WHEN e.event_type = 'share' THEN 1 ELSE 0 END) AS shares,
+                   SUM(CASE WHEN e.event_type = 'media_error' THEN 1 ELSE 0 END) AS media_errors,
+                   AVG(CASE WHEN e.event_type = 'section_time' THEN e.numeric_value END) AS avg_section_time,
+                   AVG(CASE WHEN e.event_type = 'scroll_depth' THEN e.numeric_value END) AS avg_scroll_depth
+                 FROM events e
+                 WHERE e.restaurant_id = ? AND e.created_at BETWEEN ? AND ?
+                   AND e.session_id IN (SELECT s.id FROM sessions s WHERE s.restaurant_id = ? ${SESSION_FILTER})`
+            ).bind(restaurantId, fromTs, toTs, restaurantId).first();
+            // ✅ FIX: era AVG(avg_view_duration) — una media de medias diarias, en la
+            // que un día con 2 visitas pesaba lo mismo que uno con 500. Ahora se
+            // pondera por número de vistas.
             const dishDurationStats = await env.DB.prepare(
-                `SELECT AVG(avg_view_duration) AS avg_dish_view_duration
+                `SELECT CAST(SUM(total_view_time) AS REAL) / NULLIF(SUM(views), 0) AS avg_dish_view_duration
                  FROM dish_daily_metrics
                  WHERE restaurant_id = ? AND date BETWEEN ? AND ?`
             ).bind(restaurantId, from, to).first();
-            // ✅ NEW: Get visitor recurrence stats (new vs returning)
+            // ✅ FIX (doble contabilidad): antes se contaba a nivel de SESIÓN, así que
+            // un visitante con 3 sesiones caía en los dos cubos a la vez (su primera
+            // sesión tiene visit_count=1 y las siguientes >1). En producción daba
+            // 394 nuevos + 63 recurrentes = 457 sobre 394 únicos reales.
+            // Ahora se agrega primero por visitante y cada uno cae en un solo cubo:
+            //   - nuevo      = su primera visita de todos los tiempos cae en el rango
+            //   - recurrente = ya había visitado antes, o ha vuelto otro día
             const visitorRecurrence = await env.DB.prepare(
-                `SELECT 
-                   COUNT(DISTINCT CASE WHEN visit_count = 1 THEN COALESCE(visitor_id, id) END) AS new_visitors,
-                   COUNT(DISTINCT CASE WHEN visit_count > 1 THEN COALESCE(visitor_id, id) END) AS returning_visitors
-                 FROM sessions
-                 WHERE restaurant_id = ? AND started_at BETWEEN ? AND ?`
+                `SELECT
+                   SUM(CASE WHEN first_visit = 1 AND visit_days = 1 THEN 1 ELSE 0 END) AS new_visitors,
+                   SUM(CASE WHEN first_visit > 1 OR visit_days > 1 THEN 1 ELSE 0 END) AS returning_visitors
+                 FROM (
+                   SELECT COALESCE(visitor_id, id) AS vid,
+                          MIN(visit_count) AS first_visit,
+                          COUNT(DISTINCT DATE(started_at)) AS visit_days
+                   FROM sessions s
+                   WHERE s.restaurant_id = ? AND s.started_at BETWEEN ? AND ? ${SESSION_FILTER}
+                   GROUP BY 1
+                 )`
             ).bind(restaurantId, fromTs, toTs).first();
+            // Atribución cruzada: de dónde llegan las sesiones de este restaurante.
+            const attribution = await env.DB.prepare(
+                `SELECT COALESCE(s.referral_source, 'direct') AS source,
+                        COUNT(*) AS sessions,
+                        COUNT(DISTINCT s.referral_apartment_id) AS apartments,
+                        SUM(CASE WHEN cs.id IS NOT NULL THEN 1 ELSE 0 END) AS with_cart
+                 FROM sessions s
+                 LEFT JOIN cart_sessions cs ON cs.sessionid = s.id
+                 WHERE s.restaurant_id = ? AND s.started_at BETWEEN ? AND ? ${SESSION_FILTER}
+                 GROUP BY 1 ORDER BY sessions DESC`
+            ).bind(restaurantId, fromTs, toTs).all();
+            // Top alojamientos que envían clientes a este restaurante.
+            const topApartments = await env.DB.prepare(
+                `SELECT s.referral_apartment_id AS apartment_id,
+                        a.name AS apartment_name,
+                        COUNT(*) AS sessions,
+                        COUNT(DISTINCT COALESCE(s.visitor_id, s.id)) AS visitors,
+                        SUM(CASE WHEN cs.id IS NOT NULL THEN 1 ELSE 0 END) AS with_cart
+                 FROM sessions s
+                 LEFT JOIN guide_apartments a ON a.id = s.referral_apartment_id
+                 LEFT JOIN cart_sessions cs ON cs.sessionid = s.id
+                 WHERE s.restaurant_id = ? AND s.started_at BETWEEN ? AND ?
+                   AND s.referral_apartment_id IS NOT NULL ${SESSION_FILTER}
+                 GROUP BY 1, 2 ORDER BY sessions DESC LIMIT ?`
+            ).bind(restaurantId, fromTs, toTs, topN).all();
             // Combine into summary object
             const summary = {
-                total_views: sessionStats?.total_sessions || 0, // Use sessions as proxy for views
+                total_views: eventStats?.dish_views || 0,
                 unique_visitors: sessionStats?.unique_visitors || 0,
                 total_sessions: sessionStats?.total_sessions || 0,
                 avg_session_duration: sessionStats?.avg_session_duration || 0,
@@ -159,39 +215,32 @@ export async function handleAnalyticsRequests(request, env) {
                 ratings: eventStats?.ratings || 0,
                 shares: eventStats?.shares || 0,
                 avg_dish_view_duration: dishDurationStats?.avg_dish_view_duration || 0,
-                avg_section_time: 0,
-                avg_scroll_depth: 0,
-                media_errors: 0,
+                avg_section_time: eventStats?.avg_section_time || 0,
+                avg_scroll_depth: eventStats?.avg_scroll_depth || 0,
+                media_errors: eventStats?.media_errors || 0,
                 // ✅ NEW: Include visitor recurrence for return rate calculation
                 new_visitors: visitorRecurrence?.new_visitors || 0,
                 returning_visitors: visitorRecurrence?.returning_visitors || 0
             };
             console.log('[Analytics] Summary calculated:', summary);
-            // 2) Timeseries (daily_analytics -> fallback sessions)
-            let timeseries = [];
+            // 2) Timeseries — SIEMPRE desde las tablas fuente.
+            // ✅ FIX: antes se leía primero de `daily_analytics` y solo se caía al
+            // cálculo en vivo si el resultado venía COMPLETAMENTE vacío. Como esa
+            // tabla dejó de escribirse el 2026-01-18, cualquier rango que incluyera
+            // diciembre-enero devolvía 34 filas rancias, no activaba el fallback y
+            // dejaba invisibles los seis meses siguientes de tráfico real.
             const timeseriesRes = await env.DB.prepare(
-                `SELECT date, total_views, unique_visitors, total_sessions
-         FROM daily_analytics
-         WHERE restaurant_id = ? AND date BETWEEN ? AND ?
-         ORDER BY date ASC`
-            ).bind(restaurantId, from, to).all();
-            if ((timeseriesRes.results?.length ?? 0) === 0) {
-                // Fallback: group by date from raw sessions
-                const fallbackTs = await env.DB.prepare(
-                    `SELECT 
-                        DATE(started_at) as date,
-                        COUNT(*) as total_sessions,
-                        COUNT(DISTINCT COALESCE(visitor_id, id)) as unique_visitors,
-                        COUNT(*) as total_views
-                     FROM sessions
-                     WHERE restaurant_id = ? AND started_at BETWEEN ? AND ?
-                     GROUP BY DATE(started_at)
-                     ORDER BY date ASC`
-                ).bind(restaurantId, fromTs, toTs).all();
-                timeseries = fallbackTs.results ?? [];
-            } else {
-                timeseries = timeseriesRes.results ?? [];
-            }
+                `SELECT
+                    DATE(s.started_at) as date,
+                    COUNT(*) as total_sessions,
+                    COUNT(DISTINCT COALESCE(s.visitor_id, s.id)) as unique_visitors,
+                    COUNT(*) as total_views
+                 FROM sessions s
+                 WHERE s.restaurant_id = ? AND s.started_at BETWEEN ? AND ? ${SESSION_FILTER}
+                 GROUP BY DATE(s.started_at)
+                 ORDER BY date ASC`
+            ).bind(restaurantId, fromTs, toTs).all();
+            const timeseries = timeseriesRes.results ?? [];
             let topDishes = await env.DB.prepare(
                 `SELECT dm.dish_id,
                 COALESCE(SUM(dm.views),0) AS views,
@@ -265,76 +314,68 @@ export async function handleAnalyticsRequests(request, env) {
             }
             // 5) Breakdown sesiones (dispositivo/OS/navegador/idioma/país/ciudad/red/PWA)
             // Importante: en SQLite, no agrupar por alias; usamos GROUP BY 1 (la primera expresión seleccionada)
+            // Todos los desgloses comparten la misma forma: una columna de `sessions`
+            // agrupada y contada, con el filtro común de tráfico interno/consentimiento.
+            const breakdownBy = (column) => env.DB.prepare(
+                `SELECT COALESCE(${column},'unknown') AS key, COUNT(*) AS count
+                 FROM sessions s
+                 WHERE s.restaurant_id=? AND s.started_at BETWEEN ? AND ? ${SESSION_FILTER}
+                 GROUP BY 1 ORDER BY count DESC`
+            ).bind(restaurantId, fromTs, toTs).all();
             const [
                 devices, os, browsers, languages, countries, cities, netTypes, pwaStats
             ] = await Promise.all([
+                breakdownBy('s.device_type'),
+                breakdownBy('s.os_name'),
+                breakdownBy('s.browser'),
+                breakdownBy('s.language_code'),
+                breakdownBy('s.country'),
+                breakdownBy('s.city'),
+                breakdownBy('s.network_type'),
                 env.DB.prepare(
-                    `SELECT COALESCE(device_type,'unknown') AS key, COUNT(*) AS count
-           FROM sessions
-           WHERE restaurant_id=? AND started_at BETWEEN ? AND ?
-           GROUP BY 1 ORDER BY count DESC`
-                ).bind(restaurantId, fromTs, toTs).all(),
-                env.DB.prepare(
-                    `SELECT COALESCE(os_name,'unknown') AS key, COUNT(*) AS count
-           FROM sessions
-           WHERE restaurant_id=? AND started_at BETWEEN ? AND ?
-           GROUP BY 1 ORDER BY count DESC`
-                ).bind(restaurantId, fromTs, toTs).all(),
-                env.DB.prepare(
-                    `SELECT COALESCE(browser,'unknown') AS key, COUNT(*) AS count
-           FROM sessions
-           WHERE restaurant_id=? AND started_at BETWEEN ? AND ?
-           GROUP BY 1 ORDER BY count DESC`
-                ).bind(restaurantId, fromTs, toTs).all(),
-                env.DB.prepare(
-                    `SELECT COALESCE(language_code,'unknown') AS key, COUNT(*) AS count
-           FROM sessions
-           WHERE restaurant_id=? AND started_at BETWEEN ? AND ?
-           GROUP BY 1 ORDER BY count DESC`
-                ).bind(restaurantId, fromTs, toTs).all(),
-                env.DB.prepare(
-                    `SELECT COALESCE(country,'unknown') AS key, COUNT(*) AS count
-           FROM sessions
-           WHERE restaurant_id=? AND started_at BETWEEN ? AND ?
-           GROUP BY 1 ORDER BY count DESC`
-                ).bind(restaurantId, fromTs, toTs).all(),
-                env.DB.prepare(
-                    `SELECT COALESCE(city,'unknown') AS key, COUNT(*) AS count
-           FROM sessions
-           WHERE restaurant_id=? AND started_at BETWEEN ? AND ?
-           GROUP BY 1 ORDER BY count DESC`
-                ).bind(restaurantId, fromTs, toTs).all(),
-                env.DB.prepare(
-                    `SELECT COALESCE(network_type,'unknown') AS key, COUNT(*) AS count
-           FROM sessions
-           WHERE restaurant_id=? AND started_at BETWEEN ? AND ?
-           GROUP BY 1 ORDER BY count DESC`
-                ).bind(restaurantId, fromTs, toTs).all(),
-                env.DB.prepare(
-                    `SELECT 
-             SUM(CASE WHEN pwa_installed=1 THEN 1 ELSE 0 END) AS installed,
-             COUNT(*) AS total
-           FROM sessions
-           WHERE restaurant_id=? AND started_at BETWEEN ? AND ?`
+                    `SELECT
+                       SUM(CASE WHEN s.pwa_installed=1 THEN 1 ELSE 0 END) AS installed,
+                       COUNT(*) AS total
+                     FROM sessions s
+                     WHERE s.restaurant_id=? AND s.started_at BETWEEN ? AND ? ${SESSION_FILTER}`
                 ).bind(restaurantId, fromTs, toTs).first(),
             ]);
             // 6) Tráfico por hora
+            // ✅ FIX: agrupaba por hora UTC, así que un restaurante en España veía su
+            // hora punta desplazada 1-2 h según la estación ("mi pico es a las 21h, no
+            // a las 19h"). Ahora se convierte a la hora local del visitante usando el
+            // offset que manda el cliente. Las sesiones antiguas guardaron ahí un
+            // string IANA que castea a 0, así que se comportan como UTC igual que antes.
             const byHour = await env.DB.prepare(
-                `SELECT strftime('%H', started_at) AS hour, COUNT(*) AS sessions
-         FROM sessions
-         WHERE restaurant_id=? AND started_at BETWEEN ? AND ?
-         GROUP BY hour ORDER BY hour ASC`
+                `SELECT strftime('%H', datetime(s.started_at,
+                            printf('%+d minutes', COALESCE(CAST(s.timezone_offset AS INTEGER), 0)))) AS hour,
+                        COUNT(*) AS sessions
+                 FROM sessions s
+                 WHERE s.restaurant_id=? AND s.started_at BETWEEN ? AND ? ${SESSION_FILTER}
+                 GROUP BY hour ORDER BY hour ASC`
             ).bind(restaurantId, fromTs, toTs).all();
-            // 7) Flujos (entry_exit_flows)
+            // 7) Flujos entre entidades.
+            // `entry_exit_flows` nunca ha tenido una sola escritura (0 filas en
+            // producción, ni un INSERT en todo el repo), así que la consulta que
+            // había aquí devolvía siempre vacío. Se reconstruye a partir de los
+            // eventos reales: pares consecutivos de sección visitada dentro de una
+            // misma sesión, que es lo que el panel de flujo quería enseñar.
             const flows = await env.DB.prepare(
-                `SELECT from_entity_type, to_entity_type, 
-                SUM(count) AS count
-         FROM entry_exit_flows
-         WHERE restaurant_id=? AND date BETWEEN ? AND ?
-         GROUP BY from_entity_type, to_entity_type
-         ORDER BY count DESC
-         LIMIT ?`
-            ).bind(restaurantId, from, to, topN).all();
+                `WITH ordered AS (
+                    SELECT e.session_id, e.entity_id, e.created_at,
+                           LEAD(e.entity_id) OVER (PARTITION BY e.session_id ORDER BY e.created_at) AS next_entity
+                    FROM events e
+                    JOIN sessions s ON s.id = e.session_id
+                    WHERE e.restaurant_id = ? AND e.event_type = 'view_section'
+                      AND e.created_at BETWEEN ? AND ? ${SESSION_FILTER}
+                 )
+                 SELECT entity_id AS from_entity_id, next_entity AS to_entity_id,
+                        'section' AS from_entity_type, 'section' AS to_entity_type,
+                        COUNT(*) AS count
+                 FROM ordered
+                 WHERE next_entity IS NOT NULL AND next_entity <> entity_id
+                 GROUP BY 1, 2 ORDER BY count DESC LIMIT ?`
+            ).bind(restaurantId, fromTs, toTs, topN).all();
             // 8) Atribución por QR
             const qr = await env.DB.prepare(
                 `SELECT qc.id AS qr_code_id, qc.location,
@@ -356,9 +397,10 @@ export async function handleAnalyticsRequests(request, env) {
                     AVG(estimatedvalue) AS avg_cart_value,
                     SUM(totalitems) AS total_items_added,
                     AVG(totalitems) AS avg_items_per_cart
-                FROM cart_sessions
-                WHERE restaurantid = ? AND createdat BETWEEN ? AND ?`
-            ).bind(restaurantId, fromTs, toTs).first();
+                FROM cart_sessions cm
+                WHERE cm.restaurantid = ? AND cm.createdat BETWEEN ? AND ?
+                  AND cm.sessionid IN (SELECT s.id FROM sessions s WHERE s.restaurant_id = ? ${SESSION_FILTER})`
+            ).bind(restaurantId, fromTs, toTs, restaurantId).first();
             const cartMetrics = {
                 total_carts_created: cartMetricsRaw?.total_carts_created || 0,
                 total_carts_shown: cartMetricsRaw?.total_carts_active || 0, // Proxying active as shown
@@ -409,6 +451,21 @@ export async function handleAnalyticsRequests(request, env) {
                 trafficByHour: byHour.results ?? [],
                 flows: flows.results ?? [],
                 qrAttribution: qr.results ?? [],
+                // De dónde llega el tráfico: guidebook de un apartamento, TV del
+                // alojamiento, QR físico o acceso directo.
+                attribution: (attribution.results ?? []).map(r => ({
+                    source: r.source,
+                    sessions: Number(r.sessions ?? 0),
+                    apartments: Number(r.apartments ?? 0),
+                    with_cart: Number(r.with_cart ?? 0),
+                })),
+                topApartments: (topApartments.results ?? []).map(r => ({
+                    apartment_id: r.apartment_id,
+                    name: r.apartment_name ?? r.apartment_id,
+                    sessions: Number(r.sessions ?? 0),
+                    visitors: Number(r.visitors ?? 0),
+                    with_cart: Number(r.with_cart ?? 0),
+                })),
                 cartMetrics: cartMetrics ?? {
                     total_carts_created: 0,
                     total_carts_shown: 0,
@@ -513,18 +570,24 @@ export async function handleAnalyticsRequests(request, env) {
         try {
             // Fetch aggregated metrics from dish_daily_metrics + cart events
             const dishes = await env.DB.prepare(
-                `SELECT 
+                // ✅ FIX: `unique_viewers` se leía de dish_daily_metrics, columna que
+                // el tracking nunca escribe (siempre 0 en pantalla). Ahora se calcula
+                // de verdad contando sesiones distintas. Se han quitado
+                // reserve_clicks / call_clicks / directions_clicks: no existe ningún
+                // evento que las alimente, así que eran tres columnas de ceros.
+                // avg_dwell_seconds pasa de media-de-medias a media ponderada.
+                `SELECT
                     dm.dish_id,
                     COALESCE(SUM(dm.views), 0) as views,
-                    COALESCE(SUM(dm.unique_viewers), 0) as unique_viewers,
                     COALESCE(SUM(dm.favorites), 0) as favorites,
-                    COALESCE(AVG(dm.avg_view_duration), 0) as avg_dwell_seconds,
-                    COALESCE(SUM(dm.reserve_clicks), 0) as reserve_clicks,
-                    COALESCE(SUM(dm.call_clicks), 0) as call_clicks,
-                    COALESCE(SUM(dm.directions_clicks), 0) as directions_clicks,
-                    -- ✅ NEW: Cart additions from events
-                    (SELECT COUNT(*) FROM events e 
-                     WHERE e.entity_id = dm.dish_id 
+                    COALESCE(CAST(SUM(dm.total_view_time) AS REAL) / NULLIF(SUM(dm.views), 0), 0) as avg_dwell_seconds,
+                    (SELECT COUNT(DISTINCT e.session_id) FROM events e
+                     WHERE e.entity_id = dm.dish_id
+                     AND e.event_type = 'viewdish'
+                     AND e.restaurant_id = dm.restaurant_id
+                     AND DATE(e.created_at) BETWEEN ? AND ?) as unique_viewers,
+                    (SELECT COUNT(*) FROM events e
+                     WHERE e.entity_id = dm.dish_id
                      AND e.event_type = 'cart_item_added'
                      AND e.restaurant_id = dm.restaurant_id
                      AND DATE(e.created_at) BETWEEN ? AND ?) as cart_additions
@@ -532,7 +595,7 @@ export async function handleAnalyticsRequests(request, env) {
                 WHERE dm.restaurant_id = ? AND dm.date BETWEEN ? AND ?
                 GROUP BY dm.dish_id
                 ORDER BY views DESC`
-            ).bind(from, to, restaurantId, from, to).all();
+            ).bind(from, to, from, to, restaurantId, from, to).all();
             // Fetch names and images
             const results = await Promise.all((dishes.results ?? []).map(async (d) => {
                 const [nameRes, imageRes] = await Promise.all([
@@ -577,19 +640,25 @@ export async function handleAnalyticsRequests(request, env) {
         const from = (fromParam && fromParam !== "") ? fromParam : computeFrom(timeRange, now);
         try {
             const sections = await env.DB.prepare(
-                `SELECT 
+                // ✅ FIX: igual que en platos — `unique_viewers` nunca se escribe, así
+                // que se calcula desde events; y las medias se ponderan por vistas en
+                // vez de promediar medias diarias.
+                `SELECT
                     sm.section_id,
                     COALESCE(SUM(sm.views), 0) as views,
-                    COALESCE(SUM(sm.unique_viewers), 0) as unique_viewers,
                     COALESCE(SUM(sm.dish_views), 0) as dish_views,
-                    -- ✅ FIX: Leer la columna correcta que tiene los datos (avg_time_spent en vez de avg_dwell_seconds)
-                    COALESCE(AVG(sm.avg_time_spent), 0) as avg_dwell_seconds,
-                    COALESCE(AVG(sm.avg_scroll_depth), 0) as avg_scroll_depth
+                    COALESCE(SUM(sm.avg_time_spent * sm.views) / NULLIF(SUM(sm.views), 0), 0) as avg_dwell_seconds,
+                    COALESCE(SUM(sm.avg_scroll_depth * sm.views) / NULLIF(SUM(sm.views), 0), 0) as avg_scroll_depth,
+                    (SELECT COUNT(DISTINCT e.session_id) FROM events e
+                     WHERE e.entity_id = sm.section_id
+                     AND e.event_type = 'view_section'
+                     AND e.restaurant_id = sm.restaurant_id
+                     AND DATE(e.created_at) BETWEEN ? AND ?) as unique_viewers
                 FROM section_daily_metrics sm
                 WHERE sm.restaurant_id = ? AND sm.date BETWEEN ? AND ?
                 GROUP BY sm.section_id
                 ORDER BY views DESC`
-            ).bind(restaurantId, from, to).all();
+            ).bind(from, to, restaurantId, from, to).all();
             const results = await Promise.all((sections.results ?? []).map(async (s) => {
                 const nameRes = await env.DB.prepare(
                     `SELECT value FROM translations 
@@ -634,20 +703,21 @@ export async function handleAnalyticsRequests(request, env) {
                 `SELECT 
                     s.id, s.started_at, s.duration_seconds, s.device_type, s.os_name, s.browser, s.country, s.city,
                     s.visit_count, s.visitor_id, s.language_code, s.referrer, s.pwa_installed,
+                    s.referral_source, s.referral_apartment_id,
                     u.display_name as user_name,
                     cs.totalitems as cart_items,
                     cs.estimatedvalue as cart_value
                 FROM sessions s
                 LEFT JOIN users u ON s.user_id = u.id
                 LEFT JOIN cart_sessions cs ON s.id = cs.sessionid
-                WHERE s.restaurant_id = ? AND s.started_at BETWEEN ? AND ?
+                WHERE s.restaurant_id = ? AND s.started_at BETWEEN ? AND ? ${SESSION_FILTER}
                 ORDER BY s.started_at DESC
                 LIMIT ? OFFSET ?`
             ).bind(restaurantId, fromTs, toTs, limit, offset).all();
             // Get total count for pagination
             const total = await env.DB.prepare(
-                `SELECT COUNT(*) as count FROM sessions 
-                 WHERE restaurant_id = ? AND started_at BETWEEN ? AND ?`
+                `SELECT COUNT(*) as count FROM sessions s
+                 WHERE s.restaurant_id = ? AND s.started_at BETWEEN ? AND ? ${SESSION_FILTER}`
             ).bind(restaurantId, fromTs, toTs).first();
             // Enrich with event summaries
             const enrichedSessions = await Promise.all((sessions.results ?? []).map(async (s) => {

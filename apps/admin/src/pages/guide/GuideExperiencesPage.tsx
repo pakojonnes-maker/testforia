@@ -42,6 +42,12 @@ interface Experience {
   commission_type?: string;
   commission_value?: number;
   cover_image_url: string;
+  address?: string;
+  phone?: string;
+  website_url?: string;
+  booking_url?: string;
+  duration_text?: string;
+  opening_hours?: string;
   is_featured: boolean;
   is_active: boolean;
   order_index: number;
@@ -462,6 +468,26 @@ export default function GuideExperiencesPage() {
                 <TextField fullWidth size="small" multiline rows={2} label="Mensaje Predefinido WhatsApp" value={formData.action_prefilled_message || ''} onChange={e => setFormData({...formData, action_prefilled_message: e.target.value})} />
               </Grid>
             )}
+
+            {/* Practical info */}
+            <Grid item xs={12} md={8}>
+              <TextField fullWidth size="small" label="Dirección" value={formData.address || ''} onChange={e => setFormData({...formData, address: e.target.value})} />
+            </Grid>
+            <Grid item xs={12} md={4}>
+              <TextField fullWidth size="small" label="Teléfono" value={formData.phone || ''} onChange={e => setFormData({...formData, phone: e.target.value})} />
+            </Grid>
+            <Grid item xs={12} md={4}>
+              <TextField fullWidth size="small" label="Web oficial" value={formData.website_url || ''} onChange={e => setFormData({...formData, website_url: e.target.value})} />
+            </Grid>
+            <Grid item xs={12} md={4}>
+              <TextField fullWidth size="small" label="URL de reserva (si difiere de Action Data)" value={formData.booking_url || ''} onChange={e => setFormData({...formData, booking_url: e.target.value})} />
+            </Grid>
+            <Grid item xs={12} md={4}>
+              <TextField fullWidth size="small" label="Duración (ej. 1-2 h)" value={formData.duration_text || ''} onChange={e => setFormData({...formData, duration_text: e.target.value})} />
+            </Grid>
+            <Grid item xs={12}>
+              <TextField fullWidth size="small" label="Horario (texto libre)" value={formData.opening_hours || ''} onChange={e => setFormData({...formData, opening_hours: e.target.value})} />
+            </Grid>
 
             {/* Pricing & Badges */}
             <Grid item xs={12} md={4}>

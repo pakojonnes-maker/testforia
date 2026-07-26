@@ -33,7 +33,13 @@ export async function fetchTvConfig(pairingCode: string, lang = 'es'): Promise<G
 export type TvEventType = 'impression' | 'screen_view' | 'wifi_reveal' | 'poi_select' | 'menu_qr_shown' | 'booking_qr_shown'
 
 // POST /guide/tv/track — KPIs de la pantalla TV. Best-effort, no bloquea la UI.
-export async function trackTvEvent(pairingCode: string, eventType: TvEventType, extra?: { screen?: string; lang?: string }) {
+// `targetId` identifica QUÉ se seleccionó (p.ej. el POI en un 'poi_select');
+// `tvSessionId` agrupa los eventos de un mismo uso de la pantalla.
+export async function trackTvEvent(
+  pairingCode: string,
+  eventType: TvEventType,
+  extra?: { screen?: string; lang?: string; targetId?: string; tvSessionId?: string }
+) {
   try {
     await fetch(`${API_URL}/guide/tv/track`, {
       method: 'POST',

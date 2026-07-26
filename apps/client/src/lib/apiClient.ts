@@ -101,8 +101,16 @@ export const apiClient = {
       networktype?: string;
       ispwa?: boolean;
       languages?: string;
-      timezone?: string;
+      /** Minutos de offset respecto a UTC (no el identificador IANA). */
+      timezone?: number;
       visitorId?: string;
+      qrcode?: string;
+      /** Consentimiento analítico explícito del visitante. */
+      consentAnalytics?: boolean;
+      /** Atribución cruzada: 'guide' | 'tv' | 'qr' | undefined (directo). */
+      referralSource?: string;
+      referralApartmentId?: string;
+      referralSessionId?: string;
     }) {
       console.log('🚀 [apiClient.tracking] Iniciando sesión:', sessionData);
 

@@ -1,7 +1,9 @@
 // src/pages/GuidebookPage.tsx — Guest-facing guidebook
 import { useState, useEffect, useRef } from 'react';
 import { useParams } from 'react-router-dom';
-import { fetchGuidebook, trackSessionStart, trackSessionEnd, trackIntent, trackSectionView } from '../lib/api';
+import { fetchGuidebook, trackSessionStart, trackSessionEnd, trackIntent, trackSectionView, buildMenuUrl } from '../lib/api';
+
+const MENU_URL = import.meta.env.VITE_MENU_URL || 'https://menu.visualtastes.com';
 
 import WelcomeHero from '../components/WelcomeHero';
 import Header from '../components/Header';
@@ -58,6 +60,10 @@ export default function GuidebookPage() {
   const [activeTab, setActiveTab] = useState<TabKey>('info');
   const [showWelcome, setShowWelcome] = useState(false);
   const sessionIdRef = useRef<string | null>(null);
+  // Espejo de `lang` para que el efecto de sesión pueda leer el idioma actual sin
+  // declararlo como dependencia (cambiar de idioma no debe reiniciar la sesión).
+  const langRef = useRef(lang);
+  langRef.current = lang;
   const welcomeShownRef = useRef(false);
 
   // Fetch guidebook data
@@ -104,28 +110,46 @@ export default function GuidebookPage() {
   }, [data?.agency]);
 
   // Track session
+  //
+  // Dos bugs corregidos aquí:
+  //  1. El efecto dependía de `lang`, así que cada cambio de idioma abría una
+  //     sesión NUEVA. En un guidebook multi-idioma el huésped cambia de idioma
+  //     casi siempre: en producción un mismo dispositivo acumulaba 17 sesiones
+  //     en 2 días con 3 idiomas. Ahora depende solo del apartamento.
+  //  2. El listener de `visibilitychange` era una función anónima que el cleanup
+  //     nunca eliminaba, así que se acumulaba uno por cada re-ejecución del
+  //     efecto y disparaba N llamadas a session/end por cada ocultación.
   useEffect(() => {
-    if (!data?.apartment?.id) return;
+    const apartmentId = data?.apartment?.id;
+    if (!apartmentId) return;
 
-    trackSessionStart(data.apartment.id, lang).then(res => {
-      if (res?.sessionId) sessionIdRef.current = res.sessionId;
+    let cancelled = false;
+    const startedAt = Date.now();
+    const elapsedSeconds = () => Math.round((Date.now() - startedAt) / 1000);
+
+    trackSessionStart(apartmentId, langRef.current).then(res => {
+      if (!cancelled && res?.sessionId) sessionIdRef.current = res.sessionId;
     });
 
-    const handleUnload = () => {
-      if (sessionIdRef.current) trackSessionEnd(sessionIdRef.current);
+    const endSession = () => {
+      if (sessionIdRef.current) trackSessionEnd(sessionIdRef.current, elapsedSeconds());
     };
-    window.addEventListener('beforeunload', handleUnload);
-    document.addEventListener('visibilitychange', () => {
-      if (document.visibilityState === 'hidden' && sessionIdRef.current) {
-        trackSessionEnd(sessionIdRef.current);
-      }
-    });
+    const handleVisibility = () => {
+      if (document.visibilityState === 'hidden') endSession();
+    };
+
+    window.addEventListener('beforeunload', endSession);
+    window.addEventListener('pagehide', endSession);
+    document.addEventListener('visibilitychange', handleVisibility);
 
     return () => {
-      window.removeEventListener('beforeunload', handleUnload);
-      if (sessionIdRef.current) trackSessionEnd(sessionIdRef.current);
+      cancelled = true;
+      window.removeEventListener('beforeunload', endSession);
+      window.removeEventListener('pagehide', endSession);
+      document.removeEventListener('visibilitychange', handleVisibility);
+      endSession();
     };
-  }, [data?.apartment?.id, lang]);
+  }, [data?.apartment?.id]);
 
   // Track section view when tab changes
   useEffect(() => {
@@ -207,13 +231,15 @@ export default function GuidebookPage() {
         )}
 
         {activeTab === 'discover' && (
-          <DiscoverSection 
+          <DiscoverSection
             pois={pois}
             restaurants={restaurants}
-            zoneName={zone.name} 
-            zoneDescription={zone.description} 
-            lang={lang} 
-            onIntent={(type, id, action) => logIntent(type, id, action)} 
+            zoneName={zone.name}
+            zoneDescription={zone.description}
+            lang={lang}
+            onIntent={(type, id, action) => logIntent(type, id, action)}
+            buildRestaurantUrl={(restaurantSlug) =>
+              buildMenuUrl(MENU_URL, restaurantSlug, apartment.id, sessionIdRef.current)}
           />
         )}
 
