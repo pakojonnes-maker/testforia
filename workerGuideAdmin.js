@@ -1475,18 +1475,22 @@ async function addPoiMedia(env, poiId, request) {
         const existingCount = await env.DB.prepare(
             'SELECT COUNT(*) as c FROM guide_poi_media WHERE poi_id = ?'
         ).bind(poiId).first();
-        // First photo for a POI becomes its PRIMARY_IMAGE (what the public
-        // guide picks up as the card cover); later uploads join the gallery.
-        const role = existingCount?.c > 0 ? 'GALLERY_IMAGE' : 'PRIMARY_IMAGE';
+
+        // Every upload becomes the new PRIMARY_IMAGE (what the public guide
+        // picks up as the card cover). Any previous primary is demoted to
+        // the gallery instead of being left as a stale, still-visible cover.
+        await env.DB.prepare(
+            `UPDATE guide_poi_media SET role = 'GALLERY_IMAGE' WHERE poi_id = ? AND role = 'PRIMARY_IMAGE'`
+        ).bind(poiId).run();
 
         const id = generateId('pm');
         await env.DB.prepare(`
             INSERT INTO guide_poi_media (id, poi_id, r2_key, media_type, role, order_index)
-            VALUES (?, ?, ?, 'image', ?, ?)
-        `).bind(id, poiId, r2Key, role, existingCount?.c || 0).run();
+            VALUES (?, ?, ?, 'image', 'PRIMARY_IMAGE', ?)
+        `).bind(id, poiId, r2Key, existingCount?.c || 0).run();
 
         const origin = new URL(request.url).origin;
-        return jsonResponse({ success: true, id, r2_key: r2Key, url: `${origin}/media/${r2Key}`, role });
+        return jsonResponse({ success: true, id, r2_key: r2Key, url: `${origin}/media/${r2Key}`, role: 'PRIMARY_IMAGE' });
     } catch (err) {
         return errorResponse('Upload failed: ' + err.message, 500);
     }
