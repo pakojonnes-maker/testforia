@@ -36,6 +36,11 @@ out/
 .env.*
 .env.local
 
+# Bóveda de secretos. Vive en %USERPROFILE%\.visualtaste\ (fuera del repo),
+# pero se ignora también aquí por si alguna vez se copia a mano. Ver SECRETS.md.
+.visualtaste/
+secrets.env
+
 # SO/editores
 .DS_Store
 Thumbs.db
@@ -45,8 +50,18 @@ Thumbs.db
 # Wrangler (Cloudflare local state)
 .wrangler/
 
-# SQL temporales y scripts de migración
+# SQL temporal suelto en la raíz (dumps, pruebas, scratch)
 *.sql
+
+# ...pero las migraciones SÍ son código vivo y deben viajar con el repo.
+# CLAUDE.md las lista junto a worker*.js y apps/* como fuente de verdad, y sin
+# ellas un clon nuevo no puede reconstruir el esquema de D1.
+!migrations/
+!migrations/*.sql
+
+# El esquema de referencia también se versiona (se regenera con
+# `npx wrangler d1 export restaurant-menu-saas --remote --no-data`).
+!BDschemaFinal.sql
 
 # Scripts de generación temporal
 generate_hash*.js
