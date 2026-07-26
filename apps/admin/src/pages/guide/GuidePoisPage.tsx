@@ -215,11 +215,19 @@ export default function GuidePoisPage() {
     const file = event.target.files?.[0];
     if (!file) return;
 
+    if (!editingPoi?.id) {
+      alert('Guarda el POI antes de subir una foto.');
+      event.target.value = '';
+      return;
+    }
+
     try {
       const fd = new FormData();
       fd.append('file', file);
       const token = localStorage.getItem('auth_token') || '';
-      const uploadRes = await fetch(`${import.meta.env.VITE_API_URL || 'https://visualtasteworker.franciscotortosaestudios.workers.dev'}/media/upload`, {
+      // guide_poi_media (no dish_id: los POIs del guidebook son una entidad
+      // aparte de los platos, no comparten /media/upload con el restaurante).
+      const uploadRes = await fetch(`${import.meta.env.VITE_API_URL || 'https://visualtasteworker.franciscotortosaestudios.workers.dev'}/guide/admin/pois/${editingPoi.id}/media`, {
         method: 'POST',
         headers: { 'Authorization': `Bearer ${token}` },
         body: fd
@@ -228,7 +236,7 @@ export default function GuidePoisPage() {
       if (data.success && data.url) {
         setFormData({ ...formData, cover_image_url: data.url });
       } else {
-        throw new Error(data.message);
+        throw new Error(data.message || data.error);
       }
     } catch (err: any) {
       alert(err.message || 'Error al subir imagen');
@@ -462,10 +470,15 @@ export default function GuidePoisPage() {
             <Grid item xs={12}>
               <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
                 {formData.cover_image_url && <img src={formData.cover_image_url} alt="POI" style={{ height: 60, borderRadius: 4 }} />}
-                <Button variant="outlined" component="label" startIcon={<UploadIcon />}>
+                <Button variant="outlined" component="label" startIcon={<UploadIcon />} disabled={!editingPoi?.id}>
                   Subir Imagen
                   <input type="file" hidden accept="image/*" onChange={handleImageUpload} />
                 </Button>
+                {!editingPoi?.id && (
+                  <Typography variant="caption" color="text.secondary">
+                    Guarda el POI primero para poder subir una foto
+                  </Typography>
+                )}
               </Box>
             </Grid>
           </Grid>

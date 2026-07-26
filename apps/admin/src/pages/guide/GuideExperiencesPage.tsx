@@ -209,11 +209,19 @@ export default function GuideExperiencesPage() {
     const file = event.target.files?.[0];
     if (!file) return;
 
+    if (!editingExp?.id) {
+      alert('Guarda la experiencia antes de subir una foto.');
+      event.target.value = '';
+      return;
+    }
+
     try {
       const fd = new FormData();
       fd.append('file', file);
       const token = localStorage.getItem('auth_token') || '';
-      const uploadRes = await fetch(`${import.meta.env.VITE_API_URL || 'https://visualtasteworker.franciscotortosaestudios.workers.dev'}/media/upload`, {
+      // Experiencias viven en guide_pois (is_bookable=1) desde la unificación
+      // de esquema, así que reutilizan el mismo endpoint de subida que los POIs.
+      const uploadRes = await fetch(`${import.meta.env.VITE_API_URL || 'https://visualtasteworker.franciscotortosaestudios.workers.dev'}/guide/admin/pois/${editingExp.id}/media`, {
         method: 'POST',
         headers: { 'Authorization': `Bearer ${token}` },
         body: fd
@@ -222,7 +230,7 @@ export default function GuideExperiencesPage() {
       if (data.success && data.url) {
         setFormData({ ...formData, cover_image_url: data.url });
       } else {
-        throw new Error(data.message);
+        throw new Error(data.message || data.error);
       }
     } catch (err: any) {
       alert(err.message || 'Error al subir imagen');
@@ -531,10 +539,15 @@ export default function GuideExperiencesPage() {
             <Grid item xs={12}>
               <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 2 }}>
                 {formData.cover_image_url && <img src={formData.cover_image_url} alt="Cover" style={{ height: 60, borderRadius: 4 }} />}
-                <Button variant="outlined" component="label" startIcon={<UploadIcon />}>
+                <Button variant="outlined" component="label" startIcon={<UploadIcon />} disabled={!editingExp?.id}>
                   Subir Imagen Portada
                   <input type="file" hidden accept="image/*" onChange={handleImageUpload} />
                 </Button>
+                {!editingExp?.id && (
+                  <Typography variant="caption" color="text.secondary">
+                    Guarda la experiencia primero para poder subir una foto
+                  </Typography>
+                )}
               </Box>
               <Box sx={{ display: 'flex', gap: 4 }}>
                 <FormControlLabel control={<Switch checked={formData.is_active || false} onChange={e => setFormData({...formData, is_active: e.target.checked})} />} label="Activo" />

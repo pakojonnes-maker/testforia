@@ -1472,13 +1472,21 @@ async function addPoiMedia(env, poiId, request) {
             httpMetadata: { contentType: file.type }
         });
 
+        const existingCount = await env.DB.prepare(
+            'SELECT COUNT(*) as c FROM guide_poi_media WHERE poi_id = ?'
+        ).bind(poiId).first();
+        // First photo for a POI becomes its PRIMARY_IMAGE (what the public
+        // guide picks up as the card cover); later uploads join the gallery.
+        const role = existingCount?.c > 0 ? 'GALLERY_IMAGE' : 'PRIMARY_IMAGE';
+
         const id = generateId('pm');
         await env.DB.prepare(`
-            INSERT INTO guide_poi_media (id, poi_id, r2_key, media_type)
-            VALUES (?, ?, ?, 'image')
-        `).bind(id, poiId, r2Key).run();
+            INSERT INTO guide_poi_media (id, poi_id, r2_key, media_type, role, order_index)
+            VALUES (?, ?, ?, 'image', ?, ?)
+        `).bind(id, poiId, r2Key, role, existingCount?.c || 0).run();
 
-        return jsonResponse({ success: true, id, r2_key: r2Key });
+        const origin = new URL(request.url).origin;
+        return jsonResponse({ success: true, id, r2_key: r2Key, url: `${origin}/media/${r2Key}`, role });
     } catch (err) {
         return errorResponse('Upload failed: ' + err.message, 500);
     }
