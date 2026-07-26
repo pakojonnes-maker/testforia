@@ -2,14 +2,15 @@
 -- BDschemaFinal.sql — ESQUEMA REAL DE PRODUCCION
 -- =====================================================
 -- Base de datos D1: restaurant-menu-saas (7e8d1efe-2a54-4849-9a06-4c47152392bd)
--- Exportado el 2026-07-26 desde la BD en produccion. 78 tablas, 81 indices.
+-- Exportado el 2026-07-26 desde la BD en produccion. 77 tablas.
 --
 -- NO editar a mano. Para regenerar:
 --   npx wrangler d1 export restaurant-menu-saas --remote --no-data --output BDschemaFinal.sql
 --
--- La version anterior de este archivo estaba 24 tablas por detras (le faltaba
--- todo el guidebook, TV, loyalty y delivery, y conservaba 3 tablas ya borradas
--- en la migracion 0057).
+-- Historial: la version anterior a este cambio estaba 24 tablas por detras
+-- del real (le faltaba todo el guidebook, TV, loyalty y delivery, y conservaba
+-- 3 tablas ya borradas en la migracion 0057). Mantener este archivo actualizado
+-- tras cada migracion que se aplique con --remote.
 -- =====================================================
 
 PRAGMA defer_foreign_keys=TRUE;
@@ -934,24 +935,6 @@ CREATE TABLE guide_poi_media (
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   FOREIGN KEY (poi_id) REFERENCES guide_pois(id) ON DELETE CASCADE
 );
-CREATE TABLE guide_experiences (
-  id TEXT PRIMARY KEY,
-  zone_id TEXT NOT NULL,
-  category TEXT NOT NULL,
-  action_type TEXT NOT NULL CHECK(action_type IN ('URL', 'WHATSAPP', 'PHONE', 'COUPON', 'IN_APP')),
-  action_data TEXT NOT NULL,
-  action_prefilled_message TEXT,
-  commission_type TEXT CHECK(commission_type IN ('percentage', 'fixed', 'none')),
-  commission_value REAL DEFAULT 0,
-  price_display TEXT,
-  cover_image_url TEXT,
-  order_index INTEGER DEFAULT 0,
-  is_featured BOOLEAN DEFAULT FALSE,
-  is_active BOOLEAN DEFAULT TRUE,
-  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-  modified_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, service_subcategory TEXT, discount_display TEXT, original_price_display TEXT, badge_type TEXT CHECK(badge_type IN ('discount', 'courtesy', 'exclusive', 'new')),
-  FOREIGN KEY (zone_id) REFERENCES guide_zones(id)
-);
 CREATE TABLE guide_zone_restaurants (
   zone_id TEXT NOT NULL,
   restaurant_id TEXT NOT NULL,
@@ -1191,7 +1174,6 @@ CREATE INDEX idx_guide_apartments_zone ON guide_apartments(zone_id, is_active);
 CREATE INDEX idx_guide_apartments_agency ON guide_apartments(agency_id);
 CREATE INDEX idx_guide_apartments_slug ON guide_apartments(slug);
 CREATE INDEX idx_guide_pois_zone ON guide_pois(zone_id, is_active, order_index);
-CREATE INDEX idx_guide_experiences_zone ON guide_experiences(zone_id, is_active, order_index);
 CREATE INDEX idx_guide_zone_rest_zone ON guide_zone_restaurants(zone_id, is_active);
 CREATE INDEX idx_guide_zone_rest_tier ON guide_zone_restaurants(zone_id, tier, is_active);
 CREATE INDEX idx_guide_intents_apartment ON guide_affiliate_intents(apartment_id, created_at);

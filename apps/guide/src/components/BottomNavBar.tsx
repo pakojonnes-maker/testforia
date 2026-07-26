@@ -14,33 +14,53 @@ export default function BottomNavBar({ activeTab, onTabChange, lang }: BottomNav
     { id: 'info', icon: 'home', label: getTranslation('tab_info', lang), fill: true },
     { id: 'discover', icon: 'location_on', label: getTranslation('tab_discover', lang) },
     { id: 'services', icon: 'sell', label: getTranslation('tab_services', lang) },
-    { id: 'chat', icon: 'spark', label: getTranslation('tab_chat', lang) }
   ];
+  const isChatActive = activeTab === 'chat';
 
   return (
-    <nav className="md:hidden bg-crisp-white dark:bg-inverse-surface fixed bottom-0 left-0 w-full z-50 rounded-t-xl shadow-[0px_-4px_20px_rgba(201,109,75,0.08)] flex justify-around items-center py-3 px-4">
+    <nav className="md:hidden bg-crisp-white dark:bg-inverse-surface fixed bottom-0 left-0 w-full z-50 rounded-t-xl shadow-[0px_-4px_20px_rgba(201,109,75,0.08)] grid grid-cols-4 items-center py-3 px-1">
       {tabs.map(tab => {
         const isActive = activeTab === tab.id;
-        
+
         return (
           <button
             key={tab.id}
             onClick={() => onTabChange(tab.id)}
-            className={isActive 
-              ? "flex flex-col items-center justify-center text-terracotta dark:text-primary-fixed font-bold bg-primary-fixed/20 rounded-xl px-3 py-1 scale-90 transition-transform"
-              : "flex flex-col items-center justify-center text-on-surface-variant dark:text-surface-variant hover:bg-warm-sand dark:hover:bg-tertiary-container/30 px-3 py-1 rounded-xl transition-colors"
+            className={isActive
+              ? "flex flex-col items-center justify-center gap-0.5 mx-auto text-terracotta dark:text-primary-fixed font-bold bg-primary-fixed/20 rounded-xl px-2 py-1 max-w-full scale-90 transition-transform"
+              : "flex flex-col items-center justify-center gap-0.5 mx-auto text-on-surface-variant dark:text-surface-variant hover:bg-warm-sand dark:hover:bg-tertiary-container/30 rounded-xl px-2 py-1 max-w-full transition-colors"
             }
           >
-            <span 
-              className="material-symbols-outlined" 
+            <span
+              className="material-symbols-outlined"
               style={isActive && tab.fill ? { fontVariationSettings: "'FILL' 1" } : {}}
             >
               {tab.icon}
             </span>
-            <span className="text-label-sm font-label-sm mt-1">{tab.label}</span>
+            <span className="text-label-sm font-label-sm leading-tight text-center truncate max-w-full">{tab.label}</span>
           </button>
         );
       })}
+
+      {/* AI chat: raised, always-highlighted button so it reads as the standout action, not a regular tab */}
+      <button
+        onClick={() => onTabChange('chat')}
+        aria-label={getTranslation('tab_chat', lang)}
+        className="flex flex-col items-center justify-center gap-0.5 mx-auto -mt-7 group"
+      >
+        <span
+          className={`flex items-center justify-center w-14 h-14 rounded-full bg-gradient-to-br from-terracotta to-olive shadow-[0_4px_16px_rgba(201,109,75,0.45)] transition-transform group-active:scale-95 ${
+            isChatActive ? 'ring-4 ring-terracotta/25' : ''
+          }`}
+        >
+          <span className="material-symbols-outlined text-crisp-white text-[26px]" style={{ fontVariationSettings: "'FILL' 1" }}>
+            auto_awesome
+          </span>
+        </span>
+        <span className={`text-label-sm font-label-sm leading-tight text-center truncate max-w-full ${isChatActive ? 'text-terracotta font-bold' : 'text-on-surface-variant dark:text-surface-variant'}`}>
+          {getTranslation('tab_chat', lang)}
+        </span>
+      </button>
     </nav>
   );
 }

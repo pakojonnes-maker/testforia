@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { getTranslation } from '../lib/i18n';
 import MapModal from './MapModal';
+import PoiDetailModal, { PoiDetailItem } from './PoiDetailModal';
 
 interface POI {
   id: string;
@@ -41,7 +42,15 @@ export default function DiscoverSection({ pois, restaurants = [], zoneName, zone
   const ALL_FILTER = 'todos';
   const [activeFilter, setActiveFilter] = useState<string>(ALL_FILTER);
   const [showMap, setShowMap] = useState(false);
+  const [mapPois, setMapPois] = useState<POI[] | null>(null);
+  const [selectedItem, setSelectedItem] = useState<PoiDetailItem | null>(null);
   const categoryRestaurants = getTranslation('category_restaurants', lang);
+
+  const openMapFor = (poisToShow: POI[] | null) => {
+    setMapPois(poisToShow);
+    setSelectedItem(null);
+    setShowMap(true);
+  };
 
   // Combine POIs and Restaurants for the unified view
   const combinedItems = [
@@ -54,13 +63,15 @@ export default function DiscoverSection({ pois, restaurants = [], zoneName, zone
       // al menú del restaurante llevaba a una página en blanco. Ahora apunta al
       // menú real y lleva incrustada la atribución al apartamento de origen.
       url: r.slug ? buildRestaurantUrl(r.slug) : undefined,
-      tier: r.tier, rating: undefined, travel_time_text: undefined, travel_mode: undefined, distance_text: undefined
+      tier: r.tier, rating: undefined, travel_time_text: undefined, travel_mode: undefined, distance_text: undefined,
+      latitude: undefined, longitude: undefined,
     })),
     ...pois.map(p => ({
       id: p.id, type: 'poi' as const, name: p.name,
       description: p.description, category: p.category,
       image: p.media?.[0]?.url, url: p.google_maps_url, tier: '',
-      rating: p.rating, travel_time_text: p.travel_time_text, travel_mode: p.travel_mode, distance_text: p.distance_text
+      rating: p.rating, travel_time_text: p.travel_time_text, travel_mode: p.travel_mode, distance_text: p.distance_text,
+      latitude: p.latitude, longitude: p.longitude,
     }))
   ];
 
@@ -144,14 +155,18 @@ export default function DiscoverSection({ pois, restaurants = [], zoneName, zone
                     ) : (
                       <div />
                     )}
-                    <button 
+                    <button
                       onClick={() => {
-                        if (item.type === 'restaurant') onIntent('restaurant', item.id, 'click_menu');
-                        if (item.url) window.open(item.url, '_blank');
+                        if (item.type === 'restaurant') {
+                          onIntent('restaurant', item.id, 'click_menu');
+                          if (item.url) window.open(item.url, '_blank');
+                        } else {
+                          setSelectedItem(item);
+                        }
                       }}
                       className="text-terracotta font-label-lg text-label-lg flex items-center gap-1 hover:text-primary-container transition-colors group/btn"
                     >
-                      {item.type === 'restaurant' ? getTranslation('view_menu', lang) : getTranslation('view_map', lang)}
+                      {item.type === 'restaurant' ? getTranslation('view_menu', lang) : getTranslation('view_details', lang)}
                       <span className="material-symbols-outlined text-sm group-hover/btn:translate-x-1 transition-transform">arrow_forward</span>
                     </button>
                   </div>
@@ -190,10 +205,14 @@ export default function DiscoverSection({ pois, restaurants = [], zoneName, zone
                 )}
 
                 <div className="mt-auto pt-3">
-                  <button 
+                  <button
                     onClick={() => {
-                      if (item.type === 'restaurant') onIntent('restaurant', item.id, 'click_menu');
-                      if (item.url) window.open(item.url, '_blank');
+                      if (item.type === 'restaurant') {
+                        onIntent('restaurant', item.id, 'click_menu');
+                        if (item.url) window.open(item.url, '_blank');
+                      } else {
+                        setSelectedItem(item);
+                      }
                     }}
                     className="w-full py-2 rounded-lg border border-deep-sea text-deep-sea font-label-lg text-label-lg hover:bg-deep-sea hover:text-crisp-white transition-colors text-center"
                   >
@@ -212,13 +231,32 @@ export default function DiscoverSection({ pois, restaurants = [], zoneName, zone
           <h3 className="text-headline-md font-headline-md text-deep-sea font-semibold">{getTranslation('prefer_map_title', lang)}</h3>
           <p className="text-body-md font-body-md text-on-surface-variant">{getTranslation('prefer_map_desc', lang)}</p>
         </div>
-        <button onClick={() => setShowMap(true)} className="bg-terracotta text-crisp-white px-6 py-3 rounded-lg font-label-lg text-label-lg hover:bg-primary transition-colors flex items-center gap-2 whitespace-nowrap w-full md:w-auto justify-center shadow-sm">
+        <button onClick={() => openMapFor(null)} className="bg-terracotta text-crisp-white px-6 py-3 rounded-lg font-label-lg text-label-lg hover:bg-primary transition-colors flex items-center gap-2 whitespace-nowrap w-full md:w-auto justify-center shadow-sm">
           <span className="material-symbols-outlined">map</span>
           {getTranslation('open_interactive_map', lang)}
         </button>
       </section>
 
-      {showMap && <MapModal pois={pois} onClose={() => setShowMap(false)} zoneName={zoneName} lang={lang} />}
+      {showMap && (
+        <MapModal
+          pois={mapPois ?? pois}
+          onClose={() => { setShowMap(false); setMapPois(null); }}
+          zoneName={zoneName}
+          lang={lang}
+        />
+      )}
+
+      {selectedItem && (
+        <PoiDetailModal
+          item={selectedItem}
+          lang={lang}
+          onClose={() => setSelectedItem(null)}
+          onOpenMap={() => {
+            const fullPoi = pois.find(p => p.id === selectedItem.id);
+            openMapFor(fullPoi ? [fullPoi] : null);
+          }}
+        />
+      )}
     </div>
   );
 }
