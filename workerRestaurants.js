@@ -1,8 +1,29 @@
-import { hashPassword, generateSecurePassword } from './workerAuthentication.js';
+import { createInvitation } from './workerAuthentication.js';
+import { requireRole } from './workerAuthz.js';
+import { sendEmail, invitationEmailHtml } from './workerEmail.js';
+import { logSecurityEvent } from './workerAudit.js';
+
+/**
+ * URL del enlace de invitación/reset que verá el destinatario. Apunta al
+ * admin (Pages), no al worker: es ahí donde vive la pantalla que pide la
+ * contraseña nueva.
+ */
+function buildInviteUrl(env, token) {
+    const base = env.ADMIN_URL || 'https://admin.visualtastes.com';
+    return `${base}/accept-invite?token=${token}`;
+}
 // ===========================================================================
 // MAIN HANDLER
 // ===========================================================================
-export async function handleRestaurantRequests(request, env) {
+/**
+ * @param {Request} request
+ * @param {Object} env
+ * @param {Object|null} access - acceso al tenant ya resuelto por el guardia
+ *        central de worker.js: { allowed, restaurantId, role, isSuperAdmin }
+ * @param {Object|null} userData - identidad del actor (JWT verificado), para
+ *        invited_by y el log de auditoría
+ */
+export async function handleRestaurantRequests(request, env, access = null, userData = null) {
     const url = new URL(request.url);
     const pathname = url.pathname;
     const method = request.method;
@@ -35,26 +56,28 @@ export async function handleRestaurantRequests(request, env) {
     // ============================================
     // USERS ENDPOINTS
     // ============================================
+    // Gestión de staff: el guardia central ya garantiza pertenencia al
+    // restaurante; aquí elevamos a 'owner' porque son operaciones que crean,
+    // borran o resetean credenciales de otras personas.
+    if (pathname.match(/^\/restaurants\/[^/]+\/users(\/|$)/)) {
+        const denial = requireRole(access, 'owner');
+        if (denial) {
+            return createResponse({ success: false, message: denial }, 403);
+        }
+    }
     if (method === "GET" && pathname.match(/^\/restaurants\/[^/]+\/users$/)) {
-        const restaurantId = pathname.split('/')[2];
-        return getRestaurantUsers(env, restaurantId);
+        return getRestaurantUsers(env, access.restaurantId);
     }
     if (method === "POST" && pathname.match(/^\/restaurants\/[^/]+\/users$/)) {
-        const restaurantId = pathname.split('/')[2];
-        return addRestaurantUser(env, restaurantId, request);
+        return addRestaurantUser(env, access.restaurantId, request, userData);
     }
     if (method === "DELETE" && pathname.match(/^\/restaurants\/[^/]+\/users\/[^/]+$/)) {
-        const parts = pathname.split('/');
-        const restaurantId = parts[2];
-        const userId = parts[4];
-        return removeRestaurantUser(env, restaurantId, userId);
+        const userId = pathname.split('/')[4];
+        return removeRestaurantUser(env, access.restaurantId, userId);
     }
-    // Reset user password (Owner only)
     if (method === "POST" && pathname.match(/^\/restaurants\/[^/]+\/users\/[^/]+\/reset-password$/)) {
-        const parts = pathname.split('/');
-        const restaurantId = parts[2];
-        const userId = parts[4];
-        return resetUserPassword(env, restaurantId, userId, request);
+        const userId = pathname.split('/')[4];
+        return resetUserPassword(env, access.restaurantId, userId, request, access, userData);
     }
     // ============================================
     // RESTAURANT ENDPOINTS
@@ -321,60 +344,78 @@ async function getRestaurantUsers(env, restaurantId) {
         return createResponse({ success: false, message: "Error getting users: " + error.message }, 500);
     }
 }
-async function addRestaurantUser(env, restaurantId, request) {
+async function addRestaurantUser(env, restaurantId, request, userData) {
     try {
         const { email, role, name } = await request.json();
         if (!email) {
             return createResponse({ success: false, message: "Email is required" }, 400);
         }
-        // Check limit (Max 5)
+        // Cuenta contra el límite tanto el staff activo como las invitaciones
+        // pendientes: si no, se podría eludir el máximo de 5 mandando
+        // invitaciones sin que nadie las acepte todavía.
         const countResult = await env.DB.prepare(`
-            SELECT COUNT(*) as count FROM restaurant_staff WHERE restaurant_id = ?
-        `).bind(restaurantId).first();
+            SELECT
+                (SELECT COUNT(*) FROM restaurant_staff WHERE restaurant_id = ?) +
+                (SELECT COUNT(*) FROM admin_invitations
+                    WHERE restaurant_id = ? AND used_at IS NULL AND expires_at > CURRENT_TIMESTAMP) AS count
+        `).bind(restaurantId, restaurantId).first();
         if (countResult.count >= 5) {
             return createResponse({ success: false, message: "Maximum 5 users allowed per restaurant" }, 403);
         }
-        // Check if user exists
-        let user = await env.DB.prepare(`SELECT id, email FROM users WHERE email = ?`).bind(email).first();
-        let generatedPassword = null;
-        if (!user) {
-            // Create new user with secure random password
-            const userId = `user_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
-            // Generate secure password and hash it
-            generatedPassword = generateSecurePassword(12);
-            const passwordHash = await hashPassword(generatedPassword);
+
+        const existingUser = await env.DB.prepare(`SELECT id, email FROM users WHERE email = ?`).bind(email).first();
+
+        if (existingUser) {
+            // Ya tiene cuenta en el sistema: se añade directamente al
+            // restaurante, sin invitación (ya sabe entrar con su contraseña).
+            const existingStaff = await env.DB.prepare(`
+                SELECT * FROM restaurant_staff WHERE restaurant_id = ? AND user_id = ?
+            `).bind(restaurantId, existingUser.id).first();
+            if (existingStaff) {
+                return createResponse({ success: false, message: "User already in this restaurant" }, 409);
+            }
             await env.DB.prepare(`
-                INSERT INTO users (id, email, display_name, password_hash, auth_provider, created_at)
-                VALUES (?, ?, ?, ?, 'email', CURRENT_TIMESTAMP)
-            `).bind(userId, email, name || email.split('@')[0], passwordHash).run();
-            user = { id: userId, email };
-            console.log(`[Users POST] Created new user ${email} with secure password`);
+                INSERT INTO restaurant_staff (restaurant_id, user_id, role, is_active, created_at)
+                VALUES (?, ?, ?, TRUE, CURRENT_TIMESTAMP)
+            `).bind(restaurantId, existingUser.id, role || 'staff').run();
+            await logSecurityEvent(env, {
+                type: 'user_added_to_restaurant', userId: userData?.userId, targetUserId: existingUser.id,
+                restaurantId, request,
+            });
+            return createResponse({
+                success: true,
+                message: "Usuario existente añadido al restaurante",
+                user: { ...existingUser, role: role || 'staff' },
+            });
         }
-        // Check if already in restaurant
-        const existingStaff = await env.DB.prepare(`
-            SELECT * FROM restaurant_staff WHERE restaurant_id = ? AND user_id = ?
-        `).bind(restaurantId, user.id).first();
-        if (existingStaff) {
-            return createResponse({ success: false, message: "User already in this restaurant" }, 409);
-        }
-        // Add to staff
-        await env.DB.prepare(`
-            INSERT INTO restaurant_staff (restaurant_id, user_id, role, is_active, created_at)
-            VALUES (?, ?, ?, TRUE, CURRENT_TIMESTAMP)
-        `).bind(restaurantId, user.id, role || 'staff').run();
-        // Return response WITH generated password (only shown once)
-        const response = {
+
+        // No existe: se crea una invitación en vez de una contraseña. El
+        // enlace es de un solo uso, caduca en 72h y no revela nada por sí
+        // mismo — muy distinto a devolver una contraseña en la respuesta.
+        const restaurant = await env.DB.prepare(`SELECT name FROM restaurants WHERE id = ?`).bind(restaurantId).first();
+        const { token } = await createInvitation(env, {
+            email, role: role || 'staff', restaurantId, invitedBy: userData?.userId,
+        });
+        const inviteUrl = buildInviteUrl(env, token);
+        const emailResult = await sendEmail(env, {
+            to: email,
+            subject: `Invitación a ${restaurant?.name || 'VisualTaste'}`,
+            html: invitationEmailHtml({ restaurantName: restaurant?.name || 'tu restaurante', role: role || 'staff', inviteUrl, isReset: false }),
+        });
+        await logSecurityEvent(env, {
+            type: 'user_invited', userId: userData?.userId, restaurantId, request,
+            detail: { email, role: role || 'staff', emailSent: emailResult.sent },
+        });
+
+        return createResponse({
             success: true,
-            message: generatedPassword
-                ? "Usuario creado con contraseña generada"
-                : "Usuario existente añadido al restaurante",
-            user: { ...user, role: role || 'staff' }
-        };
-        // Include generated password in response (only for new users)
-        if (generatedPassword) {
-            response.generatedPassword = generatedPassword;
-        }
-        return createResponse(response);
+            message: emailResult.sent
+                ? "Invitación enviada por email"
+                : "Invitación creada. Copia el enlace y envíaselo tú mismo.",
+            emailSent: emailResult.sent,
+            inviteUrl,
+            user: { email, role: role || 'staff', pending: true },
+        });
     } catch (error) {
         console.error("[Users POST] Error:", error);
         return createResponse({ success: false, message: "Error adding user: " + error.message }, 500);
@@ -403,11 +444,11 @@ async function removeRestaurantUser(env, restaurantId, userId) {
         return createResponse({ success: false, message: "Error removing user: " + error.message }, 500);
     }
 }
-async function resetUserPassword(env, restaurantId, userId, request) {
+async function resetUserPassword(env, restaurantId, userId, request, access = null, userData = null) {
     try {
         // Verify the user belongs to this restaurant
         const staffMember = await env.DB.prepare(`
-            SELECT rs.user_id, u.email, u.display_name 
+            SELECT rs.user_id, u.email, u.display_name, u.is_superadmin
             FROM restaurant_staff rs
             JOIN users u ON rs.user_id = u.id
             WHERE rs.restaurant_id = ? AND rs.user_id = ?
@@ -418,23 +459,45 @@ async function resetUserPassword(env, restaurantId, userId, request) {
                 message: "Usuario no encontrado en este restaurante"
             }, 404);
         }
-        // Generate new secure password
-        const newPassword = generateSecurePassword(12);
-        const passwordHash = await hashPassword(newPassword);
-        // Update the user's password
-        await env.DB.prepare(`
-            UPDATE users SET password_hash = ? WHERE id = ?
-        `).bind(passwordHash, userId).run();
-        console.log(`[Users RESET] Password reset for ${staffMember.email}`);
+        // Un owner de restaurante NO puede resetear la contraseña de un
+        // superadmin que además sea staff suyo: sería escalada de privilegios.
+        if (staffMember.is_superadmin === 1 && !access?.isSuperAdmin) {
+            return createResponse({
+                success: false,
+                message: "No puedes resetear la contraseña de este usuario"
+            }, 403);
+        }
+
+        // En vez de generar y devolver una contraseña en claro, se emite un
+        // enlace de un solo uso (72h) para que el propio usuario elija una
+        // nueva. El flujo de redención es el mismo que el de una invitación.
+        const { token } = await createInvitation(env, {
+            email: staffMember.email, role: null, restaurantId, invitedBy: userData?.userId,
+        });
+        const inviteUrl = buildInviteUrl(env, token);
+        const emailResult = await sendEmail(env, {
+            to: staffMember.email,
+            subject: 'Restablece tu contraseña de VisualTaste',
+            html: invitationEmailHtml({ inviteUrl, isReset: true }),
+        });
+        await logSecurityEvent(env, {
+            type: 'password_reset_requested', userId: userData?.userId, targetUserId: userId,
+            restaurantId, request, detail: { emailSent: emailResult.sent },
+        });
+
+        console.log(`[Users RESET] Enlace de reseteo emitido para ${staffMember.email}`);
         return createResponse({
             success: true,
-            message: "Contraseña reseteada correctamente",
+            message: emailResult.sent
+                ? "Se ha enviado un enlace de recuperación por email"
+                : "Enlace de recuperación creado. Copia el enlace y envíaselo tú mismo.",
+            emailSent: emailResult.sent,
+            inviteUrl,
             user: {
                 id: userId,
                 email: staffMember.email,
                 display_name: staffMember.display_name
             },
-            generatedPassword: newPassword
         });
     } catch (error) {
         console.error("[Users RESET] Error:", error);

@@ -1,5 +1,5 @@
 import { handleDashboardRequests } from './workerDashboard.js';
-import { handleAuthRequests, verifyJWT } from './workerAuthentication.js';
+import { handleAuthRequests, authenticateRequest } from './workerAuthentication.js';
 import { handleAnalyticsRequests } from './workerAnalytics.js';
 import { handleAllergensRequests } from './workerAllergens.js';
 import { handleMenuRequests } from './workerMenus.js';
@@ -20,32 +20,9 @@ import { handleGuideTracking } from './workerGuideTracking.js';
 import { handleGuideAdminRequests } from './workerGuideAdmin.js';
 import { handleGuideAI } from './workerGuideAI.js';
 import { handleTvScreenRequests } from './workerTvScreen.js';
-// ============================================================================
-// CORS - Dominios permitidos (CENTRALIZADO)
-// ============================================================================
-const ALLOWED_ORIGINS = [
-    'https://admin.visualtastes.com',
-    'https://menu.visualtastes.com',
-    'https://visualtastes.com',
-    'https://guide.visualtastes.com',
-    'https://tv.visualtastes.com',
-    'http://localhost:5173',
-    'http://localhost:5174',
-    'http://localhost:5175',
-    'http://localhost:5176',
-    'http://menu.localhost:5173',
-    'http://admin.localhost:5174'
-];
-function getCorsHeaders(request) {
-    const origin = request?.headers?.get('Origin') || '';
-    const allowedOrigin = ALLOWED_ORIGINS.includes(origin) ? origin : ALLOWED_ORIGINS[0];
-    return {
-        'Content-Type': 'application/json',
-        'Access-Control-Allow-Origin': allowedOrigin,
-        'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS, PATCH',
-        'Access-Control-Allow-Headers': 'Content-Type, Authorization'
-    };
-}
+import { checkRestaurantScope } from './workerAuthz.js';
+// CORS: la allowlist vive en workerCors.js, compartida con los demás módulos.
+import { getCorsHeaders } from './workerCors.js';
 function createResponse(body, status = 200, request = null) {
     return new Response(JSON.stringify(body), {
         status,
@@ -75,7 +52,10 @@ function addCorsHeaders(response, request) {
 const PUBLIC_ROUTES = [
     // Auth
     { method: 'POST', pattern: /^\/auth\/login$/ },
-    { method: 'GET', pattern: /^\/auth\/me$/ },
+    { method: 'POST', pattern: /^\/auth\/mfa\/verify$/ },
+    // Invitaciones: quien las canjea todavía no tiene sesión, por definición.
+    { method: 'GET', pattern: /^\/auth\/invitations\/[^/]+$/ },
+    { method: 'POST', pattern: /^\/auth\/invitations\/[^/]+\/accept$/ },
     // Tracking y Analytics públicos
     { method: 'ALL', pattern: /^\/track\// },
     // Contenido público del menú
@@ -124,11 +104,9 @@ function isPublicRoute(method, pathname) {
         return methodMatch && route.pattern.test(pathname);
     });
 }
-async function authenticateRequest(request, env) {
-    const authHeader = request.headers.get('Authorization');
-    if (!authHeader?.startsWith('Bearer ')) return null;
-    return await verifyJWT(authHeader.substring(7), env.JWT_SECRET);
-}
+// authenticateRequest (verificación de JWT + comprobación de revocación) se
+// importa de workerAuthentication.js — antes estaba duplicada aquí sin la
+// comprobación de revocación, lo que la hacía divergir en silencio.
 // ============================================================================
 // MAIN HANDLER
 // ============================================================================
@@ -146,6 +124,7 @@ export default {
             console.log(`[Worker] ${request.method} ${url.pathname}`);
             // 2. Autenticación centralizada
             let userData = null;
+            let access = null;
             const isPublic = isPublicRoute(request.method, url.pathname);
             if (!isPublic) {
                 userData = await authenticateRequest(request, env);
@@ -156,7 +135,22 @@ export default {
                         message: 'No autorizado'
                     }, 401, request);
                 }
-                console.log(`[Worker] Auth OK: ${userData.email}`);
+                console.log(`[Worker] Auth OK: user=${userData.userId}`);
+
+                // 2b. Autorización por tenant (chokepoint único).
+                // Exige pertenencia activa al restaurante afectado, verificada
+                // contra D1, venga el restaurante en la ruta, en un recurso hijo,
+                // en la query o en el body. Sin esto, cualquier JWT válido valía
+                // para cualquier restaurante.
+                const scope = await checkRestaurantScope(request, env, userData);
+                if (scope.denied) {
+                    console.log(`[Worker] 403 - Sin acceso al tenant: user=${userData.userId} ${url.pathname}`);
+                    return createResponse({
+                        success: false,
+                        message: 'No tienes acceso a este restaurante'
+                    }, 403, request);
+                }
+                access = scope.access || null;
             }
             // 3. Routing a handlers (con CORS wrapper)
             // ALÉRGENOS
@@ -238,10 +232,10 @@ export default {
             const reelsResponse = await handleReelsRequests(request.clone(), env);
             if (reelsResponse) return addCorsHeaders(reelsResponse, request);
             // RESTAURANTES
-            const restaurantResponse = await handleRestaurantRequests(request.clone(), env);
+            const restaurantResponse = await handleRestaurantRequests(request.clone(), env, access, userData);
             if (restaurantResponse) return addCorsHeaders(restaurantResponse, request);
             // AUTENTICACIÓN
-            const authResponse = await handleAuthRequests(request, env);
+            const authResponse = await handleAuthRequests(request, env, userData);
             if (authResponse) return addCorsHeaders(authResponse, request);
             // ANALYTICS
             const analyticsResponse = await handleAnalyticsRequests(request, env);

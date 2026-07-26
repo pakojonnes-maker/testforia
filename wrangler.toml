@@ -21,6 +21,14 @@ bucket_name = "mediabucket"
 binding = "GUIDE_CACHE"
 id = "89c387501e00410b9d4f0d80dc563bf2"
 
+# Contadores de rate limiting (login y PIN de fidelidad). Entradas efímeras con
+# expirationTtl; nada aquí es fuente de verdad ni sobrevive a su ventana.
+# Ojo: workerLoyalty.js ya esperaba este binding y, al no existir, su límite de
+# intentos de PIN nunca llegó a aplicarse.
+[[kv_namespaces]]
+binding = "RATE_LIMIT_KV"
+id = "c8456e9e79794fe796c9a09ab5405d29"
+
 # Workers AI binding for the guidebook AI assistant
 [ai]
 binding = "AI"
