@@ -64,26 +64,25 @@ async function handleAnalyticsSummary(env, restaurantId, url) {
     previousEnd = getDateOffset(today, -days);
     previousStart = getDateOffset(today, -(days * 2 - 1));
   }
-  // Fetch current period metrics
-  const currentMetrics = await env.DB.prepare(`
-    SELECT 
-      COALESCE(SUM(total_views), 0) as views,
-      COALESCE(SUM(total_sessions), 0) as sessions,
-      COALESCE(AVG(avg_session_duration), 0) as avgDuration
-    FROM daily_analytics
-    WHERE restaurant_id = ?
-      AND date BETWEEN ? AND ?
-  `).bind(restaurantId, currentStart, currentEnd).first();
-  // Fetch previous period metrics
-  const previousMetrics = await env.DB.prepare(`
-    SELECT 
-      COALESCE(SUM(total_views), 0) as views,
-      COALESCE(SUM(total_sessions), 0) as sessions,
-      COALESCE(AVG(avg_session_duration), 0) as avgDuration
-    FROM daily_analytics
-    WHERE restaurant_id = ?
-      AND date BETWEEN ? AND ?
-  `).bind(restaurantId, previousStart, previousEnd).first();
+  // ✅ FIX: estas métricas salían de `daily_analytics`, tabla cuya agregación se
+  // desactivó en enero de 2026 y quedó congelada el día 18 (con esa jornada
+  // además cortada a medias: 8 sesiones guardadas frente a 28 reales). El
+  // dashboard mostraba, por tanto, cero visitas para cualquier periodo posterior
+  // y una comparativa contra un periodo anterior igualmente falso.
+  // Ahora se calcula en vivo desde `sessions`, excluyendo tráfico interno y a
+  // quien rechazó el consentimiento.
+  const periodMetrics = (start, end) => env.DB.prepare(`
+    SELECT
+      COALESCE(COUNT(*), 0) as sessions,
+      COALESCE(COUNT(DISTINCT COALESCE(s.visitor_id, s.id)), 0) as views,
+      COALESCE(AVG(COALESCE(s.duration_seconds, 0)), 0) as avgDuration
+    FROM sessions s
+    WHERE s.restaurant_id = ?
+      AND s.started_at BETWEEN ? AND ?
+      AND s.is_internal = 0 AND s.consent_analytics = 1
+  `).bind(restaurantId, start + 'T00:00:00', end + 'T23:59:59').first();
+  const currentMetrics = await periodMetrics(currentStart, currentEnd);
+  const previousMetrics = await periodMetrics(previousStart, previousEnd);
   // Calculate percentage changes
   const viewsChange = calculatePercentageChange(
     previousMetrics.views,
@@ -427,12 +426,14 @@ async function handleDashboardPulse(env, restaurantId) {
       FROM reservation_settings 
       WHERE restaurant_id = ?
     `).bind(restaurantId).first(),
-    // 5. Yesterday's Visits (Sessions from daily_analytics)
+    // 5. Visitas de ayer — en vivo desde `sessions`.
+    // Salía de `daily_analytics`, congelada desde enero: siempre devolvía 0.
     env.DB.prepare(`
-      SELECT COALESCE(SUM(total_sessions), 0) as count
-      FROM daily_analytics
-      WHERE restaurant_id = ?
-        AND date = ?
+      SELECT COUNT(*) as count
+      FROM sessions s
+      WHERE s.restaurant_id = ?
+        AND DATE(s.started_at) = ?
+        AND s.is_internal = 0 AND s.consent_analytics = 1
     `).bind(restaurantId, yesterdayStr).first()
   ]);
   // Determine Open/Closed Status
