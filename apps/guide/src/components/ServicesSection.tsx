@@ -1,5 +1,5 @@
 import React from 'react';
-import { getTranslation } from '../lib/i18n';
+import { getTranslation, getCategoryLabel, getSubcategoryLabel } from '../lib/i18n';
 import CTAButton from './CTAButton';
 
 interface Experience {
@@ -37,6 +37,8 @@ export default function ServicesSection({ experiences, zoneName, lang, onIntent 
     );
   }
 
+  const hasCuratedFeatured = experiences.some(e => e.is_featured);
+
   return (
     <div className="flex flex-col gap-8">
       <div className="mb-8 md:mb-12">
@@ -51,7 +53,11 @@ export default function ServicesSection({ experiences, zoneName, lang, onIntent 
       <div className="grid grid-cols-1 md:grid-cols-12 gap-gutter">
         {experiences.map((exp, idx) => {
           const bgImg = exp.cover_image_url || 'https://placehold.co/600x400/e5e2dd/55433d?text=' + encodeURIComponent(exp.name);
-          const isFeatured = exp.is_featured || idx === 0;
+          // If the business curated at least one is_featured item, respect that curation
+          // exactly (don't also force-feature idx 0 — that let two large cards render
+          // at once when item 0 itself wasn't the curated one). Only fall back to "first
+          // item" when nothing has been curated at all.
+          const isFeatured = hasCuratedFeatured ? exp.is_featured : idx === 0;
 
           if (isFeatured) {
             return (
@@ -76,8 +82,8 @@ export default function ServicesSection({ experiences, zoneName, lang, onIntent 
                 <div className="p-6 md:w-1/2 flex flex-col justify-between">
                   <div>
                     <div className="flex items-center gap-2 mb-3">
-                      {exp.category && <span className="bg-deep-sea/10 text-deep-sea px-3 py-1 rounded-full text-label-sm font-label-sm">{exp.category}</span>}
-                      {exp.service_subcategory && <span className="bg-olive/10 text-olive px-3 py-1 rounded-full text-label-sm font-label-sm">{exp.service_subcategory}</span>}
+                      {exp.category && <span className="bg-deep-sea/10 text-deep-sea px-3 py-1 rounded-full text-label-sm font-label-sm">{getCategoryLabel(exp.category, lang)}</span>}
+                      {exp.service_subcategory && <span className="bg-olive/10 text-olive px-3 py-1 rounded-full text-label-sm font-label-sm">{getSubcategoryLabel(exp.service_subcategory, lang)}</span>}
                     </div>
                     <h3 className="text-headline-md font-headline-md text-deep-sea mb-3">{exp.name}</h3>
                     <p className="text-body-md font-body-md text-on-surface-variant mb-6">{exp.description}</p>
@@ -115,8 +121,8 @@ export default function ServicesSection({ experiences, zoneName, lang, onIntent 
               </div>
               <div className="p-6 flex flex-col flex-grow">
                 <div className="flex items-center gap-2 mb-3">
-                  {exp.category && <span className="bg-deep-sea/10 text-deep-sea px-3 py-1 rounded-full text-label-sm font-label-sm">{exp.category}</span>}
-                  {exp.service_subcategory && <span className="bg-olive/10 text-olive px-3 py-1 rounded-full text-label-sm font-label-sm">{exp.service_subcategory}</span>}
+                  {exp.category && <span className="bg-deep-sea/10 text-deep-sea px-3 py-1 rounded-full text-label-sm font-label-sm">{getCategoryLabel(exp.category, lang)}</span>}
+                  {exp.service_subcategory && <span className="bg-olive/10 text-olive px-3 py-1 rounded-full text-label-sm font-label-sm">{getSubcategoryLabel(exp.service_subcategory, lang)}</span>}
                 </div>
                 <h3 className="text-headline-md font-headline-md text-deep-sea mb-2">{exp.name}</h3>
                 <p className="text-body-md font-body-md text-on-surface-variant mb-6 line-clamp-2">{exp.description}</p>

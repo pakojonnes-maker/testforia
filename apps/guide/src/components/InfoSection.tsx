@@ -26,9 +26,17 @@ interface InfoSectionProps {
 
 export default function InfoSection({ infoItems, lang }: InfoSectionProps) {
   const [selectedItem, setSelectedItem] = useState<InfoItem | null>(null);
+  // Tracks which copy button just succeeded so it can show a "Copiado!" confirmation —
+  // without this, tapping copy on a WiFi password or door code gave zero feedback.
+  const [copiedKey, setCopiedKey] = useState<string | null>(null);
 
-  const copyToClipboard = (text: string) => {
-    navigator.clipboard.writeText(text).catch(() => {});
+  const copyToClipboard = (text: string, key: string) => {
+    navigator.clipboard.writeText(text)
+      .then(() => {
+        setCopiedKey(key);
+        setTimeout(() => setCopiedKey(prev => (prev === key ? null : prev)), 1800);
+      })
+      .catch(() => {});
   };
 
   if (infoItems.length === 0) {
@@ -55,8 +63,17 @@ export default function InfoSection({ infoItems, lang }: InfoSectionProps) {
               <p className="font-headline-md text-headline-md text-deep-sea tracking-widest">{doorCodeItem.content}</p>
             </div>
           </div>
-          <button onClick={() => copyToClipboard(doorCodeItem.content)} className="p-2 rounded-full hover:bg-terracotta/10 transition-colors">
-            <span className="material-symbols-outlined text-terracotta text-[20px]">content_copy</span>
+          <button
+            onClick={() => copyToClipboard(doorCodeItem.content, 'door_code')}
+            className="p-2 rounded-full hover:bg-terracotta/10 transition-colors flex items-center gap-1"
+            aria-label={getTranslation('copy_btn', lang)}
+          >
+            {copiedKey === 'door_code' && (
+              <span className="font-label-sm text-label-sm text-terracotta">{getTranslation('copied', lang)}</span>
+            )}
+            <span className="material-symbols-outlined text-terracotta text-[20px]">
+              {copiedKey === 'door_code' ? 'check' : 'content_copy'}
+            </span>
           </button>
         </div>
       )}
@@ -84,7 +101,7 @@ export default function InfoSection({ infoItems, lang }: InfoSectionProps) {
                     <span className="font-label-md text-label-md text-white line-clamp-2 leading-tight">
                       {item.title}
                     </span>
-                    <span className="material-symbols-outlined text-white text-[18px] shrink-0">
+                    <span className="material-symbols-outlined icon-directional text-white text-[18px] shrink-0">
                       chevron_right
                     </span>
                   </div>
@@ -111,11 +128,16 @@ export default function InfoSection({ infoItems, lang }: InfoSectionProps) {
                   <p className="font-body-md text-body-md text-deep-sea font-medium whitespace-pre-wrap">{wifiItem.content}</p>
                 </div>
                 <button
-                  onClick={() => copyToClipboard(wifiItem.content)}
-                  className="p-2 bg-warm-sand text-terracotta rounded-lg hover:bg-surface-variant transition-colors"
+                  onClick={() => copyToClipboard(wifiItem.content, 'wifi')}
+                  className="p-2 bg-warm-sand text-terracotta rounded-lg hover:bg-surface-variant transition-colors flex items-center gap-1"
                   title={getTranslation('copy_btn', lang)}
                 >
-                  <span className="material-symbols-outlined text-[20px]">content_copy</span>
+                  {copiedKey === 'wifi' && (
+                    <span className="font-label-sm text-label-sm">{getTranslation('copied', lang)}</span>
+                  )}
+                  <span className="material-symbols-outlined text-[20px]">
+                    {copiedKey === 'wifi' ? 'check' : 'content_copy'}
+                  </span>
                 </button>
               </div>
             </div>

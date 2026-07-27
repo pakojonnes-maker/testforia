@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { getTranslation } from '../lib/i18n';
+import { getTranslation, getCategoryLabel } from '../lib/i18n';
 import MapModal from './MapModal';
 import PoiDetailModal, { PoiDetailItem } from './PoiDetailModal';
 
@@ -81,6 +81,17 @@ export default function DiscoverSection({ pois, restaurants = [], zoneName, zone
     activeFilter === ALL_FILTER || item.category === activeFilter
   );
 
+  // Highlight whichever item is actually worth a guest's attention — a premium-tier
+  // restaurant, or the highest-rated POI — instead of just "whatever came first from
+  // the DB query", which is what idx === 0 used to mean.
+  const featuredItemId = filteredItems.length > 0
+    ? filteredItems.reduce((best, item) => {
+        const score = item.tier === 'premium' ? 100 : (item.rating ?? 0);
+        const bestScore = best.tier === 'premium' ? 100 : (best.rating ?? 0);
+        return score > bestScore ? item : best;
+      }, filteredItems[0]).id
+    : null;
+
   return (
     <div className="flex flex-col gap-8">
       {/* Page Header */}
@@ -105,15 +116,15 @@ export default function DiscoverSection({ pois, restaurants = [], zoneName, zone
                 : 'bg-deep-sea/10 text-on-surface border border-deep-sea/20 hover:bg-deep-sea/20'
             }`}
           >
-            {cat === ALL_FILTER ? getTranslation('filter_all', lang) : cat.charAt(0).toUpperCase() + cat.slice(1)}
+            {cat === ALL_FILTER ? getTranslation('filter_all', lang) : getCategoryLabel(cat, lang)}
           </button>
         ))}
       </div>
 
       {/* Bento Grid Layout for Locations */}
       <section className="grid grid-cols-1 md:grid-cols-12 gap-6">
-        {filteredItems.map((item, idx) => {
-          const isFeatured = idx === 0; // Make the first item large
+        {filteredItems.map((item) => {
+          const isFeatured = item.id === featuredItemId;
           const bgImg = item.image || 'https://placehold.co/600x400/e5e2dd/55433d?text=' + encodeURIComponent(item.name);
           
           if (isFeatured) {
@@ -137,7 +148,7 @@ export default function DiscoverSection({ pois, restaurants = [], zoneName, zone
                 <div className="p-6 flex flex-col gap-4 flex-grow">
                   <div className="flex justify-between items-start gap-4">
                     <div>
-                      <span className="text-label-sm font-label-sm text-olive uppercase tracking-wider mb-1 block">{item.category}</span>
+                      <span className="text-label-sm font-label-sm text-olive uppercase tracking-wider mb-1 block">{getCategoryLabel(item.category, lang)}</span>
                       <h3 className="text-headline-md font-headline-md text-deep-sea font-semibold">{item.name}</h3>
                     </div>
                   </div>
@@ -167,7 +178,7 @@ export default function DiscoverSection({ pois, restaurants = [], zoneName, zone
                       className="text-terracotta font-label-lg text-label-lg flex items-center gap-1 hover:text-primary-container transition-colors group/btn"
                     >
                       {item.type === 'restaurant' ? getTranslation('view_menu', lang) : getTranslation('view_details', lang)}
-                      <span className="material-symbols-outlined text-sm group-hover/btn:translate-x-1 transition-transform">arrow_forward</span>
+                      <span className="material-symbols-outlined icon-directional text-sm group-hover/btn:translate-x-1 transition-transform">arrow_forward</span>
                     </button>
                   </div>
                 </div>
@@ -189,7 +200,10 @@ export default function DiscoverSection({ pois, restaurants = [], zoneName, zone
               </div>
               <div className="p-5 flex flex-col gap-3 flex-grow">
                 <div className="flex justify-between items-start gap-2">
-                  <h3 className="text-headline-md text-[20px] font-headline-md text-deep-sea font-semibold line-clamp-1">{item.name}</h3>
+                  <div>
+                    <span className="text-label-sm font-label-sm text-olive uppercase tracking-wider mb-1 block">{getCategoryLabel(item.category, lang)}</span>
+                    <h3 className="text-headline-md text-[20px] font-headline-md text-deep-sea font-semibold line-clamp-1">{item.name}</h3>
+                  </div>
                 </div>
                 <p className="text-body-md text-[14px] font-body-md text-on-surface-variant line-clamp-2">{item.description}</p>
                 

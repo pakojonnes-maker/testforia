@@ -2,7 +2,7 @@ import React, { useEffect } from 'react';
 import { MapContainer, TileLayer, Marker, Popup } from 'react-leaflet';
 import 'leaflet/dist/leaflet.css';
 import L from 'leaflet';
-import { getTranslation } from '../lib/i18n';
+import { getTranslation, getCategoryLabel } from '../lib/i18n';
 
 // Fix leaflet default icon issue with bundlers
 delete (L.Icon.Default.prototype as any)._getIconUrl;
@@ -80,7 +80,7 @@ export default function MapModal({ pois, onClose, zoneName, lang }: MapModalProp
                   <Popup>
                     <div className="font-sans">
                       <strong className="text-sm">{poi.name}</strong>
-                      <p className="text-xs text-gray-500 mt-1">{poi.category}</p>
+                      <p className="text-xs text-gray-500 mt-1">{getCategoryLabel(poi.category, lang)}</p>
                       {poi.description && <p className="text-xs mt-1">{poi.description}</p>}
                     </div>
                   </Popup>

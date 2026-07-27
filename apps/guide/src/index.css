@@ -169,6 +169,12 @@ a{text-decoration:none;color:inherit}
 img, video{max-width:100%;height:auto;display:block}
 button{font-family:inherit;cursor:pointer;border:none;background:none;outline:none;}
 
+/* Directional icons (chevrons/arrows) point the wrong way once the page flips to RTL
+   (Arabic) — dir="rtl" is set on <html> in GuidebookPage.tsx. Mark an icon with
+   .icon-directional wherever it visually implies "forward"/"next". */
+[dir="rtl"] .icon-directional {
+  transform: scaleX(-1);
+}
 
 }
 

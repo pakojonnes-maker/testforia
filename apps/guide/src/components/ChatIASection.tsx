@@ -96,22 +96,26 @@ const QUICK_ACTIONS_BY_LANG: Record<string, Array<{ icon: string; text: string }
   ],
 };
 
+// Real listings are often named with a full descriptive sentence rather than a short
+// proper noun (e.g. "Acogedor apartamento cerca del Parque de la Paloma"), which breaks
+// grammatical constructions like "Welcome to {name}!" in every language. Using a neutral
+// separator instead of a preposition keeps the greeting correct regardless of name shape.
 function getWelcomeMessage(lang: string, name?: string): string {
   const n = name || '';
   const templates: Record<string, string> = {
-    es: `¡Bienvenido${n ? ' a ' + n : ''}! Soy tu asistente virtual. Puedes preguntarme sobre la casa, el WiFi, el check-out, recomendaciones locales o cualquier duda de tu estancia.`,
-    en: `Welcome${n ? ' to ' + n : ''}! I'm your virtual assistant. Ask me about the apartment, WiFi, check-out, local recommendations or anything about your stay.`,
-    fr: `Bienvenue${n ? ' à ' + n : ''}! Je suis votre assistant virtuel. Posez-moi des questions sur l'appartement, le WiFi, le départ, ou les recommandations locales.`,
-    de: `Willkommen${n ? ' im ' + n : ''}! Ich bin dein virtueller Assistent. Frag mich zur Unterkunft, WiFi, Check-out oder lokalen Empfehlungen.`,
-    it: `Benvenuto${n ? ' a ' + n : ''}! Sono il tuo assistente virtuale. Chiedimi dell'appartamento, del WiFi, del check-out o consigli locali.`,
-    pt: `Bem-vindo${n ? ' a ' + n : ''}! Sou o seu assistente virtual. Pergunte-me sobre o apartamento, WiFi, check-out ou recomendações locais.`,
-    ca: `Benvingut${n ? ' a ' + n : ''}! Sóc el teu assistent virtual. Pregunta'm sobre l'apartament, el WiFi, el check-out o recomanacions locals.`,
-    ar: `أهلاً بك${n ? ' في ' + n : ''}! أنا مساعدك الافتراضي. اسألني عن الشقة، الواي فاي، تسجيل المغادرة أو التوصيات المحلية.`,
-    ru: `Добро пожаловать${n ? ' в ' + n : ''}! Я ваш виртуальный ассистент. Спросите меня о квартире, WiFi, выезде или местных рекомендациях.`,
-    uk: `Ласкаво просимо${n ? ' до ' + n : ''}! Я ваш віртуальний асистент. Запитайте мене про квартиру, WiFi, виїзд або місцеві рекомендації.`,
-    zh: `欢迎${n ? '来到' + n : ''}！我是您的虚拟助手。您可以问我关于房源、WiFi、退房或当地推荐的问题。`,
-    ja: `${n ? n + 'へ' : ''}ようこそ！私はあなたのバーチャルアシスタントです。お部屋のこと、WiFi、チェックアウト、地元のおすすめについて何でも聞いてください。`,
-    ko: `${n ? n + '에 ' : ''}오신 것을 환영합니다! 저는 당신의 가상 어시스턴트입니다. 숙소, 와이파이, 체크아웃, 현지 추천에 대해 무엇이든 물어보세요.`,
+    es: `¡Bienvenido${n ? ' — ' + n : ''}! Soy tu asistente virtual. Puedes preguntarme sobre la casa, el WiFi, el check-out, recomendaciones locales o cualquier duda de tu estancia.`,
+    en: `Welcome${n ? ' — ' + n : ''}! I'm your virtual assistant. Ask me about the apartment, WiFi, check-out, local recommendations or anything about your stay.`,
+    fr: `Bienvenue${n ? ' — ' + n : ''}! Je suis votre assistant virtuel. Posez-moi des questions sur l'appartement, le WiFi, le départ, ou les recommandations locales.`,
+    de: `Willkommen${n ? ' — ' + n : ''}! Ich bin dein virtueller Assistent. Frag mich zur Unterkunft, WiFi, Check-out oder lokalen Empfehlungen.`,
+    it: `Benvenuto${n ? ' — ' + n : ''}! Sono il tuo assistente virtuale. Chiedimi dell'appartamento, del WiFi, del check-out o consigli locali.`,
+    pt: `Bem-vindo${n ? ' — ' + n : ''}! Sou o seu assistente virtual. Pergunte-me sobre o apartamento, WiFi, check-out ou recomendações locais.`,
+    ca: `Benvingut${n ? ' — ' + n : ''}! Sóc el teu assistent virtual. Pregunta'm sobre l'apartament, el WiFi, el check-out o recomanacions locals.`,
+    ar: `أهلاً بك${n ? ' — ' + n : ''}! أنا مساعدك الافتراضي. اسألني عن الشقة، الواي فاي، تسجيل المغادرة أو التوصيات المحلية.`,
+    ru: `Добро пожаловать${n ? ' — ' + n : ''}! Я ваш виртуальный ассистент. Спросите меня о квартире, WiFi, выезде или местных рекомендациях.`,
+    uk: `Ласкаво просимо${n ? ' — ' + n : ''}! Я ваш віртуальний асистент. Запитайте мене про квартиру, WiFi, виїзд або місцеві рекомендації.`,
+    zh: `欢迎${n ? ' — ' + n : ''}！我是您的虚拟助手。您可以问我关于房源、WiFi、退房或当地推荐的问题。`,
+    ja: `ようこそ${n ? ' — ' + n : ''}！私はあなたのバーチャルアシスタントです。お部屋のこと、WiFi、チェックアウト、地元のおすすめについて何でも聞いてください。`,
+    ko: `환영합니다${n ? ' — ' + n : ''}! 저는 당신의 가상 어시스턴트입니다. 숙소, 와이파이, 체크아웃, 현지 추천에 대해 무엇이든 물어보세요.`,
   };
   return templates[lang] || templates.es;
 }

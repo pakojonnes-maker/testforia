@@ -13,7 +13,7 @@ import DiscoverSection from '../components/DiscoverSection';
 import ServicesSection from '../components/ServicesSection';
 import ChatIASection from '../components/ChatIASection';
 import WelcomeModal, { WelcomeModalData } from '../components/WelcomeModal';
-import { getTranslation, ACTIVE_LANGUAGES } from '../lib/i18n';
+import { getTranslation, ACTIVE_LANGUAGES, isRtl } from '../lib/i18n';
 
 // Types
 interface GuidebookData {
@@ -96,6 +96,17 @@ export default function GuidebookPage() {
       setShowWelcome(true);
     }
   }, [data]);
+
+  // Apply text direction for RTL languages (Arabic today). Without this the html/body
+  // stay LTR forever: translations flip the words but not the layout, so nav order,
+  // chevrons and alignment all read backwards for RTL guests.
+  useEffect(() => {
+    document.documentElement.dir = isRtl(lang) ? 'rtl' : 'ltr';
+    document.documentElement.lang = lang;
+    return () => {
+      document.documentElement.dir = 'ltr';
+    };
+  }, [lang]);
 
   // Handle agency theming
   useEffect(() => {

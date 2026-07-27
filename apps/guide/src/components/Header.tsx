@@ -58,12 +58,6 @@ interface HeaderProps {
 
 export default function Header({ activeTab, onTabChange, lang, onLanguageChange, apartmentName }: HeaderProps) {
   const [showLangMenu, setShowLangMenu] = useState(false);
-  // Mobile secondary tabs for 'info'
-  const infoTabs = [
-    { id: 'alojamiento', label: getTranslation('nav_secondary_alojamiento', lang) },
-    { id: 'servicios', label: getTranslation('nav_secondary_servicios', lang) },
-    { id: 'manuales', label: getTranslation('nav_secondary_manuales', lang) }
-  ];
 
   return (
     <header className="bg-surface dark:bg-on-background shadow-sm docked full-width top-0 z-40 sticky">
@@ -71,7 +65,7 @@ export default function Header({ activeTab, onTabChange, lang, onLanguageChange,
         <div className="flex justify-between items-center w-full gap-4">
           <div className="flex items-center gap-2 min-w-0">
             <span className="material-symbols-outlined text-terracotta dark:text-primary-fixed shrink-0" style={{ fontVariationSettings: "'FILL' 1" }}>cottage</span>
-            <span className="font-label-lg text-label-lg text-deep-sea dark:text-crisp-white font-bold truncate">{apartmentName}</span>
+            <span className="font-label-lg text-label-lg text-deep-sea dark:text-crisp-white font-bold line-clamp-2">{apartmentName}</span>
           </div>
 
           {/* Web Navigation (Hidden on Mobile) */}
@@ -134,23 +128,6 @@ export default function Header({ activeTab, onTabChange, lang, onLanguageChange,
             )}
           </div>
         </div>
-
-        {/* Mobile Section Tabs (Only show if info tab is active or adapt dynamically) */}
-        {activeTab === 'info' && (
-          <div className="flex md:hidden gap-6 overflow-x-auto pb-2 scrollbar-hide">
-            {infoTabs.map((tab, idx) => (
-              <button 
-                key={tab.id}
-                className={idx === 0 
-                  ? "text-olive border-b-2 border-olive pb-2 font-label-lg text-label-lg whitespace-nowrap"
-                  : "text-on-surface-variant pb-2 font-label-lg text-label-lg whitespace-nowrap"
-                }
-              >
-                {tab.label}
-              </button>
-            ))}
-          </div>
-        )}
       </div>
     </header>
   );

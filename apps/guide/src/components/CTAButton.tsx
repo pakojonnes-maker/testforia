@@ -88,7 +88,7 @@ export default function CTAButton({ experience, lang, onIntent }: CTAButtonProps
         e.currentTarget.style.boxShadow = 'var(--sh-sm)';
       }}
     >
-      <span className="material-icons-round" style={{ fontSize: '18px' }}>{iconName}</span>
+      <span className={`material-icons-round${iconName === 'arrow_forward' ? ' icon-directional' : ''}`} style={{ fontSize: '18px' }}>{iconName}</span>
       {label}
     </button>
   );

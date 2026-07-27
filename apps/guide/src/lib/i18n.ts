@@ -7,17 +7,17 @@
 // ar, ru, uk, zh, ja, ko. Keep ACTIVE_LANGUAGES below in sync with workerGuideAdmin.js.
 export const ACTIVE_LANGUAGES = ['es', 'en', 'fr', 'de', 'it', 'pt', 'ca', 'ar', 'ru', 'uk', 'zh', 'ja', 'ko'];
 
+// Languages that must render right-to-left. Only `ar` today, but keep this a list
+// (not a single check) since guidebooks add languages fairly often (see CLAUDE.md §5).
+export const RTL_LANGUAGES = ['ar'];
+export const isRtl = (lang: string) => RTL_LANGUAGES.includes(lang);
+
 export const UI_STRINGS: Record<string, Record<string, string>> = {
   // Navigation tabs (Header nav + BottomNavBar)
   tab_info: { es: 'Casa', en: 'Home', fr: 'Accueil', de: 'Zuhause', it: 'Casa', pt: 'Casa', ca: 'Casa', ar: 'الرئيسية', ru: 'Главная', uk: 'Головна', zh: '首页', ja: 'ホーム', ko: '홈' },
   tab_discover: { es: 'Ubicaciones', en: 'Locations', fr: 'Lieux', de: 'Orte', it: 'Luoghi', pt: 'Locais', ca: 'Ubicacions', ar: 'المواقع', ru: 'Места', uk: 'Місця', zh: '地点', ja: '場所', ko: '위치' },
   tab_services: { es: 'Promociones', en: 'Deals', fr: 'Offres', de: 'Angebote', it: 'Offerte', pt: 'Ofertas', ca: 'Promocions', ar: 'العروض', ru: 'Акции', uk: 'Акції', zh: '优惠', ja: 'お得情報', ko: '프로모션' },
   tab_chat: { es: 'Chat IA', en: 'AI Chat', fr: 'Chat IA', de: 'KI-Chat', it: 'Chat IA', pt: 'Chat IA', ca: 'Xat IA', ar: 'محادثة الذكاء الاصطناعي', ru: 'ИИ-чат', uk: 'ІІ-чат', zh: 'AI 聊天', ja: 'AIチャット', ko: 'AI 채팅' },
-
-  // Header mobile secondary tabs
-  nav_secondary_alojamiento: { es: 'Alojamiento', en: 'Accommodation', fr: 'Logement', de: 'Unterkunft', it: 'Alloggio', pt: 'Alojamento', ca: 'Allotjament', ar: 'الإقامة', ru: 'Жильё', uk: 'Житло', zh: '住宿', ja: '宿泊施設', ko: '숙소' },
-  nav_secondary_servicios: { es: 'Servicios', en: 'Services', fr: 'Services', de: 'Services', it: 'Servizi', pt: 'Serviços', ca: 'Serveis', ar: 'الخدمات', ru: 'Услуги', uk: 'Послуги', zh: '服务', ja: 'サービス', ko: '서비스' },
-  nav_secondary_manuales: { es: 'Manuales', en: 'Guides', fr: 'Guides', de: 'Anleitungen', it: 'Manuali', pt: 'Manuais', ca: 'Manuals', ar: 'الأدلة', ru: 'Инструкции', uk: 'Інструкції', zh: '使用手册', ja: 'マニュアル', ko: '매뉴얼' },
 
   // WelcomeHero
   view_address: { es: 'Ver Dirección', en: 'View Address', fr: "Voir l'adresse", de: 'Adresse ansehen', it: 'Vedi indirizzo', pt: 'Ver morada', ca: 'Veure adreça', ar: 'عرض العنوان', ru: 'Показать адрес', uk: 'Показати адресу', zh: '查看地址', ja: '住所を見る', ko: '주소 보기' },
@@ -188,4 +188,53 @@ export const UI_STRINGS: Record<string, Record<string, string>> = {
 export function getTranslation(key: string, lang: string): string {
   if (!UI_STRINGS[key]) return key;
   return UI_STRINGS[key][lang] || UI_STRINGS[key]['en'] || UI_STRINGS[key]['es'] || key;
+}
+
+// POI/experience `category` and `subcategory` come straight from the guide_pois columns
+// (see workerGuide.js) — only `name`/`description` go through the `translations` table.
+// Zones seed this field inconsistently: some store an English slug ('viewpoint', 'beach'),
+// others a ready-made Spanish label ('Naturaleza', 'Compras'). Both are normalized here so
+// every one of the 13 active languages shows a real translation instead of raw Spanish.
+const CATEGORY_LABELS: Record<string, Record<string, string>> = {
+  naturaleza: { es: 'Naturaleza', en: 'Nature', fr: 'Nature', de: 'Natur', it: 'Natura', pt: 'Natureza', ca: 'Natura', ar: 'الطبيعة', ru: 'Природа', uk: 'Природа', zh: '自然', ja: '自然', ko: '자연' },
+  compras: { es: 'Compras', en: 'Shopping', fr: 'Shopping', de: 'Einkaufen', it: 'Shopping', pt: 'Compras', ca: 'Compres', ar: 'التسوق', ru: 'Шопинг', uk: 'Шопінг', zh: '购物', ja: 'ショッピング', ko: '쇼핑' },
+  cultura: { es: 'Cultura', en: 'Culture', fr: 'Culture', de: 'Kultur', it: 'Cultura', pt: 'Cultura', ca: 'Cultura', ar: 'الثقافة', ru: 'Культура', uk: 'Культура', zh: '文化', ja: '文化', ko: '문화' },
+  playas: { es: 'Playas', en: 'Beaches', fr: 'Plages', de: 'Strände', it: 'Spiagge', pt: 'Praias', ca: 'Platges', ar: 'الشواطئ', ru: 'Пляжи', uk: 'Пляжі', zh: '海滩', ja: 'ビーチ', ko: '해변' },
+  actividades: { es: 'Actividades', en: 'Activities', fr: 'Activités', de: 'Aktivitäten', it: 'Attività', pt: 'Atividades', ca: 'Activitats', ar: 'الأنشطة', ru: 'Активности', uk: 'Активності', zh: '活动', ja: 'アクティビティ', ko: '액티비티' },
+  transporte: { es: 'Transporte', en: 'Transport', fr: 'Transport', de: 'Transport', it: 'Trasporto', pt: 'Transporte', ca: 'Transport', ar: 'النقل', ru: 'Транспорт', uk: 'Транспорт', zh: '交通', ja: '交通', ko: '교통' },
+  bienestar: { es: 'Bienestar', en: 'Wellness', fr: 'Bien-être', de: 'Wellness', it: 'Benessere', pt: 'Bem-estar', ca: 'Benestar', ar: 'العافية', ru: 'Велнес', uk: 'Велнес', zh: '养生', ja: 'ウェルネス', ko: '웰니스' },
+  viewpoint: { es: 'Mirador', en: 'Viewpoint', fr: 'Point de vue', de: 'Aussichtspunkt', it: 'Punto panoramico', pt: 'Miradouro', ca: 'Mirador', ar: 'نقطة مشاهدة', ru: 'Смотровая площадка', uk: 'Оглядовий майданчик', zh: '观景点', ja: '展望スポット', ko: '전망대' },
+  monument: { es: 'Monumento', en: 'Monument', fr: 'Monument', de: 'Denkmal', it: 'Monumento', pt: 'Monumento', ca: 'Monument', ar: 'معلم', ru: 'Памятник', uk: 'Пам’ятка', zh: '古迹', ja: '記念碑', ko: '기념물' },
+  beach: { es: 'Playa', en: 'Beach', fr: 'Plage', de: 'Strand', it: 'Spiaggia', pt: 'Praia', ca: 'Platja', ar: 'شاطئ', ru: 'Пляж', uk: 'Пляж', zh: '海滩', ja: 'ビーチ', ko: '해변' },
+  water_sport: { es: 'Deporte acuático', en: 'Water sports', fr: 'Sports nautiques', de: 'Wassersport', it: 'Sport acquatici', pt: 'Desportos aquáticos', ca: 'Esports aquàtics', ar: 'رياضة مائية', ru: 'Водный спорт', uk: 'Водний спорт', zh: '水上运动', ja: 'ウォータースポーツ', ko: '수상 스포츠' },
+  adventure: { es: 'Aventura', en: 'Adventure', fr: 'Aventure', de: 'Abenteuer', it: 'Avventura', pt: 'Aventura', ca: 'Aventura', ar: 'مغامرة', ru: 'Приключение', uk: 'Пригода', zh: '探险', ja: 'アドベンチャー', ko: '어드벤처' },
+  class: { es: 'Clase / Taller', en: 'Class / Workshop', fr: 'Cours / Atelier', de: 'Kurs / Workshop', it: 'Corso / Laboratorio', pt: 'Aula / Workshop', ca: 'Classe / Taller', ar: 'دورة / ورشة', ru: 'Занятие / Мастер-класс', uk: 'Заняття / Майстер-клас', zh: '课程/工作坊', ja: 'レッスン／ワークショップ', ko: '클래스/워크숍' },
+  park: { es: 'Parque', en: 'Park', fr: 'Parc', de: 'Park', it: 'Parco', pt: 'Parque', ca: 'Parc', ar: 'حديقة', ru: 'Парк', uk: 'Парк', zh: '公园', ja: '公園', ko: '공원' },
+  marina: { es: 'Puerto deportivo', en: 'Marina', fr: 'Port de plaisance', de: 'Yachthafen', it: 'Porto turistico', pt: 'Marina', ca: 'Port esportiu', ar: 'مارينا', ru: 'Марина', uk: 'Марина', zh: '游艇码头', ja: 'マリーナ', ko: '마리나' },
+};
+
+const SUBCATEGORY_LABELS: Record<string, Record<string, string>> = {
+  'nautical/kayak': { es: 'Náutica · Kayak', en: 'Watersports · Kayak', fr: 'Nautisme · Kayak', de: 'Wassersport · Kajak', it: 'Nautica · Kayak', pt: 'Náutica · Caiaque', ca: 'Nàutica · Caiac', ar: 'رياضة مائية · كاياك', ru: 'Водный спорт · Каяк', uk: 'Водний спорт · Каяк', zh: '水上运动 · 皮划艇', ja: 'ウォータースポーツ・カヤック', ko: '수상 스포츠 · 카약' },
+  'nautical/catamaran': { es: 'Náutica · Catamarán', en: 'Watersports · Catamaran', fr: 'Nautisme · Catamaran', de: 'Wassersport · Katamaran', it: 'Nautica · Catamarano', pt: 'Náutica · Catamarã', ca: 'Nàutica · Catamarà', ar: 'رياضة مائية · قارب شراعي', ru: 'Водный спорт · Катамаран', uk: 'Водний спорт · Катамаран', zh: '水上运动 · 双体船', ja: 'ウォータースポーツ・カタマラン', ko: '수상 스포츠 · 카타마란' },
+};
+
+function humanizeFallback(raw: string): string {
+  const last = raw.split('/').pop() || raw;
+  return last.charAt(0).toUpperCase() + last.slice(1).replace(/_/g, ' ');
+}
+
+/** Translates a raw `category` value from guide_pois into the given language, with a readable fallback for anything not yet mapped. */
+export function getCategoryLabel(rawCategory: string | null | undefined, lang: string): string {
+  if (!rawCategory) return '';
+  const entry = CATEGORY_LABELS[rawCategory.trim().toLowerCase()];
+  if (entry) return entry[lang] || entry.en || entry.es;
+  return humanizeFallback(rawCategory);
+}
+
+/** Same as getCategoryLabel but for the `subcategory`/`service_subcategory` field (e.g. "nautical/kayak"). */
+export function getSubcategoryLabel(rawSubcategory: string | null | undefined, lang: string): string | null {
+  if (!rawSubcategory) return null;
+  const entry = SUBCATEGORY_LABELS[rawSubcategory.trim().toLowerCase()];
+  if (entry) return entry[lang] || entry.en || entry.es;
+  return humanizeFallback(rawSubcategory);
 }

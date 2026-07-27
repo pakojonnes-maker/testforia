@@ -1,5 +1,5 @@
 import React, { useEffect } from 'react';
-import { getTranslation } from '../lib/i18n';
+import { getTranslation, getCategoryLabel } from '../lib/i18n';
 
 export interface PoiDetailItem {
   id: string;
@@ -55,7 +55,7 @@ export default function PoiDetailModal({ item, lang, onClose, onOpenMap }: PoiDe
             </div>
           )}
           <div className="absolute bottom-4 left-6 right-6">
-            <span className="text-label-sm font-label-sm text-crisp-white/80 uppercase tracking-wider">{item.category}</span>
+            <span className="text-label-sm font-label-sm text-crisp-white/80 uppercase tracking-wider">{getCategoryLabel(item.category, lang)}</span>
             <h3 className="text-headline-lg-mobile font-headline-lg-mobile text-crisp-white">{item.name}</h3>
           </div>
         </div>

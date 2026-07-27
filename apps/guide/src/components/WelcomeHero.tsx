@@ -37,7 +37,7 @@ export default function WelcomeHero({
       <div className="absolute inset-0 bg-gradient-to-t from-deep-sea/80 via-transparent to-transparent"></div>
       
       <div className="absolute bottom-0 left-0 p-6 md:p-8 w-full text-crisp-white">
-        <div className="flex justify-between items-end">
+        <div className="flex flex-col md:flex-row md:justify-between md:items-end gap-4">
           <div>
             <h2 className="text-headline-lg-mobile md:text-display-lg font-headline-lg-mobile md:font-display-lg mb-2">
               {apartmentName}
@@ -51,9 +51,11 @@ export default function WelcomeHero({
               </p>
             )}
           </div>
-          <button onClick={handleVerDireccion} className="bg-crisp-white text-terracotta px-6 py-3 rounded-full font-label-lg text-label-lg shadow-md hover:bg-warm-sand transition-colors hidden md:block">
-            {getTranslation('view_address', currentLang)}
-          </button>
+          {address && (
+            <button onClick={handleVerDireccion} className="bg-crisp-white text-terracotta px-6 py-3 rounded-full font-label-lg text-label-lg shadow-md hover:bg-warm-sand transition-colors w-full md:w-auto shrink-0">
+              {getTranslation('view_address', currentLang)}
+            </button>
+          )}
         </div>
       </div>
     </section>
