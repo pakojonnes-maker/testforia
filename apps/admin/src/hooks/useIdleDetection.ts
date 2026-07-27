@@ -65,6 +65,14 @@ interface UseIdleDetectionReturn {
  * });
  * ```
  */
+// El countdown de segundo a segundo solo lo consume el aviso de "sesión a
+// punto de cerrarse" (DashboardLayout mira timeUntilLogout <= 60). Antes se
+// arrancaba desde el primer segundo de la sesión, lo que forzaba un
+// setState — y por tanto un re-render de todo el admin bajo DashboardLayout —
+// cada segundo durante los 15 minutos completos. Ahora solo corre en esta
+// ventana final antes del logout.
+const COUNTDOWN_WINDOW_MS = 90 * 1000;
+
 export function useIdleDetection({
     idleTimeout = 5 * 60 * 1000, // 5 minutos por defecto
     logoutTimeout = 30 * 60 * 1000, // 30 minutos por defecto
@@ -79,8 +87,21 @@ export function useIdleDetection({
 
     const idleTimerRef = useRef<NodeJS.Timeout | null>(null);
     const logoutTimerRef = useRef<NodeJS.Timeout | null>(null);
-    const countdownTimerRef = useRef<NodeJS.Timeout | null>(null);
+    const countdownStartTimerRef = useRef<NodeJS.Timeout | null>(null);
+    const countdownIntervalRef = useRef<NodeJS.Timeout | null>(null);
     const lastActivityRef = useRef<number>(Date.now());
+    const isIdleRef = useRef(false);
+
+    // Los callbacks del consumidor viven en refs: en DashboardLayout son
+    // arrow functions inline (identidad nueva cada render). Si fueran
+    // dependencias de resetIdleTimer, cada render del consumidor forzaría
+    // recrear el efecto de listeners de window más abajo.
+    const onIdleRef = useRef(onIdle);
+    const onActiveRef = useRef(onActive);
+    const onLogoutRef = useRef(onLogout);
+    useEffect(() => { onIdleRef.current = onIdle; }, [onIdle]);
+    useEffect(() => { onActiveRef.current = onActive; }, [onActive]);
+    useEffect(() => { onLogoutRef.current = onLogout; }, [onLogout]);
 
     // Función para limpiar todos los timers
     const clearAllTimers = useCallback(() => {
@@ -92,21 +113,23 @@ export function useIdleDetection({
             clearTimeout(logoutTimerRef.current);
             logoutTimerRef.current = null;
         }
-        if (countdownTimerRef.current) {
-            clearInterval(countdownTimerRef.current);
-            countdownTimerRef.current = null;
+        if (countdownStartTimerRef.current) {
+            clearTimeout(countdownStartTimerRef.current);
+            countdownStartTimerRef.current = null;
+        }
+        if (countdownIntervalRef.current) {
+            clearInterval(countdownIntervalRef.current);
+            countdownIntervalRef.current = null;
         }
     }, []);
 
-    // Función para actualizar los contadores
+    // Función para actualizar los contadores, un tick por segundo
     const startCountdown = useCallback(() => {
-        // Limpiar countdown anterior
-        if (countdownTimerRef.current) {
-            clearInterval(countdownTimerRef.current);
+        if (countdownIntervalRef.current) {
+            clearInterval(countdownIntervalRef.current);
         }
 
-        // Actualizar cada segundo
-        countdownTimerRef.current = setInterval(() => {
+        countdownIntervalRef.current = setInterval(() => {
             const now = Date.now();
             const timeSinceActivity = now - lastActivityRef.current;
 
@@ -127,9 +150,10 @@ export function useIdleDetection({
         setTimeUntilLogout(logoutTimeout / 1000);
 
         // Si estaba inactivo, marcar como activo
-        if (isIdle) {
+        if (isIdleRef.current) {
+            isIdleRef.current = false;
             setIsIdle(false);
-            onActive?.();
+            onActiveRef.current?.();
         }
 
         // Limpiar timers anteriores
@@ -137,24 +161,28 @@ export function useIdleDetection({
 
         // Iniciar timer de inactividad
         idleTimerRef.current = setTimeout(() => {
+            isIdleRef.current = true;
             setIsIdle(true);
-            onIdle?.();
+            onIdleRef.current?.();
         }, idleTimeout);
 
         // Iniciar timer de logout automático
         logoutTimerRef.current = setTimeout(() => {
-            onLogout?.();
+            onLogoutRef.current?.();
         }, logoutTimeout);
 
-        // Iniciar countdown
-        startCountdown();
-    }, [enabled, idleTimeout, logoutTimeout, isIdle, onIdle, onActive, onLogout, clearAllTimers, startCountdown]);
+        // El countdown de 1s arranca solo al entrar en la ventana final,
+        // no desde ya.
+        const delayUntilCountdown = Math.max(0, logoutTimeout - COUNTDOWN_WINDOW_MS);
+        countdownStartTimerRef.current = setTimeout(startCountdown, delayUntilCountdown);
+    }, [enabled, idleTimeout, logoutTimeout, clearAllTimers, startCountdown]);
 
     // Eventos que indican actividad del usuario
     useEffect(() => {
         if (!enabled) {
             clearAllTimers();
             setIsIdle(false);
+            isIdleRef.current = false;
             return;
         }
 

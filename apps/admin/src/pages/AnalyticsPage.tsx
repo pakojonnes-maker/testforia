@@ -195,7 +195,7 @@ function KPIsTab({ data, timeRange }: any) {
     totalSessions: data.summary?.totalSessions || data.summary?.total_sessions || 0,
     dishViews: data.summary?.dishViews || data.summary?.dish_views || 0,
     favorites: data.summary?.favorites || 0,
-    cartItems: data.cartMetrics?.total_items_added || 0,
+    cartItems: data.cartMetrics?.totalItems || 0,
   };
 
   return (

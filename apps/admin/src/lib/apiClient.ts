@@ -246,6 +246,11 @@ class AdminApiClient {
         trafficByHour: rawData.trafficByHour || [],
         flows: rawData.flows || [],
         qrAttribution: rawData.qrAttribution || [],
+        // De dónde vienen los clientes (guidebook/TV/QR/directo) y qué
+        // apartamentos envían más tráfico. AnalyticsPage los pasa tal cual a
+        // AttributionPanel, cuyos tipos ya coinciden con la forma del backend.
+        attribution: rawData.attribution || [],
+        topApartments: rawData.topApartments || [],
         // ✅ Include cart metrics in returned data
         cartMetrics: {
           totalCarts: rawData.cartMetrics?.total_carts_created || 0,

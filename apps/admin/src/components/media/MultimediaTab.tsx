@@ -227,7 +227,7 @@ export default function MultimediaTab({ restaurantId, dishes }: MultimediaTabPro
                             <Box display="flex" alignItems="center" gap={2} width="100%">
                                 <Box
                                     component="img"
-                                    src={option?.thumbnailurl || 'placeholder-dish.jpg'}
+                                    src={option?.thumbnail_url || ''}
                                     alt={option?.translations?.name?.es}
                                     sx={{
                                         width: 40,

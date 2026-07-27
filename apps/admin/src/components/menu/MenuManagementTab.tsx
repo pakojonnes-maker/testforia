@@ -74,11 +74,11 @@ const DishItem: React.FC<{
 }> = ({ dish, index, total, onMoveUp, onMoveDown, onEdit, isUpdating }) => {
     const getDishImage = (d: any) => {
         const media = d?.media || [];
-        const primary = media.find((m: any) => m.role === 'PRIMARY_IMAGE' || m.isprimary);
+        const primary = media.find((m: any) => m.role === 'PRIMARY_IMAGE' || m.is_primary);
         if (primary?.url) return primary.url;
         const gallery = media.find((m: any) => m.role === 'GALLERY_IMAGE' || m.type === 'image');
         if (gallery?.url) return gallery.url;
-        if (d?.thumbnailurl) return d.thumbnailurl;
+        if (d?.thumbnail_url) return d.thumbnail_url;
         return null;
     };
 
@@ -645,7 +645,7 @@ const AddDishDialog: React.FC<{
 
     const getDishImage = (d: any) => {
         const media = d?.media || [];
-        const primary = media.find((m: any) => m.role === 'PRIMARY_IMAGE' || m.isprimary);
+        const primary = media.find((m: any) => m.role === 'PRIMARY_IMAGE' || m.is_primary);
         if (primary?.url) return primary.url;
         return d?.thumbnail_url || null;
     };

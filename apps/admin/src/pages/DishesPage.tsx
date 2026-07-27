@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useCallback, useEffect } from 'react';
+import React, { useState, useMemo, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '../contexts/AuthContext';
@@ -14,9 +14,9 @@ import MenuManagementTab from '../components/menu/MenuManagementTab';
 import {
   Box, Button, Container, Typography, Paper, Table, TableBody, TableCell, TableContainer, TableHead, TableRow,
   IconButton, Chip, TextField, InputAdornment, Grid, Card, CardMedia, CardContent, CardActions,
-  Alert, AlertTitle, Menu, MenuItem, ListItemIcon, ListItemText, Tooltip, Dialog, DialogTitle, DialogContent,
-  DialogContentText, DialogActions, Snackbar, CircularProgress, Skeleton, Fab, SwipeableDrawer, Divider, Avatar,
-  useScrollTrigger, Zoom, ToggleButtonGroup, ToggleButton, alpha, Tabs, Tab,
+  Alert, Menu, MenuItem, ListItemIcon, ListItemText, Tooltip, Dialog, DialogTitle, DialogContent,
+  DialogContentText, DialogActions, Snackbar, CircularProgress, Skeleton, Fab, Avatar,
+  useScrollTrigger, Zoom, ToggleButtonGroup, ToggleButton, Tabs, Tab,
 } from '@mui/material';
 
 // Icons
@@ -44,58 +44,16 @@ import {
   ArrowDownward as ArrowDownIcon,
   AttachMoney as PriceIcon,
   ViewModule as SectionOrderIcon,
-  InfoOutlined as InfoIcon,
   PhotoLibrary as PhotoLibraryIcon,
 } from '@mui/icons-material';
 
-// ===== QuickHelpMenu =====
-const QuickHelpMenu: React.FC<{ open: boolean; onClose: () => void }> = ({ open, onClose }) => (
-  <Dialog open={open} onClose={onClose} maxWidth="sm" fullWidth>
-    <DialogTitle>
-      <Box display="flex" alignItems="center" gap={1}>
-        <InfoIcon color="primary" />
-        Cómo reorganizar tu menú
-      </Box>
-    </DialogTitle>
-    <DialogContent dividers>
-      <Box sx={{ mb: 2 }}>
-        <Typography variant="h6" gutterBottom color="primary">Ordenar platos en una sección</Typography>
-        <Box display="flex" alignItems="center" gap={1} mb={1}>
-          <DragIcon color="action" />
-          <Typography>Arrastra y suelta los platos para cambiar su orden dentro de cada sección.</Typography>
-        </Box>
-      </Box>
-      <Divider sx={{ my: 2 }} />
-      <Box sx={{ mb: 2 }}>
-        <Typography variant="h6" gutterBottom color="primary">Mover platos entre secciones</Typography>
-        <Typography>Arrastra un plato y suéltalo sobre otra sección para moverlo; quedará al final de la sección destino.</Typography>
-      </Box>
-      <Divider sx={{ my: 2 }} />
-      <Box sx={{ mb: 2 }}>
-        <Typography variant="h6" gutterBottom color="primary">Guardar cambios</Typography>
-        <Typography>Cuando termines, pulsa “Guardar orden” para aplicar los cambios.</Typography>
-        <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
-          Los cambios no se guardarán hasta que confirmes pulsando “Guardar orden”.
-        </Typography>
-      </Box>
-      <Alert severity="info" sx={{ mt: 2 }}>
-        <AlertTitle>Consejo</AlertTitle>
-        Las secciones vacías muestran un área punteada donde puedes soltar platos.
-      </Alert>
-    </DialogContent>
-    <DialogActions sx={{ px: 3, pb: 3 }}>
-      <Button onClick={onClose} color="primary" variant="contained">Entendido</Button>
-    </DialogActions>
-  </Dialog>
-);
-
 // ===== Helper para imagen de plato =====
 const getDishDisplayImage = (dish: any) => {
-  if (!dish) return 'placeholder-dish.jpg';
+  if (!dish) return '';
   const media = dish.media || [];
 
   // 1. Primary Image
-  const primary = media.find((m: any) => m.role === 'PRIMARY_IMAGE' || m.isprimary);
+  const primary = media.find((m: any) => m.role === 'PRIMARY_IMAGE' || m.is_primary);
   if (primary?.url) return primary.url;
 
   // 2. Gallery Image
@@ -103,164 +61,9 @@ const getDishDisplayImage = (dish: any) => {
   if (gallery?.url) return gallery.url;
 
   // 3. Thumbnail
-  if (dish.thumbnailurl) return dish.thumbnailurl;
+  if (dish.thumbnail_url) return dish.thumbnail_url;
 
-  return 'placeholder-dish.jpg';
-};
-
-// ===== Item de plato para ordenar (Manual) =====
-const DishOrderItem: React.FC<{
-  dish: any;
-  index: number;
-  total: number;
-  onMoveUp: () => void;
-  onMoveDown: () => void;
-  onEdit: () => void;
-  onDelete: () => void;
-  isMobile: boolean;
-  isUpdating: boolean;
-}> = ({ dish, index, total, onMoveUp, onMoveDown, onEdit, onDelete, isMobile, isUpdating }) => {
-  const imageUrl = getDishDisplayImage(dish);
-
-  return (
-    <Card
-      sx={{
-        display: 'flex',
-        flexDirection: 'row',
-        alignItems: 'center',
-        p: 1,
-        mb: 1,
-        borderRadius: 2,
-        border: (t) => `1px solid ${alpha(t.palette.divider, 0.1)}`,
-        boxShadow: 'none',
-        '&:hover': { bgcolor: 'action.hover' },
-      }}
-    >
-      {/* Controles de orden */}
-      <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', mr: 1.5, gap: 0.5 }}>
-        <IconButton
-          size="small"
-          onClick={onMoveUp}
-          disabled={index === 0 || isUpdating}
-          color="primary"
-          sx={{ p: 0.5, bgcolor: (t) => alpha(t.palette.primary.main, 0.05) }}
-        >
-          <ArrowUpIcon fontSize="small" />
-        </IconButton>
-        <Chip
-          label={`#${index + 1}`}
-          size="small"
-          variant="outlined"
-          sx={{ height: 20, fontSize: '0.7rem', fontWeight: 'bold', minWidth: 24, px: 0 }}
-        />
-        <IconButton
-          size="small"
-          onClick={onMoveDown}
-          disabled={index === total - 1 || isUpdating}
-          color="primary"
-          sx={{ p: 0.5, bgcolor: (t) => alpha(t.palette.primary.main, 0.05) }}
-        >
-          <ArrowDownIcon fontSize="small" />
-        </IconButton>
-      </Box>
-
-      {/* Imagen */}
-      <Avatar
-        src={imageUrl}
-        variant="rounded"
-        sx={{ width: 60, height: 60, mr: 2, borderRadius: 2 }}
-      />
-
-      {/* Info */}
-      <Box sx={{ flexGrow: 1, minWidth: 0 }}>
-        <Typography variant="subtitle2" fontWeight={700} noWrap>
-          {dish?.translations?.name?.es || 'Sin nombre'}
-        </Typography>
-        <Typography variant="caption" color="text.secondary" noWrap display="block">
-          {Number(dish?.price || 0).toFixed(2)} € • {dish?.status === 'active' ? 'Activo' : 'Inactivo'}
-        </Typography>
-      </Box>
-
-      {/* Acciones */}
-      <Box sx={{ display: 'flex', flexDirection: isMobile ? 'column' : 'row' }}>
-        <IconButton size="small" onClick={onEdit} sx={{ color: 'text.secondary' }}>
-          <EditIcon fontSize="small" />
-        </IconButton>
-        <IconButton size="small" color="error" onClick={onDelete}>
-          <DeleteIcon fontSize="small" />
-        </IconButton>
-      </Box>
-    </Card>
-  );
-};
-
-// ===== Sección con lista de platos (Manual) =====
-const DishOrderSection: React.FC<{
-  section: any;
-  dishes: any[];
-  onMoveDish: (index: number, direction: 'up' | 'down') => void;
-  onEditDish: (id: string) => void;
-  onDeleteDish: (dish: any) => void;
-  isMobile: boolean;
-  isUpdating: boolean;
-}> = ({ section, dishes, onMoveDish, onEditDish, onDeleteDish, isMobile, isUpdating }) => {
-  return (
-    <Box sx={{ mb: 4 }}>
-      <Paper
-        elevation={0}
-        variant="outlined"
-        sx={{
-          p: 2,
-          mb: 2,
-          backgroundColor: (t) => alpha(t.palette.primary.main, 0.03),
-          borderRadius: 2,
-          borderColor: (t) => alpha(t.palette.primary.main, 0.2),
-          display: 'flex',
-          justifyContent: 'space-between',
-          alignItems: 'center',
-        }}
-      >
-        <Typography variant="h6" fontWeight={700} color="primary.main">
-          {section?.translations?.name?.es || 'Sin nombre'}
-        </Typography>
-        <Chip label={`${dishes.length} platos`} size="small" color="primary" variant="outlined" />
-      </Paper>
-
-      <Box sx={{ pl: { xs: 0, md: 2 } }}>
-        {dishes.length > 0 ? (
-          dishes.map((dish, idx) => (
-            <DishOrderItem
-              key={dish.id}
-              dish={dish}
-              index={idx}
-              total={dishes.length}
-              onMoveUp={() => onMoveDish(idx, 'up')}
-              onMoveDown={() => onMoveDish(idx, 'down')}
-              onEdit={() => onEditDish(dish.id)}
-              onDelete={() => onDeleteDish(dish)}
-              isMobile={isMobile}
-              isUpdating={isUpdating}
-            />
-          ))
-        ) : (
-          <Box
-            sx={{
-              p: 3,
-              textAlign: 'center',
-              border: '1px dashed',
-              borderColor: 'divider',
-              borderRadius: 2,
-              bgcolor: 'background.paper',
-            }}
-          >
-            <Typography variant="body2" color="text.secondary">
-              Esta sección no tiene platos asignados.
-            </Typography>
-          </Box>
-        )}
-      </Box>
-    </Box>
-  );
+  return '';
 };
 
 export default function DishesPage() {
@@ -269,7 +72,7 @@ export default function DishesPage() {
   const queryClient = useQueryClient();
   const restaurantId =
     currentRestaurant?.id ??
-    JSON.parse(localStorage.getItem('currentrestaurant') || 'null')?.id ??
+    JSON.parse(localStorage.getItem('current_restaurant') || 'null')?.id ??
     undefined;
 
   const theme = useTheme();
@@ -287,21 +90,12 @@ export default function DishesPage() {
   // Tab state
   const [currentTab, setCurrentTab] = useState(0);
 
-  // Orden por sección
-  const [sectionOrderMode, setSectionOrderMode] = useState(false);
-  const [dishOrdersBySection, setDishOrdersBySection] = useState<Record<string, string[]>>({});
-  const [initialSectionOrders, setInitialSectionOrders] = useState<Record<string, string[]>>({});
-  const [hasSectionOrderChanges, setHasSectionOrderChanges] = useState(false);
-  const [activeId, setActiveId] = useState<string | null>(null);
-  const [activeSectionId, setActiveSectionId] = useState<string | null>(null);
-  const [showQuickHelp, setShowQuickHelp] = useState(false);
-
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [dishToDelete, setDishToDelete] = useState<any>(null);
   const [snackbar, setSnackbar] = useState<{ open: boolean; message: string; severity: 'success' | 'error' | 'info' | 'warning' }>({ open: false, message: '', severity: 'success' });
 
   // Queries
-  const { data: dishes = [], isLoading, error, refetch, isRefetching } = useQuery({
+  const { data: dishes = [], isLoading, error, refetch } = useQuery({
     queryKey: ['dishes', restaurantId],
     queryFn: async () => {
       if (!restaurantId) throw new Error('No hay restaurante seleccionado');
@@ -309,68 +103,6 @@ export default function DishesPage() {
     },
     enabled: !!restaurantId,
   });
-
-  const { data: sections = [], isLoading: isLoadingSections } = useQuery({
-    queryKey: ['sections', restaurantId],
-    queryFn: () => apiClient.getSections(restaurantId!),
-    enabled: !!restaurantId,
-  });
-
-  const { data: dishSectionRelations = [], isLoading: isLoadingRelations } = useQuery({
-    queryKey: ['dish-section-relations', restaurantId],
-    queryFn: () => apiClient.getDishSectionRelations(restaurantId!),
-    enabled: !!restaurantId && sectionOrderMode,
-  });
-
-  // Inicializar orden al entrar en modo por sección
-  useEffect(() => {
-    if (!sectionOrderMode) return;
-    if (!sections?.length || !dishes?.length) return;
-
-    if (dishSectionRelations?.length) {
-      // Construir estado por sección con order_index del backend
-      const bySection: Record<string, { dishid: string; orderindex: number }[]> = {};
-      sections.forEach((s: any) => (bySection[s.id] = []));
-      dishSectionRelations.forEach((r: any) => {
-        if (bySection[r.section_id]) bySection[r.section_id].push({ dishid: r.dish_id, orderindex: Number(r.order_index) || 0 });
-      });
-      Object.keys(bySection).forEach((sid) => {
-        bySection[sid].sort((a, b) => a.orderindex - b.orderindex);
-      });
-      const idsOnly: Record<string, string[]> = {};
-      Object.keys(bySection).forEach((sid) => (idsOnly[sid] = bySection[sid].map((x) => x.dishid)));
-      setDishOrdersBySection(idsOnly);
-      setInitialSectionOrders(JSON.parse(JSON.stringify(idsOnly)));
-      // Tutorial la primera vez
-      const seen = localStorage.getItem('menuOrderTutorialSeen');
-      if (!seen) {
-        setShowQuickHelp(true);
-        localStorage.setItem('menuOrderTutorialSeen', 'true');
-      }
-    } else {
-      // Fallback: secciones vacías listas para recibir platos
-      const idsOnly: Record<string, string[]> = {};
-      sections.forEach((s: any) => (idsOnly[s.id] = []));
-      setDishOrdersBySection(idsOnly);
-      setInitialSectionOrders(JSON.parse(JSON.stringify(idsOnly)));
-    }
-  }, [sectionOrderMode, sections, dishes, dishSectionRelations]);
-
-  // Detectar cambios vs estado inicial
-  useEffect(() => {
-    if (!sectionOrderMode) return;
-    let changed = false;
-    for (const sid of Object.keys(dishOrdersBySection)) {
-      const cur = dishOrdersBySection[sid] || [];
-      const ini = initialSectionOrders[sid] || [];
-      if (cur.length !== ini.length) { changed = true; break; }
-      for (let i = 0; i < cur.length; i++) {
-        if (cur[i] !== ini[i]) { changed = true; break; }
-      }
-      if (changed) break;
-    }
-    setHasSectionOrderChanges(changed);
-  }, [dishOrdersBySection, initialSectionOrders, sectionOrderMode]);
 
   // Mutaciones
   const deleteDishMutation = useMutation({
@@ -385,41 +117,6 @@ export default function DishesPage() {
       setDeleteDialogOpen(false);
     },
   });
-
-  const saveSectionOrderMutation = useMutation({
-    mutationFn: (orderData: Array<{ section_id: string; dish_orders: Array<{ dish_id: string; order_index: number }> }>) =>
-      apiClient.updateDishesOrderBySection(restaurantId!, orderData),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['dishes', restaurantId] });
-      queryClient.invalidateQueries({ queryKey: ['dish-section-relations', restaurantId] });
-      setInitialSectionOrders(JSON.parse(JSON.stringify(dishOrdersBySection)));
-      setHasSectionOrderChanges(false);
-      setSnackbar({ open: true, message: 'Menú reorganizado correctamente', severity: 'success' });
-    },
-    onError: (err: any) => {
-      setSnackbar({ open: true, message: `Error: ${err?.response?.data?.message || 'No se pudo guardar el orden'}`, severity: 'error' });
-    },
-  });
-
-  // Lógica de reordenamiento manual
-  const moveDish = (sectionId: string, index: number, direction: 'up' | 'down') => {
-    if (saveSectionOrderMutation.isPending) return;
-
-    const currentIds = dishOrdersBySection[sectionId] || [];
-    const newIds = [...currentIds];
-    const targetIndex = direction === 'up' ? index - 1 : index + 1;
-
-    if (targetIndex < 0 || targetIndex >= newIds.length) return;
-
-    // Intercambiar
-    [newIds[index], newIds[targetIndex]] = [newIds[targetIndex], newIds[index]];
-
-    setDishOrdersBySection((prev) => ({
-      ...prev,
-      [sectionId]: newIds,
-    }));
-    setHasSectionOrderChanges(true);
-  };
 
   // Handlers UI
   const handleFilterClick = (e: React.MouseEvent<HTMLButtonElement>) => setFilterAnchorEl(e.currentTarget);
@@ -456,37 +153,18 @@ export default function DishesPage() {
         case 'name_desc': return (b?.translations?.name?.es || '').localeCompare(a?.translations?.name?.es || '');
         case 'price_asc': return (a?.price || 0) - (b?.price || 0);
         case 'price_desc': return (b?.price || 0) - (a?.price || 0);
-        case 'views': return (b?.viewcount || 0) - (a?.viewcount || 0);
+        case 'views': return (b?.view_count || 0) - (a?.view_count || 0);
         case 'order_index':
         default: return 0;
       }
     });
   }, [filteredDishes, sortBy]);
 
-  // Construir platos por sección para el modo ordenar
-  const sectionDishes = useMemo(() => {
-    const result: Record<string, any[]> = {};
-    sections.forEach((s: any) => {
-      const ids = dishOrdersBySection[s.id] || [];
-      result[s.id] = ids.map((id) => dishes.find((d: any) => d.id === id)).filter(Boolean);
-    });
-    return result;
-  }, [sections, dishOrdersBySection, dishes]);
-
   const totalCount = dishes?.length || 0;
   const filteredCount = sortedAndFilteredDishes?.length || 0;
 
-  // Guardar orden
-  const handleSaveSectionOrder = () => {
-    const orders = Object.entries(dishOrdersBySection).map(([section_id, ids]) => ({
-      section_id,
-      dish_orders: ids.map((dish_id, idx) => ({ dish_id, order_index: idx + 1 })),
-    }));
-    saveSectionOrderMutation.mutate(orders);
-  };
-
   // UI estados de carga/error
-  if (isLoading || (sectionOrderMode && isLoadingRelations)) {
+  if (isLoading) {
     return (
       <Container maxWidth="lg" sx={{ py: { xs: 2, md: 4 } }}>
         <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
@@ -525,15 +203,12 @@ export default function DishesPage() {
   }
 
   return (
-    <Container maxWidth="lg" sx={{ py: { xs: 2, md: 4 }, pb: sectionOrderMode ? 10 : 2 }}>
+    <Container maxWidth="lg" sx={{ py: { xs: 2, md: 4 }, pb: 2 }}>
       {/* Sistema de Tabs */}
       <Paper sx={{ mb: 3 }}>
         <Tabs
           value={currentTab}
-          onChange={(_, newValue) => {
-            setCurrentTab(newValue);
-            setSectionOrderMode(newValue === 1);
-          }}
+          onChange={(_, newValue) => setCurrentTab(newValue)}
           variant="scrollable"
           scrollButtons="auto"
           sx={{ borderBottom: 1, borderColor: 'divider' }}
@@ -802,7 +477,7 @@ export default function DishesPage() {
                           <TableCell align="center">
                             {dish?.status === 'active'
                               ? <Chip label="Activo" size="small" color="success" variant="outlined" />
-                              : <Chip label={dish?.status === 'outofstock' ? 'Agotado' : dish?.status === 'hidden' ? 'Oculto' : 'Inactivo'} size="small" color="error" variant="outlined" />}
+                              : <Chip label={dish?.status === 'out_of_stock' ? 'Agotado' : dish?.status === 'hidden' ? 'Oculto' : 'Inactivo'} size="small" color="error" variant="outlined" />}
                           </TableCell>
                           <TableCell align="right" onClick={(e) => e.stopPropagation()}>
                             <Button size="small" variant="outlined" onClick={() => handleEditDish(dish.id)} startIcon={<EditIcon />} sx={{ mr: 1 }}>Editar</Button>
@@ -836,7 +511,7 @@ export default function DishesPage() {
       {/* FABs eliminados - la navegación ahora es a través del header */}
 
       {/* Scroll to top en móvil/desktop */}
-      <Zoom in={!sectionOrderMode && trigger}>
+      <Zoom in={trigger}>
         <Fab
           color="default" size="small" aria-label="scroll back to top"
           sx={{
@@ -850,83 +525,6 @@ export default function DishesPage() {
           <ArrowUpIcon />
         </Fab>
       </Zoom>
-
-      {/* Drawer móvil de filtros/orden (plantilla cerrada) */}
-      <SwipeableDrawer
-        anchor="bottom"
-        open={false}
-        onClose={() => { }}
-        onOpen={() => { }}
-        disableSwipeToOpen={false}
-        swipeAreaWidth={56}
-        ModalProps={{ keepMounted: true }}
-        sx={{ '& .MuiDrawer-paper': { borderTopLeftRadius: 16, borderTopRightRadius: 16, maxHeight: '80%' } }}
-      >
-        <Box sx={{ p: 2 }}>
-          <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
-            <Typography variant="h6">Filtros y Ordenación</Typography>
-            <IconButton onClick={() => { /* cerrar */ }}>
-              <CloseIcon />
-            </IconButton>
-          </Box>
-
-          <Box>
-            <Typography variant="subtitle1" sx={{ fontWeight: 500, mb: 1 }}>Filtrar por estado</Typography>
-            <Box sx={{ mb: 3 }}>
-              <Button variant={filterStatus === 'all' ? 'contained' : 'outlined'} onClick={() => setFilterStatus('all')} sx={{ mr: 1, mb: 1 }}>
-                Todos
-              </Button>
-              <Button variant={filterStatus === 'active' ? 'contained' : 'outlined'} onClick={() => setFilterStatus('active')} startIcon={<ActiveIcon />} sx={{ mr: 1, mb: 1 }}>
-                Activos
-              </Button>
-              <Button variant={filterStatus === 'inactive' ? 'contained' : 'outlined'} onClick={() => setFilterStatus('inactive')} startIcon={<InactiveIcon />} sx={{ mb: 1 }}>
-                Inactivos
-              </Button>
-            </Box>
-
-            <Divider sx={{ my: 2 }} />
-            <Typography variant="subtitle1" sx={{ fontWeight: 500, mb: 1 }}>Ordenar por</Typography>
-            <Box sx={{ mb: 2 }}>
-              <Button variant={sortBy === 'order_index' ? 'contained' : 'outlined'} onClick={() => setSortBy('order_index')} startIcon={<DragIcon />} sx={{ mr: 1, mb: 1 }}>
-                Orden personalizado
-              </Button>
-              <Button variant={sortBy === 'name_asc' ? 'contained' : 'outlined'} onClick={() => setSortBy('name_asc')} startIcon={<ArrowUpIcon />} sx={{ mr: 1, mb: 1 }}>
-                Nombre A-Z
-              </Button>
-              <Button variant={sortBy === 'name_desc' ? 'contained' : 'outlined'} onClick={() => setSortBy('name_desc')} startIcon={<ArrowDownIcon />} sx={{ mr: 1, mb: 1 }}>
-                Nombre Z-A
-              </Button>
-              <Button variant={sortBy === 'price_asc' ? 'contained' : 'outlined'} onClick={() => setSortBy('price_asc')} startIcon={<PriceIcon />} sx={{ mr: 1, mb: 1 }}>
-                Precio menor
-              </Button>
-              <Button variant={sortBy === 'price_desc' ? 'contained' : 'outlined'} onClick={() => setSortBy('price_desc')} startIcon={<PriceIcon />} sx={{ mr: 1, mb: 1 }}>
-                Precio mayor
-              </Button>
-              <Button variant={sortBy === 'views' ? 'contained' : 'outlined'} onClick={() => setSortBy('views')} startIcon={<VisibilityIcon />} sx={{ mb: 1 }}>
-                Más vistos
-              </Button>
-            </Box>
-
-            <Divider sx={{ my: 2 }} />
-            <Typography variant="subtitle1" sx={{ fontWeight: 500, mb: 1 }}>Modo de visualización</Typography>
-            <ToggleButtonGroup
-              value={viewMode}
-              exclusive
-              onChange={(_, v) => v && setViewMode(v)}
-              size="medium"
-              fullWidth
-              sx={{ mb: 2 }}
-            >
-              <ToggleButton value="grid"><GridViewIcon sx={{ mr: 1 }} />Cuadrícula</ToggleButton>
-              <ToggleButton value="list"><ViewListIcon sx={{ mr: 1 }} />Lista</ToggleButton>
-            </ToggleButtonGroup>
-
-            <Button variant="contained" fullWidth onClick={() => { /* cerrar */ }} sx={{ mt: 2 }}>
-              Aplicar
-            </Button>
-          </Box>
-        </Box>
-      </SwipeableDrawer>
 
       {/* Menú de filtros desktop */}
       <Menu
@@ -1021,8 +619,6 @@ export default function DishesPage() {
         </DialogActions>
       </Dialog>
 
-      <QuickHelpMenu open={showQuickHelp} onClose={() => setShowQuickHelp(false)} />
-
       {/* Snackbar */}
       <Snackbar
         open={snackbar.open}
@@ -1037,27 +633,6 @@ export default function DishesPage() {
           {snackbar.message}
         </Alert>
       </Snackbar>
-      {/* Overlay de refetch */}
-      {
-        isRefetching && (
-          <Box
-            sx={{
-              position: 'fixed',
-              top: 0,
-              left: 0,
-              right: 0,
-              bottom: 0,
-              backgroundColor: 'rgba(0,0,0,0.5)',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              zIndex: (t) => t.zIndex.drawer + 1,
-            }}
-          >
-            <CircularProgress sx={{ color: '#fff' }} />
-          </Box>
-        )
-      }
     </Container >
   );
 }

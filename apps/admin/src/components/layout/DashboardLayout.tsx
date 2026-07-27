@@ -29,7 +29,6 @@ import {
   Snackbar,
   Alert as MuiAlert,
 } from '@mui/material';
-import type { SelectChangeEvent } from '@mui/material';
 
 import {
   Menu as MenuIcon,
@@ -155,11 +154,6 @@ export default function DashboardLayout() {
 
   const handleDrawerToggle = () => {
     setMobileOpen(!mobileOpen);
-  };
-
-  const handleRestaurantChange = (event: SelectChangeEvent<string>) => {
-    const restaurantId = event.target.value;
-    switchRestaurant(restaurantId);
   };
 
   // Navegar a reservas al hacer clic en el icono de pendientes
@@ -434,95 +428,50 @@ export default function DashboardLayout() {
           }}
         />
         {hasMultipleRestaurants && (
-          user.restaurants.length > 1 ? (
-            <>
-              <ListItemButton
-                onClick={() => setRestaurantDialogOpen(true)}
-                sx={{
-                  border: '1px solid',
-                  borderColor: 'divider',
-                  borderRadius: 1,
-                  mt: 1,
-                  mb: 1,
-                  py: 1,
-                  mx: 2,
-                  width: 'auto'
-                }}
-              >
-                {user.currentRestaurant?.logo_url ? (
-                  <Avatar
-                    src={user.currentRestaurant.logo_url}
-                    alt={user.currentRestaurant.name}
-                    sx={{ width: 24, height: 24, mr: 1 }}
-                  />
-                ) : (
-                  <RestaurantIcon sx={{ mr: 1, fontSize: 20, color: 'text.secondary' }} />
-                )}
-                <Box sx={{ overflow: 'hidden' }}>
-                  <Typography variant="body2" noWrap sx={{ fontWeight: 500 }}>
-                    {user.currentRestaurant?.name || 'Seleccionar Restaurante'}
-                  </Typography>
-                  <Typography variant="caption" color="primary" sx={{ display: 'block' }}>
-                    Cambiar ({user.restaurants.length})
-                  </Typography>
-                </Box>
-              </ListItemButton>
-
-              <RestaurantSelectorDialog
-                open={restaurantDialogOpen}
-                onClose={() => setRestaurantDialogOpen(false)}
-                onSelect={(id) => {
-                  switchRestaurant(id);
-                  setRestaurantDialogOpen(false);
-                }}
-                restaurants={user.restaurants}
-                currentRestaurantId={user.currentRestaurant?.id}
-              />
-            </>
-          ) : (
-            <FormControl
-              size="small"
-              sx={{ mt: 1, minWidth: '90%', mx: 'auto' }}
+          <>
+            <ListItemButton
+              onClick={() => setRestaurantDialogOpen(true)}
+              sx={{
+                border: '1px solid',
+                borderColor: 'divider',
+                borderRadius: 1,
+                mt: 1,
+                mb: 1,
+                py: 1,
+                mx: 2,
+                width: 'auto'
+              }}
             >
-              <InputLabel id="restaurant-select-label">Restaurante</InputLabel>
-              <Select
-                labelId="restaurant-select-label"
-                id="restaurant-select"
-                value={user?.currentRestaurant?.id || ''}
-                label="Restaurante"
-                onChange={handleRestaurantChange}
-              >
-                {user?.restaurants.map((restaurant) => (
-                  <MenuItem
-                    key={restaurant.id}
-                    value={restaurant.id}
-                    sx={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: 1.5
-                    }}
-                  >
-                    {restaurant.logo_url && (
-                      <Avatar
-                        src={restaurant.logo_url}
-                        alt={restaurant.name}
-                        sx={{ width: 24, height: 24 }}
-                      />
-                    )}
-                    <Box sx={{ display: 'flex', flexDirection: 'column' }}>
-                      <Typography variant="body2">
-                        {restaurant.name}
-                      </Typography>
-                      <Typography variant="caption" color="text.secondary">
-                        {restaurant.role === 'owner' ? 'Propietario' :
-                          restaurant.role === 'manager' ? 'Gerente' : 'Staff'}
-                      </Typography>
-                    </Box>
-                  </MenuItem>
-                ))}
-              </Select>
-            </FormControl>
-          )
+              {currentRestaurant?.logo_url ? (
+                <Avatar
+                  src={currentRestaurant.logo_url}
+                  alt={currentRestaurant.name}
+                  sx={{ width: 24, height: 24, mr: 1 }}
+                />
+              ) : (
+                <RestaurantIcon sx={{ mr: 1, fontSize: 20, color: 'text.secondary' }} />
+              )}
+              <Box sx={{ overflow: 'hidden' }}>
+                <Typography variant="body2" noWrap sx={{ fontWeight: 500 }}>
+                  {currentRestaurant?.name || 'Seleccionar Restaurante'}
+                </Typography>
+                <Typography variant="caption" color="primary" sx={{ display: 'block' }}>
+                  Cambiar ({user.restaurants.length})
+                </Typography>
+              </Box>
+            </ListItemButton>
+
+            <RestaurantSelectorDialog
+              open={restaurantDialogOpen}
+              onClose={() => setRestaurantDialogOpen(false)}
+              onSelect={(id) => {
+                switchRestaurant(id);
+                setRestaurantDialogOpen(false);
+              }}
+              restaurants={user.restaurants}
+              currentRestaurantId={currentRestaurant?.id}
+            />
+          </>
         )}
       </Toolbar>
       <Divider />
@@ -703,17 +652,17 @@ export default function DashboardLayout() {
           </IconButton>
 
           <Box sx={{ flexGrow: 1, display: 'flex', alignItems: 'center' }}>
-            {!hasMultipleRestaurants && user?.currentRestaurant && (
+            {!hasMultipleRestaurants && currentRestaurant && (
               <>
-                {user.currentRestaurant.logo_url && (
+                {currentRestaurant.logo_url && (
                   <Avatar
-                    src={user.currentRestaurant.logo_url}
-                    alt={user.currentRestaurant.name}
+                    src={currentRestaurant.logo_url}
+                    alt={currentRestaurant.name}
                     sx={{ width: 32, height: 32, mr: 1 }}
                   />
                 )}
                 <Typography variant="h6" noWrap component="div">
-                  {user.currentRestaurant.name || 'Panel de Administración'}
+                  {currentRestaurant.name || 'Panel de Administración'}
                 </Typography>
               </>
             )}
