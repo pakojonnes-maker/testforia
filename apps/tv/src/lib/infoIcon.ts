@@ -10,10 +10,13 @@ const BY_ICON: Record<string, string> = {
   local_laundry_service: '🧺', wash: '🧺',
   tv: '📺', restaurant: '🍽️', pool: '🏊', beach_access: '🏖️',
   water_drop: '🚿', bolt: '⚡', pets: '🐾', elevator: '🛗',
+  rule: '📋', gavel: '📋', shopping_cart: '🛒', directions_bus: '🚌',
+  emergency: '🆘',
 }
 const BY_KEY: Record<string, string> = {
   entry: '🔑', door_code: '🔑', checkout: '🕚', check_out: '🕚',
   ac: '❄️', aire: '❄️', trash: '🗑️', basura: '🗑️', parking: '🅿️',
+  rules: '📋', supermarket: '🛒', transport: '🚌', emergency: '🆘',
 }
 
 export function infoIcon(icon?: string, key?: string): string {

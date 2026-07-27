@@ -17,6 +17,7 @@ interface Rec {
   subtitle: string
   badge?: string
   category: string
+  subcategory?: string | null
   image?: string
   kind: 'restaurant' | 'experience'
   description?: string
@@ -27,7 +28,7 @@ interface Rec {
 }
 
 function RecCard({ rec, autoFocus, onSelect }: { rec: Rec; autoFocus?: boolean; onSelect: () => void }) {
-  const v = categoryVisual(rec.category)
+  const v = categoryVisual(rec.category, rec.subcategory)
   return (
     <Focusable id={`rec-${rec.id}`} autoFocus={autoFocus} onSelect={onSelect}>
       <div className="w-[300px] shrink-0 overflow-hidden rounded-3xl text-left shadow-xl"
@@ -51,7 +52,7 @@ function RecCard({ rec, autoFocus, onSelect }: { rec: Rec; autoFocus?: boolean; 
 }
 
 function DetailOverlay({ rec, apartmentId, onClose }: { rec: Rec; apartmentId: string; onClose: () => void }) {
-  const v = categoryVisual(rec.category)
+  const v = categoryVisual(rec.category, rec.subcategory)
 
   // Backspace/Escape cierran el detalle (botón "atrás" habitual de un mando de TV).
   useEffect(() => {
@@ -145,7 +146,8 @@ export function GuideScreen({ data }: { data: GuidebookData }) {
       badge: r.tier === 'premium' ? 'Premium' : undefined, image: r.cover_image || undefined, slug: r.slug,
     })),
     ...data.experiences.map((e): Rec => ({
-      id: e.id, name: e.name, subtitle: e.price_display, category: e.category, kind: 'experience',
+      id: e.id, name: e.name, subtitle: e.price_display, category: e.category,
+      subcategory: e.service_subcategory, kind: 'experience',
       badge: e.is_featured ? 'Destacado' : undefined, image: e.cover_image_url || undefined,
       description: e.description, priceDisplay: e.price_display,
       whatsappPhone: e.action_type === 'whatsapp' ? e.action_data : undefined,
