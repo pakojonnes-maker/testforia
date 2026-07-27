@@ -427,7 +427,7 @@ async function updateApartment(env, id, data, isSuperAdmin, userAgencyIds) {
 
     const sets = [];
     const vals = [];
-    for (const field of ['name', 'address', 'latitude', 'longitude', 'cover_image_url', 'zone_id']) {
+    for (const field of ['name', 'address', 'latitude', 'longitude', 'cover_image_url', 'zone_id', 'wifi_ssid', 'wifi_password', 'wifi_security']) {
         if (data[field] !== undefined) { sets.push(`${field} = ?`); vals.push(data[field]); }
     }
     if (data.is_active !== undefined) { sets.push('is_active = ?'); vals.push(data.is_active ? 1 : 0); }

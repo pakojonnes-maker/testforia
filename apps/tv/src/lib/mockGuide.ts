@@ -6,8 +6,10 @@ export const MOCK_GUIDE: GuidebookData = {
   apartment: {
     id: 'apt_demo', name: 'Villa Serena', slug: 'villa-serena',
     address: 'Cala Blanca, 12 · Menorca', cover_image_url: '',
+    wifi: { ssid: 'VillaSerena_5G', password: 'MarAzul2026', security: 'WPA' },
     info: [
       { id: 'i1', key: 'entry', icon: 'key', title: 'Código de entrada', content: '4821', media: [] },
+      { id: 'i5', key: 'checkin', icon: 'key', title: 'Check-in', content: 'Llegada a partir de las 15:00.', media: [] },
       { id: 'i2', key: 'checkout', icon: 'clock', title: 'Check-out', content: 'Antes de las 11:00. Deja las llaves en la caja.', media: [] },
       { id: 'i3', key: 'ac', icon: 'snow', title: 'Aire acondicionado', content: 'Mando en el salón. Modo frío recomendado a 24°.', media: [] },
       { id: 'i4', key: 'trash', icon: 'trash', title: 'Basura', content: 'Contenedores de reciclaje a 50 m, a la derecha del portal.', media: [] },

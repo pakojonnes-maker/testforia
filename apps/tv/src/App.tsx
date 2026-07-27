@@ -9,7 +9,6 @@ import { WifiScreen } from './screens/WifiScreen'
 import { GuideScreen } from './screens/GuideScreen'
 import { NearbyScreen } from './screens/NearbyScreen'
 import { InfoScreen } from './screens/InfoScreen'
-import { MOCK_STAY } from './lib/mockData'
 import { useGuidebook } from './lib/useGuidebook'
 import { setTrackingContext, track } from './lib/tracking'
 
@@ -29,8 +28,7 @@ function Placeholder({ title }: { title: string }) {
 
 export function App() {
   const [screen, setScreen] = useState<Screen>('home')
-  const stay = MOCK_STAY
-  const { data: guide, pairingCode } = useGuidebook()
+  const { data: guide, pairingCode, usingMock, identifierAttempted } = useGuidebook()
 
   useEffect(() => { setTrackingContext(pairingCode) }, [pairingCode])
   useEffect(() => { track('screen_view', { screen }) }, [screen])
@@ -41,7 +39,7 @@ export function App() {
         <MediterraneanBackground />
 
         <div className="tv-safe">
-          <TopBar brand={guide?.agency?.name || stay.hostBrand} />
+          <TopBar brand={guide?.agency?.name || 'VisualTaste'} demoMode={usingMock && !!identifierAttempted} />
 
           {/* Contenido (deja hueco arriba para el TopBar y abajo para el nav) */}
           <div className="absolute inset-x-0" style={{ top: '5.5rem', bottom: '7rem' }}>
@@ -52,8 +50,8 @@ export function App() {
               animate={{ opacity: 1 }}
               transition={{ duration: 0.35 }}
             >
-              {screen === 'home' && <WelcomeScreen stay={stay} onNavigate={setScreen} />}
-              {screen === 'wifi' && <WifiScreen stay={stay} />}
+              {screen === 'home' && (guide ? <WelcomeScreen data={guide} onNavigate={setScreen} /> : <Placeholder title="Cargando…" />)}
+              {screen === 'wifi' && (guide ? <WifiScreen data={guide} /> : <Placeholder title="Cargando…" />)}
               {screen === 'guide' && (guide ? <GuideScreen data={guide} /> : <Placeholder title="Cargando guía…" />)}
               {screen === 'nearby' && (guide ? <NearbyScreen data={guide} /> : <Placeholder title="Cargando…" />)}
               {screen === 'info' && (guide ? <InfoScreen data={guide} /> : <Placeholder title="Cargando…" />)}

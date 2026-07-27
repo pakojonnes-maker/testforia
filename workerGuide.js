@@ -26,6 +26,24 @@ function errorResponse(message, status = 400) {
     return jsonResponse({ success: false, error: message }, status);
 }
 
+// Fallback for apartments without dedicated wifi_ssid/wifi_password columns:
+// the WiFi info item is host-authored free text like "Red: X\nContraseña: Y"
+// or "Network: X / Password: Y" in any of the 13 active languages. The label
+// itself is never needed — every observed format is two "Label: value" pairs
+// (network first, password second) separated by a newline or " / ", so we
+// just take the text after each first colon instead of matching every
+// language's word for "network"/"password".
+function parseWifiFromInfo(content) {
+    if (!content) return { ssid: null, password: null };
+    const values = content.split(/\n|\s\/\s/)
+        .map(part => {
+            const idx = part.indexOf(':');
+            return idx >= 0 ? part.slice(idx + 1).trim() : null;
+        })
+        .filter(Boolean);
+    return { ssid: values[0] || null, password: values[1] || null };
+}
+
 /**
  * Main handler for guide public routes
  */
@@ -71,9 +89,9 @@ export async function handleGetGuidebook(env, slug, lang, origin) {
 
     // 1. Load apartment + zone + agency
     const apartment = await env.DB.prepare(`
-        SELECT 
+        SELECT
             a.id, a.name, a.slug, a.address, a.latitude, a.longitude, a.cover_image_url,
-            a.zone_id, a.agency_id
+            a.zone_id, a.agency_id, a.wifi_ssid, a.wifi_password, a.wifi_security
         FROM guide_apartments a
         WHERE a.slug = ? AND a.is_active = TRUE
     `).bind(slug).first();
@@ -354,6 +372,9 @@ export async function handleGetGuidebook(env, slug, lang, origin) {
         };
     });
 
+    const wifiInfoRow = (apartmentInfo.results || []).find(info => info.info_key === 'wifi');
+    const wifiFallback = parseWifiFromInfo(wifiInfoRow?.content);
+
     const responseData = {
         success: true,
         apartment: {
@@ -362,6 +383,11 @@ export async function handleGetGuidebook(env, slug, lang, origin) {
             slug: apartment.slug,
             address: apartment.address,
             cover_image_url: apartment.cover_image_url,
+            wifi: {
+                ssid: apartment.wifi_ssid || wifiFallback.ssid,
+                password: apartment.wifi_password || wifiFallback.password,
+                security: apartment.wifi_security || 'WPA'
+            },
             info: (apartmentInfo.results || []).map(info => ({
                 id: info.id,
                 key: info.info_key,

@@ -9,7 +9,7 @@ import {
   CircularProgress, Alert, Divider, Tooltip, Card, CardContent,
   Dialog, DialogTitle, DialogContent, DialogActions, Switch, FormControlLabel,
   FormControl, InputLabel, Select, MenuItem, Tabs, Tab,
-  ToggleButtonGroup, ToggleButton, Stack, alpha, LinearProgress,
+  ToggleButtonGroup, ToggleButton, Stack, alpha, LinearProgress, InputAdornment,
 } from '@mui/material';
 import { Line } from 'react-chartjs-2';
 import {
@@ -47,6 +47,8 @@ import {
   ContentCopy as ContentCopyIcon,
   FiberManualRecord as DotIcon,
   Visibility as ImpressionIcon,
+  VisibilityOff as VisibilityOffIcon,
+  Wifi as WifiIcon,
   Explore as ExploreIcon,
   Insights as InsightsIcon,
   DevicesOther as DevicesIcon,
@@ -207,7 +209,8 @@ export default function GuideApartmentDetail() {
 
   // Settings tab state
   const [zones, setZones] = useState<Zone[]>([]);
-  const [settingsForm, setSettingsForm] = useState({ name: '', address: '', zone_id: '', cover_image_url: '' });
+  const [settingsForm, setSettingsForm] = useState({ name: '', address: '', zone_id: '', cover_image_url: '', wifi_ssid: '', wifi_password: '' });
+  const [showWifiPassword, setShowWifiPassword] = useState(false);
   const [settingsSaving, setSettingsSaving] = useState(false);
   const [settingsError, setSettingsError] = useState<string | null>(null);
   const [settingsSuccess, setSettingsSuccess] = useState<string | null>(null);
@@ -262,6 +265,8 @@ export default function GuideApartmentDetail() {
           address: aptRes.apartment.address || '',
           zone_id: aptRes.apartment.zone_id || '',
           cover_image_url: aptRes.apartment.cover_image_url || '',
+          wifi_ssid: aptRes.apartment.wifi_ssid || '',
+          wifi_password: aptRes.apartment.wifi_password || '',
         });
       }
     } catch (err) {
@@ -761,6 +766,39 @@ export default function GuideApartmentDetail() {
                 {uploadingCover ? 'Subiendo...' : settingsForm.cover_image_url ? 'Cambiar portada' : 'Subir portada'}
                 <input type="file" hidden accept="image/*" onChange={handleCoverUpload} />
               </Button>
+            </Box>
+          </Box>
+
+          <Divider />
+
+          <Box>
+            <Typography variant="subtitle2" fontWeight={600} sx={{ mb: 0.5, display: 'flex', alignItems: 'center', gap: 1 }}>
+              <WifiIcon fontSize="small" /> WiFi
+            </Typography>
+            <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+              Red y contraseña que se muestran (y se convierten en QR de conexión automática) en la Guía y en la pantalla TV.
+            </Typography>
+            <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap' }}>
+              <TextField
+                label="Nombre de red (SSID)" sx={{ flex: 1, minWidth: 220 }}
+                value={settingsForm.wifi_ssid}
+                onChange={(e) => setSettingsForm(prev => ({ ...prev, wifi_ssid: e.target.value }))}
+              />
+              <TextField
+                label="Contraseña" sx={{ flex: 1, minWidth: 220 }}
+                type={showWifiPassword ? 'text' : 'password'}
+                value={settingsForm.wifi_password}
+                onChange={(e) => setSettingsForm(prev => ({ ...prev, wifi_password: e.target.value }))}
+                InputProps={{
+                  endAdornment: (
+                    <InputAdornment position="end">
+                      <IconButton size="small" onClick={() => setShowWifiPassword(v => !v)}>
+                        {showWifiPassword ? <VisibilityOffIcon fontSize="small" /> : <ImpressionIcon fontSize="small" />}
+                      </IconButton>
+                    </InputAdornment>
+                  ),
+                }}
+              />
             </Box>
           </Box>
         </Box>

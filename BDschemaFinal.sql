@@ -2,15 +2,15 @@
 -- BDschemaFinal.sql — ESQUEMA REAL DE PRODUCCION
 -- =====================================================
 -- Base de datos D1: restaurant-menu-saas (7e8d1efe-2a54-4849-9a06-4c47152392bd)
--- Exportado el 2026-07-26 desde la BD en produccion. 77 tablas.
+-- Exportado el 2026-07-26 desde la BD en produccion, tras aplicar la
+-- migracion 0079 (wifi_ssid/wifi_password/wifi_security en guide_apartments).
+-- 79 tablas.
 --
 -- NO editar a mano. Para regenerar:
 --   npx wrangler d1 export restaurant-menu-saas --remote --no-data --output BDschemaFinal.sql
 --
--- Historial: la version anterior a este cambio estaba 24 tablas por detras
--- del real (le faltaba todo el guidebook, TV, loyalty y delivery, y conservaba
--- 3 tablas ya borradas en la migracion 0057). Mantener este archivo actualizado
--- tras cada migracion que se aplique con --remote.
+-- Mantener este archivo actualizado tras cada migracion que se aplique con
+-- --remote (el comando sobrescribe este header — vuelve a pegarlo).
 -- =====================================================
 
 PRAGMA defer_foreign_keys=TRUE;
@@ -133,7 +133,7 @@ CREATE TABLE users (
   auth_provider TEXT, -- 'google', 'email', etc.
   preferred_language TEXT,
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-  last_login TIMESTAMP, password_hash TEXT, is_superadmin BOOLEAN DEFAULT FALSE,
+  last_login TIMESTAMP, password_hash TEXT, is_superadmin BOOLEAN DEFAULT FALSE, token_version INTEGER NOT NULL DEFAULT 0, totp_secret TEXT, totp_enabled INTEGER NOT NULL DEFAULT 0, totp_recovery_codes TEXT,
   FOREIGN KEY (preferred_language) REFERENCES languages(code)
 );
 CREATE TABLE restaurant_staff (
@@ -295,7 +295,7 @@ CREATE TABLE sessions (
   network_type TEXT,
   pwa_installed INTEGER DEFAULT 0,         -- 0/1
   qr_code_id TEXT,
-  consent_analytics INTEGER DEFAULT 1, visitor_id TEXT, visit_count INTEGER DEFAULT 1,     -- 0/1
+  consent_analytics INTEGER DEFAULT 1, visitor_id TEXT, visit_count INTEGER DEFAULT 1, referral_source TEXT, referral_apartment_id TEXT, referral_session_id TEXT, is_internal INTEGER DEFAULT 0,     -- 0/1
   FOREIGN KEY (user_id) REFERENCES users(id),
   FOREIGN KEY (restaurant_id) REFERENCES restaurants(id),
   FOREIGN KEY (qr_code_id) REFERENCES qr_codes(id)
@@ -884,7 +884,7 @@ CREATE TABLE guide_apartments (
   qr_code_url TEXT,
   is_active BOOLEAN DEFAULT TRUE,
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-  modified_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  modified_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, wifi_ssid TEXT, wifi_password TEXT, wifi_security TEXT DEFAULT 'WPA',
   FOREIGN KEY (agency_id) REFERENCES guide_agencies(id),
   FOREIGN KEY (zone_id) REFERENCES guide_zones(id)
 );
@@ -958,7 +958,7 @@ CREATE TABLE guide_sessions (
   language_code TEXT DEFAULT 'es',
   started_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   ended_at TIMESTAMP,
-  duration_seconds INTEGER, device_fingerprint TEXT,
+  duration_seconds INTEGER, device_fingerprint TEXT, visitor_id TEXT, visit_count INTEGER DEFAULT 1,
   FOREIGN KEY (apartment_id) REFERENCES guide_apartments(id)
 );
 CREATE TABLE guide_affiliate_intents (
@@ -1080,7 +1080,7 @@ CREATE TABLE guide_tv_events (
                   )),
   screen          TEXT,
   lang            TEXT,
-  created_at      TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  created_at      TIMESTAMP DEFAULT CURRENT_TIMESTAMP, target_id TEXT, tv_session_id TEXT,
   FOREIGN KEY (apartment_id) REFERENCES guide_apartments(id) ON DELETE CASCADE,
   FOREIGN KEY (device_id) REFERENCES guide_tv_devices(id) ON DELETE SET NULL
 );
@@ -1121,6 +1121,30 @@ CREATE TABLE loyalty_stamps (
   session_id TEXT,
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   FOREIGN KEY (card_id) REFERENCES loyalty_cards(id) ON DELETE CASCADE
+);
+CREATE TABLE security_audit_log (
+  id TEXT PRIMARY KEY,
+  event_type TEXT NOT NULL,
+  user_id TEXT,            -- NULL si el login falló contra un email inexistente
+  target_user_id TEXT,     -- para acciones sobre otra cuenta (invitar, resetear)
+  restaurant_id TEXT,
+  ip TEXT,
+  user_agent TEXT,
+  detail TEXT,             -- JSON libre con contexto adicional
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+CREATE TABLE admin_invitations (
+  id TEXT PRIMARY KEY,
+  token_hash TEXT NOT NULL UNIQUE,
+  email TEXT NOT NULL,
+  restaurant_id TEXT,
+  agency_id TEXT,          -- reservado: hoy solo se emiten invitaciones de restaurante
+  role TEXT NOT NULL DEFAULT 'staff',
+  invited_by TEXT NOT NULL,
+  expires_at TIMESTAMP NOT NULL,
+  used_at TIMESTAMP,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (invited_by) REFERENCES users(id)
 );
 CREATE INDEX idx_dishes_restaurant ON dishes(restaurant_id);
 CREATE INDEX idx_sections_restaurant ON sections(restaurant_id);
@@ -1173,7 +1197,6 @@ CREATE INDEX idx_delivery_orders_created ON delivery_orders(created_at DESC);
 CREATE INDEX idx_guide_apartments_zone ON guide_apartments(zone_id, is_active);
 CREATE INDEX idx_guide_apartments_agency ON guide_apartments(agency_id);
 CREATE INDEX idx_guide_apartments_slug ON guide_apartments(slug);
-CREATE INDEX idx_guide_pois_zone ON guide_pois(zone_id, is_active, order_index);
 CREATE INDEX idx_guide_zone_rest_zone ON guide_zone_restaurants(zone_id, is_active);
 CREATE INDEX idx_guide_zone_rest_tier ON guide_zone_restaurants(zone_id, tier, is_active);
 CREATE INDEX idx_guide_intents_apartment ON guide_affiliate_intents(apartment_id, created_at);
@@ -1205,3 +1228,18 @@ CREATE INDEX idx_loyalty_stamps_card ON loyalty_stamps(card_id);
 CREATE INDEX idx_guide_pois_bookable ON guide_pois(zone_id, is_bookable, is_active, is_featured, order_index);
 CREATE INDEX idx_guide_pois_type     ON guide_pois(zone_id, poi_type, is_active);
 CREATE INDEX idx_guide_pois_coords   ON guide_pois(zone_id, is_active, latitude);
+CREATE INDEX idx_sessions_referral_apt
+    ON sessions(referral_apartment_id, started_at);
+CREATE INDEX idx_sessions_referral_source
+    ON sessions(restaurant_id, referral_source, started_at);
+CREATE INDEX idx_guide_sessions_visitor
+    ON guide_sessions(visitor_id, apartment_id);
+CREATE INDEX idx_guide_tv_events_session
+    ON guide_tv_events(tv_session_id);
+CREATE INDEX idx_guide_intents_session
+    ON guide_affiliate_intents(session_id);
+CREATE INDEX idx_audit_user ON security_audit_log(user_id);
+CREATE INDEX idx_audit_created ON security_audit_log(created_at);
+CREATE INDEX idx_audit_event ON security_audit_log(event_type);
+CREATE INDEX idx_invitations_email ON admin_invitations(email);
+CREATE INDEX idx_invitations_token_hash ON admin_invitations(token_hash);

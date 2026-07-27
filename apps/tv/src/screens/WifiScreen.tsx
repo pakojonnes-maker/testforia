@@ -2,7 +2,8 @@ import { useEffect } from 'react'
 import { motion } from 'framer-motion'
 import { BrandedQr } from '../components/BrandedQr'
 import { WifiIcon } from '../components/icons'
-import { wifiQrPayload, type StayData } from '../lib/mockData'
+import { wifiQrPayload } from '../lib/mockData'
+import type { GuidebookData } from '../lib/api'
 import { track } from '../lib/tracking'
 
 const fade = (delay: number) => ({
@@ -20,7 +21,8 @@ function Field({ label, value }: { label: string; value: string }) {
   )
 }
 
-export function WifiScreen({ stay }: { stay: StayData }) {
+export function WifiScreen({ data }: { data: GuidebookData }) {
+  const wifi = data.apartment.wifi
   useEffect(() => { track('wifi_reveal', { screen: 'wifi' }) }, [])
 
   return (
@@ -44,8 +46,8 @@ export function WifiScreen({ stay }: { stay: StayData }) {
           </div>
 
           <div className="space-y-6">
-            <Field label="Red" value={stay.wifi.ssid} />
-            <Field label="Contraseña" value={stay.wifi.password} />
+            <Field label="Red" value={wifi.ssid || '—'} />
+            <Field label="Contraseña" value={wifi.password || '—'} />
           </div>
 
           <p className="mt-8 max-w-[380px] text-base leading-relaxed text-whitewash/80">
@@ -57,7 +59,7 @@ export function WifiScreen({ stay }: { stay: StayData }) {
         {/* Derecha: QR branded */}
         <motion.div {...fade(0.2)} className="grid place-items-center">
           <div className="rounded-3xl bg-whitewash p-6 shadow-2xl">
-            <BrandedQr data={wifiQrPayload(stay.wifi)} size={300} />
+            <BrandedQr data={wifiQrPayload({ ssid: wifi.ssid || '', password: wifi.password || '', security: wifi.security })} size={300} />
           </div>
           <div className="mt-4 rounded-full px-5 py-2 text-sm font-semibold text-ink"
             style={{ background: 'rgba(251,248,242,0.92)' }}>

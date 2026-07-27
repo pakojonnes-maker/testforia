@@ -1,7 +1,7 @@
 import { motion } from 'framer-motion'
 import { Focusable } from '../lib/spatialNav'
 import { ArrowRightIcon, WifiIcon } from '../components/icons'
-import type { StayData } from '../lib/mockData'
+import type { GuidebookData } from '../lib/api'
 import type { Screen } from '../App'
 
 const fade = (delay: number) => ({
@@ -19,7 +19,18 @@ function StayChip({ label, value }: { label: string; value: string }) {
   )
 }
 
-export function WelcomeScreen({ stay, onNavigate }: { stay: StayData; onNavigate: (s: Screen) => void }) {
+// El contenido de checkin/checkout es texto libre y largo (p.ej. "Llegada a
+// partir de las 15:00 h.\n\nLa caja de llaves está..."), pero el chip solo
+// tiene sitio para la hora.
+function extractTime(content?: string): string {
+  const match = content?.match(/\d{1,2}[:.]\d{2}/)
+  return match ? match[0].replace('.', ':') : '—'
+}
+
+export function WelcomeScreen({ data, onNavigate }: { data: GuidebookData; onNavigate: (s: Screen) => void }) {
+  const checkin = data.apartment.info.find(i => i.key === 'checkin')
+  const checkout = data.apartment.info.find(i => i.key === 'checkout')
+
   return (
     <div className="flex h-full items-center justify-center">
       <motion.div
@@ -28,11 +39,11 @@ export function WelcomeScreen({ stay, onNavigate }: { stay: StayData; onNavigate
         style={{ background: 'rgba(251,248,242,0.14)', border: '1px solid rgba(255,255,255,0.25)', boxShadow: '0 30px 80px rgba(4,30,45,0.45)' }}
       >
         <motion.div {...fade(0.15)} className="mb-2 text-sm uppercase tracking-[0.35em] text-whitewash/80">
-          {stay.propertyName}
+          {data.apartment.name}
         </motion.div>
 
         <motion.h1 {...fade(0.25)} className="font-display text-6xl font-bold text-whitewash drop-shadow-sm">
-          Bienvenida, {stay.guestName}
+          Te damos la bienvenida
         </motion.h1>
 
         <motion.p {...fade(0.35)} className="mx-auto mt-4 max-w-[640px] text-lg leading-relaxed text-whitewash/85">
@@ -45,9 +56,9 @@ export function WelcomeScreen({ stay, onNavigate }: { stay: StayData; onNavigate
           className="mx-auto mt-8 flex w-fit items-stretch gap-8 rounded-2xl px-8 py-4"
           style={{ background: 'rgba(6,42,58,0.28)', border: '1px solid rgba(255,255,255,0.16)' }}
         >
-          <StayChip label="Check-in" value={stay.checkIn} />
+          <StayChip label="Check-in" value={extractTime(checkin?.content)} />
           <div className="w-px self-stretch bg-white/25" />
-          <StayChip label="Check-out" value={stay.checkOut} />
+          <StayChip label="Check-out" value={extractTime(checkout?.content)} />
         </motion.div>
 
         <motion.div {...fade(0.55)} className="mt-9 flex items-center justify-center gap-4">

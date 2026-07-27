@@ -9,7 +9,7 @@ function useClock() {
   return now
 }
 
-export function TopBar({ brand }: { brand: string }) {
+export function TopBar({ brand, demoMode }: { brand: string; demoMode?: boolean }) {
   const now = useClock()
   const time = now.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' })
   const date = now.toLocaleDateString('es-ES', { weekday: 'long', day: 'numeric', month: 'short' })
@@ -32,7 +32,15 @@ export function TopBar({ brand }: { brand: string }) {
           </svg>
         </div>
         <div className="leading-tight text-whitewash drop-shadow">
-          <div className="font-display text-2xl font-semibold">{brand}</div>
+          <div className="flex items-center gap-2">
+            <div className="font-display text-2xl font-semibold">{brand}</div>
+            {demoMode && (
+              <div className="rounded-full px-2.5 py-0.5 text-[10px] font-semibold uppercase tracking-[0.15em] text-whitewash"
+                style={{ background: 'rgba(224,122,95,0.85)' }}>
+                Modo demo
+              </div>
+            )}
+          </div>
           <div className="text-xs uppercase tracking-[0.25em] opacity-80">Powered by VisualTaste</div>
         </div>
       </div>

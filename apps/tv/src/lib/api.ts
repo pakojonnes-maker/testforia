@@ -9,6 +9,7 @@ export interface GuidebookData {
   apartment: {
     id: string; name: string; slug: string; address: string
     cover_image_url: string
+    wifi: { ssid: string | null; password: string | null; security: 'WPA' | 'WEP' | 'nopass' }
     info: Array<{ id: string; key: string; icon: string; title: string; content: string; media: any[] }>
   }
   zone: { id: string; name: string; slug: string; region: string; description: string; cover_image_url: string }
@@ -23,6 +24,20 @@ export interface GuidebookData {
 // y registra una impresión en el backend.
 export async function fetchTvConfig(pairingCode: string, lang = 'es'): Promise<GuidebookData & { success: boolean }> {
   const res = await fetch(`${API_URL}/guide/tv/config/${encodeURIComponent(pairingCode)}?lang=${lang}`)
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}))
+    throw new Error((err as any).error || `HTTP ${res.status}`)
+  }
+  return res.json()
+}
+
+// GET /guide/:slug — same endpoint apps/guide uses. Lets the TV shell preview a
+// guidebook straight from its path (e.g. tv.visualtastes.com/paloma-park-benalmadena)
+// without a paired device, for demos/QA. No pairingCode is involved, so the
+// caller must NOT wire this identifier into lib/tracking.ts (there's no real TV
+// session to attribute events to).
+export async function fetchGuideBySlug(slug: string, lang = 'es'): Promise<GuidebookData & { success: boolean }> {
+  const res = await fetch(`${API_URL}/guide/${encodeURIComponent(slug)}?lang=${lang}`)
   if (!res.ok) {
     const err = await res.json().catch(() => ({}))
     throw new Error((err as any).error || `HTTP ${res.status}`)
