@@ -39,6 +39,8 @@ interface StatsData {
   apartments_activity: Array<{ id: string; name: string; unique_devices_today: number; last_session_at: string | null }>;
 }
 
+interface TopRestaurant { id: string; name: string; clicks: number }
+
 interface SessionLogRow {
   id: string;
   apartment_id: string;
@@ -178,6 +180,12 @@ export default function GuideAgencyDashboard() {
   const { currentAgency, adminMode } = useAuth();
   const navigate = useNavigate();
   const [stats, setStats] = useState<StatsData | null>(null);
+  // Solo clics (guide_affiliate_intents). La conversión real — si ese clic
+  // acabó en una visita física confirmada por el QR de mesa del restaurante —
+  // es una vista aparte, solo para superadmin (ver workerGuideAdmin.js
+  // getRestaurantConversions): la agencia no tiene forma de comprobarla y no
+  // debe leerse como si lo fuera.
+  const [topRestaurants, setTopRestaurants] = useState<TopRestaurant[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [dateRange, setDateRange] = useState<'7' | '30' | '90'>('30');
@@ -215,13 +223,18 @@ export default function GuideAgencyDashboard() {
         const from = new Date();
         from.setDate(to.getDate() - parseInt(dateRange, 10));
 
-        const response = await apiClient.request(`/guide/admin/stats/dashboard?agency_id=${currentAgency.id}&from=${from.toISOString().split('T')[0]}&to=${to.toISOString().split('T')[0]}`);
-        if (response.success && response.dashboard) {
-          setStats(response.dashboard);
+        const [dashboardRes, clicksRes] = await Promise.all([
+          apiClient.request(`/guide/admin/stats/dashboard?agency_id=${currentAgency.id}&from=${from.toISOString().split('T')[0]}&to=${to.toISOString().split('T')[0]}`),
+          // getAgencyStats: existía en el backend desde hace tiempo (top_restaurants
+          // por clics) pero ningún panel lo llamaba — ver KNOWLEDGE del guidebook.
+          apiClient.request(`/guide/admin/stats?agency_id=${currentAgency.id}&from=${from.toISOString().split('T')[0]}&to=${to.toISOString().split('T')[0]}`).catch(() => null),
+        ]);
+        if (dashboardRes.success && dashboardRes.dashboard) {
+          setStats(dashboardRes.dashboard);
         } else {
-          // If the endpoint doesn't exist yet, we can mock it based on prompt requirements, but we will try the endpoint.
           setError('Could not load stats');
         }
+        setTopRestaurants(clicksRes?.stats?.top_restaurants || []);
       } catch (err: any) {
         setError(err.message || 'Error loading stats');
       } finally {
@@ -467,6 +480,40 @@ export default function GuideAgencyDashboard() {
                 ) : (
                   <Typography variant="body2" color="text.secondary">
                     Cuando los huéspedes hagan click en experiencias, las más populares aparecerán aquí.
+                  </Typography>
+                )}
+              </Paper>
+            </Grid>
+
+            {/* Top Restaurantes — solo clics. La conversión real (visita física
+                confirmada) no se muestra aquí a propósito. */}
+            <Grid item xs={12} md={6}>
+              <Paper elevation={0} sx={{ p: 3, borderRadius: 3, border: '1px solid', borderColor: 'divider', height: '100%' }}>
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 2 }}>
+                  <TouchAppIcon color="primary" />
+                  <Typography variant="h6" fontWeight={600}>Top Restaurantes</Typography>
+                </Box>
+                <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 1 }}>
+                  Clics desde tus guías hacia el menú de cada restaurante.
+                </Typography>
+                <Divider sx={{ mb: 2 }} />
+                {topRestaurants.length > 0 ? (
+                  <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
+                    {topRestaurants.map((r, i) => (
+                      <Box key={r.id} sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', p: 1.5, borderRadius: 2, bgcolor: i === 0 ? 'action.hover' : 'transparent' }}>
+                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                          <Typography variant="body2" sx={{ fontWeight: 700, color: 'primary.main', minWidth: 24 }}>
+                            #{i + 1}
+                          </Typography>
+                          <Typography variant="body2" fontWeight={500}>{r.name}</Typography>
+                        </Box>
+                        <Chip label={`${r.clicks} clicks`} size="small" color="primary" variant="outlined" />
+                      </Box>
+                    ))}
+                  </Box>
+                ) : (
+                  <Typography variant="body2" color="text.secondary">
+                    Cuando los huéspedes hagan click en un restaurante, los más populares aparecerán aquí.
                   </Typography>
                 )}
               </Paper>

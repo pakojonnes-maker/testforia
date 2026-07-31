@@ -5,17 +5,17 @@ interface WelcomeHeroProps {
   apartmentName: string;
   address?: string;
   coverImageUrl?: string;
-  agencyLogoUrl?: string; // Kept for backwards compatibility if needed elsewhere
+  agencyLogoUrl?: string;
   agencyName?: string;
   currentLang: string;
-  onLanguageChange: (lang: string) => void;
-  brandPrimaryColor?: string;
 }
 
 export default function WelcomeHero({
   apartmentName,
   address,
   coverImageUrl,
+  agencyLogoUrl,
+  agencyName,
   currentLang
 }: WelcomeHeroProps) {
   // Use provided cover image or a placeholder if missing
@@ -35,7 +35,17 @@ export default function WelcomeHero({
         style={{ backgroundImage: `url('${bgImage}')` }}
       ></div>
       <div className="absolute inset-0 bg-gradient-to-t from-deep-sea/80 via-transparent to-transparent"></div>
-      
+
+      {agencyLogoUrl && (
+        <div className="absolute top-4 right-4 md:top-6 md:right-6 bg-crisp-white/90 backdrop-blur-sm rounded-xl p-2 shadow-md">
+          <img
+            src={agencyLogoUrl}
+            alt={agencyName || ''}
+            className="h-8 md:h-10 max-w-[120px] object-contain"
+          />
+        </div>
+      )}
+
       <div className="absolute bottom-0 left-0 p-6 md:p-8 w-full text-crisp-white">
         <div className="flex flex-col md:flex-row md:justify-between md:items-end gap-4">
           <div>

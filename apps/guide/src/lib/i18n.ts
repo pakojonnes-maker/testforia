@@ -16,7 +16,8 @@ export const UI_STRINGS: Record<string, Record<string, string>> = {
   // Navigation tabs (Header nav + BottomNavBar)
   tab_info: { es: 'Casa', en: 'Home', fr: 'Accueil', de: 'Zuhause', it: 'Casa', pt: 'Casa', ca: 'Casa', ar: 'الرئيسية', ru: 'Главная', uk: 'Головна', zh: '首页', ja: 'ホーム', ko: '홈' },
   tab_discover: { es: 'Ubicaciones', en: 'Locations', fr: 'Lieux', de: 'Orte', it: 'Luoghi', pt: 'Locais', ca: 'Ubicacions', ar: 'المواقع', ru: 'Места', uk: 'Місця', zh: '地点', ja: '場所', ko: '위치' },
-  tab_services: { es: 'Promociones', en: 'Deals', fr: 'Offres', de: 'Angebote', it: 'Offerte', pt: 'Ofertas', ca: 'Promocions', ar: 'العروض', ru: 'Акции', uk: 'Акції', zh: '优惠', ja: 'お得情報', ko: '프로모션' },
+  tab_services: { es: 'Tienda', en: 'Store', fr: 'Boutique', de: 'Shop', it: 'Negozio', pt: 'Loja', ca: 'Botiga', ar: 'المتجر', ru: 'Магазин', uk: 'Магазин', zh: '商店', ja: 'ストア', ko: '스토어' },
+  tab_restaurants: { es: 'Restaurantes', en: 'Restaurants', fr: 'Restaurants', de: 'Restaurants', it: 'Ristoranti', pt: 'Restaurantes', ca: 'Restaurants', ar: 'المطاعم', ru: 'Рестораны', uk: 'Ресторани', zh: '餐厅', ja: 'レストラン', ko: '레스토랑' },
   tab_chat: { es: 'Chat IA', en: 'AI Chat', fr: 'Chat IA', de: 'KI-Chat', it: 'Chat IA', pt: 'Chat IA', ca: 'Xat IA', ar: 'محادثة الذكاء الاصطناعي', ru: 'ИИ-чат', uk: 'ІІ-чат', zh: 'AI 聊天', ja: 'AIチャット', ko: 'AI 채팅' },
 
   // WelcomeHero
@@ -156,6 +157,36 @@ export const UI_STRINGS: Record<string, Record<string, string>> = {
     ja: '申し訳ありません、アシスタントに接続できませんでした。もう一度お試しください。',
     ko: '죄송합니다. 어시스턴트에 연결할 수 없습니다. 다시 시도해 주세요.',
   },
+  chat_rate_limited: {
+    es: 'Has enviado muchos mensajes seguidos. Espera unos minutos e inténtalo de nuevo.',
+    en: "You've sent a lot of messages in a row. Please wait a few minutes and try again.",
+    fr: 'Vous avez envoyé beaucoup de messages à la suite. Attendez quelques minutes et réessayez.',
+    de: 'Du hast viele Nachrichten hintereinander gesendet. Bitte warte ein paar Minuten und versuche es erneut.',
+    it: 'Hai inviato molti messaggi di seguito. Attendi qualche minuto e riprova.',
+    pt: 'Enviou muitas mensagens seguidas. Aguarde uns minutos e tente novamente.',
+    ca: 'Has enviat molts missatges seguits. Espera uns minuts i torna-ho a provar.',
+    ar: 'لقد أرسلت الكثير من الرسائل المتتالية. يرجى الانتظار بضع دقائق ثم المحاولة مرة أخرى.',
+    ru: 'Вы отправили слишком много сообщений подряд. Подождите несколько минут и попробуйте снова.',
+    uk: 'Ви надіслали забагато повідомлень поспіль. Зачекайте кілька хвилин і спробуйте ще раз.',
+    zh: '您连续发送了太多消息，请稍等几分钟后重试。',
+    ja: '短時間に多くのメッセージを送信しました。数分待ってからもう一度お試しください。',
+    ko: '짧은 시간에 너무 많은 메시지를 보냈습니다. 몇 분 후 다시 시도해 주세요.',
+  },
+  chat_unavailable: {
+    es: 'El asistente está muy solicitado ahora mismo. Inténtalo más tarde o contacta a tu anfitrión.',
+    en: 'The assistant is in high demand right now. Please try again later or contact your host.',
+    fr: "L'assistant est très sollicité en ce moment. Réessayez plus tard ou contactez votre hôte.",
+    de: 'Der Assistent ist gerade sehr gefragt. Versuche es später erneut oder wende dich an deinen Gastgeber.',
+    it: "L'assistente è molto richiesto in questo momento. Riprova più tardi o contatta il tuo host.",
+    pt: 'O assistente está muito solicitado agora. Tente mais tarde ou contacte o seu anfitrião.',
+    ca: "L'assistent està molt sol·licitat ara mateix. Torna-ho a provar més tard o contacta amb el teu amfitrió.",
+    ar: 'المساعد مطلوب بكثرة الآن. حاول مرة أخرى لاحقًا أو تواصل مع مضيفك.',
+    ru: 'Ассистент сейчас очень востребован. Попробуйте позже или свяжитесь с хозяином.',
+    uk: 'Асистент зараз дуже затребуваний. Спробуйте пізніше або зв\'яжіться з господарем.',
+    zh: '助手现在需求量很大，请稍后再试或联系您的房东。',
+    ja: 'ただいまアシスタントが混み合っています。しばらくしてから再度お試しいただくか、ホストにお問い合わせください。',
+    ko: '지금 어시스턴트 이용이 많습니다. 나중에 다시 시도하거나 호스트에게 문의해 주세요.',
+  },
 
   // MapModal — {count} placeholder replaced via .replace('{count}', ...)
   places_on_map: { es: '{count} lugares en el mapa', en: '{count} places on the map', fr: '{count} lieux sur la carte', de: '{count} Orte auf der Karte', it: '{count} luoghi sulla mappa', pt: '{count} locais no mapa', ca: '{count} llocs al mapa', ar: '{count} أماكن على الخريطة', ru: '{count} мест на карте', uk: '{count} місць на карті', zh: '地图上有{count}个地点', ja: '地図上の{count}件のスポット', ko: '지도에 {count}개 장소' },
@@ -183,6 +214,28 @@ export const UI_STRINGS: Record<string, Record<string, string>> = {
   no_info: { es: 'Sin información disponible', en: 'No information available', fr: 'Aucune information', de: 'Keine Informationen', it: 'Nessuna informazione', pt: 'Sem informação', ca: 'Sense informació disponible', ar: 'لا توجد معلومات متاحة', ru: 'Информация недоступна', uk: 'Інформація відсутня', zh: '暂无信息', ja: '情報がありません', ko: '정보 없음' },
   show_more: { es: 'Ver más', en: 'Show more', fr: 'Voir plus', de: 'Mehr anzeigen', it: 'Mostra altro', pt: 'Ver mais', ca: 'Veure més', ar: 'عرض المزيد', ru: 'Показать больше', uk: 'Показати більше', zh: '查看更多', ja: 'もっと見る', ko: '더 보기' },
   show_less: { es: 'Ver menos', en: 'Show less', fr: 'Voir moins', de: 'Weniger', it: 'Meno', pt: 'Ver menos', ca: 'Veure menys', ar: 'عرض أقل', ru: 'Скрыть', uk: 'Приховати', zh: '收起', ja: '閉じる', ko: '간략히' },
+
+  // ServicesSection → Tienda (host + platform store items) + carrito de pedido
+  store_title: { es: 'Tienda', en: 'Store', fr: 'Boutique', de: 'Shop', it: 'Negozio', pt: 'Loja', ca: 'Botiga', ar: 'المتجر', ru: 'Магазин', uk: 'Магазин', zh: '商店', ja: 'ストア', ko: '스토어' },
+  host_products_title: { es: 'Productos y servicios del anfitrión', en: "Your host's products & services", fr: "Produits et services de l'hôte", de: 'Produkte & Services deines Gastgebers', it: "Prodotti e servizi dell'host", pt: 'Produtos e serviços do anfitrião', ca: "Productes i serveis de l'amfitrió", ar: 'منتجات وخدمات المضيف', ru: 'Товары и услуги хозяина', uk: 'Товари та послуги господаря', zh: '房东的产品与服务', ja: 'ホストの商品・サービス', ko: '호스트의 상품 및 서비스' },
+  host_badge: { es: 'Del anfitrión', en: 'From your host', fr: "De l'hôte", de: 'Vom Gastgeber', it: "Dall'host", pt: 'Do anfitrião', ca: "De l'amfitrió", ar: 'من المضيف', ru: 'От хозяина', uk: 'Від господаря', zh: '来自房东', ja: 'ホストより', ko: '호스트 제공' },
+  local_products_title: { es: 'Productos locales', en: 'Local products', fr: 'Produits locaux', de: 'Lokale Produkte', it: 'Prodotti locali', pt: 'Produtos locais', ca: 'Productes locals', ar: 'منتجات محلية', ru: 'Местные продукты', uk: 'Місцеві продукти', zh: '本地产品', ja: '地元の特産品', ko: '지역 특산품' },
+  no_store_items: { es: 'Todavía no hay productos disponibles', en: 'No products available yet', fr: 'Aucun produit disponible pour le moment', de: 'Noch keine Produkte verfügbar', it: 'Nessun prodotto disponibile per ora', pt: 'Ainda não há produtos disponíveis', ca: 'Encara no hi ha productes disponibles', ar: 'لا توجد منتجات متاحة بعد', ru: 'Пока нет доступных товаров', uk: 'Поки немає доступних товарів', zh: '暂无可用商品', ja: 'まだ利用可能な商品がありません', ko: '아직 이용 가능한 상품이 없습니다' },
+  add_to_order: { es: 'Añadir', en: 'Add', fr: 'Ajouter', de: 'Hinzufügen', it: 'Aggiungi', pt: 'Adicionar', ca: 'Afegir', ar: 'إضافة', ru: 'Добавить', uk: 'Додати', zh: '添加', ja: '追加', ko: '추가' },
+  added_to_order: { es: 'Añadido', en: 'Added', fr: 'Ajouté', de: 'Hinzugefügt', it: 'Aggiunto', pt: 'Adicionado', ca: 'Afegit', ar: 'تمت الإضافة', ru: 'Добавлено', uk: 'Додано', zh: '已添加', ja: '追加済み', ko: '추가됨' },
+  your_order: { es: 'Tu pedido', en: 'Your order', fr: 'Votre commande', de: 'Deine Bestellung', it: 'Il tuo ordine', pt: 'O seu pedido', ca: 'La teva comanda', ar: 'طلبك', ru: 'Ваш заказ', uk: 'Ваше замовлення', zh: '您的订单', ja: 'ご注文', ko: '주문 내역' },
+  send_order_whatsapp: { es: 'Enviar pedido por WhatsApp', en: 'Send order via WhatsApp', fr: 'Envoyer la commande par WhatsApp', de: 'Bestellung per WhatsApp senden', it: "Invia l'ordine via WhatsApp", pt: 'Enviar pedido por WhatsApp', ca: 'Enviar la comanda per WhatsApp', ar: 'إرسال الطلب عبر واتساب', ru: 'Отправить заказ через WhatsApp', uk: 'Надіслати замовлення через WhatsApp', zh: '通过WhatsApp发送订单', ja: 'WhatsAppで注文を送信', ko: '왓츠앱으로 주문 보내기' },
+  order_sending: { es: 'Enviando...', en: 'Sending...', fr: 'Envoi...', de: 'Wird gesendet...', it: 'Invio...', pt: 'A enviar...', ca: 'Enviant...', ar: 'جارٍ الإرسال...', ru: 'Отправка...', uk: 'Надсилання...', zh: '发送中...', ja: '送信中...', ko: '전송 중...' },
+  order_sent_success: { es: '¡Pedido enviado! Se ha abierto WhatsApp para confirmarlo.', en: 'Order sent! WhatsApp has opened so you can confirm it.', fr: 'Commande envoyée ! WhatsApp s\'est ouvert pour la confirmer.', de: 'Bestellung gesendet! WhatsApp wurde geöffnet, um sie zu bestätigen.', it: 'Ordine inviato! WhatsApp si è aperto per confermarlo.', pt: 'Pedido enviado! O WhatsApp abriu-se para o confirmar.', ca: 'Comanda enviada! S\'ha obert el WhatsApp per confirmar-la.', ar: 'تم إرسال الطلب! تم فتح واتساب لتأكيده.', ru: 'Заказ отправлен! Открылся WhatsApp для подтверждения.', uk: 'Замовлення надіслано! Відкрито WhatsApp для підтвердження.', zh: '订单已发送！WhatsApp已打开以便确认。', ja: '注文を送信しました！確認のためWhatsAppが開きました。', ko: '주문이 전송되었습니다! 확인을 위해 왓츠앱이 열렸습니다.' },
+  order_no_contact: { es: 'Este pedido se ha guardado, pero tu anfitrión todavía no ha configurado un WhatsApp de contacto. Pregúntale directamente.', en: "This order was saved, but your host hasn't set up a WhatsApp contact yet. Please ask them directly.", fr: "Cette commande a été enregistrée, mais votre hôte n'a pas encore configuré de contact WhatsApp. Demandez-lui directement.", de: 'Diese Bestellung wurde gespeichert, aber dein Gastgeber hat noch keinen WhatsApp-Kontakt eingerichtet. Frag ihn direkt.', it: "Questo ordine è stato salvato, ma il tuo host non ha ancora impostato un contatto WhatsApp. Chiediglielo direttamente.", pt: 'Este pedido foi guardado, mas o seu anfitrião ainda não configurou um contacto de WhatsApp. Pergunte-lhe diretamente.', ca: 'Aquesta comanda s\'ha desat, però el teu amfitrió encara no ha configurat un contacte de WhatsApp. Pregunta-li directament.', ar: 'تم حفظ هذا الطلب، لكن مضيفك لم يقم بعد بإعداد رقم واتساب للتواصل. يرجى سؤاله مباشرة.', ru: 'Заказ сохранён, но хозяин ещё не указал контакт WhatsApp. Спросите его напрямую.', uk: 'Замовлення збережено, але господар ще не вказав контакт WhatsApp. Запитайте його напряму.', zh: '订单已保存，但您的房东尚未设置WhatsApp联系方式，请直接询问房东。', ja: 'ご注文は保存されましたが、ホストがまだWhatsAppの連絡先を設定していません。直接お尋ねください。', ko: '주문이 저장되었지만 호스트가 아직 왓츠앱 연락처를 설정하지 않았습니다. 직접 문의해 주세요.' },
+  order_error: { es: 'No se ha podido enviar el pedido. Inténtalo de nuevo.', en: "The order couldn't be sent. Please try again.", fr: "La commande n'a pas pu être envoyée. Veuillez réessayer.", de: 'Die Bestellung konnte nicht gesendet werden. Bitte versuche es erneut.', it: "Non è stato possibile inviare l'ordine. Riprova.", pt: 'Não foi possível enviar o pedido. Tente novamente.', ca: 'No s\'ha pogut enviar la comanda. Torna-ho a provar.', ar: 'تعذر إرسال الطلب. يرجى المحاولة مرة أخرى.', ru: 'Не удалось отправить заказ. Попробуйте ещё раз.', uk: 'Не вдалося надіслати замовлення. Спробуйте ще раз.', zh: '订单发送失败，请重试。', ja: '注文を送信できませんでした。もう一度お試しください。', ko: '주문을 보낼 수 없습니다. 다시 시도해 주세요.' },
+  view_order: { es: 'Ver pedido', en: 'View order', fr: 'Voir la commande', de: 'Bestellung ansehen', it: "Vedi l'ordine", pt: 'Ver pedido', ca: 'Veure la comanda', ar: 'عرض الطلب', ru: 'Смотреть заказ', uk: 'Переглянути замовлення', zh: '查看订单', ja: '注文を見る', ko: '주문 보기' },
+  clear_order: { es: 'Vaciar', en: 'Clear', fr: 'Vider', de: 'Leeren', it: 'Svuota', pt: 'Esvaziar', ca: 'Buidar', ar: 'إفراغ', ru: 'Очистить', uk: 'Очистити', zh: '清空', ja: 'クリア', ko: '비우기' },
+
+  // RestaurantsSection (split de DiscoverSection)
+  restaurants_title: { es: 'Restaurantes en {zone}', en: 'Restaurants in {zone}', fr: 'Restaurants à {zone}', de: 'Restaurants in {zone}', it: 'Ristoranti a {zone}', pt: 'Restaurantes em {zone}', ca: 'Restaurants a {zone}', ar: 'مطاعم في {zone}', ru: 'Рестораны в {zone}', uk: 'Ресторани в {zone}', zh: '{zone}的餐厅', ja: '{zone}のレストラン', ko: '{zone}의 레스토랑' },
+  restaurants_default_description: { es: 'Descubre dónde comer durante tu estancia.', en: 'Discover where to eat during your stay.', fr: 'Découvrez où manger pendant votre séjour.', de: 'Entdecke, wo du während deines Aufenthalts essen kannst.', it: 'Scopri dove mangiare durante il tuo soggiorno.', pt: 'Descubra onde comer durante a sua estadia.', ca: 'Descobreix on menjar durant la teva estada.', ar: 'اكتشف أين تأكل خلال إقامتك.', ru: 'Узнайте, где поесть во время вашего пребывания.', uk: 'Дізнайтеся, де поїсти під час перебування.', zh: '探索住宿期间的用餐地点。', ja: '滞在中のお食事場所を見つけましょう。', ko: '머무는 동안 식사할 곳을 찾아보세요.' },
+  no_restaurants: { es: 'No hay restaurantes disponibles', en: 'No restaurants available', fr: 'Aucun restaurant disponible', de: 'Keine Restaurants verfügbar', it: 'Nessun ristorante disponibile', pt: 'Sem restaurantes disponíveis', ca: 'No hi ha restaurants disponibles', ar: 'لا توجد مطاعم متاحة', ru: 'Нет доступных ресторанов', uk: 'Немає доступних ресторанів', zh: '暂无可用餐厅', ja: '利用可能なレストランがありません', ko: '이용 가능한 레스토랑이 없습니다' },
 };
 
 export function getTranslation(key: string, lang: string): string {
@@ -211,6 +264,19 @@ const CATEGORY_LABELS: Record<string, Record<string, string>> = {
   class: { es: 'Clase / Taller', en: 'Class / Workshop', fr: 'Cours / Atelier', de: 'Kurs / Workshop', it: 'Corso / Laboratorio', pt: 'Aula / Workshop', ca: 'Classe / Taller', ar: 'دورة / ورشة', ru: 'Занятие / Мастер-класс', uk: 'Заняття / Майстер-клас', zh: '课程/工作坊', ja: 'レッスン／ワークショップ', ko: '클래스/워크숍' },
   park: { es: 'Parque', en: 'Park', fr: 'Parc', de: 'Park', it: 'Parco', pt: 'Parque', ca: 'Parc', ar: 'حديقة', ru: 'Парк', uk: 'Парк', zh: '公园', ja: '公園', ko: '공원' },
   marina: { es: 'Puerto deportivo', en: 'Marina', fr: 'Port de plaisance', de: 'Yachthafen', it: 'Porto turistico', pt: 'Marina', ca: 'Port esportiu', ar: 'مارينا', ru: 'Марина', uk: 'Марина', zh: '游艇码头', ja: 'マリーナ', ko: '마리나' },
+
+  // Categorías de la Tienda (guide_store_items.category — ver migrations/0080_guide_store.sql)
+  late_checkout: { es: 'Late check-out', en: 'Late check-out', fr: 'Départ tardif', de: 'Später Check-out', it: 'Late check-out', pt: 'Check-out tardio', ca: 'Late check-out', ar: 'تسجيل مغادرة متأخر', ru: 'Поздний выезд', uk: 'Пізній виїзд', zh: '延迟退房', ja: 'レイトチェックアウト', ko: '레이트 체크아웃' },
+  early_checkin: { es: 'Early check-in', en: 'Early check-in', fr: 'Arrivée anticipée', de: 'Früher Check-in', it: 'Early check-in', pt: 'Check-in antecipado', ca: 'Early check-in', ar: 'تسجيل وصول مبكر', ru: 'Ранний заезд', uk: 'Раннє заселення', zh: '提前入住', ja: 'アーリーチェックイン', ko: '얼리 체크인' },
+  cleaning: { es: 'Limpieza extra', en: 'Extra cleaning', fr: 'Ménage supplémentaire', de: 'Zusätzliche Reinigung', it: 'Pulizia extra', pt: 'Limpeza extra', ca: 'Neteja extra', ar: 'تنظيف إضافي', ru: 'Дополнительная уборка', uk: 'Додаткове прибирання', zh: '额外清洁', ja: '追加清掃', ko: '추가 청소' },
+  crib: { es: 'Cuna / trona', en: 'Crib / high chair', fr: 'Lit bébé / chaise haute', de: 'Kinderbett / Hochstuhl', it: 'Culla / seggiolone', pt: 'Berço / cadeira alta', ca: 'Bressol / trona', ar: 'سرير أطفال / كرسي مرتفع', ru: 'Кроватка / стульчик', uk: 'Ліжечко / стільчик', zh: '婴儿床/餐椅', ja: 'ベビーベッド／ハイチェア', ko: '아기 침대 / 하이체어' },
+  transfer: { es: 'Traslado', en: 'Transfer', fr: 'Transfert', de: 'Transfer', it: 'Trasferimento', pt: 'Transfer', ca: 'Trasllat', ar: 'خدمة النقل', ru: 'Трансфер', uk: 'Трансфер', zh: '接送服务', ja: '送迎', ko: '이동 서비스' },
+  welcome_pack: { es: 'Pack de bienvenida', en: 'Welcome pack', fr: 'Pack de bienvenue', de: 'Willkommenspaket', it: 'Pacchetto di benvenuto', pt: 'Pack de boas-vindas', ca: 'Pack de benvinguda', ar: 'حزمة ترحيب', ru: 'Приветственный набор', uk: 'Вітальний набір', zh: '欢迎礼包', ja: 'ウェルカムパック', ko: '웰컴 팩' },
+  parking: { es: 'Parking', en: 'Parking', fr: 'Parking', de: 'Parkplatz', it: 'Parcheggio', pt: 'Estacionamento', ca: 'Aparcament', ar: 'موقف سيارات', ru: 'Парковка', uk: 'Парковка', zh: '停车位', ja: '駐車場', ko: '주차' },
+  rental: { es: 'Alquiler', en: 'Rental', fr: 'Location', de: 'Verleih', it: 'Noleggio', pt: 'Aluguer', ca: 'Lloguer', ar: 'تأجير', ru: 'Прокат', uk: 'Прокат', zh: '租赁', ja: 'レンタル', ko: '대여' },
+  grocery: { es: 'Compra / grocery', en: 'Grocery shopping', fr: 'Courses', de: 'Einkaufsservice', it: 'Spesa', pt: 'Compras', ca: 'Compra', ar: 'تسوق البقالة', ru: 'Продукты', uk: 'Продукти', zh: '代买杂货', ja: '食料品の買い物', ko: '장보기' },
+  local_product: { es: 'Producto local', en: 'Local product', fr: 'Produit local', de: 'Lokales Produkt', it: 'Prodotto locale', pt: 'Produto local', ca: 'Producte local', ar: 'منتج محلي', ru: 'Местный продукт', uk: 'Місцевий продукт', zh: '本地产品', ja: '地元の特産品', ko: '지역 특산품' },
+  custom: { es: 'Personalizado', en: 'Custom', fr: 'Personnalisé', de: 'Individuell', it: 'Personalizzato', pt: 'Personalizado', ca: 'Personalitzat', ar: 'مخصص', ru: 'Другое', uk: 'Інше', zh: '自定义', ja: 'カスタム', ko: '맞춤' },
 };
 
 const SUBCATEGORY_LABELS: Record<string, Record<string, string>> = {

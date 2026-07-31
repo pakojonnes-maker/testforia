@@ -45,6 +45,28 @@ export async function fetchGuideBySlug(slug: string, lang = 'es'): Promise<Guide
   return res.json()
 }
 
+// Misma cookie de atribución que escribe apps/guide/src/lib/api.ts
+// (setReferralCookie) — la TV es otra vía por la que un huésped descubre un
+// restaurante antes de ir a cenar, así que también debe dejar el rastro de 30
+// días que permite atribuir esa visita física si escanea el QR del restaurante
+// días después, sin ningún ?ref= en la URL de esa sesión posterior.
+const GUIDE_REFERRAL_COOKIE = 'vt_guide_ref'
+const GUIDE_REFERRAL_COOKIE_MAX_AGE_DAYS = 30
+
+export function setReferralCookie(apartmentId: string) {
+  try {
+    const host = window.location.hostname
+    const isVisualtastesDomain = host === 'visualtastes.com' || host.endsWith('.visualtastes.com')
+    const value = encodeURIComponent(JSON.stringify({ apt: apartmentId, ts: Date.now() }))
+    const maxAge = GUIDE_REFERRAL_COOKIE_MAX_AGE_DAYS * 24 * 60 * 60
+    const domainAttr = isVisualtastesDomain ? '; domain=.visualtastes.com' : ''
+    const secureAttr = window.location.protocol === 'https:' ? '; secure' : ''
+    document.cookie = `${GUIDE_REFERRAL_COOKIE}=${value}; path=/; max-age=${maxAge}; samesite=lax${domainAttr}${secureAttr}`
+  } catch {
+    // best-effort
+  }
+}
+
 export type TvEventType = 'impression' | 'screen_view' | 'wifi_reveal' | 'poi_select' | 'menu_qr_shown' | 'booking_qr_shown'
 
 // POST /guide/tv/track — KPIs de la pantalla TV. Best-effort, no bloquea la UI.

@@ -18,33 +18,21 @@ interface POI {
   longitude?: number;
 }
 
-interface Restaurant {
-  id: string;
-  name: string;
-  slug: string;
-  cuisine_type: string;
-  tier: string;
-  cover_image: string;
-}
-
 interface DiscoverSectionProps {
   pois: POI[];
-  restaurants?: Restaurant[];
   zoneName: string;
   zoneDescription: string;
   lang: string;
-  onIntent: (type: 'restaurant' | 'experience' | 'product', id: string, action: string) => void;
-  /** Construye la URL del menú de un restaurante con la atribución del guidebook. */
-  buildRestaurantUrl: (slug: string) => string;
 }
 
-export default function DiscoverSection({ pois, restaurants = [], zoneName, zoneDescription, lang, onIntent, buildRestaurantUrl }: DiscoverSectionProps) {
+// Los restaurantes tienen su propia pestaña (ver RestaurantsSection.tsx) — Descubre
+// se queda solo con POIs (naturaleza, playas, cultura...).
+export default function DiscoverSection({ pois, zoneName, zoneDescription, lang }: DiscoverSectionProps) {
   const ALL_FILTER = 'todos';
   const [activeFilter, setActiveFilter] = useState<string>(ALL_FILTER);
   const [showMap, setShowMap] = useState(false);
   const [mapPois, setMapPois] = useState<POI[] | null>(null);
   const [selectedItem, setSelectedItem] = useState<PoiDetailItem | null>(null);
-  const categoryRestaurants = getTranslation('category_restaurants', lang);
 
   const openMapFor = (poisToShow: POI[] | null) => {
     setMapPois(poisToShow);
@@ -52,28 +40,13 @@ export default function DiscoverSection({ pois, restaurants = [], zoneName, zone
     setShowMap(true);
   };
 
-  // Combine POIs and Restaurants for the unified view
-  const combinedItems = [
-    ...restaurants.map(r => ({
-      id: r.id, type: 'restaurant' as const, name: r.name,
-      description: r.cuisine_type ? getTranslation('cuisine_label', lang).replace('{cuisine}', r.cuisine_type) : '',
-      category: categoryRestaurants, image: r.cover_image,
-      // FIX: apuntaba a `/r/{slug}`, una ruta relativa al dominio del guidebook
-      // que no existe en su router (solo hay `/` y `/:slug`), así que el enlace
-      // al menú del restaurante llevaba a una página en blanco. Ahora apunta al
-      // menú real y lleva incrustada la atribución al apartamento de origen.
-      url: r.slug ? buildRestaurantUrl(r.slug) : undefined,
-      tier: r.tier, rating: undefined, travel_time_text: undefined, travel_mode: undefined, distance_text: undefined,
-      latitude: undefined, longitude: undefined,
-    })),
-    ...pois.map(p => ({
-      id: p.id, type: 'poi' as const, name: p.name,
-      description: p.description, category: p.category,
-      image: p.media?.[0]?.url, url: p.google_maps_url, tier: '',
-      rating: p.rating, travel_time_text: p.travel_time_text, travel_mode: p.travel_mode, distance_text: p.distance_text,
-      latitude: p.latitude, longitude: p.longitude,
-    }))
-  ];
+  const combinedItems = pois.map(p => ({
+    id: p.id, type: 'poi' as const, name: p.name,
+    description: p.description, category: p.category,
+    image: p.media?.[0]?.url, url: p.google_maps_url,
+    rating: p.rating, travel_time_text: p.travel_time_text, travel_mode: p.travel_mode, distance_text: p.distance_text,
+    latitude: p.latitude, longitude: p.longitude,
+  }));
 
   const categories = [ALL_FILTER, ...Array.from(new Set(combinedItems.map(i => i.category)))];
 
@@ -81,15 +54,10 @@ export default function DiscoverSection({ pois, restaurants = [], zoneName, zone
     activeFilter === ALL_FILTER || item.category === activeFilter
   );
 
-  // Highlight whichever item is actually worth a guest's attention — a premium-tier
-  // restaurant, or the highest-rated POI — instead of just "whatever came first from
-  // the DB query", which is what idx === 0 used to mean.
+  // Highlight the highest-rated POI instead of just "whatever came first from the
+  // DB query", which is what idx === 0 used to mean.
   const featuredItemId = filteredItems.length > 0
-    ? filteredItems.reduce((best, item) => {
-        const score = item.tier === 'premium' ? 100 : (item.rating ?? 0);
-        const bestScore = best.tier === 'premium' ? 100 : (best.rating ?? 0);
-        return score > bestScore ? item : best;
-      }, filteredItems[0]).id
+    ? filteredItems.reduce((best, item) => (item.rating ?? 0) > (best.rating ?? 0) ? item : best, filteredItems[0]).id
     : null;
 
   return (
@@ -138,12 +106,6 @@ export default function DiscoverSection({ pois, restaurants = [], zoneName, zone
                       <span className="font-label-sm text-label-sm text-deep-sea">{item.rating.toFixed(1)}</span>
                     </div>
                   )}
-                  {item.tier === 'premium' && (
-                    <div className="absolute top-4 right-4 bg-crisp-white/90 backdrop-blur-sm px-3 py-1 rounded-full flex items-center gap-1 shadow-sm">
-                      <span className="material-symbols-outlined text-terracotta text-sm" style={{ fontVariationSettings: "'FILL' 1" }}>star</span>
-                      <span className="text-label-sm font-label-sm text-deep-sea font-bold">{getTranslation('premium_badge', lang)}</span>
-                    </div>
-                  )}
                 </div>
                 <div className="p-6 flex flex-col gap-4 flex-grow">
                   <div className="flex justify-between items-start gap-4">
@@ -167,17 +129,10 @@ export default function DiscoverSection({ pois, restaurants = [], zoneName, zone
                       <div />
                     )}
                     <button
-                      onClick={() => {
-                        if (item.type === 'restaurant') {
-                          onIntent('restaurant', item.id, 'click_menu');
-                          if (item.url) window.open(item.url, '_blank');
-                        } else {
-                          setSelectedItem(item);
-                        }
-                      }}
+                      onClick={() => setSelectedItem(item)}
                       className="text-terracotta font-label-lg text-label-lg flex items-center gap-1 hover:text-primary-container transition-colors group/btn"
                     >
-                      {item.type === 'restaurant' ? getTranslation('view_menu', lang) : getTranslation('view_details', lang)}
+                      {getTranslation('view_details', lang)}
                       <span className="material-symbols-outlined icon-directional text-sm group-hover/btn:translate-x-1 transition-transform">arrow_forward</span>
                     </button>
                   </div>
@@ -220,14 +175,7 @@ export default function DiscoverSection({ pois, restaurants = [], zoneName, zone
 
                 <div className="mt-auto pt-3">
                   <button
-                    onClick={() => {
-                      if (item.type === 'restaurant') {
-                        onIntent('restaurant', item.id, 'click_menu');
-                        if (item.url) window.open(item.url, '_blank');
-                      } else {
-                        setSelectedItem(item);
-                      }
-                    }}
+                    onClick={() => setSelectedItem(item)}
                     className="w-full py-2 rounded-lg border border-deep-sea text-deep-sea font-label-lg text-label-lg hover:bg-deep-sea hover:text-crisp-white transition-colors text-center"
                   >
                     {getTranslation('view_details', lang)}

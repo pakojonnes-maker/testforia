@@ -46,6 +46,39 @@ export function getVisitorId(): string {
   return id;
 }
 
+const GUIDE_REFERRAL_COOKIE = 'vt_guide_ref';
+const GUIDE_REFERRAL_COOKIE_MAX_AGE_DAYS = 30;
+
+/**
+ * Persiste la referencia guía→restaurante en una cookie de primera parte en
+ * .visualtastes.com (leída por menu.visualtastes.com en
+ * apps/client/src/providers/TrackingAndPushProvider.tsx). Sin esto, la
+ * atribución al abrir el menú desde el guidebook solo vive dentro de la MISMA
+ * sesión de navegador (sessionStorage del lado del menú): un huésped que hoy
+ * ve un restaurante en la guía y va a cenar allí dos días después, escaneando
+ * el QR físico de la mesa sin ningún ?ref= en la URL, no dejaba ningún rastro
+ * de venir de la guía. 30 días cubre la duración típica de una estancia.
+ *
+ * El atributo Domain solo se fija cuando el guidebook corre de verdad en un
+ * subdominio de visualtastes.com — en local/dev el navegador rechazaría un
+ * Domain que no coincide con el host actual, así que ahí se usa una cookie de
+ * host normal (sirve igual para probar el flujo en desarrollo).
+ */
+export function setReferralCookie(apartmentId: string, sessionId: string | null) {
+  try {
+    const host = window.location.hostname;
+    const isVisualtastesDomain = host === 'visualtastes.com' || host.endsWith('.visualtastes.com');
+    const value = encodeURIComponent(JSON.stringify({ apt: apartmentId, gsid: sessionId, ts: Date.now() }));
+    const maxAge = GUIDE_REFERRAL_COOKIE_MAX_AGE_DAYS * 24 * 60 * 60;
+    const domainAttr = isVisualtastesDomain ? '; domain=.visualtastes.com' : '';
+    const secureAttr = window.location.protocol === 'https:' ? '; secure' : '';
+    document.cookie = `${GUIDE_REFERRAL_COOKIE}=${value}; path=/; max-age=${maxAge}; samesite=lax${domainAttr}${secureAttr}`;
+  } catch {
+    // best-effort: sin document.cookie disponible, la atribución cruzada se pierde
+    // pero el guidebook sigue funcionando con normalidad.
+  }
+}
+
 export async function trackSessionStart(apartmentId: string, language: string) {
   try {
     const res = await fetch(`${API_URL}/guide/track/session/start`, {
@@ -124,6 +157,44 @@ export function buildWhatsAppUrl(phone: string, message?: string): string {
   return message ? `${base}?text=${encodeURIComponent(message)}` : base;
 }
 
+export interface StoreOrderResult {
+  success: boolean;
+  orders?: Array<{ orderId: string; ownerType: 'host' | 'platform'; whatsappUrl: string | null }>;
+  error?: string;
+}
+
+/**
+ * Envía el pedido de la Tienda: se guarda en D1 ANTES de abrir WhatsApp (a
+ * diferencia de las experiencias de zona, que son un enlace directo sin
+ * rastro). Si el carrito mezcla productos del anfitrión y de la plataforma,
+ * el backend los separa en varios pedidos — cada uno con su propio hilo de
+ * WhatsApp, porque solo puede haber un destinatario por conversación.
+ */
+export async function submitStoreOrder(params: {
+  apartmentId: string;
+  items: Array<{ itemId: string; quantity: number }>;
+  sessionId?: string | null;
+  visitorId?: string;
+}): Promise<StoreOrderResult> {
+  try {
+    const res = await fetch(`${API_URL}/guide/store/orders`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        apartmentId: params.apartmentId,
+        items: params.items,
+        sessionId: params.sessionId || null,
+        visitorId: params.visitorId || getVisitorId(),
+      }),
+    });
+    const data = await res.json();
+    if (!res.ok) return { success: false, error: data.error || `HTTP ${res.status}` };
+    return data;
+  } catch (err: any) {
+    return { success: false, error: err.message || 'network_error' };
+  }
+}
+
 export async function trackSectionView(apartmentId: string, sessionId: string | null, section: string) {
   try {
     await fetch(`${API_URL}/guide/track/section-view`, {
@@ -198,12 +269,18 @@ export async function sendChatMessage(
     const res = await fetch(`${API_URL}/guide/ai/chat`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ apartmentId, message, history, lang }),
+      // visitorId es la clave del rate limit por visitante en el worker (ver
+      // workerGuideAI.js) — sin esto, todos los clientes comparten un único
+      // contador "anon" y el límite deja de ser "por huésped".
+      body: JSON.stringify({ apartmentId, message, history, lang, visitorId: getVisitorId() }),
     });
 
     if (!res.ok || !res.body) {
       const err = await res.json().catch(() => ({}));
-      throw new Error((err as any).error || `HTTP ${res.status}`);
+      const code = (err as any).error;
+      if (code === 'rate_limited') throw new Error('__rate_limited__');
+      if (code === 'ai_unavailable') throw new Error('__ai_unavailable__');
+      throw new Error(code || `HTTP ${res.status}`);
     }
 
     const reader = res.body.getReader();
@@ -231,8 +308,13 @@ export async function sendChatMessage(
       }
     }
   } catch (err: any) {
-    // On error emit a fallback message
-    onToken(getTranslation('chat_connection_error', lang));
+    if (err?.message === '__rate_limited__') {
+      onToken(getTranslation('chat_rate_limited', lang));
+    } else if (err?.message === '__ai_unavailable__') {
+      onToken(getTranslation('chat_unavailable', lang));
+    } else {
+      onToken(getTranslation('chat_connection_error', lang));
+    }
   } finally {
     onDone();
   }

@@ -257,7 +257,7 @@ const LOGIN_LIMIT_PER_IP = { limit: 30, windowSeconds: 3600 };      // 30 / hora
  * Consulta e incrementa un contador con ventana fija en KV.
  * @returns {Promise<{allowed: boolean, retryAfter: number}>}
  */
-async function hitRateLimit(env, key, { limit, windowSeconds }) {
+export async function hitRateLimit(env, key, { limit, windowSeconds }) {
     // Sin binding de KV no se puede contar. Se deja pasar en vez de bloquear el
     // login entero, pero se avisa: es una degradación de seguridad, no algo
     // normal. Ver wrangler.toml → RATE_LIMIT_KV.

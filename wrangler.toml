@@ -3,7 +3,9 @@ main = "worker.js"
 compatibility_date = "2023-10-30"
 
 [vars]
-# Add environment variables here if needed
+# WhatsApp que recibe los pedidos de productos owner_type='platform' en la
+# Tienda del guidebook (aceite, queso...).
+PLATFORM_WHATSAPP = "+34633747033"
 
 [[d1_databases]]
 binding = "DB"

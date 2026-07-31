@@ -1,7 +1,7 @@
 // src/pages/GuidebookPage.tsx — Guest-facing guidebook
 import { useState, useEffect, useRef } from 'react';
 import { useParams } from 'react-router-dom';
-import { fetchGuidebook, trackSessionStart, trackSessionEnd, trackIntent, trackSectionView, buildMenuUrl } from '../lib/api';
+import { fetchGuidebook, trackSessionStart, trackSessionEnd, trackIntent, trackSectionView, buildMenuUrl, setReferralCookie } from '../lib/api';
 
 const MENU_URL = import.meta.env.VITE_MENU_URL || 'https://menu.visualtastes.com';
 
@@ -10,6 +10,7 @@ import Header from '../components/Header';
 import BottomNavBar from '../components/BottomNavBar';
 import InfoSection from '../components/InfoSection';
 import DiscoverSection from '../components/DiscoverSection';
+import RestaurantsSection from '../components/RestaurantsSection';
 import ServicesSection from '../components/ServicesSection';
 import ChatIASection from '../components/ChatIASection';
 import WelcomeModal, { WelcomeModalData } from '../components/WelcomeModal';
@@ -23,9 +24,10 @@ interface GuidebookData {
     info: Array<{ id: string; key: string; icon: string; title: string; content: string; media: any[] }>;
   };
   zone: { id: string; name: string; slug: string; region: string; description: string; cover_image_url: string };
-  agency: { 
-    id: string; name: string; logo_url: string; 
+  agency: {
+    id: string; name: string; logo_url: string;
     primary_color: string | null; secondary_color: string | null; accent_color: string | null;
+    font_family: string | null;
   };
   pois: Array<{
     id: string; name: string; description: string; category: string;
@@ -41,6 +43,12 @@ interface GuidebookData {
     action_type: string; action_data: string; prefilled_message: string;
     price_display: string; is_featured: boolean; cta_label: string;
     cover_image_url?: string;
+  }>;
+  store_items: Array<{
+    id: string; owner_type: 'host' | 'platform'; category: string;
+    name: string; description: string; price_amount: number | null;
+    price_currency: string; price_display: string; cover_image_url?: string | null;
+    is_featured: boolean; in_stock: boolean;
   }>;
   meta: { lang: string; available_langs: string[]; active_devices_24h?: number };
   welcome_modal: WelcomeModalData | null;
@@ -109,15 +117,40 @@ export default function GuidebookPage() {
   }, [lang]);
 
   // Handle agency theming
+  //
+  // Antes esto solo fijaba --brand-primary/--brand-secondary, que casi ningún
+  // componente lee (solo CTAButton, WelcomeModal y el pie de página). El resto
+  // de la interfaz — cabeceras, pestañas, tarjetas, botones — usa las clases
+  // de Tailwind text-terracotta/bg-deep-sea/etc, que resuelven a los tokens
+  // --color-terracotta/--color-deep-sea definidos en el @theme de index.css.
+  // Sobrescribir esos mismos tokens en runtime es lo que hace que "cambiar el
+  // color en Diseño" se note de verdad en la guía, no solo en 2-3 sitios.
+  const FONT_TOKENS = ['--font-body-md', '--font-body-lg', '--font-label-lg', '--font-label-sm'];
+  const HEADLINE_FONT_TOKENS = ['--font-headline-md', '--font-headline-lg', '--font-headline-lg-mobile', '--font-display-lg'];
   useEffect(() => {
+    const root = document.documentElement.style;
     if (data?.agency?.primary_color) {
-      document.documentElement.style.setProperty('--brand-primary', data.agency.primary_color);
-      document.documentElement.style.setProperty('--brand-secondary', data.agency.secondary_color || data.agency.primary_color);
+      root.setProperty('--brand-primary', data.agency.primary_color);
+      root.setProperty('--brand-secondary', data.agency.secondary_color || data.agency.primary_color);
+      root.setProperty('--color-deep-sea', data.agency.primary_color);
+      root.setProperty('--color-terracotta', data.agency.secondary_color || data.agency.primary_color);
     } else {
-      // Reset to defaults
-      document.documentElement.style.setProperty('--brand-primary', 'var(--mar-azul)');
-      document.documentElement.style.setProperty('--brand-secondary', 'var(--mar-profundo)');
+      root.setProperty('--brand-primary', 'var(--mar-azul)');
+      root.setProperty('--brand-secondary', 'var(--mar-profundo)');
+      root.setProperty('--color-deep-sea', '#1E3A5F');
+      root.setProperty('--color-terracotta', '#C96D4B');
     }
+    root.setProperty('--color-accent-gold', data?.agency?.accent_color || '#D4A853');
+
+    // Una sola fuente para todo el guidebook, tal como la vista previa del
+    // admin (Diseño > Tipografía) da a entender: título y cuerpo con el mismo
+    // ejemplo. Los títulos conservan su propio conjunto de tokens porque llevan
+    // Playfair Display (serif) por defecto — un cambio de fuente de agencia
+    // debe sustituir también eso, no solo el cuerpo del texto.
+    const bodyFont = data?.agency?.font_family ? `'${data.agency.font_family}', sans-serif` : 'Montserrat';
+    const headlineFont = data?.agency?.font_family ? `'${data.agency.font_family}', sans-serif` : "'Playfair Display'";
+    for (const token of FONT_TOKENS) root.setProperty(token, bodyFont);
+    for (const token of HEADLINE_FONT_TOKENS) root.setProperty(token, headlineFont);
   }, [data?.agency]);
 
   // Track session
@@ -139,7 +172,13 @@ export default function GuidebookPage() {
     const elapsedSeconds = () => Math.round((Date.now() - startedAt) / 1000);
 
     trackSessionStart(apartmentId, langRef.current).then(res => {
-      if (!cancelled && res?.sessionId) sessionIdRef.current = res.sessionId;
+      if (!cancelled && res?.sessionId) {
+        sessionIdRef.current = res.sessionId;
+        // Deja una referencia de 30 días para que, si el huésped acaba cenando
+        // en un restaurante de la zona días después, esa sesión de menú pueda
+        // atribuirse a esta guía aunque llegue sin ningún ?ref= en la URL.
+        setReferralCookie(apartmentId, res.sessionId);
+      }
     });
 
     const endSession = () => {
@@ -207,7 +246,7 @@ export default function GuidebookPage() {
     );
   }
 
-  const { apartment, zone, agency, pois, restaurants, experiences } = data;
+  const { apartment, zone, agency, pois, restaurants, experiences, store_items } = data;
 
   return (
     <div className="guide-app font-body-md text-on-surface bg-background min-h-screen">
@@ -226,15 +265,13 @@ export default function GuidebookPage() {
       <main className="max-w-container-max mx-auto px-margin-mobile md:px-margin-desktop py-8 flex flex-col gap-12">
         {activeTab === 'info' && (
           <div style={{ animation: 'fadeIn 0.4s ease forwards' }} className="flex flex-col gap-12">
-            <WelcomeHero 
+            <WelcomeHero
               apartmentName={apartment.name}
               address={apartment.address}
               coverImageUrl={apartment.cover_image_url}
               agencyLogoUrl={agency.logo_url}
               agencyName={agency.name}
               currentLang={lang}
-              onLanguageChange={handleLanguageChange}
-              brandPrimaryColor={agency.primary_color || undefined}
             />
             {/* QuickInfoBar will be merged into InfoSection or updated later */}
             <InfoSection infoItems={apartment.info} lang={lang} />
@@ -244,9 +281,16 @@ export default function GuidebookPage() {
         {activeTab === 'discover' && (
           <DiscoverSection
             pois={pois}
-            restaurants={restaurants}
             zoneName={zone.name}
             zoneDescription={zone.description}
+            lang={lang}
+          />
+        )}
+
+        {activeTab === 'restaurants' && (
+          <RestaurantsSection
+            restaurants={restaurants}
+            zoneName={zone.name}
             lang={lang}
             onIntent={(type, id, action) => logIntent(type, id, action)}
             buildRestaurantUrl={(restaurantSlug) =>
@@ -255,16 +299,31 @@ export default function GuidebookPage() {
         )}
 
         {activeTab === 'services' && (
-          <ServicesSection 
-            experiences={experiences} 
-            zoneName={zone.name} 
-            lang={lang} 
-            onIntent={(type, id, action) => logIntent(type, id, action)} 
+          <ServicesSection
+            experiences={experiences}
+            storeItems={store_items || []}
+            zoneName={zone.name}
+            apartmentId={apartment.id}
+            apartmentName={apartment.name}
+            sessionId={sessionIdRef.current}
+            lang={lang}
+            onIntent={(type, id, action) => logIntent(type, id, action)}
           />
         )}
         {activeTab === 'chat' && (
           <div style={{ animation: 'fadeIn 0.4s ease forwards' }}>
-            <ChatIASection lang={lang} apartmentId={data?.apartment?.id} apartmentName={data?.apartment?.name} />
+            <ChatIASection
+              lang={lang}
+              apartmentId={data?.apartment?.id}
+              apartmentName={data?.apartment?.name}
+              restaurants={restaurants}
+              pois={pois}
+              experiences={experiences}
+              storeItems={store_items}
+              buildRestaurantUrl={(restaurantSlug) =>
+                buildMenuUrl(MENU_URL, restaurantSlug, apartment.id, sessionIdRef.current)}
+              onNavigateTab={setActiveTab}
+            />
           </div>
         )}
       </main>

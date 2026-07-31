@@ -1,18 +1,54 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { getTranslation } from '../lib/i18n';
 import { sendChatMessage, type ChatMessage } from '../lib/api';
+import CTAButton from './CTAButton';
 
 interface Message {
   id: string;
   sender: 'ai' | 'user';
   text: string;
   streaming?: boolean;
+  recs?: string[];
 }
+
+interface RestaurantRef { id: string; name: string; slug: string; }
+interface PoiRef { id: string; name: string; google_maps_url: string; }
+interface ExperienceRef {
+  id: string; name: string; action_type: string; action_data: string;
+  prefilled_message: string; cta_label?: string;
+}
+interface StoreItemRef { id: string; name: string; price_display: string; }
 
 interface ChatIASectionProps {
   lang: string;
   apartmentId?: string;
   apartmentName?: string;
+  restaurants?: RestaurantRef[];
+  pois?: PoiRef[];
+  experiences?: ExperienceRef[];
+  storeItems?: StoreItemRef[];
+  buildRestaurantUrl?: (slug: string) => string;
+  onNavigateTab?: (tab: 'services' | 'restaurants') => void;
+}
+
+// Centinela que el modelo añade al final de su respuesta para citar hasta 3
+// referencias de lo que ha recomendado (ver workerGuideAI.js). El huésped
+// nunca debe ver esta línea — se recorta del texto mostrado en cada token, no
+// solo al terminar el streaming, por si el marcador llega en un chunk propio.
+const RECS_MARKER = '<!--RECS:';
+
+function splitRecs(fullText: string): { display: string; refs: string[] } {
+  const idx = fullText.indexOf(RECS_MARKER);
+  if (idx === -1) return { display: fullText, refs: [] };
+  const display = fullText.slice(0, idx).trimEnd();
+  const rest = fullText.slice(idx + RECS_MARKER.length);
+  const endIdx = rest.indexOf('-->');
+  const refsPart = endIdx === -1 ? rest : rest.slice(0, endIdx);
+  const rawRefs = refsPart.split(',').map(r => r.trim()).filter(Boolean);
+  // El modelo a veces repite la misma referencia en la lista — una tarjeta
+  // idéntica duplicada bajo la respuesta se lee como un fallo, no como énfasis.
+  const refs = Array.from(new Set(rawRefs));
+  return { display, refs };
 }
 
 const QUICK_ACTIONS_BY_LANG: Record<string, Array<{ icon: string; text: string }>> = {
@@ -120,12 +156,50 @@ function getWelcomeMessage(lang: string, name?: string): string {
   return templates[lang] || templates.es;
 }
 
-export default function ChatIASection({ lang, apartmentId, apartmentName }: ChatIASectionProps) {
+// Frase corta que se añade al saludo cuando hay algo concreto que recomendar
+// (producto destacado de la Tienda, o si no, restaurante destacado). Puramente
+// client-side con los datos que el guidebook ya trae cargados — sin llamada
+// extra a la IA, sin coste ni latencia añadidos.
+function getUpsellHint(lang: string, itemName: string): string {
+  const templates: Record<string, string> = {
+    es: `Por cierto, ¿ya has visto "${itemName}"? Puedes verlo en la app.`,
+    en: `By the way, have you seen "${itemName}"? You can check it out in the app.`,
+    fr: `Au fait, avez-vous vu « ${itemName} » ? Vous pouvez le consulter dans l'application.`,
+    de: `Übrigens, hast du schon „${itemName}" gesehen? Du findest es in der App.`,
+    it: `A proposito, hai già visto "${itemName}"? Puoi trovarlo nell'app.`,
+    pt: `já agora, já viu "${itemName}"? Pode consultá-lo na app.`,
+    ca: `Per cert, ja has vist "${itemName}"? El pots veure a l'app.`,
+    ar: `بالمناسبة، هل رأيت "${itemName}"؟ يمكنك الاطلاع عليه في التطبيق.`,
+    ru: `Кстати, вы уже видели «${itemName}»? Посмотрите в приложении.`,
+    uk: `До речі, ви вже бачили «${itemName}»? Погляньте в застосунку.`,
+    zh: `对了，你看过"${itemName}"吗？可以在应用里查看。`,
+    ja: `ところで「${itemName}」はもうご覧になりましたか？アプリ内でチェックできます。`,
+    ko: `그런데 "${itemName}" 보셨나요? 앱에서 확인하실 수 있어요.`,
+  };
+  return templates[lang] || templates.es;
+}
+
+export default function ChatIASection({
+  lang, apartmentId, apartmentName,
+  restaurants = [], pois = [], experiences = [], storeItems = [],
+  buildRestaurantUrl, onNavigateTab,
+}: ChatIASectionProps) {
+  // El destacado de la bienvenida: producto de Tienda destacado -> si no,
+  // restaurante -> si no, nada. Prioriza lo que más vende para el anfitrión.
+  // storeItems ya llega ordenado is_featured DESC (workerGuide.js), así que el
+  // primero es el destacado cuando existe uno.
+  const highlightItem = storeItems[0] || null;
+  const highlightRestaurant = !highlightItem ? restaurants[0] : null;
+  const welcomeBase = getWelcomeMessage(lang, apartmentName);
+  const welcomeHint = highlightItem
+    ? getUpsellHint(lang, highlightItem.name)
+    : highlightRestaurant ? getUpsellHint(lang, highlightRestaurant.name) : '';
+
   const [messages, setMessages] = useState<Message[]>([
     {
       id: 'welcome',
       sender: 'ai',
-      text: getWelcomeMessage(lang, apartmentName),
+      text: welcomeHint ? `${welcomeBase} ${welcomeHint}` : welcomeBase,
     },
   ]);
   const [inputValue, setInputValue] = useState('');
@@ -133,9 +207,7 @@ export default function ChatIASection({ lang, apartmentId, apartmentName }: Chat
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
-  // History for RAG context (only role/content, not display metadata)
   const historyRef = useRef<ChatMessage[]>([]);
-
   const quickActions = QUICK_ACTIONS_BY_LANG[lang] || QUICK_ACTIONS_BY_LANG.es;
 
   useEffect(() => {
@@ -145,40 +217,22 @@ export default function ChatIASection({ lang, apartmentId, apartmentName }: Chat
   const handleSend = async (text: string) => {
     if (!text.trim() || isLoading) return;
 
-    const userMsg: Message = {
-      id: Date.now().toString(),
-      sender: 'user',
-      text: text.trim(),
-    };
-
+    const userMsg: Message = { id: Date.now().toString(), sender: 'user', text: text.trim() };
     setMessages(prev => [...prev, userMsg]);
     setInputValue('');
     setIsLoading(true);
 
-    // Add user message to history
-    historyRef.current = [
-      ...historyRef.current,
-      { role: 'user' as const, content: text.trim() },
-    ].slice(-10);
+    historyRef.current = [...historyRef.current, { role: 'user' as const, content: text.trim() }].slice(-10);
 
-    // Create streaming AI message placeholder
     const aiMsgId = (Date.now() + 1).toString();
-    setMessages(prev => [...prev, {
-      id: aiMsgId,
-      sender: 'ai',
-      text: '',
-      streaming: true,
-    }]);
+    setMessages(prev => [...prev, { id: aiMsgId, sender: 'ai', text: '', streaming: true }]);
 
     let fullResponse = '';
 
     if (!apartmentId) {
-      // No apartmentId: show a friendly demo message
       setTimeout(() => {
         const demoText = getTranslation('chat_loading_demo', lang);
-        setMessages(prev => prev.map(m =>
-          m.id === aiMsgId ? { ...m, text: demoText, streaming: false } : m
-        ));
+        setMessages(prev => prev.map(m => m.id === aiMsgId ? { ...m, text: demoText, streaming: false } : m));
         setIsLoading(false);
       }, 800);
       return;
@@ -187,30 +241,87 @@ export default function ChatIASection({ lang, apartmentId, apartmentName }: Chat
     await sendChatMessage(
       apartmentId,
       text.trim(),
-      historyRef.current.slice(0, -1), // history without the just-added user msg
+      historyRef.current.slice(0, -1),
       lang,
       (token) => {
         fullResponse += token;
-        setMessages(prev => prev.map(m =>
-          m.id === aiMsgId ? { ...m, text: fullResponse } : m
-        ));
+        const { display } = splitRecs(fullResponse);
+        setMessages(prev => prev.map(m => m.id === aiMsgId ? { ...m, text: display } : m));
       },
       () => {
-        // Stream done
-        setMessages(prev => prev.map(m =>
-          m.id === aiMsgId ? { ...m, streaming: false } : m
-        ));
-        // Add AI response to history
+        const { display, refs } = splitRecs(fullResponse);
+        setMessages(prev => prev.map(m => m.id === aiMsgId ? { ...m, text: display, streaming: false, recs: refs } : m));
         if (fullResponse.trim()) {
-          historyRef.current = [
-            ...historyRef.current,
-            { role: 'assistant' as const, content: fullResponse.trim() },
-          ].slice(-10);
+          historyRef.current = [...historyRef.current, { role: 'assistant' as const, content: display.trim() }].slice(-10);
         }
         setIsLoading(false);
         inputRef.current?.focus();
       }
     );
+  };
+
+  // Resuelve una referencia "tipo:id" del centinela contra los datos que el
+  // guidebook ya tiene cargados, y devuelve una tarjeta compacta con el CTA
+  // real. Best-effort: si el modelo cita un id que no existe (alucinación o
+  // dato caducado en su contexto), simplemente no se renderiza nada para esa
+  // referencia — nunca un error visible para el huésped.
+  const renderRec = (ref: string, idx: number) => {
+    const [type, id] = ref.split(':');
+    if (type === 'store') {
+      const item = storeItems.find(i => i.id === id);
+      if (!item) return null;
+      return (
+        <button
+          key={idx}
+          onClick={() => onNavigateTab?.('services')}
+          className="flex items-center justify-between gap-3 bg-warm-sand rounded-xl px-4 py-3 text-left hover:bg-surface-variant transition-colors w-full"
+        >
+          <span className="font-label-md text-label-md text-deep-sea">{item.name}</span>
+          <span className="font-label-sm text-label-sm text-terracotta font-bold whitespace-nowrap">{item.price_display}</span>
+        </button>
+      );
+    }
+    if (type === 'restaurant') {
+      const r = restaurants.find(x => x.id === id);
+      if (!r) return null;
+      return (
+        <button
+          key={idx}
+          onClick={() => onNavigateTab?.('restaurants')}
+          className="flex items-center justify-between gap-3 bg-warm-sand rounded-xl px-4 py-3 text-left hover:bg-surface-variant transition-colors w-full"
+        >
+          <span className="font-label-md text-label-md text-deep-sea">{r.name}</span>
+          <span className="material-symbols-outlined text-terracotta text-[18px]">restaurant</span>
+        </button>
+      );
+    }
+    if (type === 'experience') {
+      const exp = experiences.find(x => x.id === id);
+      if (!exp) return null;
+      return (
+        <div key={idx} className="bg-warm-sand rounded-xl px-4 py-3">
+          <p className="font-label-md text-label-md text-deep-sea mb-2">{exp.name}</p>
+          <CTAButton experience={exp} lang={lang} onIntent={() => {}} />
+        </div>
+      );
+    }
+    if (type === 'poi') {
+      const poi = pois.find(x => x.id === id);
+      if (!poi) return null;
+      return (
+        <a
+          key={idx}
+          href={poi.google_maps_url}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="flex items-center justify-between gap-3 bg-warm-sand rounded-xl px-4 py-3 hover:bg-surface-variant transition-colors w-full"
+        >
+          <span className="font-label-md text-label-md text-deep-sea">{poi.name}</span>
+          <span className="material-symbols-outlined text-terracotta text-[18px]">location_on</span>
+        </a>
+      );
+    }
+    return null;
   };
 
   return (
@@ -234,37 +345,44 @@ export default function ChatIASection({ lang, apartmentId, apartmentName }: Chat
         {messages.map(msg => (
           <div
             key={msg.id}
-            className={`flex gap-3 max-w-[85%] ${msg.sender === 'user' ? 'self-end flex-row-reverse' : ''}`}
+            className={`flex gap-3 max-w-[85%] ${msg.sender === 'user' ? 'self-end flex-row-reverse' : 'flex-col'}`}
           >
-            {msg.sender === 'ai' ? (
-              <div className="w-8 h-8 rounded-full bg-warm-sand flex-shrink-0 flex items-center justify-center mt-1">
-                <span className="material-symbols-outlined text-terracotta text-sm" style={{ fontVariationSettings: "'FILL' 1" }}>spark</span>
+            <div className={`flex gap-3 ${msg.sender === 'user' ? 'flex-row-reverse' : ''}`}>
+              {msg.sender === 'ai' ? (
+                <div className="w-8 h-8 rounded-full bg-warm-sand flex-shrink-0 flex items-center justify-center mt-1">
+                  <span className="material-symbols-outlined text-terracotta text-sm" style={{ fontVariationSettings: "'FILL' 1" }}>spark</span>
+                </div>
+              ) : (
+                <div className="w-8 h-8 rounded-full bg-surface-container-high flex-shrink-0 overflow-hidden mt-1 flex items-center justify-center">
+                  <span className="material-symbols-outlined text-on-surface-variant text-sm">person</span>
+                </div>
+              )}
+
+              <div
+                className={`p-4 rounded-2xl shadow-sm text-body-md font-body-md ${
+                  msg.sender === 'user'
+                    ? 'bg-terracotta text-crisp-white rounded-tr-sm'
+                    : 'bg-crisp-white text-on-surface rounded-tl-sm shadow-[0px_4px_20px_rgba(201,109,75,0.08)]'
+                }`}
+              >
+                {msg.text || (msg.streaming && (
+                  <span className="flex items-center gap-1">
+                    <span className="w-1.5 h-1.5 bg-terracotta rounded-full animate-bounce [animation-delay:0ms]" />
+                    <span className="w-1.5 h-1.5 bg-terracotta rounded-full animate-bounce [animation-delay:150ms]" />
+                    <span className="w-1.5 h-1.5 bg-terracotta rounded-full animate-bounce [animation-delay:300ms]" />
+                  </span>
+                ))}
+                {msg.streaming && msg.text && (
+                  <span className="inline-block w-0.5 h-4 bg-terracotta ml-0.5 animate-pulse align-middle" />
+                )}
               </div>
-            ) : (
-              <div className="w-8 h-8 rounded-full bg-surface-container-high flex-shrink-0 overflow-hidden mt-1 flex items-center justify-center">
-                <span className="material-symbols-outlined text-on-surface-variant text-sm">person</span>
+            </div>
+
+            {msg.recs && msg.recs.length > 0 && (
+              <div className="flex flex-col gap-2 pl-11 max-w-full">
+                {msg.recs.map((ref, i) => renderRec(ref, i))}
               </div>
             )}
-
-            <div
-              className={`p-4 rounded-2xl shadow-sm text-body-md font-body-md ${
-                msg.sender === 'user'
-                  ? 'bg-terracotta text-crisp-white rounded-tr-sm'
-                  : 'bg-crisp-white text-on-surface rounded-tl-sm shadow-[0px_4px_20px_rgba(201,109,75,0.08)]'
-              }`}
-            >
-              {msg.text || (msg.streaming && (
-                <span className="flex items-center gap-1">
-                  <span className="w-1.5 h-1.5 bg-terracotta rounded-full animate-bounce [animation-delay:0ms]" />
-                  <span className="w-1.5 h-1.5 bg-terracotta rounded-full animate-bounce [animation-delay:150ms]" />
-                  <span className="w-1.5 h-1.5 bg-terracotta rounded-full animate-bounce [animation-delay:300ms]" />
-                </span>
-              ))}
-              {/* Streaming cursor */}
-              {msg.streaming && msg.text && (
-                <span className="inline-block w-0.5 h-4 bg-terracotta ml-0.5 animate-pulse align-middle" />
-              )}
-            </div>
           </div>
         ))}
         <div ref={messagesEndRef} />

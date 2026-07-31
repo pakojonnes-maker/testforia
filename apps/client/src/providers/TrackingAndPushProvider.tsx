@@ -628,6 +628,27 @@ function detectEnvironment() {
 
 const REFERRAL_KEY = 'vt_referral';
 
+// Cookie de primera parte que el guidebook (y la TV) escriben en
+// .visualtastes.com al abrir/usar la guía — ver apps/guide/src/lib/api.ts
+// setReferralCookie(). guide.visualtastes.com y menu.visualtastes.com son
+// subdominios del mismo dominio raíz, así que esta cookie es legible aquí
+// aunque la sesión de menú se abra días después y sin ningún ?ref= en la URL
+// (el caso real: el huésped vio el restaurante en la guía y fue a cenar allí
+// más tarde, escaneando el QR físico de la mesa). sessionStorage no cubre ese
+// caso: no sobrevive ni a un cambio de pestaña ni a un día distinto.
+const GUIDE_REFERRAL_COOKIE = 'vt_guide_ref';
+
+function readGuideReferralCookie(): { apartmentId?: string; sessionId?: string } {
+  try {
+    const match = document.cookie.match(new RegExp(`(?:^|; )${GUIDE_REFERRAL_COOKIE}=([^;]*)`));
+    if (!match) return {};
+    const parsed = JSON.parse(decodeURIComponent(match[1]));
+    return { apartmentId: parsed.apt || undefined, sessionId: parsed.gsid || undefined };
+  } catch {
+    return {};
+  }
+}
+
 function readReferral(urlParams: URLSearchParams): {
   source?: string; apartmentId?: string; sessionId?: string;
 } {
@@ -647,6 +668,11 @@ function readReferral(urlParams: URLSearchParams): {
     const stored = sessionStorage.getItem(REFERRAL_KEY);
     if (stored) return JSON.parse(stored);
   } catch { /* ignorar */ }
+
+  const cookieReferral = readGuideReferralCookie();
+  if (cookieReferral.apartmentId) {
+    return { source: 'guide', apartmentId: cookieReferral.apartmentId, sessionId: cookieReferral.sessionId };
+  }
   return {};
 }
 

@@ -106,8 +106,8 @@ export async function handleGetGuidebook(env, slug, lang, origin) {
     ).bind(apartment.id).first();
     const hasAssignedPois = aptPoisCheck?.count > 0;
 
-    // 2. Parallel load: zone, agency, info, POIs, experiences, restaurants, welcome modal
-    const [zone, agency, apartmentInfo, pois, experiences, zoneRestaurants, welcomeModal] = await Promise.all([
+    // 2. Parallel load: zone, agency, info, POIs, experiences, restaurants, welcome modal, store items
+    const [zone, agency, apartmentInfo, pois, experiences, zoneRestaurants, welcomeModal, storeItems] = await Promise.all([
         // Zone
         env.DB.prepare(`
             SELECT id, name, slug, country, region, latitude, longitude, cover_image_url
@@ -116,7 +116,7 @@ export async function handleGetGuidebook(env, slug, lang, origin) {
 
         // Agency
         env.DB.prepare(`
-            SELECT id, name, slug, logo_url, primary_color, secondary_color, accent_color
+            SELECT id, name, slug, logo_url, primary_color, secondary_color, accent_color, font_family
             FROM guide_agencies WHERE id = ? AND is_active = TRUE
         `).bind(apartment.agency_id).first(),
 
@@ -277,7 +277,48 @@ export async function handleGetGuidebook(env, slug, lang, origin) {
             LEFT JOIN translations t_cta ON w.id = t_cta.entity_id AND t_cta.entity_type = 'welcome_modal' AND t_cta.field = 'action_label' AND t_cta.language_code = ?
             LEFT JOIN translations t_cta_es ON w.id = t_cta_es.entity_id AND t_cta_es.entity_type = 'welcome_modal' AND t_cta_es.field = 'action_label' AND t_cta_es.language_code = 'es'
             WHERE w.apartment_id = ? AND w.is_active = TRUE
-        `).bind(lang, lang, lang, apartment.id).first()
+        `).bind(lang, lang, lang, apartment.id).first(),
+
+        // Store items: los propios del anfitrión (apartment_id = este apartamento) +
+        // el catálogo global de VisualTaste (owner_type='platform'), fusionados en un
+        // solo array. Los platform items son un slot reservado que la agencia no puede
+        // editar ni borrar — ver migrations/0080_guide_store.sql.
+        env.DB.prepare(`
+            SELECT
+                si.id, si.owner_type, si.category, si.icon_name,
+                si.price_amount, si.price_currency, si.price_display,
+                si.cover_image_url, si.is_featured, si.stock_unlimited, si.stock_qty,
+                COALESCE(t_name.value, t_name_es.value) AS name,
+                COALESCE(t_desc.value, t_desc_es.value) AS description,
+                COALESCE(t_cta.value, t_cta_es.value) AS cta_label
+            FROM guide_store_items si
+            LEFT JOIN translations t_name ON si.id = t_name.entity_id
+                AND t_name.entity_type = 'store_item'
+                AND t_name.field = 'name'
+                AND t_name.language_code = ?
+            LEFT JOIN translations t_name_es ON si.id = t_name_es.entity_id
+                AND t_name_es.entity_type = 'store_item'
+                AND t_name_es.field = 'name'
+                AND t_name_es.language_code = ?
+            LEFT JOIN translations t_desc ON si.id = t_desc.entity_id
+                AND t_desc.entity_type = 'store_item'
+                AND t_desc.field = 'description'
+                AND t_desc.language_code = ?
+            LEFT JOIN translations t_desc_es ON si.id = t_desc_es.entity_id
+                AND t_desc_es.entity_type = 'store_item'
+                AND t_desc_es.field = 'description'
+                AND t_desc_es.language_code = ?
+            LEFT JOIN translations t_cta ON si.id = t_cta.entity_id
+                AND t_cta.entity_type = 'store_item'
+                AND t_cta.field = 'cta_label'
+                AND t_cta.language_code = ?
+            LEFT JOIN translations t_cta_es ON si.id = t_cta_es.entity_id
+                AND t_cta_es.entity_type = 'store_item'
+                AND t_cta_es.field = 'cta_label'
+                AND t_cta_es.language_code = ?
+            WHERE si.is_active = TRUE AND (si.apartment_id = ? OR si.owner_type = 'platform')
+            ORDER BY si.is_featured DESC, si.order_index ASC
+        `).bind(lang, FALLBACK_LANG, lang, FALLBACK_LANG, lang, FALLBACK_LANG, apartment.id).all()
     ]);
 
     if (!zone) {
@@ -412,6 +453,7 @@ export async function handleGetGuidebook(env, slug, lang, origin) {
             primary_color: agency?.primary_color || null,
             secondary_color: agency?.secondary_color || null,
             accent_color: agency?.accent_color || null,
+            font_family: agency?.font_family || null,
         },
         pois: (pois.results || []).map(poi => ({
             id: poi.id,
@@ -436,6 +478,23 @@ export async function handleGetGuidebook(env, slug, lang, origin) {
             cover_image: r.cover_image ? `${mediaOrigin}/media/${r.cover_image}` : null
         })),
         experiences: processedExperiences,
+        store_items: (storeItems.results || []).map(item => ({
+            id: item.id,
+            owner_type: item.owner_type,
+            category: item.category,
+            icon: item.icon_name,
+            name: item.name || item.id,
+            description: item.description || '',
+            price_amount: item.price_amount,
+            price_currency: item.price_currency,
+            price_display: item.price_display || (item.price_amount != null
+                ? `${item.price_amount.toFixed(2)} ${item.price_currency || 'EUR'}`
+                : ''),
+            cover_image_url: item.cover_image_url,
+            is_featured: item.is_featured === 1,
+            in_stock: item.stock_unlimited === 1 || (item.stock_qty ?? 0) > 0,
+            cta_label: item.cta_label || null
+        })),
         welcome_modal: welcomeModal ? {
             image_url: welcomeModal.image_url,
             title: welcomeModal.title || welcomeModal.title_es || '',

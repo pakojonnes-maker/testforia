@@ -19,6 +19,7 @@ import { handleGuideRequests } from './workerGuide.js';
 import { handleGuideTracking } from './workerGuideTracking.js';
 import { handleGuideAdminRequests } from './workerGuideAdmin.js';
 import { handleGuideAI } from './workerGuideAI.js';
+import { handleGuideStoreRequests } from './workerGuideStore.js';
 import { handleTvScreenRequests } from './workerTvScreen.js';
 import { checkRestaurantScope } from './workerAuthz.js';
 // CORS: la allowlist vive en workerCors.js, compartida con los demás módulos.
@@ -93,6 +94,7 @@ const PUBLIC_ROUTES = [
     { method: 'GET', pattern: /^\/guide\/[\w-]+$/ },
     { method: 'ALL', pattern: /^\/guide\/track\// },
     { method: 'POST', pattern: /^\/guide\/ai\// },
+    { method: 'POST', pattern: /^\/guide\/store\/orders$/ },
     // TV screens (guidebook on TV) — config + analytics son públicos;
     // /guide/admin/tv/* queda protegido por el chequeo por defecto.
     { method: 'GET', pattern: /^\/guide\/tv\/config\/[^/]+$/ },
@@ -194,6 +196,11 @@ export default {
                 // Guide AI assistant
                 if (url.pathname.startsWith('/guide/ai/')) {
                     const response = await handleGuideAI(request, env);
+                    if (response) return addCorsHeaders(response, request);
+                }
+                // Guide store (guest order intake)
+                if (url.pathname.startsWith('/guide/store/')) {
+                    const response = await handleGuideStoreRequests(request, env);
                     if (response) return addCorsHeaders(response, request);
                 }
                 // TV screens (guidebook on TV): config/track público + pairing/stats

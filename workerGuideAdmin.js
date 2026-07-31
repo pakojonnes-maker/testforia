@@ -153,6 +153,63 @@ export async function handleGuideAdminRequests(request, env) {
             return await upsertWelcomeModal(env, aptId, await request.json(), isSuperAdmin, userAgencyIds);
         }
 
+        // ============ STORE ITEMS — host (per-apartment, agency-writable) ============
+        if (path.match(/^apartments\/[^/]+\/store-items$/) && method === 'GET') {
+            const aptId = path.split('/')[1];
+            return await listApartmentStoreItems(env, aptId, isSuperAdmin, userAgencyIds);
+        }
+        if (path.match(/^apartments\/[^/]+\/store-items$/) && method === 'POST') {
+            const aptId = path.split('/')[1];
+            return await createApartmentStoreItem(env, aptId, await request.json(), isSuperAdmin, userAgencyIds);
+        }
+        if (path.match(/^apartments\/[^/]+\/store-items\/reorder$/) && method === 'PUT') {
+            const aptId = path.split('/')[1];
+            return await reorderApartmentStoreItems(env, aptId, await request.json(), isSuperAdmin, userAgencyIds);
+        }
+        if (path.match(/^apartments\/[^/]+\/store-items\/[^/]+$/) && method === 'PUT') {
+            const parts = path.split('/');
+            return await updateApartmentStoreItem(env, parts[1], parts[3], await request.json(), isSuperAdmin, userAgencyIds);
+        }
+        if (path.match(/^apartments\/[^/]+\/store-items\/[^/]+$/) && method === 'DELETE') {
+            const parts = path.split('/');
+            return await deleteApartmentStoreItem(env, parts[1], parts[3], isSuperAdmin, userAgencyIds);
+        }
+
+        // ============ STORE ITEMS — platform catalog (superadmin only, global) ============
+        if (path === 'store-items' && method === 'GET') {
+            if (!isSuperAdmin) return errorResponse('Only superadmin can manage the platform catalog', 403);
+            return await listPlatformStoreItems(env);
+        }
+        if (path === 'store-items' && method === 'POST') {
+            if (!isSuperAdmin) return errorResponse('Only superadmin can manage the platform catalog', 403);
+            return await createPlatformStoreItem(env, await request.json());
+        }
+        if (path.match(/^store-items\/[^/]+$/) && method === 'PUT') {
+            if (!isSuperAdmin) return errorResponse('Only superadmin can manage the platform catalog', 403);
+            const id = path.split('/')[1];
+            return await updatePlatformStoreItem(env, id, await request.json());
+        }
+        if (path.match(/^store-items\/[^/]+$/) && method === 'DELETE') {
+            if (!isSuperAdmin) return errorResponse('Only superadmin can manage the platform catalog', 403);
+            const id = path.split('/')[1];
+            return await deletePlatformStoreItem(env, id);
+        }
+
+        // ============ STORE ORDERS ============
+        if (path.match(/^apartments\/[^/]+\/orders$/) && method === 'GET') {
+            const aptId = path.split('/')[1];
+            return await listApartmentOrders(env, aptId, url.searchParams, isSuperAdmin, userAgencyIds);
+        }
+        if (path.match(/^orders\/[^/]+$/) && method === 'PUT') {
+            const id = path.split('/')[1];
+            return await updateStoreOrderStatus(env, id, await request.json(), isSuperAdmin, userAgencyIds);
+        }
+        if (path === 'stats/store' && method === 'GET') {
+            const aptId = url.searchParams.get('apartment_id');
+            if (!aptId) return errorResponse('apartment_id required');
+            return await getStoreStats(env, aptId, url.searchParams, isSuperAdmin, userAgencyIds);
+        }
+
         // ============ APARTMENT POIS ============
         if (path.match(/^apartments\/[^/]+\/pois$/) && method === 'GET') {
             const aptId = path.split('/')[1];
@@ -281,6 +338,10 @@ export async function handleGuideAdminRequests(request, env) {
             const aptId = url.searchParams.get('apartment_id');
             return await getStatsDevices(env, aptId, url.searchParams, isSuperAdmin, userAgencyIds);
         }
+        if (path === 'stats/conversions' && method === 'GET') {
+            if (!isSuperAdmin) return errorResponse('Only superadmin can view the conversion funnel', 403);
+            return await getRestaurantConversions(env, url.searchParams);
+        }
         if (path === 'stats/experiences' && method === 'GET') {
             const zoneId = url.searchParams.get('zone_id');
             // Assuming this is superadmin or requires specific zone check. We'll leave it superadmin for simplicity unless agency is given.
@@ -369,6 +430,18 @@ async function updateAgency(env, id, data) {
     sets.push('modified_at = CURRENT_TIMESTAMP');
     vals.push(id);
     await env.DB.prepare(`UPDATE guide_agencies SET ${sets.join(', ')} WHERE id = ?`).bind(...vals).run();
+
+    // El diseño (colores/fuente) es de la agencia, pero se sirve cacheado en el
+    // payload de CADA apartamento (workerGuide.js), con TTL de 24h. Sin esto, un
+    // cambio de color guardado aquí no se veía en la guía hasta que la caché
+    // expirase sola — el bug real detrás de "no coge los colores".
+    const apartments = await env.DB.prepare(
+        'SELECT slug FROM guide_apartments WHERE agency_id = ? AND is_active = TRUE'
+    ).bind(id).all();
+    for (const apt of (apartments.results || [])) {
+        if (apt.slug) await touchGuideVersion(env, apt.slug);
+    }
+
     return jsonResponse({ success: true });
 }
 
@@ -427,7 +500,7 @@ async function updateApartment(env, id, data, isSuperAdmin, userAgencyIds) {
 
     const sets = [];
     const vals = [];
-    for (const field of ['name', 'address', 'latitude', 'longitude', 'cover_image_url', 'zone_id', 'wifi_ssid', 'wifi_password', 'wifi_security']) {
+    for (const field of ['name', 'address', 'latitude', 'longitude', 'cover_image_url', 'zone_id', 'wifi_ssid', 'wifi_password', 'wifi_security', 'contact_whatsapp']) {
         if (data[field] !== undefined) { sets.push(`${field} = ?`); vals.push(data[field]); }
     }
     if (data.is_active !== undefined) { sets.push('is_active = ?'); vals.push(data.is_active ? 1 : 0); }
@@ -616,6 +689,255 @@ async function upsertWelcomeModal(env, aptId, data, isSuperAdmin, userAgencyIds)
     if (apt.slug) await touchGuideVersion(env, apt.slug);
 
     return jsonResponse({ success: true, id });
+}
+
+// ============================================
+// STORE ITEMS
+// ============================================
+// owner_type='host'     -> agency-writable, scoped a un apartamento (checkAptAccess).
+// owner_type='platform' -> superadmin-only, catálogo global visible en TODAS las guías.
+// Ver migrations/0080_guide_store.sql para el porqué de una tabla propia en vez de
+// reutilizar guide_pois.
+
+const STORE_ITEM_WRITABLE_FIELDS = [
+    'category', 'icon_name', 'price_amount', 'price_currency', 'price_display',
+    'cover_image_url', 'contact_whatsapp', 'order_index', 'stock_qty'
+];
+
+async function listApartmentStoreItems(env, aptId, isSuperAdmin, userAgencyIds) {
+    const access = await checkAptAccess(env, aptId, isSuperAdmin, userAgencyIds);
+    if (access.error) return access.error;
+
+    const result = await env.DB.prepare(
+        'SELECT * FROM guide_store_items WHERE apartment_id = ? ORDER BY order_index ASC'
+    ).bind(aptId).all();
+    return jsonResponse({ success: true, items: result.results || [] });
+}
+
+async function createApartmentStoreItem(env, aptId, data, isSuperAdmin, userAgencyIds) {
+    const access = await checkAptAccess(env, aptId, isSuperAdmin, userAgencyIds);
+    if (access.error) return access.error;
+    if (!data.category) return errorResponse('category is required');
+
+    const id = generateId('sitem');
+    await env.DB.prepare(`
+        INSERT INTO guide_store_items
+            (id, owner_type, apartment_id, agency_id, category, icon_name,
+             price_amount, price_currency, price_display, cover_image_url,
+             contact_whatsapp, is_featured, is_active, order_index, stock_unlimited, stock_qty)
+        VALUES (?, 'host', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `).bind(
+        id, aptId, access.apt.agency_id, data.category, data.icon_name || null,
+        data.price_amount ?? null, data.price_currency || 'EUR', data.price_display || null, data.cover_image_url || null,
+        data.contact_whatsapp || null, data.is_featured ? 1 : 0, data.is_active === false ? 0 : 1,
+        data.order_index ?? 0, data.stock_unlimited === false ? 0 : 1, data.stock_qty ?? null
+    ).run();
+
+    if (data.translations && typeof data.translations === 'object') {
+        await saveTranslations(env, id, 'store_item', data.translations);
+    }
+    if (access.apt.slug) await touchGuideVersion(env, access.apt.slug);
+    return jsonResponse({ success: true, id });
+}
+
+async function updateApartmentStoreItem(env, aptId, itemId, data, isSuperAdmin, userAgencyIds) {
+    const access = await checkAptAccess(env, aptId, isSuperAdmin, userAgencyIds);
+    if (access.error) return access.error;
+
+    const item = await env.DB.prepare(
+        'SELECT id FROM guide_store_items WHERE id = ? AND apartment_id = ?'
+    ).bind(itemId, aptId).first();
+    if (!item) return errorResponse('Store item not found', 404);
+
+    const sets = [];
+    const vals = [];
+    for (const field of STORE_ITEM_WRITABLE_FIELDS) {
+        if (data[field] !== undefined) { sets.push(`${field} = ?`); vals.push(data[field]); }
+    }
+    if (data.is_featured !== undefined) { sets.push('is_featured = ?'); vals.push(data.is_featured ? 1 : 0); }
+    if (data.is_active !== undefined) { sets.push('is_active = ?'); vals.push(data.is_active ? 1 : 0); }
+    if (data.stock_unlimited !== undefined) { sets.push('stock_unlimited = ?'); vals.push(data.stock_unlimited ? 1 : 0); }
+    if (sets.length > 0) {
+        sets.push('modified_at = CURRENT_TIMESTAMP');
+        vals.push(itemId);
+        await env.DB.prepare(`UPDATE guide_store_items SET ${sets.join(', ')} WHERE id = ?`).bind(...vals).run();
+    }
+
+    if (data.translations && typeof data.translations === 'object') {
+        await saveTranslations(env, itemId, 'store_item', data.translations);
+    }
+    if (access.apt.slug) await touchGuideVersion(env, access.apt.slug);
+    return jsonResponse({ success: true });
+}
+
+async function deleteApartmentStoreItem(env, aptId, itemId, isSuperAdmin, userAgencyIds) {
+    const access = await checkAptAccess(env, aptId, isSuperAdmin, userAgencyIds);
+    if (access.error) return access.error;
+
+    await env.DB.prepare(
+        'UPDATE guide_store_items SET is_active = FALSE WHERE id = ? AND apartment_id = ?'
+    ).bind(itemId, aptId).run();
+    if (access.apt.slug) await touchGuideVersion(env, access.apt.slug);
+    return jsonResponse({ success: true });
+}
+
+async function reorderApartmentStoreItems(env, aptId, data, isSuperAdmin, userAgencyIds) {
+    const access = await checkAptAccess(env, aptId, isSuperAdmin, userAgencyIds);
+    if (access.error) return access.error;
+
+    const order = Array.isArray(data.order) ? data.order : [];
+    const statements = order.map((itemId, idx) =>
+        env.DB.prepare('UPDATE guide_store_items SET order_index = ? WHERE id = ? AND apartment_id = ?').bind(idx, itemId, aptId)
+    );
+    if (statements.length > 0) await env.DB.batch(statements);
+    if (access.apt.slug) await touchGuideVersion(env, access.apt.slug);
+    return jsonResponse({ success: true });
+}
+
+// ---- Catálogo platform (superadmin only, global) ----
+// Deliberadamente NO se invalida la caché de cada apartamento al escribir aquí:
+// el catálogo cambia con poca frecuencia y se acepta hasta 24h de propagación,
+// igual que el resto del payload cacheado (ver workerGuide.js). Si se necesitara
+// propagación instantánea, habría que sacar estos items del blob cacheado del
+// apartamento a su propio KV con TTL corto — no se ha hecho aquí.
+async function listPlatformStoreItems(env) {
+    const result = await env.DB.prepare(
+        `SELECT * FROM guide_store_items WHERE owner_type = 'platform' ORDER BY order_index ASC`
+    ).all();
+    return jsonResponse({ success: true, items: result.results || [] });
+}
+
+async function createPlatformStoreItem(env, data) {
+    if (!data.category) return errorResponse('category is required');
+    const id = generateId('sitem');
+    await env.DB.prepare(`
+        INSERT INTO guide_store_items
+            (id, owner_type, apartment_id, agency_id, category, icon_name,
+             price_amount, price_currency, price_display, cover_image_url,
+             contact_whatsapp, is_featured, is_active, order_index, stock_unlimited, stock_qty)
+        VALUES (?, 'platform', NULL, NULL, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `).bind(
+        id, data.category, data.icon_name || null,
+        data.price_amount ?? null, data.price_currency || 'EUR', data.price_display || null, data.cover_image_url || null,
+        data.contact_whatsapp || null, data.is_featured ? 1 : 0, data.is_active === false ? 0 : 1,
+        data.order_index ?? 0, data.stock_unlimited === false ? 0 : 1, data.stock_qty ?? null
+    ).run();
+    if (data.translations && typeof data.translations === 'object') {
+        await saveTranslations(env, id, 'store_item', data.translations);
+    }
+    return jsonResponse({ success: true, id });
+}
+
+async function updatePlatformStoreItem(env, id, data) {
+    const item = await env.DB.prepare(
+        `SELECT id FROM guide_store_items WHERE id = ? AND owner_type = 'platform'`
+    ).bind(id).first();
+    if (!item) return errorResponse('Store item not found', 404);
+
+    const sets = [];
+    const vals = [];
+    for (const field of STORE_ITEM_WRITABLE_FIELDS) {
+        if (data[field] !== undefined) { sets.push(`${field} = ?`); vals.push(data[field]); }
+    }
+    if (data.is_featured !== undefined) { sets.push('is_featured = ?'); vals.push(data.is_featured ? 1 : 0); }
+    if (data.is_active !== undefined) { sets.push('is_active = ?'); vals.push(data.is_active ? 1 : 0); }
+    if (data.stock_unlimited !== undefined) { sets.push('stock_unlimited = ?'); vals.push(data.stock_unlimited ? 1 : 0); }
+    if (sets.length > 0) {
+        sets.push('modified_at = CURRENT_TIMESTAMP');
+        vals.push(id);
+        await env.DB.prepare(`UPDATE guide_store_items SET ${sets.join(', ')} WHERE id = ?`).bind(...vals).run();
+    }
+    if (data.translations && typeof data.translations === 'object') {
+        await saveTranslations(env, id, 'store_item', data.translations);
+    }
+    return jsonResponse({ success: true });
+}
+
+async function deletePlatformStoreItem(env, id) {
+    await env.DB.prepare(
+        `UPDATE guide_store_items SET is_active = FALSE WHERE id = ? AND owner_type = 'platform'`
+    ).bind(id).run();
+    return jsonResponse({ success: true });
+}
+
+// ============================================
+// STORE ORDERS
+// ============================================
+async function listApartmentOrders(env, aptId, params, isSuperAdmin, userAgencyIds) {
+    const access = await checkAptAccess(env, aptId, isSuperAdmin, userAgencyIds);
+    if (access.error) return access.error;
+
+    const status = params.get('status');
+    const days = Math.min(parseInt(params.get('days') || '90', 10) || 90, 365);
+
+    let query = `
+        SELECT * FROM guide_store_orders
+        WHERE apartment_id = ? AND created_at >= datetime('now', ?)
+    `;
+    const vals = [aptId, `-${days} days`];
+    if (status) { query += ' AND status = ?'; vals.push(status); }
+    query += ' ORDER BY created_at DESC LIMIT 200';
+
+    const orders = await env.DB.prepare(query).bind(...vals).all();
+    const orderIds = (orders.results || []).map(o => o.id);
+    const itemsByOrder = {};
+    if (orderIds.length > 0) {
+        const placeholders = orderIds.map(() => '?').join(',');
+        const items = await env.DB.prepare(
+            `SELECT * FROM guide_store_order_items WHERE order_id IN (${placeholders})`
+        ).bind(...orderIds).all();
+        for (const it of (items.results || [])) {
+            if (!itemsByOrder[it.order_id]) itemsByOrder[it.order_id] = [];
+            itemsByOrder[it.order_id].push(it);
+        }
+    }
+
+    return jsonResponse({
+        success: true,
+        orders: (orders.results || []).map(o => ({ ...o, items: itemsByOrder[o.id] || [] }))
+    });
+}
+
+async function updateStoreOrderStatus(env, orderId, data, isSuperAdmin, userAgencyIds) {
+    const validStatuses = ['requested', 'contacted', 'completed', 'cancelled'];
+    if (!validStatuses.includes(data.status)) return errorResponse('Invalid status');
+
+    const order = await env.DB.prepare(`
+        SELECT o.id, a.agency_id FROM guide_store_orders o
+        JOIN guide_apartments a ON o.apartment_id = a.id
+        WHERE o.id = ?
+    `).bind(orderId).first();
+    if (!order) return errorResponse('Order not found', 404);
+    if (!isSuperAdmin && !userAgencyIds.includes(order.agency_id)) return errorResponse('Forbidden', 403);
+
+    await env.DB.prepare(
+        'UPDATE guide_store_orders SET status = ?, modified_at = CURRENT_TIMESTAMP WHERE id = ?'
+    ).bind(data.status, orderId).run();
+    return jsonResponse({ success: true });
+}
+
+async function getStoreStats(env, aptId, params, isSuperAdmin, userAgencyIds) {
+    const access = await checkAptAccess(env, aptId, isSuperAdmin, userAgencyIds);
+    if (access.error) return access.error;
+
+    const days = Math.min(parseInt(params.get('days') || '30', 10) || 30, 365);
+
+    const byItem = await env.DB.prepare(`
+        SELECT oi.item_id, oi.item_name_es, COUNT(DISTINCT oi.order_id) AS order_count, SUM(oi.quantity) AS total_qty
+        FROM guide_store_order_items oi
+        JOIN guide_store_orders o ON oi.order_id = o.id
+        WHERE o.apartment_id = ? AND o.created_at >= datetime('now', ?)
+        GROUP BY oi.item_id, oi.item_name_es
+        ORDER BY order_count DESC
+    `).bind(aptId, `-${days} days`).all();
+
+    const byStatus = await env.DB.prepare(`
+        SELECT status, COUNT(*) AS count FROM guide_store_orders
+        WHERE apartment_id = ? AND created_at >= datetime('now', ?)
+        GROUP BY status
+    `).bind(aptId, `-${days} days`).all();
+
+    return jsonResponse({ success: true, byItem: byItem.results || [], byStatus: byStatus.results || [] });
 }
 
 // ============================================
@@ -1374,6 +1696,85 @@ async function getStatsExperiences(env, zoneId, params) {
     `).bind(fromTs, toTs, zoneId).all();
 
     return jsonResponse({ success: true, experiences: exps.results || [] });
+}
+
+// ============================================
+// GUIDE→RESTAURANT CONVERSION FUNNEL (superadmin only)
+// ============================================
+// Clic (guide_affiliate_intents) -> aterrizado (sessions.referral_apartment_id
+// presente, la sesión de menú supo de dónde venía) -> convertido (además
+// sessions.qr_code_id presente: el huésped escaneó de verdad el QR físico de
+// mesa del restaurante, workerTracking.js valida ese id contra qr_codes del
+// propio restaurante). "Convertido" es la única prueba de visita real que
+// existe hoy en el sistema — es la palanca para negociar comisión o
+// colocación de pago con un restaurante, así que se guarda solo para
+// superadmin: ni la agencia (ve solo clics, vía getAgencyStats/top_restaurants)
+// ni el propio restaurante (ve su AttributionPanel, que no distingue esto) lo ven.
+//
+// El "aterrizado" de una sesión puede venir de la URL (?ref=guide&apt=&gsid=,
+// mismo clic) o de la cookie cross-dominio en .visualtastes.com que persiste
+// esa referencia varios días (ver apps/guide/src/lib/api.ts setReferralCookie
+// y apps/client TrackingAndPushProvider.tsx) — así se captura el caso real de
+// "vio el restaurante en la guía, fue a cenar dos días después".
+async function getRestaurantConversions(env, params) {
+    const days = Math.min(parseInt(params.get('days') || '30', 10) || 30, 365);
+    const fromTs = new Date(Date.now() - days * 86400000).toISOString();
+
+    const [clicks, landed, converted] = await Promise.all([
+        env.DB.prepare(`
+            SELECT gi.target_id AS restaurant_id, r.name AS restaurant_name,
+                   gi.apartment_id, a.name AS apartment_name,
+                   COUNT(*) AS clicks
+            FROM guide_affiliate_intents gi
+            LEFT JOIN restaurants r ON r.id = gi.target_id
+            LEFT JOIN guide_apartments a ON a.id = gi.apartment_id
+            WHERE gi.target_type = 'restaurant' AND gi.created_at >= ?
+            GROUP BY gi.target_id, gi.apartment_id
+        `).bind(fromTs).all(),
+
+        env.DB.prepare(`
+            SELECT s.restaurant_id, r.name AS restaurant_name,
+                   s.referral_apartment_id AS apartment_id, a.name AS apartment_name,
+                   COUNT(*) AS landed
+            FROM sessions s
+            LEFT JOIN restaurants r ON r.id = s.restaurant_id
+            LEFT JOIN guide_apartments a ON a.id = s.referral_apartment_id
+            WHERE s.referral_source = 'guide' AND s.referral_apartment_id IS NOT NULL AND s.started_at >= ?
+            GROUP BY s.restaurant_id, s.referral_apartment_id
+        `).bind(fromTs).all(),
+
+        env.DB.prepare(`
+            SELECT s.restaurant_id, r.name AS restaurant_name,
+                   s.referral_apartment_id AS apartment_id, a.name AS apartment_name,
+                   COUNT(*) AS converted
+            FROM sessions s
+            LEFT JOIN restaurants r ON r.id = s.restaurant_id
+            LEFT JOIN guide_apartments a ON a.id = s.referral_apartment_id
+            WHERE s.referral_source = 'guide' AND s.referral_apartment_id IS NOT NULL
+                AND s.qr_code_id IS NOT NULL AND s.started_at >= ?
+            GROUP BY s.restaurant_id, s.referral_apartment_id
+        `).bind(fromTs).all(),
+    ]);
+
+    const key = (r, a) => `${r}::${a}`;
+    const merged = {};
+    const upsert = (row, field) => {
+        const k = key(row.restaurant_id, row.apartment_id);
+        if (!merged[k]) {
+            merged[k] = {
+                restaurant_id: row.restaurant_id, restaurant_name: row.restaurant_name || row.restaurant_id,
+                apartment_id: row.apartment_id, apartment_name: row.apartment_name || row.apartment_id,
+                clicks: 0, landed: 0, converted: 0
+            };
+        }
+        merged[k][field] = row[field];
+    };
+    for (const row of (clicks.results || [])) upsert(row, 'clicks');
+    for (const row of (landed.results || [])) upsert(row, 'landed');
+    for (const row of (converted.results || [])) upsert(row, 'converted');
+
+    const rows = Object.values(merged).sort((a, b) => b.clicks - a.clicks);
+    return jsonResponse({ success: true, rows, range_days: days });
 }
 
 // ============================================

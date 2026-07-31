@@ -48,10 +48,11 @@ import {
   FiberManualRecord as DotIcon,
   Visibility as ImpressionIcon,
   VisibilityOff as VisibilityOffIcon,
-  Wifi as WifiIcon,
   Explore as ExploreIcon,
   Insights as InsightsIcon,
   DevicesOther as DevicesIcon,
+  Storefront as StoreIcon,
+  ShoppingBag as OrdersIcon,
 } from '@mui/icons-material';
 import QRCodeGenerator, { QRCodeHandle } from '../../components/QRCodeGenerator';
 
@@ -165,6 +166,28 @@ const AVAILABLE_KEYS = [
   { key: 'custom', label: 'Personalizado', icon: 'info' },
 ];
 
+// Categorías semilla de la Tienda (servicios propios del anfitrión). "custom" cubre
+// cualquier otra cosa que el manager quiera vender que no encaje en las anteriores.
+const STORE_CATEGORIES = [
+  { key: 'late_checkout', label: 'Late check-out' },
+  { key: 'early_checkin', label: 'Early check-in' },
+  { key: 'cleaning', label: 'Limpieza extra' },
+  { key: 'crib', label: 'Cuna / trona' },
+  { key: 'transfer', label: 'Traslado' },
+  { key: 'welcome_pack', label: 'Pack de bienvenida' },
+  { key: 'parking', label: 'Parking' },
+  { key: 'rental', label: 'Alquiler (toallas, bicis...)' },
+  { key: 'grocery', label: 'Compra / grocery' },
+  { key: 'custom', label: 'Personalizado' },
+];
+
+const STORE_ORDER_STATUSES = [
+  { value: 'requested', label: 'Solicitado' },
+  { value: 'contacted', label: 'Contactado' },
+  { value: 'completed', label: 'Completado' },
+  { value: 'cancelled', label: 'Cancelado' },
+];
+
 // 13 active languages for this project (see CLAUDE.md §5). Keep in sync project-wide.
 const LANGUAGES = [
   { code: 'es', label: '🇪🇸 Español' },
@@ -209,7 +232,7 @@ export default function GuideApartmentDetail() {
 
   // Settings tab state
   const [zones, setZones] = useState<Zone[]>([]);
-  const [settingsForm, setSettingsForm] = useState({ name: '', address: '', zone_id: '', cover_image_url: '', wifi_ssid: '', wifi_password: '' });
+  const [settingsForm, setSettingsForm] = useState({ name: '', address: '', zone_id: '', cover_image_url: '', wifi_ssid: '', wifi_password: '', contact_whatsapp: '' });
   const [showWifiPassword, setShowWifiPassword] = useState(false);
   const [settingsSaving, setSettingsSaving] = useState(false);
   const [settingsError, setSettingsError] = useState<string | null>(null);
@@ -249,6 +272,26 @@ export default function GuideApartmentDetail() {
   const [newDevice, setNewDevice] = useState<{ pairingCode: string; deviceLabel: string | null } | null>(null);
   const tvQrRef = useRef<QRCodeHandle>(null);
 
+  // Tienda (store-items propios del anfitrión) tab state
+  const [storeItems, setStoreItems] = useState<any[]>([]);
+  const [storeLoading, setStoreLoading] = useState(false);
+  const [storeError, setStoreError] = useState<string | null>(null);
+  const [storeDialogOpen, setStoreDialogOpen] = useState(false);
+  const [editingStoreItem, setEditingStoreItem] = useState<any | null>(null);
+  const [storeItemForm, setStoreItemForm] = useState({
+    category: 'custom',
+    price_amount: '',
+    is_featured: false,
+    is_active: true,
+    cover_image_url: '',
+    translations: { es: { name: '', description: '' }, en: { name: '', description: '' } } as Record<string, { name: string; description: string }>,
+  });
+  const [storeItemSaving, setStoreItemSaving] = useState(false);
+  const [uploadingStoreImage, setUploadingStoreImage] = useState(false);
+
+  const [storeOrders, setStoreOrders] = useState<any[]>([]);
+  const [ordersLoading, setOrdersLoading] = useState(false);
+
   const loadInfo = async () => {
     if (!id) return;
     setLoading(true);
@@ -267,6 +310,7 @@ export default function GuideApartmentDetail() {
           cover_image_url: aptRes.apartment.cover_image_url || '',
           wifi_ssid: aptRes.apartment.wifi_ssid || '',
           wifi_password: aptRes.apartment.wifi_password || '',
+          contact_whatsapp: aptRes.apartment.contact_whatsapp || '',
         });
       }
     } catch (err) {
@@ -357,6 +401,33 @@ export default function GuideApartmentDetail() {
     }
   };
 
+  const loadStoreItems = async () => {
+    if (!id) return;
+    setStoreLoading(true);
+    setStoreError(null);
+    try {
+      const res = await apiClient.request(`/guide/admin/apartments/${id}/store-items`);
+      setStoreItems(res.items || []);
+    } catch (err: any) {
+      setStoreError(err.message || 'Error al cargar la tienda');
+    } finally {
+      setStoreLoading(false);
+    }
+  };
+
+  const loadStoreOrders = async () => {
+    if (!id) return;
+    setOrdersLoading(true);
+    try {
+      const res = await apiClient.request(`/guide/admin/apartments/${id}/orders`);
+      setStoreOrders(res.orders || []);
+    } catch (err) {
+      console.error('Error loading store orders:', err);
+    } finally {
+      setOrdersLoading(false);
+    }
+  };
+
   useEffect(() => { loadInfo(); loadZones(); loadWelcome(); }, [id]);
   useEffect(() => { if (id) loadInfo(); }, [currentLang]);
   useEffect(() => {
@@ -371,6 +442,10 @@ export default function GuideApartmentDetail() {
     if (activeMainTab === 4 && id) loadTvStats(tvRange);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tvRange]);
+  useEffect(() => {
+    if (activeMainTab === 5 && id) { loadStoreItems(); loadStoreOrders(); }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeMainTab, id]);
 
   const handleOpenCreate = () => {
     setEditingItem(null);
@@ -546,6 +621,109 @@ export default function GuideApartmentDetail() {
       setWelcomeError(err.message || 'Error al guardar la ventana de bienvenida');
     } finally {
       setWelcomeSaving(false);
+    }
+  };
+
+  // ---------- Tienda (host store items) tab ----------
+  const handleOpenCreateStoreItem = () => {
+    setEditingStoreItem(null);
+    setStoreItemForm({
+      category: 'custom',
+      price_amount: '',
+      is_featured: false,
+      is_active: true,
+      cover_image_url: '',
+      translations: { es: { name: '', description: '' }, en: { name: '', description: '' } },
+    });
+    setStoreDialogOpen(true);
+  };
+
+  const handleOpenEditStoreItem = (item: any) => {
+    setEditingStoreItem(item);
+    setStoreItemForm({
+      category: item.category || 'custom',
+      price_amount: item.price_amount != null ? String(item.price_amount) : '',
+      is_featured: !!item.is_featured,
+      is_active: !!item.is_active,
+      cover_image_url: item.cover_image_url || '',
+      // El backend no devuelve las traducciones en el listado — se completan al
+      // editar. Si el manager no toca el campo de un idioma, saveTranslations
+      // solo sobrescribe los que sí vienen en el body, así que dejarlo vacío
+      // aquí no borra lo que ya hubiera en otros idiomas.
+      translations: { es: { name: '', description: '' }, en: { name: '', description: '' } },
+    });
+    setStoreDialogOpen(true);
+  };
+
+  const handleStoreImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (!e.target.files || e.target.files.length === 0) return;
+    setUploadingStoreImage(true);
+    try {
+      const uploaded = await uploadFile(e.target.files[0]);
+      setStoreItemForm(prev => ({ ...prev, cover_image_url: uploaded.url }));
+    } catch (err: any) {
+      setStoreError(err.message || 'Error al subir la imagen');
+    } finally {
+      setUploadingStoreImage(false);
+      if (e.target) e.target.value = '';
+    }
+  };
+
+  const handleSaveStoreItem = async () => {
+    if (!id) return;
+    setStoreItemSaving(true);
+    setStoreError(null);
+    try {
+      const body = {
+        category: storeItemForm.category,
+        price_amount: storeItemForm.price_amount === '' ? null : Number(storeItemForm.price_amount),
+        is_featured: storeItemForm.is_featured,
+        is_active: storeItemForm.is_active,
+        cover_image_url: storeItemForm.cover_image_url || null,
+        translations: storeItemForm.translations,
+      };
+      if (editingStoreItem) {
+        await apiClient.request(`/guide/admin/apartments/${id}/store-items/${editingStoreItem.id}`, {
+          method: 'PUT',
+          body: JSON.stringify(body),
+        });
+      } else {
+        await apiClient.request(`/guide/admin/apartments/${id}/store-items`, {
+          method: 'POST',
+          body: JSON.stringify(body),
+        });
+      }
+      setStoreDialogOpen(false);
+      await loadStoreItems();
+      handleRefreshPreview();
+    } catch (err: any) {
+      setStoreError(err.message || 'Error al guardar el producto');
+    } finally {
+      setStoreItemSaving(false);
+    }
+  };
+
+  const handleDeleteStoreItem = async (itemId: string) => {
+    if (!id) return;
+    if (!window.confirm('¿Desactivar este producto/servicio? Dejará de verse en la guía.')) return;
+    try {
+      await apiClient.request(`/guide/admin/apartments/${id}/store-items/${itemId}`, { method: 'DELETE' });
+      await loadStoreItems();
+      handleRefreshPreview();
+    } catch (err: any) {
+      setStoreError(err.message || 'Error al desactivar el producto');
+    }
+  };
+
+  const handleUpdateOrderStatus = async (orderId: string, status: string) => {
+    try {
+      await apiClient.request(`/guide/admin/orders/${orderId}`, {
+        method: 'PUT',
+        body: JSON.stringify({ status }),
+      });
+      setStoreOrders(prev => prev.map(o => o.id === orderId ? { ...o, status } : o));
+    } catch (err) {
+      console.error('Error updating order status:', err);
     }
   };
 
@@ -800,6 +978,22 @@ export default function GuideApartmentDetail() {
                 }}
               />
             </Box>
+          </Box>
+
+          <Divider />
+
+          <Box>
+            <Typography variant="subtitle2" fontWeight={600} sx={{ mb: 0.5, display: 'flex', alignItems: 'center', gap: 1 }}>
+              <OrdersIcon fontSize="small" /> Contacto para pedidos de la Tienda
+            </Typography>
+            <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+              Número de WhatsApp que recibe los pedidos de tus productos y servicios propios (pestaña Tienda). Sin este número, los pedidos se guardan pero el huésped no puede abrir el WhatsApp para confirmarlos.
+            </Typography>
+            <TextField
+              label="WhatsApp de contacto" placeholder="+34600000000" sx={{ maxWidth: 320 }}
+              value={settingsForm.contact_whatsapp}
+              onChange={(e) => setSettingsForm(prev => ({ ...prev, contact_whatsapp: e.target.value }))}
+            />
           </Box>
         </Box>
 
@@ -1162,6 +1356,175 @@ export default function GuideApartmentDetail() {
     </Box>
   );
 
+  const renderStoreTab = () => (
+    <Box sx={{ maxWidth: 780 }}>
+      <Alert severity="info" sx={{ mb: 3, borderRadius: 2 }}>
+        Tus propios productos y servicios (late check-out, limpieza extra, pack de bienvenida...).
+        Aparecen en la pestaña "Tienda" de la guía junto al catálogo de VisualTaste. El huésped hace
+        el pedido y se abre WhatsApp con el pedido ya redactado — no hay cobro dentro de la app.
+      </Alert>
+      {storeError && <Alert severity="error" sx={{ mb: 2 }} onClose={() => setStoreError(null)}>{storeError}</Alert>}
+      {!settingsForm.contact_whatsapp && (
+        <Alert severity="warning" sx={{ mb: 2 }}>
+          No has configurado el WhatsApp de contacto (pestaña Ajustes). Los pedidos se guardarán, pero
+          el huésped no podrá abrir el chat para confirmarlos.
+        </Alert>
+      )}
+
+      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
+        <Typography variant="h6" fontWeight={600}>Tus productos y servicios</Typography>
+        <Button variant="contained" startIcon={<AddCircleOutlineIcon />} onClick={handleOpenCreateStoreItem}>
+          Añadir
+        </Button>
+      </Box>
+
+      {storeLoading ? (
+        <Box sx={{ display: 'flex', justifyContent: 'center', py: 4 }}><CircularProgress /></Box>
+      ) : storeItems.length === 0 ? (
+        <Box sx={{ textAlign: 'center', py: 6, border: '1px dashed', borderColor: 'divider', borderRadius: 3, mb: 4 }}>
+          <StoreIcon sx={{ fontSize: 40, color: 'text.disabled', mb: 1 }} />
+          <Typography color="text.secondary">Todavía no has añadido nada a tu tienda.</Typography>
+        </Box>
+      ) : (
+        <Stack spacing={1.5} sx={{ mb: 4 }}>
+          {storeItems.map(item => (
+            <Paper key={item.id} elevation={0} sx={{ p: 2, borderRadius: 2, border: '1px solid', borderColor: 'divider', display: 'flex', alignItems: 'center', gap: 2, opacity: item.is_active ? 1 : 0.5 }}>
+              {item.cover_image_url ? (
+                <Box sx={{ width: 56, height: 56, borderRadius: 1.5, overflow: 'hidden', flexShrink: 0 }}>
+                  <img src={item.cover_image_url} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                </Box>
+              ) : (
+                <Box sx={{ width: 56, height: 56, borderRadius: 1.5, bgcolor: 'action.hover', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                  <StoreIcon color="disabled" />
+                </Box>
+              )}
+              <Box sx={{ flexGrow: 1, minWidth: 0 }}>
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flexWrap: 'wrap' }}>
+                  <Typography fontWeight={600} noWrap>{item.id}</Typography>
+                  <Chip size="small" label={STORE_CATEGORIES.find(c => c.key === item.category)?.label || item.category} />
+                  {item.is_featured === 1 && <Chip size="small" color="warning" label="Destacado" />}
+                  {!item.is_active && <Chip size="small" label="Inactivo" />}
+                </Box>
+                {item.price_amount != null && (
+                  <Typography variant="body2" color="text.secondary">{Number(item.price_amount).toFixed(2)} {item.price_currency || 'EUR'}</Typography>
+                )}
+              </Box>
+              <IconButton size="small" onClick={() => handleOpenEditStoreItem(item)}><EditIcon fontSize="small" /></IconButton>
+              <IconButton size="small" onClick={() => handleDeleteStoreItem(item.id)}><DeleteIcon fontSize="small" /></IconButton>
+            </Paper>
+          ))}
+        </Stack>
+      )}
+
+      <Divider sx={{ mb: 3 }} />
+
+      <Typography variant="h6" fontWeight={600} sx={{ mb: 2, display: 'flex', alignItems: 'center', gap: 1 }}>
+        <OrdersIcon /> Solicitudes recientes
+      </Typography>
+      {ordersLoading ? (
+        <Box sx={{ display: 'flex', justifyContent: 'center', py: 4 }}><CircularProgress /></Box>
+      ) : storeOrders.length === 0 ? (
+        <Typography color="text.secondary">Todavía no hay ninguna solicitud.</Typography>
+      ) : (
+        <Stack spacing={1.5}>
+          {storeOrders.map(order => (
+            <Paper key={order.id} elevation={0} sx={{ p: 2, borderRadius: 2, border: '1px solid', borderColor: 'divider' }}>
+              <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 2, flexWrap: 'wrap' }}>
+                <Box>
+                  <Typography variant="body2" fontWeight={600}>
+                    {(order.items || []).map((it: any) => `${it.quantity}x ${it.item_name_es}`).join(', ')}
+                  </Typography>
+                  <Typography variant="caption" color="text.secondary">
+                    {new Date(order.created_at).toLocaleString('es-ES')}
+                    {order.total_amount != null && ` · ${Number(order.total_amount).toFixed(2)} ${order.currency || 'EUR'}`}
+                  </Typography>
+                </Box>
+                <FormControl size="small" sx={{ minWidth: 150 }}>
+                  <Select value={order.status} onChange={(e) => handleUpdateOrderStatus(order.id, e.target.value as string)}>
+                    {STORE_ORDER_STATUSES.map(s => <MenuItem key={s.value} value={s.value}>{s.label}</MenuItem>)}
+                  </Select>
+                </FormControl>
+              </Box>
+            </Paper>
+          ))}
+        </Stack>
+      )}
+
+      <Dialog open={storeDialogOpen} onClose={() => setStoreDialogOpen(false)} maxWidth="sm" fullWidth>
+        <DialogTitle>{editingStoreItem ? 'Editar producto/servicio' : 'Nuevo producto/servicio'}</DialogTitle>
+        <DialogContent dividers>
+          <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, pt: 1 }}>
+            <FormControl fullWidth size="small">
+              <InputLabel>Categoría</InputLabel>
+              <Select
+                value={storeItemForm.category}
+                label="Categoría"
+                onChange={(e) => setStoreItemForm(prev => ({ ...prev, category: e.target.value as string }))}
+              >
+                {STORE_CATEGORIES.map(c => <MenuItem key={c.key} value={c.key}>{c.label}</MenuItem>)}
+              </Select>
+            </FormControl>
+
+            {['es', 'en'].map(lang => (
+              <Box key={lang} sx={{ p: 2, borderRadius: 2, border: '1px solid', borderColor: 'divider' }}>
+                <Typography variant="subtitle2" sx={{ mb: 1.5, fontWeight: 600 }}>{lang === 'es' ? '🇪🇸 Español' : '🇬🇧 English'}</Typography>
+                <TextField
+                  label="Nombre" fullWidth size="small" sx={{ mb: 1.5 }}
+                  required={lang === 'es'}
+                  value={storeItemForm.translations[lang]?.name || ''}
+                  onChange={(e) => setStoreItemForm(prev => ({
+                    ...prev, translations: { ...prev.translations, [lang]: { ...prev.translations[lang], name: e.target.value } }
+                  }))}
+                />
+                <TextField
+                  label="Descripción" fullWidth multiline minRows={2} size="small"
+                  value={storeItemForm.translations[lang]?.description || ''}
+                  onChange={(e) => setStoreItemForm(prev => ({
+                    ...prev, translations: { ...prev.translations, [lang]: { ...prev.translations[lang], description: e.target.value } }
+                  }))}
+                />
+              </Box>
+            ))}
+
+            <TextField
+              label="Precio (EUR)" type="number" size="small" sx={{ maxWidth: 200 }}
+              value={storeItemForm.price_amount}
+              onChange={(e) => setStoreItemForm(prev => ({ ...prev, price_amount: e.target.value }))}
+            />
+
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+              {storeItemForm.cover_image_url && (
+                <Box sx={{ width: 72, height: 72, borderRadius: 1.5, overflow: 'hidden' }}>
+                  <img src={storeItemForm.cover_image_url} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                </Box>
+              )}
+              <Button variant="outlined" component="label" size="small" disabled={uploadingStoreImage} startIcon={uploadingStoreImage ? <CircularProgress size={16} /> : <ImageIcon />}>
+                {uploadingStoreImage ? 'Subiendo...' : 'Imagen'}
+                <input type="file" hidden accept="image/*" onChange={handleStoreImageUpload} />
+              </Button>
+            </Box>
+
+            <FormControlLabel
+              control={<Switch checked={storeItemForm.is_featured} onChange={(e) => setStoreItemForm(prev => ({ ...prev, is_featured: e.target.checked }))} />}
+              label="Destacar en la tienda"
+            />
+          </Box>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setStoreDialogOpen(false)}>Cancelar</Button>
+          <Button
+            variant="contained"
+            disabled={storeItemSaving || !storeItemForm.translations.es?.name}
+            onClick={handleSaveStoreItem}
+            startIcon={storeItemSaving ? <CircularProgress size={16} color="inherit" /> : undefined}
+          >
+            {storeItemSaving ? 'Guardando...' : 'Guardar'}
+          </Button>
+        </DialogActions>
+      </Dialog>
+    </Box>
+  );
+
   const renderTvStats = () => {
     const header = (
       <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 2, mb: 3, flexWrap: 'wrap' }}>
@@ -1451,6 +1814,7 @@ export default function GuideApartmentDetail() {
           <Tab label="Localizaciones" icon={<LocationOnIcon fontSize="small" />} iconPosition="start" sx={{ fontWeight: 600 }} />
           <Tab label="Bienvenida" icon={<CelebrationIcon fontSize="small" />} iconPosition="start" sx={{ fontWeight: 600 }} />
           <Tab label="Pantalla TV" icon={<TvIcon fontSize="small" />} iconPosition="start" sx={{ fontWeight: 600 }} />
+          <Tab label="Tienda" icon={<StoreIcon fontSize="small" />} iconPosition="start" sx={{ fontWeight: 600 }} />
         </Tabs>
 
         {/* Tab Content */}
@@ -1460,6 +1824,7 @@ export default function GuideApartmentDetail() {
           {activeMainTab === 2 && renderPoisTab()}
           {activeMainTab === 3 && renderWelcomeTab()}
           {activeMainTab === 4 && renderTvTab()}
+          {activeMainTab === 5 && renderStoreTab()}
         </Box>
       </Box>
 

@@ -39,6 +39,10 @@
   --color-tertiary: #50613b;
   --color-on-primary-fixed: #380d00;
   --color-warm-sand: #F1EBE0;
+  /* Sobrescrito en runtime por GuidebookPage.tsx cuando la agencia tiene accent_color —
+     única forma en que ese campo del admin llegaba a alguna parte visible (ver
+     ServicesSection.tsx badge_type='new'). */
+  --color-accent-gold: #D4A853;
   --color-surface-tint: #974728;
   --color-on-primary-container: #fffbff;
   --color-surface: #fcf9f4;

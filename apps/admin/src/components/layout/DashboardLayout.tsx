@@ -52,6 +52,8 @@ import {
   Palette as PaletteIcon,
   LocationOn as LocationOnIcon,
   LocalActivity as LocalActivityIcon,
+  Storefront as StoreIcon,
+  Insights as ConversionsIcon,
   Loyalty as LoyaltyIcon,
   Shield as ShieldIcon,
   ContentCopy as ContentCopyIcon,
@@ -377,6 +379,20 @@ export default function DashboardLayout() {
         text: 'Localizaciones',
         icon: <LocationOnIcon />,
         path: '/guide/pois',
+        featureKey: null,
+        section: 'CATÁLOGO'
+      },
+      {
+        text: 'Tienda (catálogo)',
+        icon: <StoreIcon />,
+        path: '/guide/store',
+        featureKey: null,
+        section: 'CATÁLOGO'
+      },
+      {
+        text: 'Conversión Restaurantes',
+        icon: <ConversionsIcon />,
+        path: '/guide/conversions',
         featureKey: null,
         section: 'CATÁLOGO'
       },

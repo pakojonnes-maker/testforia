@@ -13,12 +13,13 @@ export default function BottomNavBar({ activeTab, onTabChange, lang }: BottomNav
   const tabs: Array<{ id: TabKey; icon: string; label: string; fill?: boolean }> = [
     { id: 'info', icon: 'home', label: getTranslation('tab_info', lang), fill: true },
     { id: 'discover', icon: 'location_on', label: getTranslation('tab_discover', lang) },
-    { id: 'services', icon: 'sell', label: getTranslation('tab_services', lang) },
+    { id: 'restaurants', icon: 'restaurant', label: getTranslation('tab_restaurants', lang) },
+    { id: 'services', icon: 'storefront', label: getTranslation('tab_services', lang) },
   ];
   const isChatActive = activeTab === 'chat';
 
   return (
-    <nav className="md:hidden bg-crisp-white dark:bg-inverse-surface fixed bottom-0 left-0 w-full z-50 rounded-t-xl shadow-[0px_-4px_20px_rgba(201,109,75,0.08)] grid grid-cols-4 items-center py-3 px-1">
+    <nav className="md:hidden bg-crisp-white dark:bg-inverse-surface fixed bottom-0 left-0 w-full z-50 rounded-t-xl shadow-[0px_-4px_20px_rgba(201,109,75,0.08)] grid grid-cols-5 items-center py-3 px-1">
       {tabs.map(tab => {
         const isActive = activeTab === tab.id;
 

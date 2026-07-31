@@ -83,6 +83,12 @@ export default function Header({ activeTab, onTabChange, lang, onLanguageChange,
               {getTranslation('tab_discover', lang)}
             </button>
             <button
+              onClick={() => onTabChange('restaurants')}
+              className={`pb-2 transition-colors scale-95 duration-150 ease-in-out font-bold ${activeTab === 'restaurants' ? 'text-olive border-b-2 border-olive' : 'text-on-surface-variant dark:text-surface-variant hover:text-terracotta dark:hover:text-primary-fixed'}`}
+            >
+              {getTranslation('tab_restaurants', lang)}
+            </button>
+            <button
               onClick={() => onTabChange('services')}
               className={`pb-2 transition-colors scale-95 duration-150 ease-in-out font-bold ${activeTab === 'services' ? 'text-olive border-b-2 border-olive' : 'text-on-surface-variant dark:text-surface-variant hover:text-terracotta dark:hover:text-primary-fixed'}`}
             >

@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { fetchTvConfig, fetchGuideBySlug, type GuidebookData } from './api'
+import { fetchTvConfig, fetchGuideBySlug, setReferralCookie, type GuidebookData } from './api'
 import { MOCK_GUIDE } from './mockGuide'
 
 /**
@@ -33,7 +33,13 @@ export function useGuidebook(lang = 'es') {
       setPairingCode(code)
       setIdentifierAttempted(code)
       fetchTvConfig(code, lang)
-        .then(res => { if (!cancelled) { setData(res); setUsingMock(false) } })
+        .then(res => {
+          if (!cancelled) {
+            setData(res)
+            setUsingMock(false)
+            if (res?.apartment?.id) setReferralCookie(res.apartment.id)
+          }
+        })
         .catch(() => { if (!cancelled) { setData(MOCK_GUIDE); setUsingMock(true) } })
       return () => { cancelled = true }
     }
@@ -41,7 +47,13 @@ export function useGuidebook(lang = 'es') {
     if (slug) {
       setIdentifierAttempted(slug)
       fetchGuideBySlug(slug, lang)
-        .then(res => { if (!cancelled) { setData(res); setUsingMock(false) } })
+        .then(res => {
+          if (!cancelled) {
+            setData(res)
+            setUsingMock(false)
+            if (res?.apartment?.id) setReferralCookie(res.apartment.id)
+          }
+        })
         .catch(() => { if (!cancelled) { setData(MOCK_GUIDE); setUsingMock(true) } })
       return () => { cancelled = true }
     }
