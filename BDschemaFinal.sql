@@ -2,9 +2,12 @@
 -- BDschemaFinal.sql — ESQUEMA REAL DE PRODUCCION
 -- =====================================================
 -- Base de datos D1: restaurant-menu-saas (7e8d1efe-2a54-4849-9a06-4c47152392bd)
--- Exportado el 2026-07-26 desde la BD en produccion, tras aplicar la
--- migracion 0079 (wifi_ssid/wifi_password/wifi_security en guide_apartments).
--- 79 tablas.
+-- Exportado el 2026-08-01 desde la BD en produccion, tras aplicar la
+-- migracion 0081 (limpieza de categorias de guide_store_items). Tambien
+-- incluye 0080 (Tienda del guidebook: guide_store_items, guide_store_orders,
+-- guide_store_order_items, guide_apartments.contact_whatsapp), que no se
+-- habia volcado a este archivo hasta ahora.
+-- 82 tablas.
 --
 -- NO editar a mano. Para regenerar:
 --   npx wrangler d1 export restaurant-menu-saas --remote --no-data --output BDschemaFinal.sql
@@ -12,7 +15,6 @@
 -- Mantener este archivo actualizado tras cada migracion que se aplique con
 -- --remote (el comando sobrescribe este header — vuelve a pegarlo).
 -- =====================================================
-
 PRAGMA defer_foreign_keys=TRUE;
 CREATE TABLE accounts (
   id TEXT PRIMARY KEY,
@@ -884,7 +886,7 @@ CREATE TABLE guide_apartments (
   qr_code_url TEXT,
   is_active BOOLEAN DEFAULT TRUE,
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-  modified_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, wifi_ssid TEXT, wifi_password TEXT, wifi_security TEXT DEFAULT 'WPA',
+  modified_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, wifi_ssid TEXT, wifi_password TEXT, wifi_security TEXT DEFAULT 'WPA', contact_whatsapp TEXT,
   FOREIGN KEY (agency_id) REFERENCES guide_agencies(id),
   FOREIGN KEY (zone_id) REFERENCES guide_zones(id)
 );
@@ -1146,6 +1148,55 @@ CREATE TABLE admin_invitations (
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   FOREIGN KEY (invited_by) REFERENCES users(id)
 );
+CREATE TABLE guide_store_items (
+  id                TEXT PRIMARY KEY,
+  owner_type        TEXT NOT NULL,          -- 'host' | 'platform'
+  apartment_id      TEXT,                   -- NULL si owner_type='platform'
+  agency_id         TEXT,                   -- NULL si owner_type='platform'
+  category          TEXT NOT NULL,          -- late_checkout|early_checkin|cleaning|crib|transfer|
+                                             -- welcome_pack|parking|rental|grocery|local_product|custom
+  icon_name         TEXT,
+  price_amount      REAL,
+  price_currency    TEXT DEFAULT 'EUR',
+  price_display     TEXT,                   -- fallback en texto libre si no encaja en price_amount
+  cover_image_url   TEXT,
+  contact_whatsapp  TEXT,                    -- override puntual del ítem; si NULL se resuelve en
+                                             -- el worker: host -> apartment.contact_whatsapp,
+                                             -- platform -> env.PLATFORM_WHATSAPP
+  is_featured       BOOLEAN DEFAULT FALSE,
+  is_active         BOOLEAN DEFAULT TRUE,
+  order_index       INTEGER DEFAULT 0,
+  stock_unlimited   BOOLEAN DEFAULT TRUE,    -- productos físicos con stock finito (aceite, queso)
+  stock_qty         INTEGER,
+  created_at        TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  modified_at       TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (apartment_id) REFERENCES guide_apartments(id) ON DELETE CASCADE,
+  FOREIGN KEY (agency_id)    REFERENCES guide_agencies(id)
+);
+CREATE TABLE guide_store_orders (
+  id               TEXT PRIMARY KEY,
+  apartment_id     TEXT NOT NULL,
+  session_id       TEXT,                    -- guide_sessions.id, si existía en ese momento
+  visitor_id       TEXT,                    -- localStorage vt_guide_visitor_id
+  contact_channel  TEXT DEFAULT 'whatsapp', -- whatsapp|phone
+  status           TEXT DEFAULT 'requested', -- requested|contacted|completed|cancelled
+  total_amount     REAL,
+  currency         TEXT DEFAULT 'EUR',
+  guest_note       TEXT,
+  created_at       TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  modified_at      TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (apartment_id) REFERENCES guide_apartments(id) ON DELETE CASCADE
+);
+CREATE TABLE guide_store_order_items (
+  id           TEXT PRIMARY KEY,
+  order_id     TEXT NOT NULL,
+  item_id      TEXT NOT NULL,
+  item_name_es TEXT NOT NULL,
+  quantity     INTEGER NOT NULL DEFAULT 1,
+  unit_price   REAL,
+  FOREIGN KEY (order_id) REFERENCES guide_store_orders(id) ON DELETE CASCADE,
+  FOREIGN KEY (item_id)  REFERENCES guide_store_items(id)
+);
 CREATE INDEX idx_dishes_restaurant ON dishes(restaurant_id);
 CREATE INDEX idx_sections_restaurant ON sections(restaurant_id);
 CREATE INDEX idx_translations_entity ON translations(entity_id, entity_type);
@@ -1243,3 +1294,7 @@ CREATE INDEX idx_audit_created ON security_audit_log(created_at);
 CREATE INDEX idx_audit_event ON security_audit_log(event_type);
 CREATE INDEX idx_invitations_email ON admin_invitations(email);
 CREATE INDEX idx_invitations_token_hash ON admin_invitations(token_hash);
+CREATE INDEX idx_guide_store_items_apt   ON guide_store_items(apartment_id, is_active, order_index);
+CREATE INDEX idx_guide_store_items_owner ON guide_store_items(owner_type, is_active);
+CREATE INDEX idx_guide_store_orders_apt ON guide_store_orders(apartment_id, created_at);
+CREATE INDEX idx_guide_store_order_items_order ON guide_store_order_items(order_id);
