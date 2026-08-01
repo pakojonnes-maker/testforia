@@ -33,10 +33,12 @@ export default function DiscoverSection({ pois, zoneName, zoneDescription, lang 
   const [activeFilter, setActiveFilter] = useState<string>(ALL_FILTER);
   const [showMap, setShowMap] = useState(false);
   const [mapPois, setMapPois] = useState<POI[] | null>(null);
+  const [mapTargetId, setMapTargetId] = useState<string | undefined>(undefined);
   const [selectedItem, setSelectedItem] = useState<PoiDetailItem | null>(null);
 
-  const openMapFor = (poisToShow: POI[] | null) => {
+  const openMapFor = (poisToShow: POI[] | null, targetId?: string) => {
     setMapPois(poisToShow);
+    setMapTargetId(targetId);
     setSelectedItem(null);
     setShowMap(true);
   };
@@ -194,7 +196,7 @@ export default function DiscoverSection({ pois, zoneName, zoneDescription, lang 
             <h3 className="font-headline-md text-headline-md text-on-background">{getTranslation('prefer_map_title', lang)}</h3>
             <p className="font-body-md text-body-md text-on-surface-variant">{getTranslation('prefer_map_desc', lang)}</p>
           </div>
-          <button onClick={() => openMapFor(null)} className="bg-primary text-on-primary px-6 py-3 font-label-caps text-label-caps uppercase hover:bg-primary-container transition-colors flex items-center gap-2 whitespace-nowrap w-full md:w-auto justify-center shrink-0">
+          <button onClick={() => openMapFor(null, featuredItemId ?? undefined)} className="bg-primary text-on-primary px-6 py-3 font-label-caps text-label-caps uppercase hover:bg-primary-container transition-colors flex items-center gap-2 whitespace-nowrap w-full md:w-auto justify-center shrink-0">
             <span className="material-symbols-outlined">map</span>
             {getTranslation('open_interactive_map', lang)}
           </button>
@@ -204,9 +206,10 @@ export default function DiscoverSection({ pois, zoneName, zoneDescription, lang 
       {showMap && (
         <MapModal
           pois={mapPois ?? pois}
-          onClose={() => { setShowMap(false); setMapPois(null); }}
+          onClose={() => { setShowMap(false); setMapPois(null); setMapTargetId(undefined); }}
           zoneName={zoneName}
           lang={lang}
+          targetId={mapTargetId}
         />
       )}
 
@@ -217,7 +220,7 @@ export default function DiscoverSection({ pois, zoneName, zoneDescription, lang 
           onClose={() => setSelectedItem(null)}
           onOpenMap={() => {
             const fullPoi = pois.find(p => p.id === selectedItem.id);
-            openMapFor(fullPoi ? [fullPoi] : null);
+            openMapFor(fullPoi ? [fullPoi] : null, selectedItem.id);
           }}
         />
       )}
