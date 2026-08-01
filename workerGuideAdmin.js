@@ -1063,7 +1063,7 @@ const POI_WRITABLE_FIELDS = [
     'price_amount', 'price_currency', 'price_display', 'original_price_display', 'discount_display',
     'action_type', 'action_data', 'action_prefilled_message',
     'commission_type', 'commission_value', 'badge_type',
-    'cover_image_url', 'source', 'external_id', 'order_index'
+    'cover_image_url', 'source', 'external_id', 'order_index', 'google_synced_at'
 ];
 
 function collectPoiTranslations(data, fields) {

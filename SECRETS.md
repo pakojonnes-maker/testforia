@@ -23,12 +23,14 @@ npx wrangler secret list
 | `VAPID_PRIVATE_KEY` | Worker `visualtasteworker` | Firma las notificaciones Web Push (`workerMarketing.js`). | **Sí.** |
 | `VAPID_PUBLIC_KEY` | Worker + `VITE_VAPID_PUBLIC_KEY` en Pages `visualtaste` | Identifica al emisor de push ante el navegador. | **No.** Es pública por diseño: viaja en el bundle del cliente. Está en Secrets solo por comodidad. |
 | `RESEND_API_KEY` | Worker `visualtasteworker` | Envía los emails de invitación/reseteo de contraseña (`workerEmail.js`). **Opcional**: sin él, los enlaces se muestran en el panel para copiar a mano en vez de enviarse por email. | **Sí**, si se configura. |
+| `GOOGLE_PLACES_API_KEY` | Worker `visualtasteworker` | Importador de POIs desde Google Maps (`workerGuideImport.js`, `/guide/admin/import/places/preview`, superadmin). **Opcional**: sin él, el importador responde 503 `google_places_not_configured`; el alta manual de POIs sigue funcionando igual. En la consola de Google Cloud, restringir la key a la Places API (New) únicamente. | **Sí**, si se configura — una key sin restringir permite gastar en cualquier API de Google Cloud del proyecto. |
 
 `EMAIL_FROM` (opcional, no es secreto — puede ir en `[vars]` de `wrangler.toml`) es la dirección remitente de esos correos. Sin configurar, cae en `onboarding@resend.dev` (el dominio de pruebas de Resend, con límites de envío).
 
-No hay más secretos: `wrangler.toml` no define ninguna variable en `[vars]`, y
-los bindings (`DB`, `R2_BUCKET`, `GUIDE_CACHE`, `AI`) se resuelven por
-plataforma, sin credenciales.
+`wrangler.toml` no define ninguna variable en `[vars]` salvo `PLATFORM_WHATSAPP`
+(no es secreto), y los bindings (`DB`, `R2_BUCKET`, `GUIDE_CACHE`, `RATE_LIMIT_KV`,
+`AI`) se resuelven por plataforma, sin credenciales. Los cuatro secretos de
+arriba son, a fecha de esta revisión, todos los que existen.
 
 ### Estado del historial de git
 

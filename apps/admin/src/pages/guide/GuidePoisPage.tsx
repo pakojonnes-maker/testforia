@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from '../../contexts/AuthContext';
 import { apiClient } from '../../lib/apiClient';
+import GuidePoisImportDialog from './GuidePoisImportDialog';
 import {
   Box, Typography, Paper, Alert, Button, CircularProgress,
   Dialog, DialogTitle, DialogContent, DialogActions,
@@ -16,7 +17,8 @@ import {
   DirectionsWalk as WalkIcon,
   DirectionsCar as DriveIcon,
   DirectionsBike as BikeIcon,
-  Upload as UploadIcon
+  Upload as UploadIcon,
+  TravelExplore as TravelExploreIcon
 } from '@mui/icons-material';
 
 const CATEGORIES = ['Restaurantes', 'Playas', 'Cultura', 'Naturaleza', 'Actividades', 'Compras', 'Otro'];
@@ -70,6 +72,7 @@ export default function GuidePoisPage() {
   const [error, setError] = useState<string | null>(null);
   
   const [openDialog, setOpenDialog] = useState(false);
+  const [openImportDialog, setOpenImportDialog] = useState(false);
   const [editingPoi, setEditingPoi] = useState<POI | null>(null);
   const [formData, setFormData] = useState<Partial<POI>>({
     is_active: true, travel_mode: 'walk', rating: 0
@@ -99,24 +102,23 @@ export default function GuidePoisPage() {
     loadZones();
   }, [user]);
 
-  useEffect(() => {
-    if (!selectedZone) return;
-    
-    const loadPois = async () => {
-      setLoading(true);
-      try {
-        const response = await apiClient.request(`/guide/admin/pois?zone_id=${selectedZone}`);
-        if (response.success) {
-          setPois(response.pois || []);
-        }
-      } catch (err: any) {
-        setError(err.message || 'Error al cargar POIs');
-      } finally {
-        setLoading(false);
+  const reloadPois = async (zoneId: string) => {
+    if (!zoneId) return;
+    setLoading(true);
+    try {
+      const response = await apiClient.request(`/guide/admin/pois?zone_id=${zoneId}`);
+      if (response.success) {
+        setPois(response.pois || []);
       }
-    };
-    
-    loadPois();
+    } catch (err: any) {
+      setError(err.message || 'Error al cargar POIs');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    reloadPois(selectedZone);
   }, [selectedZone]);
 
   if (!user?.is_superadmin) {
@@ -188,9 +190,7 @@ export default function GuidePoisPage() {
         });
       }
       setOpenDialog(false);
-      // Reload POIs
-      const response = await apiClient.request(`/guide/admin/pois?zone_id=${selectedZone}`);
-      if (response.success) setPois(response.pois || []);
+      await reloadPois(selectedZone);
     } catch (err: any) {
       setError(err.message || 'Error al guardar POI');
     } finally {
@@ -274,6 +274,9 @@ export default function GuidePoisPage() {
             </Select>
           </FormControl>
           
+          <Button variant="outlined" startIcon={<TravelExploreIcon />} onClick={() => setOpenImportDialog(true)} disabled={!selectedZone}>
+            Importar de Google
+          </Button>
           <Button variant="contained" startIcon={<AddIcon />} onClick={() => handleOpenDialog()} disabled={!selectedZone}>
             Añadir POI
           </Button>
@@ -490,6 +493,14 @@ export default function GuidePoisPage() {
           </Button>
         </DialogActions>
       </Dialog>
+
+      <GuidePoisImportDialog
+        open={openImportDialog}
+        onClose={() => setOpenImportDialog(false)}
+        zones={zones}
+        defaultZoneId={selectedZone}
+        onImported={() => reloadPois(selectedZone)}
+      />
     </Box>
   );
 }

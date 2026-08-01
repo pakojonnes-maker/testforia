@@ -3,18 +3,18 @@
 -- =====================================================
 -- Base de datos D1: restaurant-menu-saas (7e8d1efe-2a54-4849-9a06-4c47152392bd)
 -- Exportado el 2026-08-01 desde la BD en produccion, tras aplicar la
--- migracion 0081 (limpieza de categorias de guide_store_items). Tambien
--- incluye 0080 (Tienda del guidebook: guide_store_items, guide_store_orders,
--- guide_store_order_items, guide_apartments.contact_whatsapp), que no se
--- habia volcado a este archivo hasta ahora.
+-- migracion 0082 (guide_pois.google_synced_at + indice unico parcial sobre
+-- google_place_id, para el importador de POIs desde Google Maps).
 -- 82 tablas.
 --
 -- NO editar a mano. Para regenerar:
 --   npx wrangler d1 export restaurant-menu-saas --remote --no-data --output BDschemaFinal.sql
 --
 -- Mantener este archivo actualizado tras cada migracion que se aplique con
--- --remote (el comando sobrescribe este header — vuelve a pegarlo).
+-- --remote: el export sobrescribe esta cabecera entera, hay que reponerla a
+-- mano (fecha, migracion aplicada, numero de tablas) despues de regenerar.
 -- =====================================================
+
 PRAGMA defer_foreign_keys=TRUE;
 CREATE TABLE accounts (
   id TEXT PRIMARY KEY,
@@ -920,7 +920,7 @@ CREATE TABLE guide_pois (
   order_index INTEGER DEFAULT 0,
   is_active BOOLEAN DEFAULT TRUE,
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-  modified_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, rating REAL, travel_time_text TEXT, travel_mode TEXT CHECK(travel_mode IN ('walk', 'drive', 'bike')), distance_text TEXT, poi_type    TEXT NOT NULL DEFAULT 'sight', subcategory TEXT, access_type TEXT NOT NULL DEFAULT 'free', address          TEXT, google_place_id  TEXT, what3words        TEXT, rating_count        INTEGER, google_rating       REAL, google_rating_count INTEGER, opening_hours TEXT, phone         TEXT, website_url   TEXT, booking_url   TEXT, duration_text TEXT, price_amount           REAL, price_currency         TEXT DEFAULT 'EUR', price_display          TEXT, original_price_display TEXT, discount_display       TEXT, is_bookable             BOOLEAN DEFAULT FALSE, action_type             TEXT, action_data             TEXT, action_prefilled_message TEXT, commission_type         TEXT, commission_value        REAL DEFAULT 0, badge_type              TEXT, cover_image_url TEXT, is_featured     BOOLEAN DEFAULT FALSE, source          TEXT, external_id     TEXT,
+  modified_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, rating REAL, travel_time_text TEXT, travel_mode TEXT CHECK(travel_mode IN ('walk', 'drive', 'bike')), distance_text TEXT, poi_type    TEXT NOT NULL DEFAULT 'sight', subcategory TEXT, access_type TEXT NOT NULL DEFAULT 'free', address          TEXT, google_place_id  TEXT, what3words        TEXT, rating_count        INTEGER, google_rating       REAL, google_rating_count INTEGER, opening_hours TEXT, phone         TEXT, website_url   TEXT, booking_url   TEXT, duration_text TEXT, price_amount           REAL, price_currency         TEXT DEFAULT 'EUR', price_display          TEXT, original_price_display TEXT, discount_display       TEXT, is_bookable             BOOLEAN DEFAULT FALSE, action_type             TEXT, action_data             TEXT, action_prefilled_message TEXT, commission_type         TEXT, commission_value        REAL DEFAULT 0, badge_type              TEXT, cover_image_url TEXT, is_featured     BOOLEAN DEFAULT FALSE, source          TEXT, external_id     TEXT, google_synced_at TIMESTAMP,
   FOREIGN KEY (zone_id) REFERENCES guide_zones(id)
 );
 CREATE TABLE guide_poi_media (
@@ -1298,3 +1298,5 @@ CREATE INDEX idx_guide_store_items_apt   ON guide_store_items(apartment_id, is_a
 CREATE INDEX idx_guide_store_items_owner ON guide_store_items(owner_type, is_active);
 CREATE INDEX idx_guide_store_orders_apt ON guide_store_orders(apartment_id, created_at);
 CREATE INDEX idx_guide_store_order_items_order ON guide_store_order_items(order_id);
+CREATE UNIQUE INDEX idx_guide_pois_google_place_id
+  ON guide_pois(google_place_id) WHERE google_place_id IS NOT NULL;

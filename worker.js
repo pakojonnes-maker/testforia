@@ -21,6 +21,7 @@ import { handleGuideAdminRequests } from './workerGuideAdmin.js';
 import { handleGuideAI } from './workerGuideAI.js';
 import { handleGuideStoreRequests } from './workerGuideStore.js';
 import { handleTvScreenRequests } from './workerTvScreen.js';
+import { handleGuideImportRequests } from './workerGuideImport.js';
 import { checkRestaurantScope } from './workerAuthz.js';
 // CORS: la allowlist vive en workerCors.js, compartida con los demás módulos.
 import { getCorsHeaders } from './workerCors.js';
@@ -209,6 +210,12 @@ export default {
                 // un 404 duro (no hace fallthrough con null para rutas desconocidas).
                 if (url.pathname.startsWith('/guide/tv/') || url.pathname.startsWith('/guide/admin/tv/')) {
                     const response = await handleTvScreenRequests(request, env);
+                    if (response) return addCorsHeaders(response, request);
+                }
+                // Importador de POIs desde Google Maps: debe ir ANTES del bloque
+                // genérico "Guide admin" de abajo, mismo motivo que TV screens arriba.
+                if (url.pathname.startsWith('/guide/admin/import/')) {
+                    const response = await handleGuideImportRequests(request, env);
                     if (response) return addCorsHeaders(response, request);
                 }
                 // Guide admin

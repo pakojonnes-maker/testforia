@@ -21,7 +21,8 @@
     "test:authz": "node tests/authz.test.mjs",
     "test:auth": "node tests/auth.test.mjs",
     "test:security": "node tests/sessions-mfa-invites.test.mjs",
-    "test": "npm run test:authz && npm run test:auth && npm run test:security"
+    "test:import": "node tests/import.test.mjs",
+    "test": "npm run test:authz && npm run test:auth && npm run test:security && npm run test:import"
   },
   "dependencies": {
     "framer-motion": "^12.23.9",
