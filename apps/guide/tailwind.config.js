@@ -9,6 +9,14 @@
 // compatibilidad con tooling que sí lea tailwind.config.js — si difieren, gana
 // index.css.
 //
+// ⚠️ En particular, el bloque `fontSize` de aquí abajo NO genera nada. En v4 la
+// escala tipográfica vive en el espacio de nombres `--text-*` del @theme
+// (`--text-headline-md`, `--text-headline-md--line-height`, …), separado de
+// `--font-*`, que solo define familias. Cuando este archivo llevaba los tamaños
+// y index.css no, todas las clases text-headline-md / text-body-md / … se
+// descartaban en silencio y la guía entera se renderizaba a 16px. Si añades un
+// tamaño, añádelo en index.css o no existirá.
+//
 // Los alias "amigables" (terracotta/deep-sea/olive/warm-sand/crisp-white/
 // accent-gold) se mantienen a propósito — decenas de componentes ya los usan
 // por nombre — pero ahora resuelven a la paleta nueva en vez de a la vieja:

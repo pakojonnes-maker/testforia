@@ -287,7 +287,7 @@ export default function GuidebookPage() {
           alto del BottomNavBar fijo (h-16) para que no tape el input. */}
       <main className={isChatTab
         ? "flex-1 min-h-0 flex flex-col w-full max-w-container-max mx-auto px-margin-mobile md:px-margin-desktop pt-6 pb-16 md:pb-6"
-        : "max-w-container-max mx-auto px-margin-mobile md:px-margin-desktop py-8 flex flex-col gap-12"}>
+        : "w-full max-w-container-max mx-auto px-margin-mobile md:px-margin-desktop py-8 flex flex-col gap-12"}>
         {activeTab === 'info' && (
           <div style={{ animation: 'fadeIn 0.4s ease forwards' }} className="flex flex-col gap-12">
             <WelcomeHero
