@@ -298,8 +298,23 @@ button{font-family:inherit;cursor:pointer;border:none;background:none;outline:no
    Arco, horizon rule, azulejo, grano, stamped badges, marquee/float
    ================================================ */
 
-/* Arch mask — la única curva permitida por el sistema: cabecera semicircular,
-   lados y base rectos, evocando la arquitectura mediterránea. */
+/* Arch mask — la única curva permitida por el sistema: cabecera en arco,
+   lados y base rectos, evocando la arquitectura mediterránea.
+   ⚠️ El radio 9999px ("el máximo posible") se resuelve, por spec de CSS, a
+   min(ancho, alto) del contenedor — para un contenedor RETRATO (alto ≥
+   ~1.25× el ancho, como aspect-[4/5]) eso da un arco de verdad: el radio
+   queda limitado por el ancho, y sobra pared recta debajo. Por eso esta
+   clase se usa solo en contenedores retrato o cuadrados.
+   Un contenedor bajo y ancho (p.ej. una foto a h-48 a todo el ancho de la
+   tarjeta) NO debe llevar esta clase: ahí el radio "máximo" se come casi
+   todo el alto y el resultado es un semicírculo pegado a la base, no un
+   arco. La corrección es dar a esas tarjetas una proporción retrato
+   (aspect-[4/5]), no reducir el radio — un radio fijo más pequeño aplana
+   el arco en TODOS los sitios, también donde ya se veía bien.
+   Los banners panorámicos intencionados (aspect-video, aspect-[16/9]) usan
+   directamente un radio pequeño de Tailwind (p.ej. rounded-t-[64px]) en vez
+   de esta clase — un arco de verdad no tiene sentido en un recorte
+   apaisado. */
 .arch-mask {
   border-top-left-radius: 9999px;
   border-top-right-radius: 9999px;

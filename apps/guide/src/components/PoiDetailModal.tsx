@@ -30,7 +30,7 @@ export default function PoiDetailModal({ item, lang, onClose, onOpenMap }: PoiDe
 
   return (
     <div
-      className="fixed inset-0 z-50 flex flex-col bg-on-background/60 animate-[fadeIn_0.2s_ease]"
+      className="fixed inset-0 z-[60] flex flex-col bg-on-background/60 animate-[fadeIn_0.2s_ease]"
       onClick={onClose}
     >
       <div

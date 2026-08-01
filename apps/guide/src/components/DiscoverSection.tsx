@@ -144,7 +144,7 @@ export default function DiscoverSection({ pois, zoneName, zoneDescription, lang 
           // Secondary Cards
           return (
             <article key={item.id} className="col-span-1 md:col-span-4 bg-surface-container-lowest border border-on-background/10 flex flex-col group">
-              <div className="relative h-48 w-full arch-mask overflow-hidden m-2 bg-surface-variant">
+              <div className="relative aspect-[4/5] w-full arch-mask overflow-hidden m-2 bg-surface-variant">
                 {isRealImage(item.image) ? (
                   <img className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" src={item.image} alt={item.name} />
                 ) : (

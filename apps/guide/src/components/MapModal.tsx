@@ -41,7 +41,7 @@ export default function MapModal({ pois, onClose, zoneName, lang }: MapModalProp
 
   return (
     <div
-      className="fixed inset-0 z-50 flex flex-col bg-on-background/60 animate-[fadeIn_0.2s_ease]"
+      className="fixed inset-0 z-[60] flex flex-col bg-on-background/60 animate-[fadeIn_0.2s_ease]"
       onClick={onClose}
     >
       <div

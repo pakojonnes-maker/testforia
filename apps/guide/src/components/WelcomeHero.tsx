@@ -32,7 +32,11 @@ export default function WelcomeHero({
   return (
     <section className="flex flex-col gap-stack-md">
       <div className="w-full flex justify-center">
-        <div className="relative w-full md:w-10/12 aspect-[3/4] md:aspect-video arch-mask overflow-hidden border border-on-background/10 bg-surface-variant">
+          {/* Móvil: aspect-[3/4] retrato → arco de verdad con rounded-t-full.
+              Escritorio: aspect-video apaisado → un arco entero no encaja,
+              así que el radio se limita con rounded-t-[64px] en vez de dejar
+              que crezca sin límite. */}
+        <div className="relative w-full md:w-10/12 aspect-[3/4] md:aspect-video rounded-t-full md:rounded-t-[64px] overflow-hidden border border-on-background/10 bg-surface-variant">
           {isRealImage(coverImageUrl) ? (
             <img
               className="w-full h-full object-cover absolute inset-0"

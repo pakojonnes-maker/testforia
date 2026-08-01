@@ -97,7 +97,7 @@ export default function InfoSection({ infoItems, lang }: InfoSectionProps) {
                   className="flex flex-col group cursor-pointer"
                   onClick={() => setSelectedItem(item)}
                 >
-                  <div className="w-full aspect-[4/3] arch-mask overflow-hidden border border-on-background/10 mb-2 relative bg-surface-variant">
+                  <div className="w-full aspect-[4/5] arch-mask overflow-hidden border border-on-background/10 mb-2 relative bg-surface-variant">
                     {isRealImage(itemImg) ? (
                       <img
                         className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
@@ -121,7 +121,9 @@ export default function InfoSection({ infoItems, lang }: InfoSectionProps) {
               className="flex flex-col group cursor-pointer mt-stack-md border-t border-on-background/10 pt-stack-md"
               onClick={() => setSelectedItem(featuredItem)}
             >
-              <div className="w-full aspect-[16/9] arch-mask overflow-hidden border border-on-background/10 mb-4 relative bg-surface-variant">
+              {/* Banner apaisado: un arco de verdad no encaja en un recorte 16:9,
+                  así que usa un radio pequeño de Tailwind en vez de .arch-mask. */}
+              <div className="w-full aspect-[16/9] rounded-t-[64px] overflow-hidden border border-on-background/10 mb-4 relative bg-surface-variant">
                 {isRealImage(featuredItem.media?.[0]?.url) ? (
                   <img
                     className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
@@ -184,7 +186,7 @@ export default function InfoSection({ infoItems, lang }: InfoSectionProps) {
       {/* Modal Popup for Details */}
       {selectedItem && (
         <div
-          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-on-background/60 animate-[fadeIn_0.2s_ease]"
+          className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-on-background/60 animate-[fadeIn_0.2s_ease]"
           onClick={() => setSelectedItem(null)}
         >
           <div

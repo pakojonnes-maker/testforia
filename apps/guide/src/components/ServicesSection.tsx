@@ -116,7 +116,7 @@ export default function ServicesSection({ experiences, storeItems, zoneName, apa
         const stamp = STAMP_CLASSES[idx % STAMP_CLASSES.length];
         return (
           <article key={item.id} className="bg-surface-container-lowest border border-on-background/10 flex flex-col relative w-full">
-            <div className="relative w-full h-[280px] p-4">
+            <div className="relative w-full aspect-[4/5] p-4">
               {isRealImage(item.cover_image_url) ? (
                 <img className="w-full h-full object-cover arch-mask" src={item.cover_image_url} alt={item.name} />
               ) : (
@@ -224,7 +224,7 @@ export default function ServicesSection({ experiences, storeItems, zoneName, apa
 
               return (
                 <article key={exp.id} className={`${isFeatured ? 'md:col-span-8' : 'md:col-span-4'} bg-surface-container-lowest border border-on-background/10 overflow-hidden flex flex-col ${isFeatured ? 'md:flex-row' : ''} group`}>
-                  <div className={`relative overflow-hidden shrink-0 ${isFeatured ? 'h-64 md:h-auto md:w-1/2 p-2' : 'h-48 p-2'}`}>
+                  <div className={`relative overflow-hidden shrink-0 ${isFeatured ? 'aspect-[4/5] md:h-auto md:aspect-auto md:w-1/2 p-2' : 'aspect-[4/5] p-2'}`}>
                     {isRealImage(exp.cover_image_url) ? (
                       <img className="w-full h-full object-cover arch-mask transition-transform duration-500 group-hover:scale-105" src={exp.cover_image_url} alt={exp.name} />
                     ) : (
