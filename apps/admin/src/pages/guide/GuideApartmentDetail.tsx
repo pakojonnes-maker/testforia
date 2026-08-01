@@ -9,13 +9,8 @@ import {
   CircularProgress, Alert, Divider, Tooltip, Card, CardContent,
   Dialog, DialogTitle, DialogContent, DialogActions, Switch, FormControlLabel,
   FormControl, InputLabel, Select, MenuItem, Tabs, Tab,
-  ToggleButtonGroup, ToggleButton, Stack, alpha, LinearProgress, InputAdornment,
+  Stack, InputAdornment,
 } from '@mui/material';
-import { Line } from 'react-chartjs-2';
-import {
-  Chart as ChartJS, CategoryScale, LinearScale, PointElement, LineElement,
-  Title as ChartTitle, Tooltip as ChartTooltip, Legend, Filler,
-} from 'chart.js';
 import {
   ArrowBack as BackIcon,
   Add as AddIcon,
@@ -44,21 +39,12 @@ import {
   AddCircleOutline as AddCircleOutlineIcon,
   Celebration as CelebrationIcon,
   Tv as TvIcon,
-  ContentCopy as ContentCopyIcon,
-  FiberManualRecord as DotIcon,
   Visibility as ImpressionIcon,
   VisibilityOff as VisibilityOffIcon,
-  Explore as ExploreIcon,
-  Insights as InsightsIcon,
-  DevicesOther as DevicesIcon,
   Storefront as StoreIcon,
   ShoppingBag as OrdersIcon,
 } from '@mui/icons-material';
 import QRCodeGenerator, { QRCodeHandle } from '../../components/QRCodeGenerator';
-
-// Registro de Chart.js (idempotente; el resto del admin lo registra en AnalyticsPage,
-// que se carga aparte, así que lo aseguramos aquí para el gráfico de la pestaña TV).
-ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, ChartTitle, ChartTooltip, Legend, Filler);
 
 interface ApartmentInfo {
   id: string;
@@ -85,61 +71,6 @@ interface Poi {
   travel_time_text?: string;
   distance_text?: string;
 }
-
-interface TvDevice {
-  id: string;
-  pairing_code: string;
-  device_label: string | null;
-  is_active: boolean;
-  paired_at: string | null;
-  last_seen_at: string | null;
-}
-
-interface TvDailyRow {
-  day: string;
-  impression: number;
-  screen_view: number;
-  wifi_reveal: number;
-  poi_select: number;
-  menu_qr_shown: number;
-  booking_qr_shown: number;
-}
-
-interface TvStats {
-  range: string;
-  totals: Record<string, number>;
-  byScreen: { screen: string; count: number }[];
-  daily: TvDailyRow[];
-  devices: { total: number; active: number };
-}
-
-type TvRange = '7d' | '30d' | '90d' | 'all';
-
-const TV_RANGE_OPTIONS: { value: TvRange; label: string }[] = [
-  { value: '7d', label: '7 días' },
-  { value: '30d', label: '30 días' },
-  { value: '90d', label: '90 días' },
-  { value: 'all', label: 'Todo' },
-];
-
-// Etiquetas legibles para el anfitrión de cada pantalla de la TV.
-const TV_SCREEN_LABELS: Record<string, string> = {
-  home: 'Inicio',
-  wifi: 'WiFi',
-  guide: 'Guía',
-  nearby: 'Alrededores',
-  info: 'Información',
-};
-
-// Columnas del CSV de exportación (clave del evento → cabecera legible).
-const TV_CSV_COLUMNS: { key: keyof Omit<TvDailyRow, 'day'>; label: string }[] = [
-  { key: 'impression', label: 'Impresiones' },
-  { key: 'wifi_reveal', label: 'WiFi mostrado' },
-  { key: 'poi_select', label: 'Localizaciones vistas' },
-  { key: 'menu_qr_shown', label: 'QR carta mostrado' },
-  { key: 'booking_qr_shown', label: 'QR reserva mostrado' },
-  { key: 'screen_view', label: 'Vistas de pantalla' },
-];
 
 const MEDIA_BASE = import.meta.env.VITE_API_URL || 'https://visualtasteworker.franciscotortosaestudios.workers.dev';
 
@@ -259,18 +190,7 @@ export default function GuideApartmentDetail() {
   const [welcomeError, setWelcomeError] = useState<string | null>(null);
   const [welcomeSuccess, setWelcomeSuccess] = useState<string | null>(null);
   const [uploadingWelcomeImage, setUploadingWelcomeImage] = useState(false);
-
-  // Pantalla TV tab state
-  const [tvDevices, setTvDevices] = useState<TvDevice[]>([]);
-  const [tvStats, setTvStats] = useState<TvStats | null>(null);
-  const [tvLoading, setTvLoading] = useState(false);        // carga inicial (dispositivos)
-  const [tvStatsLoading, setTvStatsLoading] = useState(false); // recarga de stats al cambiar rango
-  const [tvError, setTvError] = useState<string | null>(null);
-  const [tvRange, setTvRange] = useState<TvRange>('30d');
-  const [pairing, setPairing] = useState(false);
-  const [deviceLabelInput, setDeviceLabelInput] = useState('');
-  const [newDevice, setNewDevice] = useState<{ pairingCode: string; deviceLabel: string | null } | null>(null);
-  const tvQrRef = useRef<QRCodeHandle>(null);
+  const [welcomeLang, setWelcomeLang] = useState('es');
 
   // Tienda (store-items propios del anfitrión) tab state
   const [storeItems, setStoreItems] = useState<any[]>([]);
@@ -373,34 +293,6 @@ export default function GuideApartmentDetail() {
     }
   };
 
-  const loadTvDevices = async () => {
-    if (!id) return;
-    setTvLoading(true);
-    setTvError(null);
-    try {
-      const devicesRes = await apiClient.request(`/guide/admin/tv/devices?apartment_id=${id}`);
-      setTvDevices(devicesRes.devices || []);
-    } catch (err: any) {
-      setTvError(err.message || 'Error al cargar las TVs');
-    } finally {
-      setTvLoading(false);
-    }
-  };
-
-  const loadTvStats = async (range: TvRange) => {
-    if (!id) return;
-    setTvStatsLoading(true);
-    try {
-      const statsRes = await apiClient.request(`/guide/admin/tv/stats/${id}?range=${range}`);
-      setTvStats(statsRes);
-    } catch (err: any) {
-      setTvStats(null);
-      setTvError(err.message || 'Error al cargar las estadísticas');
-    } finally {
-      setTvStatsLoading(false);
-    }
-  };
-
   const loadStoreItems = async () => {
     if (!id) return;
     setStoreLoading(true);
@@ -435,15 +327,7 @@ export default function GuideApartmentDetail() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [apartment?.zone_id]);
   useEffect(() => {
-    if (activeMainTab === 4 && id) { loadTvDevices(); loadTvStats(tvRange); }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeMainTab, id]);
-  useEffect(() => {
-    if (activeMainTab === 4 && id) loadTvStats(tvRange);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [tvRange]);
-  useEffect(() => {
-    if (activeMainTab === 5 && id) { loadStoreItems(); loadStoreOrders(); }
+    if (activeMainTab === 4 && id) { loadStoreItems(); loadStoreOrders(); }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeMainTab, id]);
 
@@ -778,77 +662,6 @@ export default function GuideApartmentDetail() {
     }
   };
 
-  // ---------- Pantalla TV tab ----------
-  const handlePairDevice = async () => {
-    if (!id) return;
-    setPairing(true);
-    setTvError(null);
-    try {
-      const res = await apiClient.request('/guide/admin/tv/devices', {
-        method: 'POST',
-        body: JSON.stringify({ apartmentId: id, deviceLabel: deviceLabelInput || undefined }),
-      });
-      setNewDevice({ pairingCode: res.device.pairingCode, deviceLabel: res.device.deviceLabel });
-      setDeviceLabelInput('');
-      await Promise.all([loadTvDevices(), loadTvStats(tvRange)]);
-    } catch (err: any) {
-      setTvError(err.message || 'Error al emparejar la TV');
-    } finally {
-      setPairing(false);
-    }
-  };
-
-  const copyPairingCode = (code: string) => {
-    navigator.clipboard.writeText(code).catch(() => {});
-  };
-
-  const handleToggleDevice = async (deviceId: string, nextActive: boolean) => {
-    setTvError(null);
-    // Optimista: refleja el cambio antes de que responda el backend.
-    setTvDevices(prev => prev.map(d => d.id === deviceId ? { ...d, is_active: nextActive } : d));
-    try {
-      await apiClient.request(`/guide/admin/tv/devices/${deviceId}`, {
-        method: 'PATCH',
-        body: JSON.stringify({ isActive: nextActive }),
-      });
-    } catch (err: any) {
-      setTvError(err.message || 'Error al actualizar la TV');
-      setTvDevices(prev => prev.map(d => d.id === deviceId ? { ...d, is_active: !nextActive } : d)); // revert
-    }
-  };
-
-  const isRecentlySeen = (lastSeenAt: string | null) => {
-    if (!lastSeenAt) return false;
-    return Date.now() - new Date(lastSeenAt).getTime() < 15 * 60 * 1000; // 15 min
-  };
-
-  const formatRelativeTime = (iso: string | null) => {
-    if (!iso) return 'Nunca conectada';
-    const diffMs = Date.now() - new Date(iso).getTime();
-    const mins = Math.floor(diffMs / 60000);
-    if (mins < 1) return 'Ahora mismo';
-    if (mins < 60) return `Hace ${mins} min`;
-    const hours = Math.floor(mins / 60);
-    if (hours < 24) return `Hace ${hours} h`;
-    return `Hace ${Math.floor(hours / 24)} d`;
-  };
-
-  // Exporta la serie diaria a CSV (extracción de datos para el anfitrión/agencia).
-  const exportTvCsv = () => {
-    if (!tvStats || tvStats.daily.length === 0) return;
-    const header = ['Fecha', ...TV_CSV_COLUMNS.map(c => c.label)];
-    const rows = tvStats.daily.map(d => [d.day, ...TV_CSV_COLUMNS.map(c => d[c.key] ?? 0)]);
-    const total = ['TOTAL', ...TV_CSV_COLUMNS.map(c => tvStats.daily.reduce((s, d) => s + (d[c.key] ?? 0), 0))];
-    const csv = [header, ...rows, total].map(r => r.join(',')).join('\n');
-    const blob = new Blob(['﻿' + csv], { type: 'text/csv;charset=utf-8;' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `tv-stats-${apartment?.slug || id}-${tvStats.range}.csv`;
-    a.click();
-    URL.revokeObjectURL(url);
-  };
-
   const travelIcon = (mode?: string) =>
     mode === 'drive' ? <DriveIcon sx={{ fontSize: 16 }} /> : mode === 'bike' ? <BikeIcon sx={{ fontSize: 16 }} /> : <WalkIcon sx={{ fontSize: 16 }} />;
 
@@ -895,6 +708,27 @@ export default function GuideApartmentDetail() {
               </Button>
             </Box>
           </Box>
+        </Paper>
+      )}
+
+      {apartment && (
+        <Paper elevation={0} sx={{ p: 3, mb: 3, borderRadius: 3, border: '1px solid', borderColor: 'divider', display: 'flex', gap: 2, alignItems: 'center', flexWrap: 'wrap' }}>
+          <Box sx={{ p: 1.5, borderRadius: 2, bgcolor: 'primary.main', color: 'white', display: 'flex' }}>
+            <TvIcon />
+          </Box>
+          <Box sx={{ flexGrow: 1, minWidth: 200 }}>
+            <Typography variant="subtitle1" fontWeight={600}>Pantalla TV</Typography>
+            <Typography variant="body2" color="text.secondary">
+              Empareja Android TVs y consulta su actividad desde la sección TV del menú.
+            </Typography>
+          </Box>
+          <Button
+            variant="outlined"
+            startIcon={<TvIcon />}
+            onClick={() => navigate(`/guide/tv?apartment=${id}`)}
+          >
+            Gestionar Pantalla TV
+          </Button>
         </Paper>
       )}
 
@@ -1270,25 +1104,44 @@ export default function GuideApartmentDetail() {
           </Box>
 
           <Typography variant="subtitle2" fontWeight={600} color="text.secondary" sx={{ mb: 1.5 }}>Texto</Typography>
-          {LANGUAGES.slice(0, 3).map(lang => (
-            <Box key={lang.code} sx={{ p: 2, mb: 2, borderRadius: 2, border: '1px solid', borderColor: 'divider' }}>
-              <Typography variant="subtitle2" sx={{ mb: 1.5, fontWeight: 600 }}>{lang.label}</Typography>
-              <TextField
-                label="Título" fullWidth size="small" sx={{ mb: 1.5 }}
-                value={welcomeForm.translations[lang.code]?.title || ''}
-                onChange={(e) => setWelcomeForm(prev => ({
-                  ...prev, translations: { ...prev.translations, [lang.code]: { ...prev.translations[lang.code], title: e.target.value } }
-                }))}
-              />
-              <TextField
-                label="Mensaje" fullWidth multiline minRows={2} maxRows={5} size="small"
-                value={welcomeForm.translations[lang.code]?.body || ''}
-                onChange={(e) => setWelcomeForm(prev => ({
-                  ...prev, translations: { ...prev.translations, [lang.code]: { ...prev.translations[lang.code], body: e.target.value } }
-                }))}
-              />
-            </Box>
-          ))}
+          <Tabs
+            value={welcomeLang}
+            onChange={(_, v) => setWelcomeLang(v)}
+            variant="scrollable"
+            scrollButtons="auto"
+            sx={{ mb: 2, minHeight: 36, '& .MuiTab-root': { minHeight: 36, py: 0.5 } }}
+          >
+            {LANGUAGES.map(lang => {
+              const hasContent = !!(welcomeForm.translations[lang.code]?.title || welcomeForm.translations[lang.code]?.body);
+              return (
+                <Tab
+                  key={lang.code}
+                  value={lang.code}
+                  label={lang.label}
+                  iconPosition="end"
+                  icon={hasContent ? <CheckCircleIcon sx={{ fontSize: 14, color: 'success.main' }} /> : undefined}
+                  sx={{ fontWeight: 500, fontSize: '0.8125rem' }}
+                />
+              );
+            })}
+          </Tabs>
+          <Box sx={{ p: 2, mb: 3, borderRadius: 2, border: '1px solid', borderColor: 'divider' }}>
+            <TextField
+              label={welcomeLang === 'es' ? 'Título (obligatorio)' : 'Título'}
+              fullWidth size="small" sx={{ mb: 1.5 }}
+              value={welcomeForm.translations[welcomeLang]?.title || ''}
+              onChange={(e) => setWelcomeForm(prev => ({
+                ...prev, translations: { ...prev.translations, [welcomeLang]: { ...prev.translations[welcomeLang], title: e.target.value } }
+              }))}
+            />
+            <TextField
+              label="Mensaje" fullWidth multiline minRows={2} maxRows={5} size="small"
+              value={welcomeForm.translations[welcomeLang]?.body || ''}
+              onChange={(e) => setWelcomeForm(prev => ({
+                ...prev, translations: { ...prev.translations, [welcomeLang]: { ...prev.translations[welcomeLang], body: e.target.value } }
+              }))}
+            />
+          </Box>
 
           <Divider sx={{ my: 3 }} />
 
@@ -1327,10 +1180,12 @@ export default function GuideApartmentDetail() {
               </Box>
               <Box sx={{ pl: 2 }}>
                 <TextField
-                  size="small" label="Texto del botón (ES)" sx={{ minWidth: 240 }}
-                  value={welcomeForm.translations.es?.action_label || ''}
+                  size="small"
+                  label={`Texto del botón (${LANGUAGES.find(l => l.code === welcomeLang)?.label || welcomeLang})`}
+                  sx={{ minWidth: 240 }}
+                  value={welcomeForm.translations[welcomeLang]?.action_label || ''}
                   onChange={(e) => setWelcomeForm(prev => ({
-                    ...prev, translations: { ...prev.translations, es: { ...prev.translations.es, action_label: e.target.value } }
+                    ...prev, translations: { ...prev.translations, [welcomeLang]: { ...prev.translations[welcomeLang], action_label: e.target.value } }
                   }))}
                   placeholder="Ej: Ver oferta"
                 />
@@ -1525,265 +1380,6 @@ export default function GuideApartmentDetail() {
     </Box>
   );
 
-  const renderTvStats = () => {
-    const header = (
-      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 2, mb: 3, flexWrap: 'wrap' }}>
-        <Typography variant="h6" fontWeight={600}>Actividad de las TVs</Typography>
-        <Stack direction="row" spacing={1} alignItems="center">
-          <ToggleButtonGroup
-            value={tvRange} exclusive size="small"
-            onChange={(_, v) => v && setTvRange(v)}
-          >
-            {TV_RANGE_OPTIONS.map(o => (
-              <ToggleButton key={o.value} value={o.value} sx={{ px: 1.5, py: 0.4, textTransform: 'none', fontWeight: 600 }}>
-                {o.label}
-              </ToggleButton>
-            ))}
-          </ToggleButtonGroup>
-          <Button
-            size="small" variant="outlined" startIcon={<DownloadIcon />}
-            disabled={!tvStats || tvStats.daily.length === 0}
-            onClick={exportTvCsv}
-          >
-            CSV
-          </Button>
-        </Stack>
-      </Box>
-    );
-
-    let body: React.ReactNode;
-    if (tvStatsLoading) {
-      body = <Box sx={{ display: 'flex', justifyContent: 'center', py: 5 }}><CircularProgress /></Box>;
-    } else if (!tvStats) {
-      body = <Typography variant="body2" color="text.secondary">No se pudieron cargar las estadísticas.</Typography>;
-    } else {
-      const t = tvStats.totals;
-      const impressions = t.impression || 0;
-      const wifi = t.wifi_reveal || 0;
-      const guideInteractions = (t.poi_select || 0) + (t.menu_qr_shown || 0) + (t.booking_qr_shown || 0);
-      const wifiRate = impressions > 0 ? Math.round((wifi / impressions) * 100) : 0;
-      const hasActivity = impressions > 0 || wifi > 0 || guideInteractions > 0;
-
-      const cards = [
-        { icon: <ImpressionIcon />, color: '#128099', value: impressions, label: 'Impresiones', sub: 'veces que se encendió la pantalla' },
-        { icon: <WifiIcon />, color: '#2e7d32', value: wifi, label: 'WiFi consultado', sub: 'huéspedes que vieron la contraseña' },
-        { icon: <ExploreIcon />, color: '#e07a5f', value: guideInteractions, label: 'Interacción con la guía', sub: 'recomendaciones y QRs abiertos' },
-        { icon: <DevicesIcon />, color: '#6a1b9a', value: tvStats.devices.active, label: 'TVs activas', sub: `de ${tvStats.devices.total} emparejadas` },
-      ];
-
-      const chartLabels = tvStats.daily.map(d => new Date(d.day).toLocaleDateString('es-ES', { day: 'numeric', month: 'short' }));
-      const chartData = {
-        labels: chartLabels,
-        datasets: [
-          {
-            label: 'Impresiones', data: tvStats.daily.map(d => d.impression),
-            borderColor: '#128099', backgroundColor: 'rgba(18,128,153,0.12)', fill: true,
-            borderWidth: 2.5, tension: 0.35, pointRadius: tvStats.daily.length > 20 ? 0 : 3, pointHoverRadius: 5,
-          },
-          {
-            label: 'WiFi consultado', data: tvStats.daily.map(d => d.wifi_reveal),
-            borderColor: '#2e7d32', backgroundColor: 'transparent',
-            borderWidth: 2, tension: 0.35, pointRadius: tvStats.daily.length > 20 ? 0 : 3, pointHoverRadius: 5,
-          },
-        ],
-      };
-      const chartOptions = {
-        responsive: true, maintainAspectRatio: false,
-        interaction: { mode: 'index' as const, intersect: false },
-        plugins: {
-          legend: { display: true, position: 'top' as const, labels: { usePointStyle: true, boxWidth: 8, font: { size: 11 } } },
-          tooltip: { cornerRadius: 10, padding: 10 },
-        },
-        scales: {
-          x: { grid: { display: false }, ticks: { color: '#94a3b8', font: { size: 10 }, autoSkip: true, maxTicksLimit: 10 } },
-          y: { beginAtZero: true, ticks: { color: '#94a3b8', font: { size: 10 }, precision: 0 }, grid: { color: 'rgba(148,163,184,0.1)' } },
-        },
-      };
-
-      const screenTotal = tvStats.byScreen.reduce((s, x) => s + x.count, 0);
-
-      body = (
-        <>
-          {/* Métricas destacadas, con contexto de negocio */}
-          <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(190px, 1fr))', gap: 2, mb: 3 }}>
-            {cards.map(c => (
-              <Box key={c.label} sx={{ p: 2, borderRadius: 3, border: '1px solid', borderColor: 'divider', display: 'flex', gap: 1.5, alignItems: 'flex-start' }}>
-                <Box sx={{ p: 1, borderRadius: 2, bgcolor: alpha(c.color, 0.12), color: c.color, display: 'flex' }}>{c.icon}</Box>
-                <Box sx={{ minWidth: 0 }}>
-                  <Typography variant="h4" fontWeight={800} lineHeight={1.1}>{c.value.toLocaleString('es-ES')}</Typography>
-                  <Typography variant="subtitle2" fontWeight={600}>{c.label}</Typography>
-                  <Typography variant="caption" color="text.secondary">{c.sub}</Typography>
-                </Box>
-              </Box>
-            ))}
-          </Box>
-
-          {/* Insight derivado: cuenta una historia, no solo números */}
-          {impressions > 0 && (
-            <Alert icon={<InsightsIcon />} severity="success" sx={{ mb: 3, borderRadius: 2, bgcolor: 'rgba(46,125,50,0.08)' }}>
-              <strong>{wifiRate}%</strong> de las veces que se encendió la pantalla, el huésped consultó el WiFi
-              {guideInteractions > 0 && <> · <strong>{guideInteractions}</strong> interacciones con tus recomendaciones</>}.
-            </Alert>
-          )}
-
-          {!hasActivity ? (
-            <Box sx={{ textAlign: 'center', py: 5, border: '1px dashed', borderColor: 'divider', borderRadius: 3 }}>
-              <ImpressionIcon sx={{ fontSize: 40, color: 'text.disabled', mb: 1 }} />
-              <Typography variant="body2" color="text.secondary">Todavía no hay actividad registrada en este periodo.</Typography>
-            </Box>
-          ) : (
-            <>
-              <Typography variant="subtitle2" fontWeight={600} color="text.secondary" sx={{ mb: 1 }}>
-                Evolución diaria
-              </Typography>
-              <Box sx={{ height: 240, mb: 3 }}>
-                <Line data={chartData} options={chartOptions} />
-              </Box>
-
-              {screenTotal > 0 && (
-                <>
-                  <Typography variant="subtitle2" fontWeight={600} color="text.secondary" sx={{ mb: 1.5 }}>
-                    Pantallas más vistas
-                  </Typography>
-                  <Stack spacing={1.2}>
-                    {tvStats.byScreen.map(s => {
-                      const pct = Math.round((s.count / screenTotal) * 100);
-                      return (
-                        <Box key={s.screen}>
-                          <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 0.3 }}>
-                            <Typography variant="body2" fontWeight={600}>{TV_SCREEN_LABELS[s.screen] || s.screen}</Typography>
-                            <Typography variant="caption" color="text.secondary">{s.count} · {pct}%</Typography>
-                          </Box>
-                          <LinearProgress variant="determinate" value={pct} sx={{ height: 8, borderRadius: 5 }} />
-                        </Box>
-                      );
-                    })}
-                  </Stack>
-                </>
-              )}
-            </>
-          )}
-        </>
-      );
-    }
-
-    return (
-      <Paper elevation={0} sx={{ p: 3, borderRadius: 3, border: '1px solid', borderColor: 'divider' }}>
-        {header}
-        {body}
-      </Paper>
-    );
-  };
-
-  const renderTvTab = () => {
-    return (
-      <Box>
-        <Alert severity="info" sx={{ mb: 3, borderRadius: 2 }}>
-          Empareja una Android TV con este apartamento para mostrar la pantalla de bienvenida
-          (WiFi, guía y alrededores). El código se introduce una sola vez en la app de la TV.
-        </Alert>
-        {tvError && <Alert severity="error" sx={{ mb: 2 }}>{tvError}</Alert>}
-
-        {/* Emparejar nueva TV */}
-        <Paper elevation={0} sx={{ p: 3, mb: 3, borderRadius: 3, border: '1px solid', borderColor: 'divider' }}>
-          <Typography variant="h6" fontWeight={600} gutterBottom sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-            <TvIcon color="primary" /> Emparejar una TV nueva
-          </Typography>
-          <Typography variant="body2" color="text.secondary" sx={{ mb: 2, maxWidth: 560 }}>
-            Genera un código y ábrelo en la app de VisualTaste TV instalada en el televisor
-            (o en <code>tv.visualtastes.com/#CODIGO</code> durante las pruebas).
-          </Typography>
-          <Box sx={{ display: 'flex', gap: 2, alignItems: 'center', flexWrap: 'wrap' }}>
-            <TextField
-              label="Etiqueta (opcional)" size="small" sx={{ minWidth: 220 }}
-              placeholder="Ej: TV Salón"
-              value={deviceLabelInput}
-              onChange={(e) => setDeviceLabelInput(e.target.value)}
-            />
-            <Button
-              variant="contained"
-              startIcon={pairing ? <CircularProgress size={18} color="inherit" /> : <AddIcon />}
-              disabled={pairing}
-              onClick={handlePairDevice}
-            >
-              {pairing ? 'Generando...' : 'Generar código'}
-            </Button>
-          </Box>
-
-          {newDevice && (
-            <Box sx={{ mt: 3, p: 3, borderRadius: 3, border: '1px dashed', borderColor: 'primary.main', bgcolor: 'rgba(18,128,153,0.06)', display: 'flex', gap: 3, alignItems: 'center', flexWrap: 'wrap' }}>
-              <QRCodeGenerator
-                ref={tvQrRef}
-                data={`https://tv.visualtastes.com/#${newDevice.pairingCode}`}
-                size={120}
-                dotsOptions={{ color: '#128099', type: 'rounded' }}
-                cornersSquareOptions={{ type: 'extra-rounded' }}
-                imageOptions={{ margin: 0 }}
-              />
-              <Box>
-                <Typography variant="caption" color="text.secondary" sx={{ textTransform: 'uppercase', letterSpacing: 1 }}>
-                  Código de emparejamiento{newDevice.deviceLabel ? ` · ${newDevice.deviceLabel}` : ''}
-                </Typography>
-                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                  <Typography variant="h4" fontWeight={800} letterSpacing={4} fontFamily="monospace">
-                    {newDevice.pairingCode}
-                  </Typography>
-                  <Tooltip title="Copiar código">
-                    <IconButton size="small" onClick={() => copyPairingCode(newDevice.pairingCode)}>
-                      <ContentCopyIcon fontSize="small" />
-                    </IconButton>
-                  </Tooltip>
-                </Box>
-              </Box>
-            </Box>
-          )}
-        </Paper>
-
-        {/* TVs emparejadas */}
-        <Paper elevation={0} sx={{ p: 3, mb: 3, borderRadius: 3, border: '1px solid', borderColor: 'divider' }}>
-          <Typography variant="h6" fontWeight={600} gutterBottom>TVs emparejadas</Typography>
-          {tvLoading ? (
-            <Box sx={{ display: 'flex', justifyContent: 'center', py: 4 }}><CircularProgress /></Box>
-          ) : tvDevices.length === 0 ? (
-            <Box sx={{ textAlign: 'center', py: 6, border: '1px dashed', borderColor: 'divider', borderRadius: 3 }}>
-              <TvIcon sx={{ fontSize: 40, color: 'text.disabled', mb: 1 }} />
-              <Typography variant="body2" color="text.secondary">Todavía no hay ninguna TV emparejada.</Typography>
-            </Box>
-          ) : (
-            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.5 }}>
-              {tvDevices.map(d => (
-                <Card key={d.id} elevation={0} sx={{ border: '1px solid', borderColor: 'divider', borderRadius: 3, opacity: d.is_active ? 1 : 0.55 }}>
-                  <CardContent sx={{ display: 'flex', alignItems: 'center', gap: 2, p: '12px 16px !important' }}>
-                    <DotIcon sx={{ fontSize: 14, color: isRecentlySeen(d.last_seen_at) ? 'success.main' : 'text.disabled' }} />
-                    <Box sx={{ flexGrow: 1, minWidth: 0 }}>
-                      <Typography variant="subtitle2" fontWeight={600}>
-                        {d.device_label || 'TV sin nombre'}
-                      </Typography>
-                      <Typography variant="caption" color="text.secondary">
-                        Última conexión: {formatRelativeTime(d.last_seen_at)}
-                      </Typography>
-                    </Box>
-                    <Chip label={d.pairing_code} size="small" sx={{ fontFamily: 'monospace', fontWeight: 700 }} />
-                    <Tooltip title={d.is_active ? 'Desactivar TV' : 'Activar TV'}>
-                      <Switch
-                        size="small"
-                        checked={d.is_active}
-                        onChange={(e) => handleToggleDevice(d.id, e.target.checked)}
-                      />
-                    </Tooltip>
-                  </CardContent>
-                </Card>
-              ))}
-            </Box>
-          )}
-        </Paper>
-
-        {/* Estadísticas */}
-        {renderTvStats()}
-      </Box>
-    );
-  };
-
   return (
     <Box sx={{ display: 'flex', height: 'calc(100vh - 120px)', gap: 3 }}>
       {/* LEFT PANEL: Editor */}
@@ -1813,7 +1409,6 @@ export default function GuideApartmentDetail() {
           <Tab label="Guía y Normas" sx={{ fontWeight: 600 }} />
           <Tab label="Localizaciones" icon={<LocationOnIcon fontSize="small" />} iconPosition="start" sx={{ fontWeight: 600 }} />
           <Tab label="Bienvenida" icon={<CelebrationIcon fontSize="small" />} iconPosition="start" sx={{ fontWeight: 600 }} />
-          <Tab label="Pantalla TV" icon={<TvIcon fontSize="small" />} iconPosition="start" sx={{ fontWeight: 600 }} />
           <Tab label="Tienda" icon={<StoreIcon fontSize="small" />} iconPosition="start" sx={{ fontWeight: 600 }} />
         </Tabs>
 
@@ -1823,8 +1418,7 @@ export default function GuideApartmentDetail() {
           {activeMainTab === 1 && renderGuideTab()}
           {activeMainTab === 2 && renderPoisTab()}
           {activeMainTab === 3 && renderWelcomeTab()}
-          {activeMainTab === 4 && renderTvTab()}
-          {activeMainTab === 5 && renderStoreTab()}
+          {activeMainTab === 4 && renderStoreTab()}
         </Box>
       </Box>
 

@@ -32,6 +32,7 @@ const GuidePoisPage = lazy(() => import('./pages/guide/GuidePoisPage'));
 const GuideExperiencesPage = lazy(() => import('./pages/guide/GuideExperiencesPage'));
 const GuideStorePage = lazy(() => import('./pages/guide/GuideStorePage'));
 const GuideConversionsPage = lazy(() => import('./pages/guide/GuideConversionsPage'));
+const GuideTvPage = lazy(() => import('./pages/guide/GuideTvPage'));
 
 
 import { guideTheme } from './theme/guideTheme';
@@ -174,6 +175,14 @@ function App() {
             element={
               <Suspense fallback={<LinearProgress />}>
                 <GuideApartmentDetail />
+              </Suspense>
+            }
+          />
+          <Route
+            path="guide/tv"
+            element={
+              <Suspense fallback={<LinearProgress />}>
+                <GuideTvPage />
               </Suspense>
             }
           />

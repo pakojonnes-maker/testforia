@@ -22,7 +22,6 @@ import {
   useTheme,
   FormControl,
   Select,
-  InputLabel,
   ListItemButton,
   Tooltip,
   Badge,
@@ -57,6 +56,7 @@ import {
   Loyalty as LoyaltyIcon,
   Shield as ShieldIcon,
   ContentCopy as ContentCopyIcon,
+  Tv as TvIcon,
 } from '@mui/icons-material';
 import {
   Menu,
@@ -359,6 +359,13 @@ export default function DashboardLayout() {
       section: 'GESTIÓN'
     },
     {
+      text: 'Pantalla TV',
+      icon: <TvIcon />,
+      path: '/guide/tv',
+      featureKey: null,
+      section: 'GESTIÓN'
+    },
+    {
       text: 'Diseño',
       icon: <PaletteIcon />,
       path: '/guide/design',
@@ -443,79 +450,35 @@ export default function DashboardLayout() {
             boxShadow: '0 4px 12px rgba(0,0,0,0.1)'
           }}
         />
-        {hasMultipleRestaurants && (
-          <>
-            <ListItemButton
-              onClick={() => setRestaurantDialogOpen(true)}
-              sx={{
-                border: '1px solid',
-                borderColor: 'divider',
-                borderRadius: 1,
-                mt: 1,
-                mb: 1,
-                py: 1,
-                mx: 2,
-                width: 'auto'
-              }}
-            >
-              {currentRestaurant?.logo_url ? (
-                <Avatar
-                  src={currentRestaurant.logo_url}
-                  alt={currentRestaurant.name}
-                  sx={{ width: 24, height: 24, mr: 1 }}
-                />
-              ) : (
-                <RestaurantIcon sx={{ mr: 1, fontSize: 20, color: 'text.secondary' }} />
-              )}
-              <Box sx={{ overflow: 'hidden' }}>
-                <Typography variant="body2" noWrap sx={{ fontWeight: 500 }}>
-                  {currentRestaurant?.name || 'Seleccionar Restaurante'}
-                </Typography>
-                <Typography variant="caption" color="primary" sx={{ display: 'block' }}>
-                  Cambiar ({user.restaurants.length})
-                </Typography>
-              </Box>
-            </ListItemButton>
-
-            <RestaurantSelectorDialog
-              open={restaurantDialogOpen}
-              onClose={() => setRestaurantDialogOpen(false)}
-              onSelect={(id) => {
-                switchRestaurant(id);
-                setRestaurantDialogOpen(false);
-              }}
-              restaurants={user.restaurants}
-              currentRestaurantId={currentRestaurant?.id}
-            />
-          </>
-        )}
       </Toolbar>
-      <Divider />
 
-      {/* ✅ Mode Toggle for users with both restaurants and agencies */}
+      {/* ✅ Mode Toggle for users with both restaurants and agencies — the
+          top-level choice, so it comes first and drives which selector
+          (restaurant vs. agency) shows up below it. */}
       {(hasRestaurants && hasAgencies) && (
-        <Box sx={{ px: 2, py: 1.5 }}>
+        <Box sx={{ px: 2, pb: 2 }}>
           <Box sx={{
             display: 'flex',
-            borderRadius: 2,
-            overflow: 'hidden',
-            border: '1px solid',
-            borderColor: 'divider',
+            gap: 0.5,
+            borderRadius: 999,
+            p: 0.5,
+            bgcolor: 'rgba(255,255,255,0.06)',
           }}>
             <Button
               size="small"
               fullWidth
+              disableElevation
               onClick={() => { setAdminMode('restaurant'); navigate('/'); }}
               startIcon={<RestaurantIcon sx={{ fontSize: 16 }} />}
               sx={{
-                borderRadius: 0,
-                py: 0.8,
+                borderRadius: 999,
+                py: 0.7,
                 fontSize: '0.72rem',
-                fontWeight: adminMode === 'restaurant' ? 700 : 400,
-                bgcolor: adminMode === 'restaurant' ? 'primary.main' : 'transparent',
-                color: adminMode === 'restaurant' ? 'white' : 'text.secondary',
+                fontWeight: adminMode === 'restaurant' ? 700 : 500,
+                bgcolor: adminMode === 'restaurant' ? 'secondary.main' : 'transparent',
+                color: adminMode === 'restaurant' ? 'secondary.contrastText' : 'rgba(255,255,255,0.65)',
                 '&:hover': {
-                  bgcolor: adminMode === 'restaurant' ? 'primary.dark' : 'action.hover',
+                  bgcolor: adminMode === 'restaurant' ? 'secondary.dark' : 'rgba(255,255,255,0.08)',
                 },
               }}
             >
@@ -524,17 +487,18 @@ export default function DashboardLayout() {
             <Button
               size="small"
               fullWidth
+              disableElevation
               onClick={() => { setAdminMode('agency'); navigate('/guide'); }}
               startIcon={<ApartmentIcon sx={{ fontSize: 16 }} />}
               sx={{
-                borderRadius: 0,
-                py: 0.8,
+                borderRadius: 999,
+                py: 0.7,
                 fontSize: '0.72rem',
-                fontWeight: adminMode === 'agency' ? 700 : 400,
-                bgcolor: adminMode === 'agency' ? 'primary.main' : 'transparent',
-                color: adminMode === 'agency' ? 'white' : 'text.secondary',
+                fontWeight: adminMode === 'agency' ? 700 : 500,
+                bgcolor: adminMode === 'agency' ? 'secondary.main' : 'transparent',
+                color: adminMode === 'agency' ? 'secondary.contrastText' : 'rgba(255,255,255,0.65)',
                 '&:hover': {
-                  bgcolor: adminMode === 'agency' ? 'primary.dark' : 'action.hover',
+                  bgcolor: adminMode === 'agency' ? 'secondary.dark' : 'rgba(255,255,255,0.08)',
                 },
               }}
             >
@@ -544,19 +508,84 @@ export default function DashboardLayout() {
         </Box>
       )}
 
-      {/* ✅ Agency Selector (when in agency mode with multiple agencies) */}
+      {/* ✅ Restaurant selector — only relevant in restaurant mode, so it no
+          longer clutters the sidebar while managing the guidebook. */}
+      {adminMode === 'restaurant' && hasMultipleRestaurants && (
+        <Box sx={{ px: 2, pb: 2 }}>
+          <ListItemButton
+            onClick={() => setRestaurantDialogOpen(true)}
+            sx={{
+              border: '1px solid',
+              borderColor: 'divider',
+              borderRadius: 2,
+              py: 1,
+            }}
+          >
+            {currentRestaurant?.logo_url ? (
+              <Avatar
+                src={currentRestaurant.logo_url}
+                alt={currentRestaurant.name}
+                sx={{ width: 24, height: 24, mr: 1 }}
+              />
+            ) : (
+              <RestaurantIcon sx={{ mr: 1, fontSize: 20, color: 'text.secondary' }} />
+            )}
+            <Box sx={{ overflow: 'hidden' }}>
+              <Typography variant="body2" noWrap sx={{ fontWeight: 500 }}>
+                {currentRestaurant?.name || 'Seleccionar Restaurante'}
+              </Typography>
+              <Typography variant="caption" color="primary" sx={{ display: 'block' }}>
+                Cambiar ({user.restaurants.length})
+              </Typography>
+            </Box>
+          </ListItemButton>
+
+          <RestaurantSelectorDialog
+            open={restaurantDialogOpen}
+            onClose={() => setRestaurantDialogOpen(false)}
+            onSelect={(id) => {
+              switchRestaurant(id);
+              setRestaurantDialogOpen(false);
+            }}
+            restaurants={user.restaurants}
+            currentRestaurantId={currentRestaurant?.id}
+          />
+        </Box>
+      )}
+
+      {/* ✅ Agency selector — only relevant in agency mode. Styled explicitly
+          in white/translucent tones because guideTheme forces this Drawer to
+          a dark navy background while keeping a light-mode palette, so the
+          theme's own text.secondary/divider colors are unreadable here. */}
       {adminMode === 'agency' && user?.agencies && user.agencies.length > 1 && (
-        <Box sx={{ px: 2, pb: 1 }}>
+        <Box sx={{ px: 2, pb: 2 }}>
+          <Typography
+            variant="overline"
+            sx={{ display: 'block', pb: 0.5, fontSize: 11, fontWeight: 600, letterSpacing: '0.08em', color: 'rgba(255,255,255,0.45)' }}
+          >
+            Agencia
+          </Typography>
           <FormControl size="small" fullWidth>
-            <InputLabel id="agency-select-label">Agencia</InputLabel>
             <Select
-              labelId="agency-select-label"
               value={currentAgency?.id || ''}
-              label="Agencia"
               onChange={(e) => switchAgency(e.target.value)}
+              sx={{
+                borderRadius: 2,
+                bgcolor: 'rgba(255,255,255,0.06)',
+                color: '#FFFFFF',
+                '& .MuiOutlinedInput-notchedOutline': { borderColor: 'rgba(255,255,255,0.15)' },
+                '&:hover .MuiOutlinedInput-notchedOutline': { borderColor: 'rgba(255,255,255,0.3)' },
+                '&.Mui-focused .MuiOutlinedInput-notchedOutline': { borderColor: 'secondary.main' },
+                '& .MuiSvgIcon-root': { color: 'rgba(255,255,255,0.65)' },
+              }}
+              MenuProps={{ PaperProps: { sx: { bgcolor: '#1E3A5F', color: '#FFFFFF' } } }}
             >
               {user.agencies.map((agency: any) => (
-                <MenuItem key={agency.id} value={agency.id}>
+                <MenuItem
+                  key={agency.id}
+                  value={agency.id}
+                  sx={{ '&:hover': { bgcolor: 'rgba(255,255,255,0.08)' }, '&.Mui-selected': { bgcolor: 'rgba(255,255,255,0.12)' } }}
+                >
                   <Typography variant="body2">{agency.name}</Typography>
                 </MenuItem>
               ))}
@@ -564,6 +593,7 @@ export default function DashboardLayout() {
           </FormControl>
         </Box>
       )}
+      <Divider />
       <List>
         {(() => {
           const isAgency = adminMode === 'agency';
