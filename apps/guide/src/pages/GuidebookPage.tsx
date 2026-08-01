@@ -125,30 +125,34 @@ export default function GuidebookPage() {
   // --color-terracotta/--color-deep-sea definidos en el @theme de index.css.
   // Sobrescribir esos mismos tokens en runtime es lo que hace que "cambiar el
   // color en Diseño" se note de verdad en la guía, no solo en 2-3 sitios.
-  const FONT_TOKENS = ['--font-body-md', '--font-body-lg', '--font-label-lg', '--font-label-sm'];
-  const HEADLINE_FONT_TOKENS = ['--font-headline-md', '--font-headline-lg', '--font-headline-lg-mobile', '--font-display-lg'];
+  //
+  // Desde el rediseño "Modern Mediterranean Editorial" (ago 2026), terracotta/
+  // deep-sea son alias de primary (Azul Cobalto) / "Mar Profundo" — se siguen
+  // sobrescribiendo con esos mismos nombres para no tocar cada componente.
+  const FONT_TOKENS = ['--font-body-md', '--font-body-lg', '--font-label-lg', '--font-label-sm', '--font-label-caps'];
+  const HEADLINE_FONT_TOKENS = ['--font-headline-md', '--font-headline-lg', '--font-headline-lg-mobile', '--font-display-lg', '--font-display-xl'];
   useEffect(() => {
     const root = document.documentElement.style;
     if (data?.agency?.primary_color) {
       root.setProperty('--brand-primary', data.agency.primary_color);
       root.setProperty('--brand-secondary', data.agency.secondary_color || data.agency.primary_color);
-      root.setProperty('--color-deep-sea', data.agency.primary_color);
-      root.setProperty('--color-terracotta', data.agency.secondary_color || data.agency.primary_color);
+      root.setProperty('--color-terracotta', data.agency.primary_color);
+      root.setProperty('--color-deep-sea', data.agency.secondary_color || data.agency.primary_color);
     } else {
       root.setProperty('--brand-primary', 'var(--mar-azul)');
       root.setProperty('--brand-secondary', 'var(--mar-profundo)');
-      root.setProperty('--color-deep-sea', '#1E3A5F');
-      root.setProperty('--color-terracotta', '#C96D4B');
+      root.setProperty('--color-terracotta', '#0038AE');
+      root.setProperty('--color-deep-sea', '#001550');
     }
-    root.setProperty('--color-accent-gold', data?.agency?.accent_color || '#D4A853');
+    root.setProperty('--color-accent-gold', data?.agency?.accent_color || '#F7BE29');
 
     // Una sola fuente para todo el guidebook, tal como la vista previa del
     // admin (Diseño > Tipografía) da a entender: título y cuerpo con el mismo
     // ejemplo. Los títulos conservan su propio conjunto de tokens porque llevan
-    // Playfair Display (serif) por defecto — un cambio de fuente de agencia
+    // Newsreader (serif editorial) por defecto — un cambio de fuente de agencia
     // debe sustituir también eso, no solo el cuerpo del texto.
-    const bodyFont = data?.agency?.font_family ? `'${data.agency.font_family}', sans-serif` : 'Montserrat';
-    const headlineFont = data?.agency?.font_family ? `'${data.agency.font_family}', sans-serif` : "'Playfair Display'";
+    const bodyFont = data?.agency?.font_family ? `'${data.agency.font_family}', sans-serif` : 'Inter';
+    const headlineFont = data?.agency?.font_family ? `'${data.agency.font_family}', sans-serif` : "'Newsreader'";
     for (const token of FONT_TOKENS) root.setProperty(token, bodyFont);
     for (const token of HEADLINE_FONT_TOKENS) root.setProperty(token, headlineFont);
   }, [data?.agency]);
@@ -249,7 +253,8 @@ export default function GuidebookPage() {
   const { apartment, zone, agency, pois, restaurants, experiences, store_items } = data;
 
   return (
-    <div className="guide-app font-body-md text-on-surface bg-background min-h-screen">
+    <div className="guide-app font-body-md text-on-surface bg-background min-h-screen relative">
+      <div className="film-grain" />
       {showWelcome && data.welcome_modal && (
         <WelcomeModal welcome={data.welcome_modal} onClose={() => setShowWelcome(false)} lang={lang} />
       )}

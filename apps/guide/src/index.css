@@ -1,82 +1,124 @@
 @import "tailwindcss";
 
-@theme {
-  --color-tertiary-container: #687a52;
-  --color-primary-fixed: #ffdbcf;
-  --color-surface-variant: #e5e2dd;
-  --color-on-error: #ffffff;
-  --color-on-secondary-fixed-variant: #2d486d;
-  --color-primary: #944426;
-  --color-on-primary-fixed-variant: #793013;
-  --color-inverse-surface: #31302d;
-  --color-inverse-primary: #ffb59b;
-  --color-outline: #88726b;
-  --color-on-secondary-container: #3e5980;
-  --color-on-tertiary-container: #f9ffea;
-  --color-on-tertiary: #ffffff;
-  --color-on-error-container: #93000a;
-  --color-on-secondary-fixed: #001c3b;
-  --color-surface-dim: #dcdad5;
-  --color-tertiary-fixed-dim: #bacd9e;
-  --color-on-tertiary-fixed-variant: #3b4c28;
-  --color-secondary-fixed-dim: #adc8f5;
-  --color-surface-bright: #fcf9f4;
-  --color-terracotta: #C96D4B;
-  --color-deep-sea: #1E3A5F;
-  --color-surface-container-highest: #e5e2dd;
-  --color-error-container: #ffdad6;
-  --color-surface-container-high: #ebe8e3;
-  --color-primary-fixed-dim: #ffb59b;
-  --color-on-surface-variant: #55433d;
-  --color-tertiary-fixed: #d5eab9;
-  --color-outline-variant: #dbc1b9;
-  --color-secondary-fixed: #d5e3ff;
-  --color-olive: #6B7D54;
-  --color-on-secondary: #ffffff;
-  --color-on-tertiary-fixed: #111f02;
-  --color-on-background: #1c1c19;
-  --color-surface-container: #f0ede9;
-  --color-tertiary: #50613b;
-  --color-on-primary-fixed: #380d00;
-  --color-warm-sand: #F1EBE0;
-  /* Sobrescrito en runtime por GuidebookPage.tsx cuando la agencia tiene accent_color —
-     única forma en que ese campo del admin llegaba a alguna parte visible (ver
-     ServicesSection.tsx badge_type='new'). */
-  --color-accent-gold: #D4A853;
-  --color-surface-tint: #974728;
-  --color-on-primary-container: #fffbff;
-  --color-surface: #fcf9f4;
-  --color-primary-container: #b35c3b;
-  --color-surface-container-low: #f6f3ee;
-  --color-secondary-container: #b5d0fd;
-  --color-surface-container-lowest: #ffffff;
-  --color-error: #ba1a1a;
-  --color-inverse-on-surface: #f3f0eb;
-  --color-secondary: #455f87;
-  --color-on-primary: #ffffff;
-  --color-background: #fcf9f4;
-  --color-on-surface: #1c1c19;
-  --color-crisp-white: #FFFFFF;
+/* ================================================
+   VISUALTASTES GUIDEBOOK — Design System
+   Style: Modern Mediterranean Editorial (Stitch export, ago 2026)
+   Reemplaza "Mediterranean Horizon" (terracota/Playfair, redondeado, con
+   sombras). Ver frontend-stich/modern_mediterranean_editorial/DESIGN.md
+   para el sistema original tal cual lo exportó Stitch.
 
-  --radius: 0.25rem;
-  --radius-lg: 0.5rem;
-  --radius-xl: 0.75rem;
+   Reglas del sistema (de esa DESIGN.md — respétalas al tocar componentes):
+   - Esquinas a 0px en botones/tarjetas/inputs. La ÚNICA curva permitida es
+     el "arch mask" en imágenes (.arch-mask, solo esquinas superiores).
+   - Sin sombras. La separación visual se hace con bloques de color o
+     bordes de 1px (hairline, on-background al 10% de opacidad).
+   - "Horizon rule": línea de 2px con degradado cobalto→celeste para
+     separar secciones grandes (.horizon-rule).
+   - "Stamped badge": etiquetas pequeñas rotadas 2-4° (.stamped-badge-1/2/3)
+     con tipografía Space Mono, para precios/estados.
+   - Grano de película sutil sobre imágenes a sangre y overlay fijo de app
+     (.bg-grain por elemento, .film-grain fijo a toda la pantalla).
+   ================================================ */
+
+@theme {
+  /* Paleta Material-ish "Modern Mediterranean Editorial" */
+  --color-outline-variant: #c4c5d7;
+  --color-tertiary: #594100;
+  --color-surface-container-highest: #e3e2df;
+  --color-inverse-primary: #b6c4ff;
+  --color-on-error: #ffffff;
+  --color-secondary-container: #c4dcff;
+  --color-on-secondary-container: #49617f;
+  --color-on-secondary-fixed-variant: #304865;
+  --color-background: #faf9f5;
+  --color-secondary-fixed: #d2e4ff;
+  --color-secondary-fixed-dim: #b0c8eb;
+  --color-primary-fixed-dim: #b6c4ff;
+  --color-outline: #747686;
+  --color-inverse-on-surface: #f2f1ed;
+  --color-primary: #0038ae;
+  --color-error-container: #ffdad6;
+  --color-surface-dim: #dbdad6;
+  --color-on-background: #1b1c1a;
+  --color-surface: #faf9f5;
+  --color-surface-bright: #faf9f5;
+  --color-tertiary-fixed: #ffdf9d;
+  --color-surface-container-lowest: #ffffff;
+  --color-tertiary-fixed-dim: #f7be29;
+  --color-on-primary-fixed: #001550;
+  --color-on-secondary: #ffffff;
+  --color-on-primary-container: #cbd4ff;
+  --color-on-primary: #ffffff;
+  --color-on-tertiary-container: #ffcf65;
+  --color-primary-fixed: #dce1ff;
+  --color-surface-variant: #e3e2df;
+  --color-on-error-container: #93000a;
+  --color-error: #ba1a1a;
+  --color-tertiary-container: #765800;
+  --color-surface-tint: #1e51da;
+  --color-secondary: #48607e;
+  --color-inverse-surface: #2f312e;
+  --color-surface-container: #efeeea;
+  --color-on-tertiary-fixed: #251a00;
+  --color-on-secondary-fixed: #001c37;
+  --color-surface-container-high: #e9e8e4;
+  --color-on-surface: #1b1c1a;
+  --color-on-primary-fixed-variant: #003ab2;
+  --color-on-tertiary: #ffffff;
+  --color-on-surface-variant: #434655;
+  --color-on-tertiary-fixed-variant: #5b4300;
+  --color-primary-container: #1a4fd8;
+  --color-surface-container-low: #f4f4f0;
+
+  /* Alias heredados — decenas de componentes ya usan estos nombres; ahora
+     resuelven a la paleta nueva en vez de a "Mediterranean Horizon":
+       terracotta  -> primary (Azul Cobalto): acciones, CTAs, acentos
+       deep-sea    -> "Mar Profundo": titulares, footer
+       olive       -> secondary (tono "Agua"): etiquetas/categorías
+       warm-sand   -> surface-container-low: fondos suaves, chips
+       crisp-white -> surface-container-lowest: tarjetas, paneles
+       accent-gold -> tertiary-fixed-dim ("Sol"): precios, destacados.
+       Sobrescrito en runtime por GuidebookPage.tsx si la agencia tiene
+       accent_color configurado. */
+  --color-terracotta: #0038ae;
+  --color-deep-sea: #001550;
+  --color-olive: #48607e;
+  --color-warm-sand: #f4f4f0;
+  --color-crisp-white: #ffffff;
+  --color-accent-gold: #f7be29;
+
+  /* Esquinas a 0px salvo full (píldoras/avatares) — la excepción es
+     .arch-mask, que es CSS a mano, no una utilidad de Tailwind. */
+  --radius: 0px;
+  --radius-sm: 0px;
+  --radius-md: 0px;
+  --radius-lg: 0px;
+  --radius-xl: 0px;
+  --radius-2xl: 0px;
   --radius-full: 9999px;
-  
+
   --spacing-margin-mobile: 20px;
-  --spacing-gutter: 24px;
-  --spacing-container-max: 1200px;
+  --spacing-gutter: 16px;
+  --spacing-stack-sm: 8px;
+  --spacing-stack-md: 24px;
+  --spacing-stack-lg: 48px;
+  --spacing-container-max: 1280px;
   --spacing-base: 8px;
   --spacing-margin-desktop: 64px;
 
-  --font-label-lg: Montserrat;
-  --font-body-md: Montserrat;
-  --font-display-lg: "Playfair Display";
-  --font-headline-lg-mobile: "Playfair Display";
-  --font-body-lg: Montserrat;
-  --font-headline-md: "Playfair Display";
-  --font-headline-lg: "Playfair Display";
-  --font-label-sm: Montserrat;
+  --font-display-xl: "Newsreader";
+  --font-display-lg: "Newsreader";
+  --font-headline-md: "Newsreader";
+  --font-headline-lg: "Newsreader";
+  --font-headline-lg-mobile: "Newsreader";
+  --font-headline-sm: "Newsreader";
+  --font-body-md: "Inter";
+  --font-body-lg: "Inter";
+  --font-label-lg: "Inter";
+  --font-label-md: "Inter";
+  --font-label-sm: "Inter";
+  --font-label-caps: "Archivo Narrow";
+  --font-mono-badge: "Space Mono";
 }
 
 @source "../index.html";
@@ -85,55 +127,53 @@
 
 @layer base {
 /* ================================================
-   VISUALTASTES GUIDEBOOK — Design System
-   Style: Mediterranean Premium
+   Variables CSS heredadas (fuera del @theme de Tailwind) — algunos
+   componentes las referencian directamente vía var(--brand-primary), etc.
+   Repuntadas a la paleta nueva; --brand-primary/--brand-secondary son las
+   que GuidebookPage.tsx sobrescribe en runtime con el color de la agencia.
    ================================================ */
 
 :root {
-  /* Brand colors (can be overridden by agency settings via inline styles on html/body) */
+  /* Brand colors (overridden at runtime by agency settings — GuidebookPage.tsx) */
   --brand-primary: var(--mar-azul);
   --brand-secondary: var(--mar-profundo);
 
-  /* Deep Mediterranean blue */
-  --mar-profundo: #0B3D6B;
-  /* Ocean blue */
-  --mar-azul: #1565C0;
-  /* Clear water */
-  --mar-claro: #2196F3;
-  /* Crystal water */
-  --mar-cristal: #64B5F6;
-  /* Sea foam */
-  --mar-espuma: #E3F2FD;
-  
-  /* Whitewashed wall */
-  --blanco-encalado: #FEFEFE;
-  /* Warm white */
-  --blanco-calido: #FAF8F4;
-  /* Golden sand */
-  --arena-dorada: #F5F0E8;
-  /* Mid sand */
-  --arena-media: #E8DFD0;
-  
-  /* Terracotta */
-  --terracota: #C0673A;
-  /* Soft terracota bg */
-  --terracota-suave: #F2E8E0;
-  
-  /* Olive green */
-  --oliva: #5D7A3E;
-  /* Soft olive bg */
-  --oliva-suave: #EAF0E3;
-  
-  /* Gold accent */
-  --oro: #D4A853;
-  
-  /* Grays */
-  --gris-piedra: #6B7280;
-  --gris-texto: #374151;
-  --gris-suave: #E5E7EB;
-  --negro-suave: #1F2937;
+  /* "Mar Profundo" - deep cobalt navy, headlines/footers */
+  --mar-profundo: #001550;
+  /* "Azul Cobalto" - primary action color */
+  --mar-azul: #0038AE;
+  /* Lighter cobalt */
+  --mar-claro: #1A4FD8;
+  /* Pale cobalt tint */
+  --mar-cristal: #B6C4FF;
+  /* Palest cobalt wash */
+  --mar-espuma: #DCE1FF;
 
-  /* Spacing */
+  /* Cal (whitewash) */
+  --blanco-encalado: #FFFFFF;
+  --blanco-calido: #FAF9F5;
+  /* Soft neutral surfaces */
+  --arena-dorada: #F4F4F0;
+  --arena-media: #E3E2DF;
+
+  /* Kept for legacy references — now resolves to cobalt primary */
+  --terracota: #0038AE;
+  --terracota-suave: #DCE1FF;
+
+  /* "Agua" secondary accent */
+  --oliva: #48607E;
+  --oliva-suave: #C4DCFF;
+
+  /* "Sol" gold accent */
+  --oro: #F7BE29;
+
+  /* Grays */
+  --gris-piedra: #747686;
+  --gris-texto: #434655;
+  --gris-suave: #E3E2DF;
+  --negro-suave: #1B1C1A;
+
+  /* Spacing (legacy scale, still used by a couple of inline-styled components) */
   --sp-xs: 4px;
   --sp-sm: 8px;
   --sp-md: 16px;
@@ -141,21 +181,22 @@
   --sp-xl: 32px;
   --sp-2xl: 48px;
 
-  /* Radii */
-  --r-sm: 8px;
-  --r-md: 12px;
-  --r-lg: 20px;
-  --r-xl: 24px;
+  /* Radii (legacy) — new UI should not need these, the system is flat */
+  --r-sm: 0px;
+  --r-md: 0px;
+  --r-lg: 0px;
+  --r-xl: 0px;
   --r-pill: 999px;
 
-  /* Shadows */
-  --sh-sm: 0 2px 8px rgba(11, 61, 107, 0.04);
-  --sh-md: 0 4px 16px rgba(11, 61, 107, 0.08);
-  --sh-lg: 0 8px 32px rgba(192, 103, 58, 0.08);
+  /* Shadows (legacy) — the flat system uses hairline borders instead; kept
+     only so nothing still referencing them breaks. */
+  --sh-sm: none;
+  --sh-md: none;
+  --sh-lg: none;
 
   /* Fonts */
   --f-body: 'Inter', system-ui, sans-serif;
-  --f-display: 'Playfair Display', serif;
+  --f-display: 'Newsreader', serif;
 }
 
 /* Base Reset */
@@ -183,9 +224,66 @@ button{font-family:inherit;cursor:pointer;border:none;background:none;outline:no
 }
 
 /* ================================================
-   LANDING — Mediterranean editorial motifs
-   Grain texture, azulejo tile pattern, marquee/float keyframes
+   Motivos editoriales compartidos (guidebook + landing)
+   Arco, horizon rule, azulejo, grano, stamped badges, marquee/float
    ================================================ */
+
+/* Arch mask — la única curva permitida por el sistema: cabecera semicircular,
+   lados y base rectos, evocando la arquitectura mediterránea. */
+.arch-mask {
+  border-top-left-radius: 9999px;
+  border-top-right-radius: 9999px;
+  border-bottom-left-radius: 0;
+  border-bottom-right-radius: 0;
+}
+
+/* Horizon rule — línea de 2px cobalto→celeste para separar secciones grandes,
+   a todo el ancho del contenedor. */
+.horizon-rule {
+  height: 2px;
+  background: linear-gradient(to right, #0038ae, #b6c4ff);
+  width: 100%;
+}
+
+/* Azulejo pattern — retícula geométrica al 8-10% de opacidad para fondos de
+   estado vacío / paneles de marca. */
+.azulejo-pattern {
+  background-color: var(--color-background);
+  background-image:
+    linear-gradient(45deg, #0038ae 25%, transparent 25%, transparent 75%, #0038ae 75%, #0038ae),
+    linear-gradient(45deg, #0038ae 25%, transparent 25%, transparent 75%, #0038ae 75%, #0038ae);
+  background-size: 20px 20px;
+  background-position: 0 0, 10px 10px;
+  opacity: 0.08;
+}
+
+/* Stamped badge — etiquetas "selladas a mano", rotadas entre 2 y 4 grados
+   alternando. Combinar con font-mono-badge + uppercase. */
+.stamped-badge-1 { transform: rotate(3deg); }
+.stamped-badge-2 { transform: rotate(-2deg); }
+.stamped-badge-3 { transform: rotate(4deg); }
+
+/* Film grain — overlay fijo y sutil sobre toda la pantalla del guidebook
+   (huésped), a diferencia de .bg-grain (por elemento, usado en la landing). */
+.film-grain {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 40;
+  opacity: 0.04;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.65' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)'/%3E%3C/svg%3E");
+}
+
+/* Hide scrollbar on horizontal rail scrollers — usada por DiscoverSection y
+   ServicesSection; antes no estaba definida (scrollbar visible por bug). */
+.hide-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+.hide-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
 .bg-grain {
   position: relative;
   isolation: isolate;
@@ -199,14 +297,6 @@ button{font-family:inherit;cursor:pointer;border:none;background:none;outline:no
   opacity: 0.05;
   mix-blend-mode: overlay;
   background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='140' height='140'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
-}
-
-.bg-azulejo {
-  background-color: var(--mar-profundo, #0B3D6B);
-  background-image:
-    radial-gradient(circle at 0 0, rgba(255,255,255,0.05) 0, rgba(255,255,255,0.05) 2px, transparent 2px),
-    radial-gradient(circle at 20px 20px, rgba(255,255,255,0.05) 0, rgba(255,255,255,0.05) 2px, transparent 2px);
-  background-size: 40px 40px;
 }
 
 @keyframes marquee-scroll {
@@ -231,11 +321,6 @@ button{font-family:inherit;cursor:pointer;border:none;background:none;outline:no
 }
 .animate-float-slower {
   animation: float-slower 9s ease-in-out infinite;
-}
-
-.bg-wave-lines {
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='300' height='120'%3E%3Cpath d='M0 55 Q75 15 150 55 T300 55' fill='none' stroke='%230B3D6B' stroke-opacity='0.05' stroke-width='2'/%3E%3Cpath d='M0 90 Q75 50 150 90 T300 90' fill='none' stroke='%23C0673A' stroke-opacity='0.05' stroke-width='2'/%3E%3C/svg%3E");
-  background-repeat: repeat;
 }
 
 @keyframes reveal-up {

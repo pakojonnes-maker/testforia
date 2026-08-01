@@ -16,6 +16,8 @@ interface CTAButtonProps {
   onIntent: (action: string) => void;
 }
 
+// Flat, uppercase label-caps button — WhatsApp keeps its brand green (not part
+// of the guidebook palette, guests recognize it), everything else is cobalt.
 export default function CTAButton({ experience, lang, onIntent }: CTAButtonProps) {
   const { action_type, action_data, prefilled_message, cta_label } = experience;
 
@@ -43,20 +45,20 @@ export default function CTAButton({ experience, lang, onIntent }: CTAButtonProps
 
   let iconName = 'arrow_forward';
   let defaultLabelKey = 'show_more';
-  let bgColors = 'var(--brand-primary)';
-  
+  let bgClass = 'bg-primary hover:bg-primary-container';
+
   if (action_type === 'WHATSAPP') {
     iconName = 'chat';
     defaultLabelKey = 'book_whatsapp';
-    bgColors = '#25D366';
+    bgClass = 'bg-[#25D366] hover:bg-[#1fb959]';
   } else if (action_type === 'URL') {
     iconName = 'language';
     defaultLabelKey = 'book_online';
-    bgColors = 'var(--brand-primary)';
+    bgClass = 'bg-primary hover:bg-primary-container';
   } else if (action_type === 'PHONE') {
     iconName = 'phone';
     defaultLabelKey = 'call_now';
-    bgColors = 'var(--oliva)';
+    bgClass = 'bg-secondary hover:bg-on-secondary-fixed-variant';
   }
 
   const label = cta_label || getTranslation(defaultLabelKey, lang);
@@ -64,31 +66,9 @@ export default function CTAButton({ experience, lang, onIntent }: CTAButtonProps
   return (
     <button
       onClick={handleClick}
-      style={{
-        display: 'inline-flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        gap: '8px',
-        padding: '12px 20px',
-        borderRadius: 'var(--r-pill)',
-        fontSize: '0.9rem',
-        fontWeight: 700,
-        background: bgColors,
-        color: '#fff',
-        transition: 'transform 0.2s, box-shadow 0.2s',
-        width: '100%',
-        boxShadow: 'var(--sh-sm)'
-      }}
-      onMouseEnter={(e) => {
-        e.currentTarget.style.transform = 'translateY(-2px)';
-        e.currentTarget.style.boxShadow = 'var(--sh-md)';
-      }}
-      onMouseLeave={(e) => {
-        e.currentTarget.style.transform = 'none';
-        e.currentTarget.style.boxShadow = 'var(--sh-sm)';
-      }}
+      className={`inline-flex items-center justify-center gap-2 px-5 py-3 font-label-caps text-label-caps uppercase text-on-primary w-full transition-colors ${bgClass}`}
     >
-      <span className={`material-icons-round${iconName === 'arrow_forward' ? ' icon-directional' : ''}`} style={{ fontSize: '18px' }}>{iconName}</span>
+      <span className={`material-symbols-outlined text-[18px]${iconName === 'arrow_forward' ? ' icon-directional' : ''}`}>{iconName}</span>
       {label}
     </button>
   );

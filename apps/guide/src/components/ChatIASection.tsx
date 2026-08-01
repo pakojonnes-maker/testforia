@@ -274,10 +274,10 @@ export default function ChatIASection({
         <button
           key={idx}
           onClick={() => onNavigateTab?.('services')}
-          className="flex items-center justify-between gap-3 bg-warm-sand rounded-xl px-4 py-3 text-left hover:bg-surface-variant transition-colors w-full"
+          className="flex items-center justify-between gap-3 bg-surface-container-low border border-on-background/10 px-4 py-3 text-left hover:border-primary transition-colors w-full"
         >
-          <span className="font-label-md text-label-md text-deep-sea">{item.name}</span>
-          <span className="font-label-sm text-label-sm text-terracotta font-bold whitespace-nowrap">{item.price_display}</span>
+          <span className="font-label-md text-label-md text-on-background">{item.name}</span>
+          <span className="font-mono-badge text-mono-badge text-primary whitespace-nowrap">{item.price_display}</span>
         </button>
       );
     }
@@ -288,10 +288,10 @@ export default function ChatIASection({
         <button
           key={idx}
           onClick={() => onNavigateTab?.('restaurants')}
-          className="flex items-center justify-between gap-3 bg-warm-sand rounded-xl px-4 py-3 text-left hover:bg-surface-variant transition-colors w-full"
+          className="flex items-center justify-between gap-3 bg-surface-container-low border border-on-background/10 px-4 py-3 text-left hover:border-primary transition-colors w-full"
         >
-          <span className="font-label-md text-label-md text-deep-sea">{r.name}</span>
-          <span className="material-symbols-outlined text-terracotta text-[18px]">restaurant</span>
+          <span className="font-label-md text-label-md text-on-background">{r.name}</span>
+          <span className="material-symbols-outlined text-primary text-[18px]">restaurant</span>
         </button>
       );
     }
@@ -299,8 +299,8 @@ export default function ChatIASection({
       const exp = experiences.find(x => x.id === id);
       if (!exp) return null;
       return (
-        <div key={idx} className="bg-warm-sand rounded-xl px-4 py-3">
-          <p className="font-label-md text-label-md text-deep-sea mb-2">{exp.name}</p>
+        <div key={idx} className="bg-surface-container-low border border-on-background/10 px-4 py-3">
+          <p className="font-label-md text-label-md text-on-background mb-2">{exp.name}</p>
           <CTAButton experience={exp} lang={lang} onIntent={() => {}} />
         </div>
       );
@@ -314,10 +314,10 @@ export default function ChatIASection({
           href={poi.google_maps_url}
           target="_blank"
           rel="noopener noreferrer"
-          className="flex items-center justify-between gap-3 bg-warm-sand rounded-xl px-4 py-3 hover:bg-surface-variant transition-colors w-full"
+          className="flex items-center justify-between gap-3 bg-surface-container-low border border-on-background/10 px-4 py-3 hover:border-primary transition-colors w-full"
         >
-          <span className="font-label-md text-label-md text-deep-sea">{poi.name}</span>
-          <span className="material-symbols-outlined text-terracotta text-[18px]">location_on</span>
+          <span className="font-label-md text-label-md text-on-background">{poi.name}</span>
+          <span className="material-symbols-outlined text-primary text-[18px]">location_on</span>
         </a>
       );
     }
@@ -326,18 +326,20 @@ export default function ChatIASection({
 
   return (
     <div className="flex flex-col h-[calc(100vh-200px)] md:h-[600px] w-full max-w-3xl mx-auto relative bg-surface">
-      {/* AI Header */}
+      {/* AI Header — "AI Concierge" (Stitch): avatar en arco, título en mayúsculas */}
       <div className="text-center mb-8 shrink-0">
-        <div className="w-16 h-16 bg-warm-sand rounded-full flex items-center justify-center mx-auto mb-4 shadow-[0px_4px_20px_rgba(201,109,75,0.08)]">
-          <span className="material-symbols-outlined text-terracotta text-3xl" style={{ fontVariationSettings: "'FILL' 1" }}>spark</span>
+        <div className="w-16 h-20 arch-mask bg-primary/10 border border-primary/20 flex items-center justify-center mx-auto mb-4">
+          <span className="material-symbols-outlined text-primary text-3xl" style={{ fontVariationSettings: "'FILL' 1" }}>spark</span>
         </div>
-        <h2 className="text-headline-md font-headline-md text-deep-sea mb-2">{getTranslation('chat_assistant_title', lang)}</h2>
-        <p className="text-body-md font-body-md text-on-surface-variant max-w-md mx-auto">
+        <h2 className="font-display-lg text-display-lg text-primary uppercase tracking-widest mb-2">{getTranslation('chat_assistant_title', lang)}</h2>
+        <p className="font-body-md text-body-md text-on-surface-variant max-w-md mx-auto">
           {getTranslation('chat_assistant_subtitle', lang)}
         </p>
       </div>
 
-      {/* Chat History */}
+      {/* Chat History — las burbujas redondeadas son la única excepción del
+          sistema plano en esta pantalla (así lo exportó Stitch: rounded-3xl
+          con borde primary, ver AI Concierge code.html). */}
       <div
         className="flex-grow overflow-y-auto flex flex-col gap-6 px-2 mb-6"
         style={{ scrollbarWidth: 'thin' }}
@@ -349,8 +351,8 @@ export default function ChatIASection({
           >
             <div className={`flex gap-3 ${msg.sender === 'user' ? 'flex-row-reverse' : ''}`}>
               {msg.sender === 'ai' ? (
-                <div className="w-8 h-8 rounded-full bg-warm-sand flex-shrink-0 flex items-center justify-center mt-1">
-                  <span className="material-symbols-outlined text-terracotta text-sm" style={{ fontVariationSettings: "'FILL' 1" }}>spark</span>
+                <div className="w-8 h-8 rounded-full bg-primary/10 flex-shrink-0 flex items-center justify-center mt-1">
+                  <span className="material-symbols-outlined text-primary text-sm" style={{ fontVariationSettings: "'FILL' 1" }}>spark</span>
                 </div>
               ) : (
                 <div className="w-8 h-8 rounded-full bg-surface-container-high flex-shrink-0 overflow-hidden mt-1 flex items-center justify-center">
@@ -359,21 +361,21 @@ export default function ChatIASection({
               )}
 
               <div
-                className={`p-4 rounded-2xl shadow-sm text-body-md font-body-md ${
+                className={`p-4 rounded-3xl border text-body-md font-body-md ${
                   msg.sender === 'user'
-                    ? 'bg-terracotta text-crisp-white rounded-tr-sm'
-                    : 'bg-crisp-white text-on-surface rounded-tl-sm shadow-[0px_4px_20px_rgba(201,109,75,0.08)]'
+                    ? 'bg-primary border-primary text-on-primary rounded-tr-sm'
+                    : 'bg-surface-container-lowest border-primary/20 text-on-surface rounded-tl-sm'
                 }`}
               >
                 {msg.text || (msg.streaming && (
                   <span className="flex items-center gap-1">
-                    <span className="w-1.5 h-1.5 bg-terracotta rounded-full animate-bounce [animation-delay:0ms]" />
-                    <span className="w-1.5 h-1.5 bg-terracotta rounded-full animate-bounce [animation-delay:150ms]" />
-                    <span className="w-1.5 h-1.5 bg-terracotta rounded-full animate-bounce [animation-delay:300ms]" />
+                    <span className="w-1.5 h-1.5 bg-primary rounded-full animate-bounce [animation-delay:0ms]" />
+                    <span className="w-1.5 h-1.5 bg-primary rounded-full animate-bounce [animation-delay:150ms]" />
+                    <span className="w-1.5 h-1.5 bg-primary rounded-full animate-bounce [animation-delay:300ms]" />
                   </span>
                 ))}
                 {msg.streaming && msg.text && (
-                  <span className="inline-block w-0.5 h-4 bg-terracotta ml-0.5 animate-pulse align-middle" />
+                  <span className="inline-block w-0.5 h-4 bg-primary ml-0.5 animate-pulse align-middle" />
                 )}
               </div>
             </div>
@@ -390,14 +392,15 @@ export default function ChatIASection({
 
       {/* Input Area */}
       <div className="shrink-0 bg-surface pb-2">
-        {/* Quick Action Chips */}
-        <div className="flex overflow-x-auto gap-3 pb-4" style={{ scrollbarWidth: 'none' }}>
+        {/* Quick Action Chips — mono-badge en mayúsculas, pill outline (la
+            píldora es la otra excepción explícita de esta pantalla) */}
+        <div className="flex overflow-x-auto gap-2 pb-4 hide-scrollbar">
           {quickActions.map((action, idx) => (
             <button
               key={idx}
               onClick={() => handleSend(action.text)}
               disabled={isLoading}
-              className="whitespace-nowrap px-4 py-2 rounded-full bg-deep-sea/10 text-deep-sea text-label-sm font-label-sm border border-deep-sea/20 hover:bg-deep-sea/20 transition-colors flex items-center gap-2 disabled:opacity-40 disabled:cursor-not-allowed"
+              className="whitespace-nowrap px-4 py-2 rounded-full border border-on-background/15 bg-surface-container-lowest text-on-surface-variant font-mono-badge text-mono-badge uppercase hover:border-primary hover:text-primary transition-colors flex items-center gap-2 disabled:opacity-40 disabled:cursor-not-allowed"
             >
               <span className="material-symbols-outlined text-[16px]">{action.icon}</span>
               {action.text}
@@ -406,11 +409,11 @@ export default function ChatIASection({
         </div>
 
         {/* Text Input */}
-        <div className="relative bg-warm-sand rounded-xl p-2 flex items-center shadow-inner transition-colors focus-within:bg-crisp-white focus-within:ring-1 focus-within:ring-deep-sea">
+        <div className="relative bg-surface-container-low rounded-full p-2 flex items-center transition-colors focus-within:bg-surface-container-lowest focus-within:ring-1 focus-within:ring-primary">
           <input
             ref={inputRef}
             type="text"
-            className="w-full bg-transparent border-none focus:ring-0 text-body-md font-body-md text-on-surface placeholder:text-on-surface-variant/60 px-4 py-3 outline-none"
+            className="w-full bg-transparent border-none focus:ring-0 font-body-md text-body-md text-on-surface placeholder:text-on-surface-variant/60 px-4 py-3 outline-none"
             placeholder={getTranslation('chat_placeholder', lang)}
             value={inputValue}
             onChange={e => setInputValue(e.target.value)}
@@ -420,10 +423,10 @@ export default function ChatIASection({
           <button
             onClick={() => handleSend(inputValue)}
             disabled={isLoading || !inputValue.trim()}
-            className="w-12 h-12 rounded-lg bg-terracotta text-crisp-white flex items-center justify-center hover:bg-surface-tint transition-colors ml-2 shrink-0 shadow-sm disabled:opacity-40 disabled:cursor-not-allowed"
+            className="w-11 h-11 rounded-full bg-primary text-on-primary flex items-center justify-center hover:bg-primary-container transition-colors ml-2 shrink-0 disabled:opacity-40 disabled:cursor-not-allowed"
           >
             {isLoading ? (
-              <span className="w-5 h-5 border-2 border-crisp-white/40 border-t-crisp-white rounded-full animate-spin" />
+              <span className="w-5 h-5 border-2 border-on-primary/40 border-t-on-primary rounded-full animate-spin" />
             ) : (
               <span className="material-symbols-outlined">send</span>
             )}
@@ -431,7 +434,7 @@ export default function ChatIASection({
         </div>
 
         {/* AI disclaimer */}
-        <p className="text-center text-label-sm font-label-sm text-on-surface-variant/50 mt-3">
+        <p className="text-center font-label-sm text-label-sm text-on-surface-variant/50 mt-3">
           {getTranslation('chat_disclaimer', lang)}
         </p>
       </div>

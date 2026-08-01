@@ -41,24 +41,24 @@ export default function MapModal({ pois, onClose, zoneName, lang }: MapModalProp
 
   return (
     <div
-      className="fixed inset-0 z-50 flex flex-col bg-black/60 backdrop-blur-sm animate-[fadeIn_0.2s_ease]"
+      className="fixed inset-0 z-50 flex flex-col bg-on-background/60 animate-[fadeIn_0.2s_ease]"
       onClick={onClose}
     >
       <div
-        className="relative flex flex-col w-full h-full md:h-[90vh] md:w-[90vw] md:max-w-4xl md:mx-auto md:my-auto md:rounded-2xl overflow-hidden bg-crisp-white"
+        className="relative flex flex-col w-full h-full md:h-[90vh] md:w-[90vw] md:max-w-4xl md:mx-auto md:my-auto overflow-hidden bg-surface-container-lowest border border-on-background/10"
         onClick={e => e.stopPropagation()}
       >
         {/* Header */}
-        <div className="flex items-center justify-between p-4 bg-crisp-white border-b border-warm-sand">
+        <div className="flex items-center justify-between p-4 bg-surface-container-lowest border-b border-on-background/10">
           <div>
-            <h3 className="font-headline-md text-headline-md text-deep-sea">{zoneName}</h3>
+            <h3 className="font-headline-md text-headline-md text-on-background">{zoneName}</h3>
             <p className="font-label-sm text-label-sm text-on-surface-variant">{getTranslation('places_on_map', lang).replace('{count}', String(validPois.length))}</p>
           </div>
           <button
             onClick={onClose}
-            className="w-10 h-10 flex items-center justify-center rounded-full hover:bg-warm-sand transition-colors"
+            className="w-10 h-10 flex items-center justify-center hover:bg-warm-sand transition-colors"
           >
-            <span className="material-symbols-outlined text-deep-sea">close</span>
+            <span className="material-symbols-outlined text-on-background">close</span>
           </button>
         </div>
 

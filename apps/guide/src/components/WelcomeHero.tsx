@@ -10,6 +10,9 @@ interface WelcomeHeroProps {
   currentLang: string;
 }
 
+// "Home & House Manual" (Stitch) hero: arch-masked image, horizon rule, then
+// name/address as a separate editorial block below — not overlaid as text on
+// the photo, which is the "Mediterranean Horizon" pattern this replaces.
 export default function WelcomeHero({
   apartmentName,
   address,
@@ -19,7 +22,7 @@ export default function WelcomeHero({
   currentLang
 }: WelcomeHeroProps) {
   // Use provided cover image or a placeholder if missing
-  const bgImage = coverImageUrl || 'https://placehold.co/1200x800/e5e2dd/55433d?text=No+Image';
+  const bgImage = coverImageUrl || 'https://placehold.co/1200x800/e3e2df/434655?text=No+Image';
 
   const handleVerDireccion = () => {
     if (address) {
@@ -29,44 +32,48 @@ export default function WelcomeHero({
   };
 
   return (
-    <section className="relative w-full h-[400px] rounded-2xl overflow-hidden shadow-[0px_4px_20px_rgba(201,109,75,0.08)]">
-      <div 
-        className="absolute inset-0 bg-cover bg-center" 
-        style={{ backgroundImage: `url('${bgImage}')` }}
-      ></div>
-      <div className="absolute inset-0 bg-gradient-to-t from-deep-sea/80 via-transparent to-transparent"></div>
-
-      {agencyLogoUrl && (
-        <div className="absolute top-4 right-4 md:top-6 md:right-6 bg-crisp-white/90 backdrop-blur-sm rounded-xl p-2 shadow-md">
+    <section className="flex flex-col gap-stack-md">
+      <div className="w-full flex justify-center">
+        <div className="relative w-full md:w-10/12 aspect-[3/4] md:aspect-video arch-mask overflow-hidden border border-on-background/10 bg-surface-variant">
           <img
-            src={agencyLogoUrl}
-            alt={agencyName || ''}
-            className="h-8 md:h-10 max-w-[120px] object-contain"
+            className="w-full h-full object-cover absolute inset-0"
+            src={bgImage}
+            alt={apartmentName}
           />
-        </div>
-      )}
-
-      <div className="absolute bottom-0 left-0 p-6 md:p-8 w-full text-crisp-white">
-        <div className="flex flex-col md:flex-row md:justify-between md:items-end gap-4">
-          <div>
-            <h2 className="text-headline-lg-mobile md:text-display-lg font-headline-lg-mobile md:font-display-lg mb-2">
-              {apartmentName}
-            </h2>
-            {address && (
-              <p className="flex items-center gap-2 text-body-md font-body-md opacity-90">
-                <span className="material-symbols-outlined" style={{ fontVariationSettings: "'FILL' 1" }}>
-                  location_on
-                </span>
-                {address}
-              </p>
-            )}
-          </div>
-          {address && (
-            <button onClick={handleVerDireccion} className="bg-crisp-white text-terracotta px-6 py-3 rounded-full font-label-lg text-label-lg shadow-md hover:bg-warm-sand transition-colors w-full md:w-auto shrink-0">
-              {getTranslation('view_address', currentLang)}
-            </button>
+          {agencyLogoUrl && (
+            <div className="absolute top-4 right-4 bg-surface-container-lowest border border-on-background/10 p-2">
+              <img
+                src={agencyLogoUrl}
+                alt={agencyName || ''}
+                className="h-8 md:h-10 max-w-[120px] object-contain"
+              />
+            </div>
           )}
         </div>
+      </div>
+
+      <div className="horizon-rule" />
+
+      <div className="flex flex-col md:flex-row md:justify-between md:items-end gap-4">
+        <h1 className="font-display-xl text-display-xl text-primary uppercase tracking-tighter max-w-2xl">
+          {apartmentName}
+        </h1>
+        {address && (
+          <div className="flex flex-col gap-3 md:items-end shrink-0">
+            <p className="flex items-center gap-2 font-body-md text-body-md text-on-surface-variant">
+              <span className="material-symbols-outlined text-[18px]" style={{ fontVariationSettings: "'FILL' 1" }}>
+                location_on
+              </span>
+              {address}
+            </p>
+            <button
+              onClick={handleVerDireccion}
+              className="border border-primary text-primary px-6 py-3 font-label-caps text-label-caps uppercase hover:bg-primary hover:text-on-primary transition-colors w-full md:w-auto"
+            >
+              {getTranslation('view_address', currentLang)}
+            </button>
+          </div>
+        )}
       </div>
     </section>
   );

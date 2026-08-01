@@ -33,18 +33,18 @@ export default function WelcomeModal({ welcome, onClose, lang }: WelcomeModalPro
 
   return (
     <div
-      className="fixed inset-0 z-[60] flex items-end md:items-center justify-center bg-black/60 backdrop-blur-sm animate-[fadeIn_0.2s_ease]"
+      className="fixed inset-0 z-[60] flex items-end md:items-center justify-center bg-on-background/60 animate-[fadeIn_0.2s_ease]"
       onClick={onClose}
     >
       <div
-        className="relative w-full md:max-w-sm md:mx-4 bg-crisp-white rounded-t-2xl md:rounded-2xl overflow-hidden shadow-2xl"
+        className="relative w-full md:max-w-sm md:mx-4 bg-surface-container-lowest border border-on-background/10 overflow-hidden"
         onClick={e => e.stopPropagation()}
       >
         {/* Close button — always available, independent of the action button below */}
         <button
           onClick={onClose}
           aria-label={getTranslation('close', lang)}
-          className="absolute top-3 right-3 z-10 w-9 h-9 flex items-center justify-center rounded-full bg-black/30 backdrop-blur-sm text-white hover:bg-black/50 transition-colors"
+          className="absolute top-3 right-3 z-10 w-9 h-9 flex items-center justify-center bg-on-background/40 text-crisp-white hover:bg-on-background/60 transition-colors"
         >
           <span className="material-symbols-outlined text-[20px]">close</span>
         </button>
@@ -56,7 +56,7 @@ export default function WelcomeModal({ welcome, onClose, lang }: WelcomeModalPro
         )}
 
         <div className="p-6 text-center">
-          <h2 className="font-headline-md text-headline-md text-deep-sea mb-2">{welcome.title}</h2>
+          <h2 className="font-headline-md text-headline-md text-on-background mb-2">{welcome.title}</h2>
           {welcome.body && (
             <p className="font-body-md text-body-md text-on-surface-variant whitespace-pre-line mb-5">
               {welcome.body}
@@ -69,7 +69,7 @@ export default function WelcomeModal({ welcome, onClose, lang }: WelcomeModalPro
               target={welcome.action_type === 'URL' ? '_blank' : undefined}
               rel="noopener noreferrer"
               onClick={onClose}
-              className="block w-full py-3 rounded-full text-crisp-white font-label-lg font-semibold transition-transform active:scale-[0.98]"
+              className="block w-full py-3 text-crisp-white font-label-caps text-label-caps uppercase transition-colors"
               style={{ backgroundColor: 'var(--brand-primary)' }}
             >
               {welcome.action_label || getTranslation('show_more', lang)}

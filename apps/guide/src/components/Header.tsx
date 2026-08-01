@@ -39,7 +39,7 @@ function FlagIcon({ lang, size = 18 }: { lang: string; size?: number }) {
       alt=""
       width={size}
       height={size}
-      className="rounded-sm object-cover shrink-0"
+      className="object-cover shrink-0"
       style={{ width: size, height: size }}
       onError={() => setErrored(true)}
     />
@@ -56,67 +56,58 @@ interface HeaderProps {
   apartmentName: string;
 }
 
+const TABS: Array<{ id: TabKey; key: string }> = [
+  { id: 'info', key: 'tab_info' },
+  { id: 'discover', key: 'tab_discover' },
+  { id: 'restaurants', key: 'tab_restaurants' },
+  { id: 'services', key: 'tab_services' },
+  { id: 'chat', key: 'tab_chat' },
+];
+
 export default function Header({ activeTab, onTabChange, lang, onLanguageChange, apartmentName }: HeaderProps) {
   const [showLangMenu, setShowLangMenu] = useState(false);
 
   return (
-    <header className="bg-surface dark:bg-on-background shadow-sm docked full-width top-0 z-40 sticky">
-      <div className="flex flex-col w-full pt-4 px-margin-mobile gap-4 max-w-container-max mx-auto">
-        <div className="flex justify-between items-center w-full gap-4">
+    <header className="bg-background sticky top-0 z-40 border-b-2 border-primary">
+      <div className="flex flex-col w-full px-margin-mobile md:px-margin-desktop max-w-container-max mx-auto">
+        <div className="flex justify-between items-center w-full gap-4 py-4 md:py-6">
           <div className="flex items-center gap-2 min-w-0">
-            <span className="material-symbols-outlined text-terracotta dark:text-primary-fixed shrink-0" style={{ fontVariationSettings: "'FILL' 1" }}>cottage</span>
-            <span className="font-label-lg text-label-lg text-deep-sea dark:text-crisp-white font-bold line-clamp-2">{apartmentName}</span>
+            <span className="material-symbols-outlined text-primary shrink-0" style={{ fontVariationSettings: "'FILL' 1" }}>cottage</span>
+            <span className="font-display-lg text-[18px] md:text-headline-md text-primary uppercase tracking-tight line-clamp-1">{apartmentName}</span>
           </div>
 
-          {/* Web Navigation (Hidden on Mobile) */}
+          {/* Web Navigation (Hidden on Mobile — BottomNavBar covers mobile tab switching) */}
           <nav className="hidden md:flex gap-8">
-            <button
-              onClick={() => onTabChange('info')}
-              className={`pb-2 transition-colors scale-95 duration-150 ease-in-out font-bold ${activeTab === 'info' ? 'text-olive border-b-2 border-olive' : 'text-on-surface-variant dark:text-surface-variant hover:text-terracotta dark:hover:text-primary-fixed'}`}
-            >
-              {getTranslation('tab_info', lang)}
-            </button>
-            <button
-              onClick={() => onTabChange('discover')}
-              className={`pb-2 transition-colors scale-95 duration-150 ease-in-out font-bold ${activeTab === 'discover' ? 'text-olive border-b-2 border-olive' : 'text-on-surface-variant dark:text-surface-variant hover:text-terracotta dark:hover:text-primary-fixed'}`}
-            >
-              {getTranslation('tab_discover', lang)}
-            </button>
-            <button
-              onClick={() => onTabChange('restaurants')}
-              className={`pb-2 transition-colors scale-95 duration-150 ease-in-out font-bold ${activeTab === 'restaurants' ? 'text-olive border-b-2 border-olive' : 'text-on-surface-variant dark:text-surface-variant hover:text-terracotta dark:hover:text-primary-fixed'}`}
-            >
-              {getTranslation('tab_restaurants', lang)}
-            </button>
-            <button
-              onClick={() => onTabChange('services')}
-              className={`pb-2 transition-colors scale-95 duration-150 ease-in-out font-bold ${activeTab === 'services' ? 'text-olive border-b-2 border-olive' : 'text-on-surface-variant dark:text-surface-variant hover:text-terracotta dark:hover:text-primary-fixed'}`}
-            >
-              {getTranslation('tab_services', lang)}
-            </button>
-            <button
-              onClick={() => onTabChange('chat')}
-              className={`pb-2 transition-colors scale-95 duration-150 ease-in-out font-bold ${activeTab === 'chat' ? 'text-olive border-b-2 border-olive' : 'text-on-surface-variant dark:text-surface-variant hover:text-terracotta dark:hover:text-primary-fixed'}`}
-            >
-              {getTranslation('tab_chat', lang)}
-            </button>
+            {TABS.map(tab => (
+              <button
+                key={tab.id}
+                onClick={() => onTabChange(tab.id)}
+                className={`pb-1 font-label-caps text-label-caps uppercase tracking-widest transition-colors ${
+                  activeTab === tab.id
+                    ? 'text-primary border-b-2 border-primary'
+                    : 'text-secondary hover:text-primary'
+                }`}
+              >
+                {getTranslation(tab.key, lang)}
+              </button>
+            ))}
           </nav>
-          
+
           <div className="relative shrink-0">
             <button
               onClick={() => setShowLangMenu(!showLangMenu)}
               aria-label="Language"
               aria-haspopup="true"
               aria-expanded={showLangMenu}
-              className="flex items-center justify-center w-10 h-10 rounded-full bg-warm-sand text-deep-sea hover:bg-surface-variant transition-colors md:w-auto md:h-auto md:justify-start md:gap-2 md:px-4 md:py-2 md:rounded-full font-label-sm text-label-sm"
+              className="flex items-center justify-center w-9 h-9 border border-on-background/10 bg-surface-container-lowest text-on-background hover:border-primary transition-colors md:w-auto md:h-auto md:justify-start md:gap-2 md:px-4 md:py-2 font-label-caps text-label-caps uppercase"
             >
-              <FlagIcon lang={lang} size={20} />
+              <FlagIcon lang={lang} size={18} />
               <span className="hidden md:inline">{lang.toUpperCase()}</span>
               <span className="material-symbols-outlined text-[16px] hidden md:inline">expand_more</span>
             </button>
 
             {showLangMenu && (
-              <div className="absolute top-full right-0 mt-2 bg-crisp-white border border-warm-sand rounded-xl shadow-md z-50 min-w-[160px] max-w-[calc(100vw-2rem)] overflow-hidden">
+              <div className="absolute top-full right-0 mt-2 bg-surface-container-lowest border border-on-background/10 z-50 min-w-[160px] max-w-[calc(100vw-2rem)] overflow-hidden">
                 {Object.keys(LANG_NAMES).map((code) => (
                   <div
                     key={code}
@@ -124,7 +115,7 @@ export default function Header({ activeTab, onTabChange, lang, onLanguageChange,
                       if (onLanguageChange) onLanguageChange(code);
                       setShowLangMenu(false);
                     }}
-                    className="flex items-center gap-2 px-4 py-2 text-body-md hover:bg-warm-sand cursor-pointer"
+                    className="flex items-center gap-2 px-4 py-2 font-body-md text-body-md hover:bg-warm-sand cursor-pointer"
                   >
                     <FlagIcon lang={code} size={18} />
                     {LANG_NAMES[code]}

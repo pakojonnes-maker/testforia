@@ -61,27 +61,29 @@ export default function DiscoverSection({ pois, zoneName, zoneDescription, lang 
     : null;
 
   return (
-    <div className="flex flex-col gap-8">
+    <div className="flex flex-col gap-stack-lg">
       {/* Page Header */}
       <section className="flex flex-col gap-2">
-        <h2 className="text-headline-lg-mobile md:text-headline-lg font-headline-lg-mobile md:font-headline-lg text-deep-sea">
+        <h2 className="font-display-xl text-display-xl text-on-background uppercase tracking-tighter">
           {getTranslation('discover_title', lang).replace('{zone}', zoneName || getTranslation('surroundings_fallback', lang))}
         </h2>
-        <p className="text-body-md font-body-md text-on-surface-variant">
+        <p className="font-body-lg text-body-lg text-on-surface-variant max-w-2xl">
           {zoneDescription || getTranslation('discover_default_description', lang)}
         </p>
       </section>
 
-      {/* Category Filter Chips */}
-      <div className="flex gap-3 overflow-x-auto hide-scrollbar py-2 -mx-margin-mobile px-margin-mobile md:mx-0 md:px-0">
+      <div className="horizon-rule hidden md:block" />
+
+      {/* Category Filter Tabs */}
+      <div className="flex gap-8 overflow-x-auto hide-scrollbar border-b border-on-background/10 -mx-margin-mobile px-margin-mobile md:mx-0 md:px-0">
         {categories.map(cat => (
-          <button 
+          <button
             key={cat}
             onClick={() => setActiveFilter(cat)}
-            className={`px-6 py-2 rounded-full font-label-lg text-label-lg whitespace-nowrap transition-colors ${
-              activeFilter === cat 
-                ? 'bg-deep-sea text-crisp-white border border-deep-sea' 
-                : 'bg-deep-sea/10 text-on-surface border border-deep-sea/20 hover:bg-deep-sea/20'
+            className={`pb-3 font-label-caps text-label-caps uppercase tracking-widest whitespace-nowrap transition-colors ${
+              activeFilter === cat
+                ? 'text-primary border-b-2 border-primary'
+                : 'text-secondary hover:text-primary'
             }`}
           >
             {cat === ALL_FILTER ? getTranslation('filter_all', lang) : getCategoryLabel(cat, lang)}
@@ -89,35 +91,32 @@ export default function DiscoverSection({ pois, zoneName, zoneDescription, lang 
         ))}
       </div>
 
-      {/* Bento Grid Layout for Locations */}
-      <section className="grid grid-cols-1 md:grid-cols-12 gap-6">
+      {/* Content Grid */}
+      <section className="grid grid-cols-1 md:grid-cols-12 gap-x-gutter gap-y-stack-lg">
         {filteredItems.map((item) => {
           const isFeatured = item.id === featuredItemId;
-          const bgImg = item.image || 'https://placehold.co/600x400/e5e2dd/55433d?text=' + encodeURIComponent(item.name);
-          
+          const bgImg = item.image || 'https://placehold.co/600x400/e3e2df/434655?text=' + encodeURIComponent(item.name);
+
           if (isFeatured) {
             return (
-              <article key={item.id} className="col-span-1 md:col-span-8 bg-crisp-white rounded-xl shadow-[0px_4px_20px_rgba(201,109,75,0.08)] overflow-hidden flex flex-col hover:shadow-[0px_12px_32px_rgba(30,58,95,0.12)] transition-shadow duration-300 group">
-                <div className="relative h-64 md:h-80 w-full overflow-hidden">
-                  <img className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-700 ease-out" src={bgImg} alt={item.name} />
+              <article key={item.id} className="col-span-1 md:col-span-12 flex flex-col md:flex-row gap-6 md:gap-8 items-start border border-on-background/10 bg-surface-container-lowest p-4 md:p-6">
+                <div className="w-full md:w-5/12 aspect-[4/5] relative arch-mask overflow-hidden bg-surface-variant flex-shrink-0">
+                  <img className="w-full h-full object-cover" src={bgImg} alt={item.name} />
                   {item.rating && (
-                    <div className="flex items-center gap-1 bg-crisp-white/90 backdrop-blur-sm rounded-full px-2 py-1 absolute top-4 right-4 shadow-sm">
-                      <span className="material-symbols-outlined text-[#D4A853] text-[14px]" style={{fontVariationSettings: "'FILL' 1"}}>star</span>
-                      <span className="font-label-sm text-label-sm text-deep-sea">{item.rating.toFixed(1)}</span>
+                    <div className="absolute top-4 right-4 stamped-badge-1 bg-tertiary-fixed-dim text-on-tertiary-fixed font-mono-badge text-mono-badge px-2 py-1 uppercase border border-on-background/10">
+                      ★ {item.rating.toFixed(1)}
                     </div>
                   )}
                 </div>
-                <div className="p-6 flex flex-col gap-4 flex-grow">
-                  <div className="flex justify-between items-start gap-4">
-                    <div>
-                      <span className="text-label-sm font-label-sm text-olive uppercase tracking-wider mb-1 block">{getCategoryLabel(item.category, lang)}</span>
-                      <h3 className="text-headline-md font-headline-md text-deep-sea font-semibold">{item.name}</h3>
-                    </div>
+                <div className="w-full md:w-7/12 flex flex-col justify-between h-full">
+                  <div>
+                    <span className="font-label-caps text-label-caps text-secondary uppercase tracking-widest mb-2 block">{getCategoryLabel(item.category, lang)}</span>
+                    <h3 className="font-headline-md text-headline-md text-on-background mb-3">{item.name}</h3>
+                    <p className="font-body-md text-body-md text-on-surface-variant mb-6 max-w-lg">{item.description}</p>
                   </div>
-                  <p className="text-body-md font-body-md text-on-surface-variant line-clamp-2">{item.description}</p>
-                  <div className="mt-auto pt-4 flex justify-between items-center border-t border-warm-sand">
-                    {item.travel_time_text ? (
-                      <div className="flex items-center gap-1 text-on-surface-variant">
+                  <div className="flex flex-col sm:flex-row gap-4 mt-auto border-t border-on-background/10 pt-6">
+                    {item.travel_time_text && (
+                      <div className="flex items-center gap-1 text-on-surface-variant shrink-0">
                         <span className="material-symbols-outlined text-[16px]">
                           {item.travel_mode === 'drive' ? 'directions_car' : 'directions_walk'}
                         </span>
@@ -125,15 +124,12 @@ export default function DiscoverSection({ pois, zoneName, zoneDescription, lang 
                           {item.travel_time_text}{item.distance_text ? ` / ${item.distance_text}` : ''}
                         </span>
                       </div>
-                    ) : (
-                      <div />
                     )}
                     <button
                       onClick={() => setSelectedItem(item)}
-                      className="text-terracotta font-label-lg text-label-lg flex items-center gap-1 hover:text-primary-container transition-colors group/btn"
+                      className="bg-primary text-on-primary font-label-caps text-label-caps uppercase px-6 py-3 hover:bg-primary-container transition-colors flex-1 sm:flex-none text-center"
                     >
                       {getTranslation('view_details', lang)}
-                      <span className="material-symbols-outlined icon-directional text-sm group-hover/btn:translate-x-1 transition-transform">arrow_forward</span>
                     </button>
                   </div>
                 </div>
@@ -143,25 +139,20 @@ export default function DiscoverSection({ pois, zoneName, zoneDescription, lang 
 
           // Secondary Cards
           return (
-            <article key={item.id} className="col-span-1 md:col-span-4 bg-crisp-white rounded-xl shadow-[0px_4px_20px_rgba(201,109,75,0.08)] overflow-hidden flex flex-col hover:shadow-[0px_12px_32px_rgba(30,58,95,0.12)] transition-shadow duration-300 group">
-              <div className="relative h-48 w-full overflow-hidden">
-                <img className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-700 ease-out" src={bgImg} alt={item.name} />
+            <article key={item.id} className="col-span-1 md:col-span-4 bg-surface-container-lowest border border-on-background/10 flex flex-col group">
+              <div className="relative h-48 w-full arch-mask overflow-hidden m-2 bg-surface-variant">
+                <img className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" src={bgImg} alt={item.name} />
                 {item.rating && (
-                  <div className="flex items-center gap-1 bg-crisp-white/90 backdrop-blur-sm rounded-full px-2 py-1 absolute top-4 right-4 shadow-sm">
-                    <span className="material-symbols-outlined text-[#D4A853] text-[14px]" style={{fontVariationSettings: "'FILL' 1"}}>star</span>
-                    <span className="font-label-sm text-label-sm text-deep-sea">{item.rating.toFixed(1)}</span>
+                  <div className="absolute top-2 right-2 stamped-badge-2 bg-primary text-on-primary font-mono-badge text-mono-badge px-2 py-1 uppercase border border-on-background/10">
+                    ★ {item.rating.toFixed(1)}
                   </div>
                 )}
               </div>
-              <div className="p-5 flex flex-col gap-3 flex-grow">
-                <div className="flex justify-between items-start gap-2">
-                  <div>
-                    <span className="text-label-sm font-label-sm text-olive uppercase tracking-wider mb-1 block">{getCategoryLabel(item.category, lang)}</span>
-                    <h3 className="text-headline-md text-[20px] font-headline-md text-deep-sea font-semibold line-clamp-1">{item.name}</h3>
-                  </div>
-                </div>
-                <p className="text-body-md text-[14px] font-body-md text-on-surface-variant line-clamp-2">{item.description}</p>
-                
+              <div className="p-4 flex flex-col gap-2 flex-grow">
+                <span className="font-label-caps text-label-caps text-secondary uppercase tracking-widest">{getCategoryLabel(item.category, lang)}</span>
+                <h3 className="font-headline-md text-[20px] leading-tight text-on-background line-clamp-1">{item.name}</h3>
+                <p className="font-body-md text-[14px] text-on-surface-variant line-clamp-2">{item.description}</p>
+
                 {item.travel_time_text && (
                   <div className="flex items-center gap-1 text-on-surface-variant">
                     <span className="material-symbols-outlined text-[16px]">
@@ -173,10 +164,10 @@ export default function DiscoverSection({ pois, zoneName, zoneDescription, lang 
                   </div>
                 )}
 
-                <div className="mt-auto pt-3">
+                <div className="mt-auto pt-2 border-t border-on-background/10">
                   <button
                     onClick={() => setSelectedItem(item)}
-                    className="w-full py-2 rounded-lg border border-deep-sea text-deep-sea font-label-lg text-label-lg hover:bg-deep-sea hover:text-crisp-white transition-colors text-center"
+                    className="w-full py-2 border border-primary text-primary font-label-caps text-label-caps uppercase hover:bg-primary hover:text-on-primary transition-colors text-center"
                   >
                     {getTranslation('view_details', lang)}
                   </button>
@@ -188,15 +179,18 @@ export default function DiscoverSection({ pois, zoneName, zoneDescription, lang 
       </section>
 
       {/* Map Teaser */}
-      <section className="mt-4 bg-warm-sand rounded-xl p-6 flex flex-col md:flex-row items-center justify-between gap-6 shadow-[0px_4px_20px_rgba(201,109,75,0.08)]">
-        <div className="flex flex-col gap-2 max-w-lg">
-          <h3 className="text-headline-md font-headline-md text-deep-sea font-semibold">{getTranslation('prefer_map_title', lang)}</h3>
-          <p className="text-body-md font-body-md text-on-surface-variant">{getTranslation('prefer_map_desc', lang)}</p>
+      <section className="relative mt-4 border border-on-background/10 overflow-hidden">
+        <div className="absolute inset-0 azulejo-pattern" />
+        <div className="relative flex flex-col md:flex-row items-center justify-between gap-6 p-6">
+          <div className="flex flex-col gap-2 max-w-lg">
+            <h3 className="font-headline-md text-headline-md text-on-background">{getTranslation('prefer_map_title', lang)}</h3>
+            <p className="font-body-md text-body-md text-on-surface-variant">{getTranslation('prefer_map_desc', lang)}</p>
+          </div>
+          <button onClick={() => openMapFor(null)} className="bg-primary text-on-primary px-6 py-3 font-label-caps text-label-caps uppercase hover:bg-primary-container transition-colors flex items-center gap-2 whitespace-nowrap w-full md:w-auto justify-center shrink-0">
+            <span className="material-symbols-outlined">map</span>
+            {getTranslation('open_interactive_map', lang)}
+          </button>
         </div>
-        <button onClick={() => openMapFor(null)} className="bg-terracotta text-crisp-white px-6 py-3 rounded-lg font-label-lg text-label-lg hover:bg-primary transition-colors flex items-center gap-2 whitespace-nowrap w-full md:w-auto justify-center shadow-sm">
-          <span className="material-symbols-outlined">map</span>
-          {getTranslation('open_interactive_map', lang)}
-        </button>
       </section>
 
       {showMap && (

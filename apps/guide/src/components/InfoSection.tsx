@@ -51,85 +51,112 @@ export default function InfoSection({ infoItems, lang }: InfoSectionProps) {
   const wifiItem = infoItems.find(item => item.key.toLowerCase() === 'wifi');
   const doorCodeItem = infoItems.find(item => item.key.toLowerCase() === 'door_code');
   const guideItems = infoItems.filter(item => item.key.toLowerCase() !== 'wifi' && item.key.toLowerCase() !== 'door_code');
+  const gridItems = guideItems.slice(0, -1);
+  const featuredItem = guideItems.length > 4 ? guideItems[guideItems.length - 1] : null;
+  const remainingGrid = featuredItem ? gridItems : guideItems;
 
   return (
-    <div className="flex flex-col gap-12">
+    <div className="flex flex-col gap-stack-lg">
       {doorCodeItem && (
-        <div className="bg-terracotta/10 border border-terracotta/30 rounded-2xl p-4 flex items-center justify-between mb-6">
+        <div className="bg-primary/5 border border-primary/25 p-4 flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <span className="material-symbols-outlined text-terracotta" style={{fontVariationSettings: "'FILL' 1"}}>door_front</span>
+            <span className="material-symbols-outlined text-primary" style={{fontVariationSettings: "'FILL' 1"}}>door_front</span>
             <div>
-              <p className="font-label-sm text-label-sm text-terracotta uppercase tracking-wider">{getTranslation('door_code_title', lang)}</p>
-              <p className="font-headline-md text-headline-md text-deep-sea tracking-widest">{doorCodeItem.content}</p>
+              <p className="font-label-caps text-label-caps text-primary uppercase">{getTranslation('door_code_title', lang)}</p>
+              <p className="font-mono-badge text-[20px] text-on-background tracking-widest">{doorCodeItem.content}</p>
             </div>
           </div>
           <button
             onClick={() => copyToClipboard(doorCodeItem.content, 'door_code')}
-            className="p-2 rounded-full hover:bg-terracotta/10 transition-colors flex items-center gap-1"
+            className="p-2 hover:bg-primary/10 transition-colors flex items-center gap-1"
             aria-label={getTranslation('copy_btn', lang)}
           >
             {copiedKey === 'door_code' && (
-              <span className="font-label-sm text-label-sm text-terracotta">{getTranslation('copied', lang)}</span>
+              <span className="font-label-sm text-label-sm text-primary">{getTranslation('copied', lang)}</span>
             )}
-            <span className="material-symbols-outlined text-terracotta text-[20px]">
+            <span className="material-symbols-outlined text-primary text-[20px]">
               {copiedKey === 'door_code' ? 'check' : 'content_copy'}
             </span>
           </button>
         </div>
       )}
 
-      {/* Quick Actions Grid */}
-      {guideItems.length > 0 && (
+      {/* House Manual grid — arch-masked images, eyebrow key + headline */}
+      {remainingGrid.length > 0 && (
         <section>
-          <h3 className="text-headline-md font-headline-md text-deep-sea mb-6">{getTranslation('quick_guides', lang)}</h3>
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-            {guideItems.map(item => {
-              const bgImg = item.media?.[0]?.url || 'https://placehold.co/600x400/e5e2dd/55433d?text=' + encodeURIComponent(item.title);
+          <h3 className="font-display-lg text-display-lg text-on-background uppercase tracking-tighter mb-stack-md">
+            {getTranslation('quick_guides', lang)}
+          </h3>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-x-gutter gap-y-stack-md">
+            {remainingGrid.map(item => {
+              const bgImg = item.media?.[0]?.url || 'https://placehold.co/600x400/e3e2df/434655?text=' + encodeURIComponent(item.title);
               return (
-                <div 
-                  key={item.id} 
-                  className="relative aspect-[4/3] rounded-2xl overflow-hidden shadow-sm group cursor-pointer"
+                <div
+                  key={item.id}
+                  className="flex flex-col group cursor-pointer"
                   onClick={() => setSelectedItem(item)}
                 >
-                  <img 
-                    className="absolute inset-0 w-full h-full object-cover transition-transform duration-500 group-hover:scale-105" 
-                    src={bgImg} 
-                    alt={item.title} 
-                  />
-                  <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent"></div>
-                  <div className="absolute bottom-3 left-3 right-3 flex justify-between items-end gap-2">
-                    <span className="font-label-md text-label-md text-white line-clamp-2 leading-tight">
-                      {item.title}
-                    </span>
-                    <span className="material-symbols-outlined icon-directional text-white text-[18px] shrink-0">
-                      chevron_right
-                    </span>
+                  <div className="w-full aspect-[4/3] arch-mask overflow-hidden border border-on-background/10 mb-2 relative bg-surface-variant">
+                    <img
+                      className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
+                      src={bgImg}
+                      alt={item.title}
+                    />
                   </div>
+                  <span className="font-mono-badge text-mono-badge uppercase text-secondary mb-1">{item.key}</span>
+                  <h4 className="font-headline-md text-[18px] leading-tight text-on-background">{item.title}</h4>
                 </div>
               );
             })}
           </div>
+
+          {/* Featured guide — wide arch banner, matches the "Pool & Filtration" treatment */}
+          {featuredItem && (
+            <div
+              className="flex flex-col group cursor-pointer mt-stack-md border-t border-on-background/10 pt-stack-md"
+              onClick={() => setSelectedItem(featuredItem)}
+            >
+              <div className="w-full aspect-[16/9] arch-mask overflow-hidden border border-on-background/10 mb-4 relative bg-surface-variant">
+                <img
+                  className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
+                  src={featuredItem.media?.[0]?.url || 'https://placehold.co/1200x600/e3e2df/434655?text=' + encodeURIComponent(featuredItem.title)}
+                  alt={featuredItem.title}
+                />
+              </div>
+              <div className="flex flex-col md:flex-row md:items-end justify-between gap-4">
+                <div>
+                  <span className="font-mono-badge text-mono-badge uppercase text-primary mb-2 block">{featuredItem.key}</span>
+                  <h4 className="font-display-lg text-display-lg text-on-background">{featuredItem.title}</h4>
+                </div>
+                <button className="text-primary border border-primary px-4 py-2 font-label-caps text-label-caps uppercase hover:bg-primary hover:text-on-primary transition-colors w-fit shrink-0">
+                  {getTranslation('show_more', lang)}
+                </button>
+              </div>
+            </div>
+          )}
         </section>
       )}
 
-      {/* Smart Home Controls */}
+      {/* WiFi */}
       {wifiItem && (
         <section>
-          <h3 className="text-headline-md font-headline-md text-deep-sea mb-6">{getTranslation('connectivity', lang)}</h3>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <div className="bg-crisp-white p-6 rounded-2xl shadow-[0px_4px_20px_rgba(201,109,75,0.08)] flex flex-col justify-between h-40">
+          <h3 className="font-display-lg text-display-lg text-on-background uppercase tracking-tighter mb-stack-md">
+            {getTranslation('connectivity', lang)}
+          </h3>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-gutter">
+            <div className="bg-surface-container-lowest border border-on-background/10 p-6 flex flex-col justify-between h-40">
               <div className="flex items-center gap-3">
-                <span className="material-symbols-outlined text-deep-sea">wifi</span>
-                <h4 className="font-label-lg text-label-lg text-deep-sea">{wifiItem.title}</h4>
+                <span className="material-symbols-outlined text-primary">wifi</span>
+                <h4 className="font-label-caps text-label-caps uppercase text-on-surface-variant">{wifiItem.title}</h4>
               </div>
               <div className="flex justify-between items-end">
                 <div>
-                  <p className="text-[10px] uppercase tracking-wider text-on-surface-variant mb-1">{getTranslation('network_password_label', lang)}</p>
-                  <p className="font-body-md text-body-md text-deep-sea font-medium whitespace-pre-wrap">{wifiItem.content}</p>
+                  <p className="font-label-caps text-[10px] uppercase tracking-wider text-on-surface-variant mb-1">{getTranslation('network_password_label', lang)}</p>
+                  <p className="font-mono-badge text-[15px] text-on-background whitespace-pre-wrap">{wifiItem.content}</p>
                 </div>
                 <button
                   onClick={() => copyToClipboard(wifiItem.content, 'wifi')}
-                  className="p-2 bg-warm-sand text-terracotta rounded-lg hover:bg-surface-variant transition-colors flex items-center gap-1"
+                  className="p-2 border border-on-background/10 text-primary hover:border-primary transition-colors flex items-center gap-1"
                   title={getTranslation('copy_btn', lang)}
                 >
                   {copiedKey === 'wifi' && (
@@ -147,28 +174,28 @@ export default function InfoSection({ infoItems, lang }: InfoSectionProps) {
 
       {/* Modal Popup for Details */}
       {selectedItem && (
-        <div 
-          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-[fadeIn_0.2s_ease]"
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-on-background/60 animate-[fadeIn_0.2s_ease]"
           onClick={() => setSelectedItem(null)}
         >
-          <div 
-            className="bg-surface rounded-2xl w-full max-w-lg overflow-hidden shadow-xl animate-[slideUp_0.3s_ease]" 
+          <div
+            className="bg-surface-container-lowest border border-on-background/10 w-full max-w-lg overflow-hidden animate-[slideUp_0.3s_ease]"
             onClick={e => e.stopPropagation()}
           >
             <div className="relative h-64 md:h-80">
-              <img 
-                src={selectedItem.media?.[0]?.url || 'https://placehold.co/600x400/e5e2dd/55433d?text=' + encodeURIComponent(selectedItem.title)} 
-                className="w-full h-full object-cover" 
+              <img
+                src={selectedItem.media?.[0]?.url || 'https://placehold.co/600x400/e3e2df/434655?text=' + encodeURIComponent(selectedItem.title)}
+                className="w-full h-full object-cover"
                 alt={selectedItem.title}
               />
-              <button 
-                className="absolute top-4 right-4 w-10 h-10 bg-black/40 text-white rounded-full flex items-center justify-center hover:bg-black/60 transition-colors backdrop-blur-sm"
+              <button
+                className="absolute top-4 right-4 w-10 h-10 bg-on-background/50 text-crisp-white flex items-center justify-center hover:bg-on-background/70 transition-colors"
                 onClick={() => setSelectedItem(null)}
               >
                 <span className="material-symbols-outlined">close</span>
               </button>
-              <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent pointer-events-none"></div>
-              <h3 className="absolute bottom-6 left-6 right-6 text-headline-sm font-headline-sm text-white">
+              <div className="absolute inset-0 bg-gradient-to-t from-on-background/80 via-transparent to-transparent pointer-events-none" />
+              <h3 className="absolute bottom-6 left-6 right-6 font-headline-md text-headline-md text-crisp-white">
                 {selectedItem.title}
               </h3>
             </div>
@@ -177,18 +204,18 @@ export default function InfoSection({ infoItems, lang }: InfoSectionProps) {
                 <div>
                   {selectedItem.steps.map(step => (
                     <div key={step.id} className="flex gap-4 mb-6">
-                      <div className="flex-shrink-0 w-8 h-8 rounded-full bg-terracotta text-crisp-white flex items-center justify-center font-label-sm text-label-sm font-bold">
+                      <div className="flex-shrink-0 w-8 h-8 bg-primary text-on-primary flex items-center justify-center font-mono-badge text-mono-badge">
                         {step.step_number}
                       </div>
                       <div className="flex-1">
-                        <h4 className="font-label-lg text-label-lg text-deep-sea mb-1">{step.title}</h4>
+                        <h4 className="font-label-caps text-label-caps uppercase text-on-background mb-1">{step.title}</h4>
                         <p className="font-body-md text-body-md text-on-surface-variant">{step.content}</p>
-                        {step.media?.[0] && <img src={step.media[0].url} className="mt-3 rounded-xl w-full object-cover max-h-48" alt={step.title} />}
+                        {step.media?.[0] && <img src={step.media[0].url} className="mt-3 w-full object-cover max-h-48 border border-on-background/10" alt={step.title} />}
                         {step.checklist_items && step.checklist_items.length > 0 && (
                           <ul className="mt-2 space-y-1">
                             {step.checklist_items.map((item, i) => (
                               <li key={i} className="flex items-center gap-2 font-body-md text-body-md text-on-surface-variant">
-                                <span className="material-symbols-outlined text-olive text-[18px]">check_circle</span>
+                                <span className="material-symbols-outlined text-primary text-[18px]">check_circle</span>
                                 {item}
                               </li>
                             ))}
@@ -199,7 +226,7 @@ export default function InfoSection({ infoItems, lang }: InfoSectionProps) {
                   ))}
                 </div>
               ) : (
-                <div className="text-body-md font-body-md text-on-surface-variant whitespace-pre-wrap leading-relaxed">
+                <div className="font-body-md text-body-md text-on-surface-variant whitespace-pre-wrap leading-relaxed">
                   {selectedItem.content}
                 </div>
               )}
