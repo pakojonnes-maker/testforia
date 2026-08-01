@@ -29,7 +29,7 @@
 // ============================================
 
 import { verifyJWT } from './workerAuthentication.js';
-import { touchGuideVersion, touchZoneGuideVersions } from './workerGuideCache.js';
+import { touchGuideVersion, touchZoneGuideVersions, touchAllGuideVersions } from './workerGuideCache.js';
 
 function jsonResponse(data, status = 200) {
     return new Response(JSON.stringify(data), {
@@ -321,6 +321,13 @@ export async function handleGuideAdminRequests(request, env) {
         if (path === 'zone-restaurants' && method === 'DELETE') {
             if (!isSuperAdmin) return errorResponse('Only superadmin can manage zone restaurants', 403);
             return await unlinkZoneRestaurant(env, await request.json());
+        }
+        // Search across the core `restaurants` table (the actual SaaS tenants), so the
+        // zone-restaurants admin page can find a restaurant to link without needing its
+        // own restaurant CRUD — that already lives in workerRestaurants.js.
+        if (path === 'restaurants-search' && method === 'GET') {
+            if (!isSuperAdmin) return errorResponse('Only superadmin can search restaurants', 403);
+            return await searchRestaurants(env, url.searchParams.get('q') || '');
         }
 
         // ============ STATS & COMMISSIONS ============
@@ -704,6 +711,36 @@ const STORE_ITEM_WRITABLE_FIELDS = [
     'cover_image_url', 'contact_whatsapp', 'order_index', 'stock_qty'
 ];
 
+// El listado usa SELECT * (sin traducciones) porque son varias filas por idioma;
+// se cargan aparte y se agrupan por item para no hacer un JOIN por idioma. Añade
+// `translations: {lang: {name, description}}` y, para pintar listas sin abrir el
+// diálogo de edición, una `name`/`description` de conveniencia (ES, con fallback
+// a la primera que haya).
+async function attachStoreItemTranslations(env, items) {
+    if (!items || items.length === 0) return items;
+    const ids = items.map(i => i.id);
+    const placeholders = ids.map(() => '?').join(',');
+    const rows = await env.DB.prepare(
+        `SELECT entity_id, field, language_code, value FROM translations
+         WHERE entity_type = 'store_item' AND entity_id IN (${placeholders})`
+    ).bind(...ids).all();
+
+    const byItem = {};
+    for (const row of (rows.results || [])) {
+        (byItem[row.entity_id] ??= {});
+        (byItem[row.entity_id][row.language_code] ??= {});
+        byItem[row.entity_id][row.language_code][row.field] = row.value;
+    }
+    for (const item of items) {
+        const translations = byItem[item.id] || {};
+        item.translations = translations;
+        const firstWithName = Object.values(translations).find(t => t.name);
+        item.name = translations.es?.name || firstWithName?.name || item.id;
+        item.description = translations.es?.description || firstWithName?.description || '';
+    }
+    return items;
+}
+
 async function listApartmentStoreItems(env, aptId, isSuperAdmin, userAgencyIds) {
     const access = await checkAptAccess(env, aptId, isSuperAdmin, userAgencyIds);
     if (access.error) return access.error;
@@ -711,7 +748,9 @@ async function listApartmentStoreItems(env, aptId, isSuperAdmin, userAgencyIds) 
     const result = await env.DB.prepare(
         'SELECT * FROM guide_store_items WHERE apartment_id = ? ORDER BY order_index ASC'
     ).bind(aptId).all();
-    return jsonResponse({ success: true, items: result.results || [] });
+    const items = result.results || [];
+    await attachStoreItemTranslations(env, items);
+    return jsonResponse({ success: true, items });
 }
 
 async function createApartmentStoreItem(env, aptId, data, isSuperAdmin, userAgencyIds) {
@@ -795,16 +834,18 @@ async function reorderApartmentStoreItems(env, aptId, data, isSuperAdmin, userAg
 }
 
 // ---- Catálogo platform (superadmin only, global) ----
-// Deliberadamente NO se invalida la caché de cada apartamento al escribir aquí:
-// el catálogo cambia con poca frecuencia y se acepta hasta 24h de propagación,
-// igual que el resto del payload cacheado (ver workerGuide.js). Si se necesitara
-// propagación instantánea, habría que sacar estos items del blob cacheado del
-// apartamento a su propio KV con TTL corto — no se ha hecho aquí.
+// A diferencia del resto (apartamento/zona), un item de plataforma es visible en
+// TODAS las guías a la vez, así que una escritura aquí bumpea la versión de TODOS
+// los apartamentos activos (touchAllGuideVersions) — es una ruta admin-only y rara,
+// así que el coste extra de KV writes es asumible a cambio de que el catálogo
+// nuevo se vea al instante en vez de depender del TTL de 24h.
 async function listPlatformStoreItems(env) {
     const result = await env.DB.prepare(
         `SELECT * FROM guide_store_items WHERE owner_type = 'platform' ORDER BY order_index ASC`
     ).all();
-    return jsonResponse({ success: true, items: result.results || [] });
+    const items = result.results || [];
+    await attachStoreItemTranslations(env, items);
+    return jsonResponse({ success: true, items });
 }
 
 async function createPlatformStoreItem(env, data) {
@@ -825,6 +866,7 @@ async function createPlatformStoreItem(env, data) {
     if (data.translations && typeof data.translations === 'object') {
         await saveTranslations(env, id, 'store_item', data.translations);
     }
+    await touchAllGuideVersions(env);
     return jsonResponse({ success: true, id });
 }
 
@@ -850,6 +892,7 @@ async function updatePlatformStoreItem(env, id, data) {
     if (data.translations && typeof data.translations === 'object') {
         await saveTranslations(env, id, 'store_item', data.translations);
     }
+    await touchAllGuideVersions(env);
     return jsonResponse({ success: true });
 }
 
@@ -857,6 +900,7 @@ async function deletePlatformStoreItem(env, id) {
     await env.DB.prepare(
         `UPDATE guide_store_items SET is_active = FALSE WHERE id = ? AND owner_type = 'platform'`
     ).bind(id).run();
+    await touchAllGuideVersions(env);
     return jsonResponse({ success: true });
 }
 
@@ -1237,6 +1281,15 @@ async function unlinkZoneRestaurant(env, data) {
     ).bind(data.zone_id, data.restaurant_id).run();
     await touchZoneGuideVersions(env, data.zone_id);
     return jsonResponse({ success: true });
+}
+
+async function searchRestaurants(env, q) {
+    const term = q.trim();
+    if (!term) return jsonResponse({ success: true, restaurants: [] });
+    const result = await env.DB.prepare(
+        `SELECT id, name, slug FROM restaurants WHERE is_active = 1 AND name LIKE ? ORDER BY name LIMIT 20`
+    ).bind(`%${term}%`).all();
+    return jsonResponse({ success: true, restaurants: result.results || [] });
 }
 
 // ============================================

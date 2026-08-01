@@ -25,6 +25,7 @@ interface Apartment {
   address: string;
   zone_id: string;
   zone_name: string;
+  cover_image_url: string | null;
   is_active: boolean;
   created_at: string;
 }
@@ -143,6 +144,13 @@ export default function GuideApartmentsPage() {
                 transition: 'all 0.2s',
                 '&:hover': { borderColor: 'primary.main', boxShadow: '0 4px 20px rgba(0,0,0,0.08)' },
               }}>
+                <Box sx={{ height: 140, bgcolor: 'action.hover', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  {apt.cover_image_url ? (
+                    <img src={apt.cover_image_url} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                  ) : (
+                    <ApartmentIcon sx={{ fontSize: 40, color: 'text.disabled' }} />
+                  )}
+                </Box>
                 <CardContent sx={{ pb: 1 }}>
                   <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'start', mb: 1 }}>
                     <Typography variant="h6" fontWeight={600} noWrap sx={{ maxWidth: '70%' }}>

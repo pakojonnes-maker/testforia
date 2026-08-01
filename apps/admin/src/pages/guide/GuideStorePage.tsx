@@ -11,23 +11,51 @@ import {
   Dialog, DialogTitle, DialogContent, DialogActions,
   TextField, Select, MenuItem, InputLabel, FormControl, Grid,
   Card, CardContent, IconButton, Chip, Switch, FormControlLabel,
+  Tabs, Tab,
 } from '@mui/material';
 import {
   Add as AddIcon,
   Delete as DeleteIcon,
   Edit as EditIcon,
   Storefront as StoreIcon,
+  CheckCircle as CheckCircleIcon,
 } from '@mui/icons-material';
 
+// Categorías de la Tienda — agrupaciones, no nombres de producto (ver
+// migrations/0081_store_categories_cleanup.sql). Misma lista que
+// GuideApartmentDetail.tsx (tienda por apartamento) — mantener sincronizadas.
 const STORE_CATEGORIES = [
   { key: 'local_product', label: 'Producto local' },
-  { key: 'welcome_pack', label: 'Pack de bienvenida' },
+  { key: 'grocery', label: 'Compra / grocery' },
+  { key: 'checkinout', label: 'Check-in / Check-out' },
+  { key: 'service', label: 'Servicios de la estancia' },
+  { key: 'welcome', label: 'Bienvenida' },
   { key: 'custom', label: 'Personalizado' },
+];
+
+// 13 idiomas activos del proyecto (CLAUDE.md §5). Mismo listado que GuideApartmentDetail.tsx.
+const LANGUAGES = [
+  { code: 'es', label: '🇪🇸 Español' },
+  { code: 'en', label: '🇬🇧 English' },
+  { code: 'fr', label: '🇫🇷 Français' },
+  { code: 'de', label: '🇩🇪 Deutsch' },
+  { code: 'it', label: '🇮🇹 Italiano' },
+  { code: 'pt', label: '🇵🇹 Português' },
+  { code: 'ca', label: '🏴󠁥󠁳󠁣󠁴󠁿 Català' },
+  { code: 'ar', label: '🇦🇪 العربية' },
+  { code: 'ru', label: '🇷🇺 Русский' },
+  { code: 'uk', label: '🇺🇦 Українська' },
+  { code: 'zh', label: '🇨🇳 中文' },
+  { code: 'ja', label: '🇯🇵 日本語' },
+  { code: 'ko', label: '🇰🇷 한국어' },
 ];
 
 interface StoreItem {
   id: string;
   category: string;
+  name: string;
+  description: string;
+  translations?: Record<string, { name?: string; description?: string }>;
   price_amount: number | null;
   price_currency: string;
   price_display: string | null;
@@ -49,8 +77,9 @@ export default function GuideStorePage() {
 
   const [openDialog, setOpenDialog] = useState(false);
   const [editingItem, setEditingItem] = useState<StoreItem | null>(null);
-  const [formData, setFormData] = useState<Partial<StoreItem> & { name_es?: string; name_en?: string; description_es?: string; description_en?: string }>({
-    category: STORE_CATEGORIES[0].key, is_active: true, is_featured: false,
+  const [formLang, setFormLang] = useState('es');
+  const [formData, setFormData] = useState<Partial<StoreItem> & { translations: Record<string, { name?: string; description?: string }> }>({
+    category: STORE_CATEGORIES[0].key, is_active: true, is_featured: false, translations: {},
   });
   const [saving, setSaving] = useState(false);
   const [uploading, setUploading] = useState(false);
@@ -82,12 +111,16 @@ export default function GuideStorePage() {
   }
 
   const handleOpenDialog = (item?: StoreItem) => {
+    setFormLang('es');
     if (item) {
       setEditingItem(item);
-      setFormData({ ...item });
+      // Precarga las traducciones que ya existan: si el backend no devolviera nada
+      // para un idioma, dejarlo vacío aquí y guardar sobrescribiría ese idioma con
+      // "" (saveTranslations no distingue "vacío a propósito" de "no lo he tocado").
+      setFormData({ ...item, translations: { ...(item.translations || {}) } });
     } else {
       setEditingItem(null);
-      setFormData({ category: STORE_CATEGORIES[0].key, is_active: true, is_featured: false });
+      setFormData({ category: STORE_CATEGORIES[0].key, is_active: true, is_featured: false, translations: {} });
     }
     setOpenDialog(true);
   };
@@ -104,10 +137,7 @@ export default function GuideStorePage() {
         contact_whatsapp: formData.contact_whatsapp || null,
         is_featured: !!formData.is_featured,
         is_active: formData.is_active !== false,
-        translations: {
-          es: { name: formData.name_es || '', description: formData.description_es || '' },
-          en: { name: formData.name_en || '', description: formData.description_en || '' },
-        },
+        translations: formData.translations || {},
       };
 
       if (editingItem) {
@@ -200,7 +230,8 @@ export default function GuideStorePage() {
                   </Box>
                 </Box>
                 <CardContent sx={{ flexGrow: 1 }}>
-                  <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap', mb: 1 }}>
+                  <Typography variant="subtitle1" fontWeight={700} noWrap title={item.name}>{item.name}</Typography>
+                  <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap', mb: 1, mt: 0.5 }}>
                     <Chip size="small" label={STORE_CATEGORIES.find(c => c.key === item.category)?.label || item.category} />
                     {item.is_featured && <Chip size="small" color="warning" label="Destacado" />}
                     {!item.is_active && <Chip size="small" label="Inactivo" />}
@@ -234,17 +265,46 @@ export default function GuideStorePage() {
                 </Select>
               </FormControl>
             </Grid>
-            <Grid item xs={12} md={6}>
-              <TextField fullWidth size="small" label="Nombre (ES)" value={formData.name_es || ''} onChange={e => setFormData({ ...formData, name_es: e.target.value })} />
-            </Grid>
-            <Grid item xs={12} md={6}>
-              <TextField fullWidth size="small" label="Nombre (EN)" value={formData.name_en || ''} onChange={e => setFormData({ ...formData, name_en: e.target.value })} />
-            </Grid>
-            <Grid item xs={12} md={6}>
-              <TextField fullWidth size="small" multiline rows={2} label="Descripción (ES)" value={formData.description_es || ''} onChange={e => setFormData({ ...formData, description_es: e.target.value })} />
-            </Grid>
-            <Grid item xs={12} md={6}>
-              <TextField fullWidth size="small" multiline rows={2} label="Descripción (EN)" value={formData.description_en || ''} onChange={e => setFormData({ ...formData, description_en: e.target.value })} />
+            <Grid item xs={12}>
+              <Tabs
+                value={formLang}
+                onChange={(_, v) => setFormLang(v)}
+                variant="scrollable"
+                scrollButtons="auto"
+                sx={{ mb: 1.5, minHeight: 36, '& .MuiTab-root': { minHeight: 36, py: 0.5 } }}
+              >
+                {LANGUAGES.map(lang => {
+                  const hasContent = !!formData.translations?.[lang.code]?.name;
+                  return (
+                    <Tab
+                      key={lang.code}
+                      value={lang.code}
+                      label={lang.label}
+                      iconPosition="end"
+                      icon={hasContent ? <CheckCircleIcon sx={{ fontSize: 14, color: 'success.main' }} /> : undefined}
+                      sx={{ fontWeight: 500, fontSize: '0.8125rem' }}
+                    />
+                  );
+                })}
+              </Tabs>
+              <Box sx={{ p: 2, borderRadius: 2, border: '1px solid', borderColor: 'divider' }}>
+                <TextField
+                  fullWidth size="small" sx={{ mb: 1.5 }}
+                  label={formLang === 'es' ? 'Nombre (obligatorio)' : 'Nombre'}
+                  value={formData.translations?.[formLang]?.name || ''}
+                  onChange={e => setFormData({
+                    ...formData, translations: { ...formData.translations, [formLang]: { ...formData.translations?.[formLang], name: e.target.value } }
+                  })}
+                />
+                <TextField
+                  fullWidth size="small" multiline rows={2}
+                  label="Descripción"
+                  value={formData.translations?.[formLang]?.description || ''}
+                  onChange={e => setFormData({
+                    ...formData, translations: { ...formData.translations, [formLang]: { ...formData.translations?.[formLang], description: e.target.value } }
+                  })}
+                />
+              </Box>
             </Grid>
             <Grid item xs={6}>
               <TextField fullWidth size="small" type="number" label="Precio (EUR)" value={formData.price_amount ?? ''} onChange={e => setFormData({ ...formData, price_amount: e.target.value as any })} />
@@ -271,7 +331,7 @@ export default function GuideStorePage() {
         </DialogContent>
         <DialogActions>
           <Button onClick={() => setOpenDialog(false)}>Cancelar</Button>
-          <Button variant="contained" onClick={handleSave} disabled={saving || !formData.name_es}>
+          <Button variant="contained" onClick={handleSave} disabled={saving || !formData.translations?.es?.name}>
             {saving ? <CircularProgress size={20} /> : 'Guardar'}
           </Button>
         </DialogActions>

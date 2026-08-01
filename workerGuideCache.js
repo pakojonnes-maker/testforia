@@ -37,6 +37,20 @@ export async function touchZoneGuideVersions(env, zoneId) {
     await Promise.all((apts.results || []).map(a => env.GUIDE_CACHE.put(`ver:apt:${a.slug}`, now)));
 }
 
+// Platform store items (guide_store_items.owner_type='platform') and zone-restaurant
+// links are visible on every apartment's guide, not just one apartment or one zone —
+// there's no single cache key to bump for those, so touch every active apartment.
+// Admin-only write path (rare), so the extra D1 read is cheap relative to what it saves
+// on the public read path.
+export async function touchAllGuideVersions(env) {
+    if (!env.GUIDE_CACHE) return;
+    const apts = await env.DB.prepare(
+        'SELECT slug FROM guide_apartments WHERE is_active = TRUE'
+    ).all();
+    const now = String(Date.now());
+    await Promise.all((apts.results || []).map(a => env.GUIDE_CACHE.put(`ver:apt:${a.slug}`, now)));
+}
+
 // Same scheme for the digital menu (workerReels.js). Keyed by restaurant slug,
 // same as the guide is keyed by apartment slug.
 export async function getMenuVersion(env, slug) {

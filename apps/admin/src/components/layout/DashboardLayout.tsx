@@ -397,6 +397,13 @@ export default function DashboardLayout() {
         section: 'CATÁLOGO'
       },
       {
+        text: 'Restaurantes por zona',
+        icon: <RestaurantIcon />,
+        path: '/guide/restaurants',
+        featureKey: null,
+        section: 'CATÁLOGO'
+      },
+      {
         text: 'Conversión Restaurantes',
         icon: <ConversionsIcon />,
         path: '/guide/conversions',

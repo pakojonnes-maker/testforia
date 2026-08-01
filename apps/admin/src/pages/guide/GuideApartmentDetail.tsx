@@ -97,18 +97,17 @@ const AVAILABLE_KEYS = [
   { key: 'custom', label: 'Personalizado', icon: 'info' },
 ];
 
-// Categorías semilla de la Tienda (servicios propios del anfitrión). "custom" cubre
-// cualquier otra cosa que el manager quiera vender que no encaje en las anteriores.
+// Categorías de la Tienda — agrupaciones, no nombres de producto (ver
+// migrations/0081_store_categories_cleanup.sql). El nombre específico de cada ítem
+// (p.ej. "Traslado al aeropuerto", "Cuna / trona") va en el nombre traducido, no aquí;
+// "custom" cubre cualquier otra cosa que no encaje en las demás. Misma lista que
+// GuideStorePage.tsx (catálogo platform) — mantener sincronizadas.
 const STORE_CATEGORIES = [
-  { key: 'late_checkout', label: 'Late check-out' },
-  { key: 'early_checkin', label: 'Early check-in' },
-  { key: 'cleaning', label: 'Limpieza extra' },
-  { key: 'crib', label: 'Cuna / trona' },
-  { key: 'transfer', label: 'Traslado' },
-  { key: 'welcome_pack', label: 'Pack de bienvenida' },
-  { key: 'parking', label: 'Parking' },
-  { key: 'rental', label: 'Alquiler (toallas, bicis...)' },
+  { key: 'local_product', label: 'Producto local' },
   { key: 'grocery', label: 'Compra / grocery' },
+  { key: 'checkinout', label: 'Check-in / Check-out' },
+  { key: 'service', label: 'Servicios de la estancia' },
+  { key: 'welcome', label: 'Bienvenida' },
   { key: 'custom', label: 'Personalizado' },
 ];
 
@@ -198,13 +197,14 @@ export default function GuideApartmentDetail() {
   const [storeError, setStoreError] = useState<string | null>(null);
   const [storeDialogOpen, setStoreDialogOpen] = useState(false);
   const [editingStoreItem, setEditingStoreItem] = useState<any | null>(null);
+  const [storeItemLang, setStoreItemLang] = useState('es');
   const [storeItemForm, setStoreItemForm] = useState({
     category: 'custom',
     price_amount: '',
     is_featured: false,
     is_active: true,
     cover_image_url: '',
-    translations: { es: { name: '', description: '' }, en: { name: '', description: '' } } as Record<string, { name: string; description: string }>,
+    translations: {} as Record<string, { name?: string; description?: string }>,
   });
   const [storeItemSaving, setStoreItemSaving] = useState(false);
   const [uploadingStoreImage, setUploadingStoreImage] = useState(false);
@@ -511,30 +511,31 @@ export default function GuideApartmentDetail() {
   // ---------- Tienda (host store items) tab ----------
   const handleOpenCreateStoreItem = () => {
     setEditingStoreItem(null);
+    setStoreItemLang('es');
     setStoreItemForm({
       category: 'custom',
       price_amount: '',
       is_featured: false,
       is_active: true,
       cover_image_url: '',
-      translations: { es: { name: '', description: '' }, en: { name: '', description: '' } },
+      translations: {},
     });
     setStoreDialogOpen(true);
   };
 
   const handleOpenEditStoreItem = (item: any) => {
     setEditingStoreItem(item);
+    setStoreItemLang('es');
     setStoreItemForm({
       category: item.category || 'custom',
       price_amount: item.price_amount != null ? String(item.price_amount) : '',
       is_featured: !!item.is_featured,
       is_active: !!item.is_active,
       cover_image_url: item.cover_image_url || '',
-      // El backend no devuelve las traducciones en el listado — se completan al
-      // editar. Si el manager no toca el campo de un idioma, saveTranslations
-      // solo sobrescribe los que sí vienen en el body, así que dejarlo vacío
-      // aquí no borra lo que ya hubiera en otros idiomas.
-      translations: { es: { name: '', description: '' }, en: { name: '', description: '' } },
+      // El listado ya trae las traducciones (workerGuideAdmin.js las adjunta) —
+      // precargarlas de verdad, no dejarlas en blanco: si el manager guarda sin
+      // tocar el nombre, saveTranslations sobrescribiría con "" el que ya hubiera.
+      translations: { ...(item.translations || {}) },
     });
     setStoreDialogOpen(true);
   };
@@ -1255,7 +1256,7 @@ export default function GuideApartmentDetail() {
               )}
               <Box sx={{ flexGrow: 1, minWidth: 0 }}>
                 <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flexWrap: 'wrap' }}>
-                  <Typography fontWeight={600} noWrap>{item.id}</Typography>
+                  <Typography fontWeight={600} noWrap title={item.name}>{item.name || item.id}</Typography>
                   <Chip size="small" label={STORE_CATEGORIES.find(c => c.key === item.category)?.label || item.category} />
                   {item.is_featured === 1 && <Chip size="small" color="warning" label="Destacado" />}
                   {!item.is_active && <Chip size="small" label="Inactivo" />}
@@ -1320,26 +1321,43 @@ export default function GuideApartmentDetail() {
               </Select>
             </FormControl>
 
-            {['es', 'en'].map(lang => (
-              <Box key={lang} sx={{ p: 2, borderRadius: 2, border: '1px solid', borderColor: 'divider' }}>
-                <Typography variant="subtitle2" sx={{ mb: 1.5, fontWeight: 600 }}>{lang === 'es' ? '🇪🇸 Español' : '🇬🇧 English'}</Typography>
-                <TextField
-                  label="Nombre" fullWidth size="small" sx={{ mb: 1.5 }}
-                  required={lang === 'es'}
-                  value={storeItemForm.translations[lang]?.name || ''}
-                  onChange={(e) => setStoreItemForm(prev => ({
-                    ...prev, translations: { ...prev.translations, [lang]: { ...prev.translations[lang], name: e.target.value } }
-                  }))}
-                />
-                <TextField
-                  label="Descripción" fullWidth multiline minRows={2} size="small"
-                  value={storeItemForm.translations[lang]?.description || ''}
-                  onChange={(e) => setStoreItemForm(prev => ({
-                    ...prev, translations: { ...prev.translations, [lang]: { ...prev.translations[lang], description: e.target.value } }
-                  }))}
-                />
-              </Box>
-            ))}
+            <Tabs
+              value={storeItemLang}
+              onChange={(_, v) => setStoreItemLang(v)}
+              variant="scrollable"
+              scrollButtons="auto"
+              sx={{ mb: 1.5, minHeight: 36, '& .MuiTab-root': { minHeight: 36, py: 0.5 } }}
+            >
+              {LANGUAGES.map(lang => {
+                const hasContent = !!storeItemForm.translations[lang.code]?.name;
+                return (
+                  <Tab
+                    key={lang.code}
+                    value={lang.code}
+                    label={lang.label}
+                    iconPosition="end"
+                    icon={hasContent ? <CheckCircleIcon sx={{ fontSize: 14, color: 'success.main' }} /> : undefined}
+                    sx={{ fontWeight: 500, fontSize: '0.8125rem' }}
+                  />
+                );
+              })}
+            </Tabs>
+            <Box sx={{ p: 2, borderRadius: 2, border: '1px solid', borderColor: 'divider' }}>
+              <TextField
+                label={storeItemLang === 'es' ? 'Nombre (obligatorio)' : 'Nombre'} fullWidth size="small" sx={{ mb: 1.5 }}
+                value={storeItemForm.translations[storeItemLang]?.name || ''}
+                onChange={(e) => setStoreItemForm(prev => ({
+                  ...prev, translations: { ...prev.translations, [storeItemLang]: { ...prev.translations[storeItemLang], name: e.target.value } }
+                }))}
+              />
+              <TextField
+                label="Descripción" fullWidth multiline minRows={2} size="small"
+                value={storeItemForm.translations[storeItemLang]?.description || ''}
+                onChange={(e) => setStoreItemForm(prev => ({
+                  ...prev, translations: { ...prev.translations, [storeItemLang]: { ...prev.translations[storeItemLang], description: e.target.value } }
+                }))}
+              />
+            </Box>
 
             <TextField
               label="Precio (EUR)" type="number" size="small" sx={{ maxWidth: 200 }}
