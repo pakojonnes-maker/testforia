@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { getTranslation, getCategoryLabel, getSubcategoryLabel } from '../lib/i18n';
 import { submitStoreOrder } from '../lib/api';
 import CTAButton from './CTAButton';
+import MediaPlaceholder, { isRealImage } from './MediaPlaceholder';
 
 interface Experience {
   id: string;
@@ -112,43 +113,45 @@ export default function ServicesSection({ experiences, storeItems, zoneName, apa
     <div className="flex flex-col gap-stack-lg max-w-2xl mx-auto w-full">
       {items.map((item, idx) => {
         const qty = cart[item.id] || 0;
-        const bgImg = item.cover_image_url || 'https://placehold.co/600x600/e3e2df/434655?text=' + encodeURIComponent(item.name);
         const stamp = STAMP_CLASSES[idx % STAMP_CLASSES.length];
         return (
           <article key={item.id} className="bg-surface-container-lowest border border-on-background/10 flex flex-col relative w-full">
             <div className="relative w-full h-[280px] p-4">
-              <img className="w-full h-full object-cover arch-mask" src={bgImg} alt={item.name} />
+              {isRealImage(item.cover_image_url) ? (
+                <img className="w-full h-full object-cover arch-mask" src={item.cover_image_url} alt={item.name} />
+              ) : (
+                <MediaPlaceholder label={item.name} className="arch-mask" />
+              )}
+              {/* Un solo sello por tarjeta, como en Stitch: el precio manda. El
+                  badge "del anfitrión" era redundante — el epígrafe de la lista
+                  ya separa anfitrión de productos locales — y con tres etiquetas
+                  a la vez la foto quedaba tapada. */}
               {item.price_display && (
-                <div className={`absolute top-6 right-6 bg-tertiary-fixed-dim text-on-tertiary-fixed font-mono-badge text-mono-badge px-3 py-2 border border-on-background/20 ${stamp}`}>
+                <div className={`absolute top-6 right-6 bg-tertiary-fixed-dim text-on-tertiary-fixed font-mono-badge text-mono-badge px-2.5 py-1.5 border border-on-background/20 ${stamp}`}>
                   {item.price_display}
                 </div>
               )}
-              {item.owner_type === 'host' && (
-                <div className="absolute top-6 left-6 bg-secondary text-on-secondary font-mono-badge text-mono-badge px-3 py-2 border border-on-background/20 stamped-badge-2 uppercase">
-                  {getTranslation('host_badge', lang)}
-                </div>
-              )}
               {item.is_featured && (
-                <div className="absolute bottom-6 left-6 bg-primary text-on-primary font-mono-badge text-mono-badge px-3 py-2 border border-on-background/20 stamped-badge-3 uppercase">
+                <div className="absolute bottom-6 left-6 bg-primary text-on-primary font-mono-badge text-mono-badge px-2.5 py-1.5 border border-on-background/20 stamped-badge-3 uppercase">
                   {getTranslation('recommended', lang)}
                 </div>
               )}
             </div>
-            <div className="p-6 flex flex-col flex-grow text-center items-center">
-              <span className="font-label-caps text-label-caps text-primary mb-2 uppercase tracking-widest">{getCategoryLabel(item.category, lang)}</span>
+            <div className="px-6 pb-6 pt-2 flex flex-col flex-grow text-center items-center">
+              <span className="font-label-caps text-label-caps text-primary mb-2 uppercase">{getCategoryLabel(item.category, lang)}</span>
               <h3 className="font-headline-md text-headline-md text-on-background mb-3">{item.name}</h3>
-              {item.description && <p className="font-body-md text-body-md text-on-surface-variant mb-6 max-w-md">{item.description}</p>}
+              {item.description && <p className="font-body-md text-[15px] leading-relaxed text-on-surface-variant mb-6">{item.description}</p>}
 
               {qty === 0 ? (
                 <button
                   onClick={() => addToCart(item)}
                   disabled={!item.in_stock}
-                  className="w-full max-w-sm bg-primary text-on-primary font-label-caps text-label-caps uppercase py-4 flex justify-center items-center gap-2 hover:bg-primary-container transition-colors disabled:opacity-40"
+                  className="w-full mt-auto bg-primary text-on-primary font-label-caps text-label-caps uppercase py-4 flex justify-center items-center gap-2 hover:bg-primary-container transition-colors disabled:opacity-40"
                 >
                   {getTranslation('add_to_order', lang)}
                 </button>
               ) : (
-                <div className="flex items-center gap-4 border border-primary px-4 py-2 w-full max-w-sm justify-between">
+                <div className="flex items-center gap-4 border border-primary px-4 py-2 w-full mt-auto justify-between">
                   <button onClick={() => removeFromCart(item.id)} className="w-8 h-8 flex items-center justify-center text-primary font-mono-badge text-lg">−</button>
                   <span className="font-mono-badge text-mono-badge text-on-background">{qty}</span>
                   <button onClick={() => addToCart(item)} className="w-8 h-8 flex items-center justify-center text-primary font-mono-badge text-lg">+</button>
@@ -163,22 +166,28 @@ export default function ServicesSection({ experiences, storeItems, zoneName, apa
 
   return (
     <div className="flex flex-col gap-stack-lg pb-24">
-      <div>
-        <h2 className="font-display-xl text-display-xl text-on-background uppercase tracking-tighter mb-2">
+      <section className="flex flex-col gap-2 max-w-2xl mx-auto w-full">
+        <h2 className="font-display-xl text-display-lg md:text-display-xl text-on-background">
           {getTranslation('store_title', lang)}
         </h2>
-      </div>
+        <p className="font-body-lg text-body-lg text-on-surface-variant">{getTranslation('store_subtitle', lang)}</p>
+      </section>
 
+      <div className="horizon-rule max-w-2xl mx-auto" />
+
+      {/* Los epígrafes de grupo van en versalitas condensadas, no en un segundo
+          titular serif: el peso tipográfico se reserva al nombre del producto,
+          que es lo que el huésped escanea. */}
       {hostItems.length > 0 && (
         <section className="flex flex-col gap-stack-md">
-          <h3 className="font-headline-md text-headline-md text-on-background border-b border-on-background/10 pb-2">{getTranslation('host_products_title', lang)}</h3>
+          <h3 className="font-label-caps text-label-caps text-secondary uppercase border-b border-on-background/10 pb-2 max-w-2xl mx-auto w-full">{getTranslation('host_products_title', lang)}</h3>
           {renderStoreList(hostItems)}
         </section>
       )}
 
       {platformItems.length > 0 && (
         <section className="flex flex-col gap-stack-md">
-          <h3 className="font-headline-md text-headline-md text-on-background border-b border-on-background/10 pb-2">{getTranslation('local_products_title', lang)}</h3>
+          <h3 className="font-label-caps text-label-caps text-secondary uppercase border-b border-on-background/10 pb-2 max-w-2xl mx-auto w-full">{getTranslation('local_products_title', lang)}</h3>
           {renderStoreList(platformItems)}
         </section>
       )}
@@ -192,15 +201,14 @@ export default function ServicesSection({ experiences, storeItems, zoneName, apa
 
       {experiences.length > 0 && (
         <section className="flex flex-col gap-stack-md">
-          <div className="border-b border-on-background/10 pb-2">
-            <h3 className="font-headline-md text-headline-md text-on-background">{getTranslation('exclusive_promotions', lang)}</h3>
+          <div className="border-b border-on-background/10 pb-2 max-w-2xl mx-auto w-full">
+            <h3 className="font-label-caps text-label-caps text-secondary uppercase">{getTranslation('exclusive_promotions', lang)}</h3>
             <p className="font-body-md text-body-md text-on-surface-variant mt-1">
               {getTranslation('services_subtitle', lang).replace('{zone}', zoneName)}
             </p>
           </div>
           <div className="grid grid-cols-1 md:grid-cols-12 gap-x-gutter gap-y-stack-lg">
             {experiences.map((exp, idx) => {
-              const bgImg = exp.cover_image_url || 'https://placehold.co/600x400/e3e2df/434655?text=' + encodeURIComponent(exp.name);
               const hasCuratedFeatured = experiences.some(e => e.is_featured);
               const isFeatured = hasCuratedFeatured ? exp.is_featured : idx === 0;
               const stamp = STAMP_CLASSES[idx % STAMP_CLASSES.length];
@@ -217,7 +225,11 @@ export default function ServicesSection({ experiences, storeItems, zoneName, apa
               return (
                 <article key={exp.id} className={`${isFeatured ? 'md:col-span-8' : 'md:col-span-4'} bg-surface-container-lowest border border-on-background/10 overflow-hidden flex flex-col ${isFeatured ? 'md:flex-row' : ''} group`}>
                   <div className={`relative overflow-hidden shrink-0 ${isFeatured ? 'h-64 md:h-auto md:w-1/2 p-2' : 'h-48 p-2'}`}>
-                    <img className="w-full h-full object-cover arch-mask transition-transform duration-500 group-hover:scale-105" src={bgImg} alt={exp.name} />
+                    {isRealImage(exp.cover_image_url) ? (
+                      <img className="w-full h-full object-cover arch-mask transition-transform duration-500 group-hover:scale-105" src={exp.cover_image_url} alt={exp.name} />
+                    ) : (
+                      <MediaPlaceholder label={exp.name} className="arch-mask" />
+                    )}
                     {badgeLabel && (
                       <div className={`absolute top-5 left-5 px-3 py-1 font-mono-badge text-mono-badge uppercase border border-on-background/20 ${badgeBg} ${stamp}`}>
                         {badgeLabel}

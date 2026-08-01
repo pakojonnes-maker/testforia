@@ -1,5 +1,6 @@
 import React, { useEffect } from 'react';
 import { getTranslation, getCategoryLabel } from '../lib/i18n';
+import MediaPlaceholder, { isRealImage } from './MediaPlaceholder';
 
 export interface PoiDetailItem {
   id: string;
@@ -27,8 +28,6 @@ export default function PoiDetailModal({ item, lang, onClose, onOpenMap }: PoiDe
     return () => { document.body.style.overflow = ''; };
   }, []);
 
-  const bgImg = item.image || 'https://placehold.co/800x500/e3e2df/434655?text=' + encodeURIComponent(item.name);
-
   return (
     <div
       className="fixed inset-0 z-50 flex flex-col bg-on-background/60 animate-[fadeIn_0.2s_ease]"
@@ -40,7 +39,11 @@ export default function PoiDetailModal({ item, lang, onClose, onOpenMap }: PoiDe
       >
         {/* Hero image */}
         <div className="relative h-64 md:h-80 w-full shrink-0">
-          <img src={bgImg} alt={item.name} className="w-full h-full object-cover" />
+          {isRealImage(item.image) ? (
+            <img src={item.image} alt={item.name} className="w-full h-full object-cover" />
+          ) : (
+            <MediaPlaceholder label={item.name} />
+          )}
           <div className="absolute inset-0 bg-gradient-to-t from-on-background/80 via-on-background/10 to-transparent" />
           <button
             onClick={onClose}

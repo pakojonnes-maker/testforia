@@ -325,7 +325,7 @@ export default function ChatIASection({
   };
 
   return (
-    <div className="flex flex-col h-[calc(100vh-200px)] md:h-[600px] w-full max-w-3xl mx-auto relative bg-surface">
+    <div className="flex flex-col h-full min-h-0 w-full max-w-3xl mx-auto relative bg-surface">
       {/* AI Header — "AI Concierge" (Stitch): avatar en arco, título en mayúsculas */}
       <div className="text-center mb-8 shrink-0">
         <div className="w-16 h-20 arch-mask bg-primary/10 border border-primary/20 flex items-center justify-center mx-auto mb-4">

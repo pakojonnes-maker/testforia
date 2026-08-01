@@ -151,10 +151,17 @@ export default function GuidebookPage() {
     // ejemplo. Los títulos conservan su propio conjunto de tokens porque llevan
     // Newsreader (serif editorial) por defecto — un cambio de fuente de agencia
     // debe sustituir también eso, no solo el cuerpo del texto.
-    const bodyFont = data?.agency?.font_family ? `'${data.agency.font_family}', sans-serif` : 'Inter';
-    const headlineFont = data?.agency?.font_family ? `'${data.agency.font_family}', sans-serif` : "'Newsreader'";
-    for (const token of FONT_TOKENS) root.setProperty(token, bodyFont);
-    for (const token of HEADLINE_FONT_TOKENS) root.setProperty(token, headlineFont);
+    //
+    // Sin fuente de agencia NO se fuerza nada a mano: se quita la sobrescritura
+    // para que vuelvan los valores del @theme. Fijar 'Inter' aquí aplastaba
+    // --font-label-caps, que por defecto es Archivo Narrow — los "eyebrows"
+    // condensados del sistema editorial salían en Inter en TODAS las guías sin
+    // fuente propia, que son casi todas.
+    const agencyFont = data?.agency?.font_family ? `'${data.agency.font_family}', sans-serif` : null;
+    for (const token of [...FONT_TOKENS, ...HEADLINE_FONT_TOKENS]) {
+      if (agencyFont) root.setProperty(token, agencyFont);
+      else root.removeProperty(token);
+    }
   }, [data?.agency]);
 
   // Track session
@@ -252,22 +259,35 @@ export default function GuidebookPage() {
 
   const { apartment, zone, agency, pois, restaurants, experiences, store_items } = data;
 
+  const isChatTab = activeTab === 'chat';
+
+  // min-h-screen deja crecer la página más allá del viewport, que es lo que
+  // queremos en las pestañas normales (contenido largo, footer al final). En
+  // el chat necesitamos justo lo contrario: un h-screen fijo para que
+  // "flex-1 min-h-0" en <main> tenga una altura real que repartir — si no, el
+  // input de texto termina más abajo del viewport, fuera de la vista.
   return (
-    <div className="guide-app font-body-md text-on-surface bg-background min-h-screen relative">
+    <div className={`guide-app font-body-md text-on-surface bg-background relative flex flex-col ${isChatTab ? 'h-screen overflow-hidden' : 'min-h-screen'}`}>
       <div className="film-grain" />
       {showWelcome && data.welcome_modal && (
         <WelcomeModal welcome={data.welcome_modal} onClose={() => setShowWelcome(false)} lang={lang} />
       )}
 
       <Header
-        activeTab={activeTab} 
-        onTabChange={setActiveTab} 
+        activeTab={activeTab}
+        onTabChange={setActiveTab}
         lang={lang}
         onLanguageChange={handleLanguageChange}
         apartmentName={apartment.name}
       />
 
-      <main className="max-w-container-max mx-auto px-margin-mobile md:px-margin-desktop py-8 flex flex-col gap-12">
+      {/* El chat es una app de pantalla completa (input fijo cerca del nav
+          inferior, sin scroll de página) — el resto de pestañas son contenido
+          desplazable normal con su propio footer. pb-16 en móvil reserva el
+          alto del BottomNavBar fijo (h-16) para que no tape el input. */}
+      <main className={isChatTab
+        ? "flex-1 min-h-0 flex flex-col w-full max-w-container-max mx-auto px-margin-mobile md:px-margin-desktop pt-6 pb-16 md:pb-6"
+        : "max-w-container-max mx-auto px-margin-mobile md:px-margin-desktop py-8 flex flex-col gap-12"}>
         {activeTab === 'info' && (
           <div style={{ animation: 'fadeIn 0.4s ease forwards' }} className="flex flex-col gap-12">
             <WelcomeHero
@@ -316,7 +336,7 @@ export default function GuidebookPage() {
           />
         )}
         {activeTab === 'chat' && (
-          <div style={{ animation: 'fadeIn 0.4s ease forwards' }}>
+          <div className="flex-1 min-h-0 flex flex-col" style={{ animation: 'fadeIn 0.4s ease forwards' }}>
             <ChatIASection
               lang={lang}
               apartmentId={data?.apartment?.id}
@@ -335,16 +355,18 @@ export default function GuidebookPage() {
 
       <BottomNavBar activeTab={activeTab} onTabChange={setActiveTab} lang={lang} />
 
-      <footer style={{
-        textAlign: 'center',
-        padding: '32px 16px',
-        marginTop: 'var(--sp-2xl)',
-        marginBottom: '80px', /* space for bottom nav */
-        fontSize: '0.75rem',
-        color: 'var(--gris-medio)'
-      }}>
-        <p>Powered by <a href="https://visualtastes.com" target="_blank" rel="noopener noreferrer" style={{ color: 'var(--brand-primary)', fontWeight: 700 }}>VisualTastes Guidebook</a></p>
-      </footer>
+      {!isChatTab && (
+        <footer style={{
+          textAlign: 'center',
+          padding: '32px 16px',
+          marginTop: 'var(--sp-2xl)',
+          marginBottom: '80px', /* space for bottom nav */
+          fontSize: '0.75rem',
+          color: 'var(--gris-medio)'
+        }}>
+          <p>Powered by <a href="https://visualtastes.com" target="_blank" rel="noopener noreferrer" style={{ color: 'var(--brand-primary)', fontWeight: 700 }}>VisualTastes Guidebook</a></p>
+        </footer>
+      )}
     </div>
   );
 }

@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { getTranslation } from '../lib/i18n';
+import MediaPlaceholder, { isRealImage } from './MediaPlaceholder';
 
 interface InfoItem {
   id: string;
@@ -84,12 +85,12 @@ export default function InfoSection({ infoItems, lang }: InfoSectionProps) {
       {/* House Manual grid — arch-masked images, eyebrow key + headline */}
       {remainingGrid.length > 0 && (
         <section>
-          <h3 className="font-display-lg text-display-lg text-on-background uppercase tracking-tighter mb-stack-md">
+          <h3 className="font-display-lg text-headline-lg md:text-display-lg text-on-background mb-stack-md">
             {getTranslation('quick_guides', lang)}
           </h3>
           <div className="grid grid-cols-2 md:grid-cols-4 gap-x-gutter gap-y-stack-md">
             {remainingGrid.map(item => {
-              const bgImg = item.media?.[0]?.url || 'https://placehold.co/600x400/e3e2df/434655?text=' + encodeURIComponent(item.title);
+              const itemImg = item.media?.[0]?.url;
               return (
                 <div
                   key={item.id}
@@ -97,11 +98,15 @@ export default function InfoSection({ infoItems, lang }: InfoSectionProps) {
                   onClick={() => setSelectedItem(item)}
                 >
                   <div className="w-full aspect-[4/3] arch-mask overflow-hidden border border-on-background/10 mb-2 relative bg-surface-variant">
-                    <img
-                      className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
-                      src={bgImg}
-                      alt={item.title}
-                    />
+                    {isRealImage(itemImg) ? (
+                      <img
+                        className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
+                        src={itemImg}
+                        alt={item.title}
+                      />
+                    ) : (
+                      <MediaPlaceholder label={item.title} />
+                    )}
                   </div>
                   <span className="font-mono-badge text-mono-badge uppercase text-secondary mb-1">{item.key}</span>
                   <h4 className="font-headline-md text-[18px] leading-tight text-on-background">{item.title}</h4>
@@ -117,11 +122,15 @@ export default function InfoSection({ infoItems, lang }: InfoSectionProps) {
               onClick={() => setSelectedItem(featuredItem)}
             >
               <div className="w-full aspect-[16/9] arch-mask overflow-hidden border border-on-background/10 mb-4 relative bg-surface-variant">
-                <img
-                  className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
-                  src={featuredItem.media?.[0]?.url || 'https://placehold.co/1200x600/e3e2df/434655?text=' + encodeURIComponent(featuredItem.title)}
-                  alt={featuredItem.title}
-                />
+                {isRealImage(featuredItem.media?.[0]?.url) ? (
+                  <img
+                    className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
+                    src={featuredItem.media?.[0]?.url}
+                    alt={featuredItem.title}
+                  />
+                ) : (
+                  <MediaPlaceholder label={featuredItem.title} />
+                )}
               </div>
               <div className="flex flex-col md:flex-row md:items-end justify-between gap-4">
                 <div>
@@ -140,7 +149,7 @@ export default function InfoSection({ infoItems, lang }: InfoSectionProps) {
       {/* WiFi */}
       {wifiItem && (
         <section>
-          <h3 className="font-display-lg text-display-lg text-on-background uppercase tracking-tighter mb-stack-md">
+          <h3 className="font-display-lg text-headline-lg md:text-display-lg text-on-background mb-stack-md">
             {getTranslation('connectivity', lang)}
           </h3>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-gutter">
@@ -183,11 +192,15 @@ export default function InfoSection({ infoItems, lang }: InfoSectionProps) {
             onClick={e => e.stopPropagation()}
           >
             <div className="relative h-64 md:h-80">
-              <img
-                src={selectedItem.media?.[0]?.url || 'https://placehold.co/600x400/e3e2df/434655?text=' + encodeURIComponent(selectedItem.title)}
-                className="w-full h-full object-cover"
-                alt={selectedItem.title}
-              />
+              {isRealImage(selectedItem.media?.[0]?.url) ? (
+                <img
+                  src={selectedItem.media?.[0]?.url}
+                  className="w-full h-full object-cover"
+                  alt={selectedItem.title}
+                />
+              ) : (
+                <MediaPlaceholder label={selectedItem.title} />
+              )}
               <button
                 className="absolute top-4 right-4 w-10 h-10 bg-on-background/50 text-crisp-white flex items-center justify-center hover:bg-on-background/70 transition-colors"
                 onClick={() => setSelectedItem(null)}

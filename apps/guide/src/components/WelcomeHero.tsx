@@ -1,5 +1,6 @@
 import React from 'react';
 import { getTranslation } from '../lib/i18n';
+import MediaPlaceholder, { isRealImage } from './MediaPlaceholder';
 
 interface WelcomeHeroProps {
   apartmentName: string;
@@ -21,9 +22,6 @@ export default function WelcomeHero({
   agencyName,
   currentLang
 }: WelcomeHeroProps) {
-  // Use provided cover image or a placeholder if missing
-  const bgImage = coverImageUrl || 'https://placehold.co/1200x800/e3e2df/434655?text=No+Image';
-
   const handleVerDireccion = () => {
     if (address) {
       const q = encodeURIComponent(address);
@@ -35,11 +33,15 @@ export default function WelcomeHero({
     <section className="flex flex-col gap-stack-md">
       <div className="w-full flex justify-center">
         <div className="relative w-full md:w-10/12 aspect-[3/4] md:aspect-video arch-mask overflow-hidden border border-on-background/10 bg-surface-variant">
-          <img
-            className="w-full h-full object-cover absolute inset-0"
-            src={bgImage}
-            alt={apartmentName}
-          />
+          {isRealImage(coverImageUrl) ? (
+            <img
+              className="w-full h-full object-cover absolute inset-0"
+              src={coverImageUrl}
+              alt={apartmentName}
+            />
+          ) : (
+            <MediaPlaceholder label={apartmentName} className="absolute inset-0" />
+          )}
           {agencyLogoUrl && (
             <div className="absolute top-4 right-4 bg-surface-container-lowest border border-on-background/10 p-2">
               <img
@@ -55,7 +57,7 @@ export default function WelcomeHero({
       <div className="horizon-rule" />
 
       <div className="flex flex-col md:flex-row md:justify-between md:items-end gap-4">
-        <h1 className="font-display-xl text-display-xl text-primary uppercase tracking-tighter max-w-2xl">
+        <h1 className="font-display-xl text-display-lg md:text-display-xl text-primary max-w-2xl">
           {apartmentName}
         </h1>
         {address && (

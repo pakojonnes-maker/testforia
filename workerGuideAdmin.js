@@ -1286,9 +1286,12 @@ async function unlinkZoneRestaurant(env, data) {
 async function searchRestaurants(env, q) {
     const term = q.trim();
     if (!term) return jsonResponse({ success: true, restaurants: [] });
+    // También compara ignorando espacios: si no, buscar "wawcafe" no encuentra
+    // "Waw Cafe" porque la subcadena literal nunca aparece en el nombre.
+    const noSpaces = term.replace(/\s+/g, '');
     const result = await env.DB.prepare(
-        `SELECT id, name, slug FROM restaurants WHERE is_active = 1 AND name LIKE ? ORDER BY name LIMIT 20`
-    ).bind(`%${term}%`).all();
+        `SELECT id, name, slug FROM restaurants WHERE is_active = 1 AND (name LIKE ? OR REPLACE(name, ' ', '') LIKE ?) ORDER BY name LIMIT 20`
+    ).bind(`%${term}%`, `%${noSpaces}%`).all();
     return jsonResponse({ success: true, restaurants: result.results || [] });
 }
 

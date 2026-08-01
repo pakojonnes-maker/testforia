@@ -1,5 +1,6 @@
 import React from 'react';
 import { getTranslation } from '../lib/i18n';
+import MediaPlaceholder, { isRealImage } from './MediaPlaceholder';
 
 interface Restaurant {
   id: string;
@@ -19,9 +20,11 @@ interface RestaurantsSectionProps {
   buildRestaurantUrl: (slug: string) => string;
 }
 
-// "The Table" (Stitch): filas editoriales a todo el ancho, imagen y contenido
-// alternando de lado, separadas por horizon-rule — en vez de la rejilla
-// 8+4 anterior.
+// "The Table" (Stitch): columna editorial única de tarjetas verticales — foto a
+// sangre arriba con su stamped badge, eyebrow de cocina, titular serif y CTA de
+// ancho completo a la carta en vídeo. Sustituye a las filas alternadas
+// izquierda/derecha: en móvil (donde está el 95% de los huéspedes) esa
+// alternancia no se percibía y el CTA quedaba como un botón suelto pequeño.
 export default function RestaurantsSection({ restaurants, zoneName, lang, onIntent, buildRestaurantUrl }: RestaurantsSectionProps) {
   if (!restaurants || restaurants.length === 0) {
     return (
@@ -44,48 +47,51 @@ export default function RestaurantsSection({ restaurants, zoneName, lang, onInte
 
   return (
     <div className="flex flex-col gap-stack-lg">
-      <section className="flex flex-col gap-2">
-        <h2 className="font-display-xl text-display-xl text-on-background uppercase tracking-tighter">
+      <section className="flex flex-col gap-2 max-w-2xl mx-auto w-full">
+        <h2 className="font-display-xl text-display-lg md:text-display-xl text-on-background">
           {getTranslation('restaurants_title', lang).replace('{zone}', zoneName || getTranslation('surroundings_fallback', lang))}
         </h2>
-        <p className="font-body-lg text-body-lg text-on-surface-variant max-w-2xl">{getTranslation('restaurants_default_description', lang)}</p>
+        <p className="font-body-lg text-body-lg text-on-surface-variant">{getTranslation('restaurants_default_description', lang)}</p>
       </section>
 
-      <div className="flex flex-col">
-        {restaurants.map((r, idx) => {
+      <div className="horizon-rule max-w-2xl mx-auto" />
+
+      <div className="flex flex-col gap-stack-lg max-w-2xl mx-auto w-full">
+        {restaurants.map((r) => {
           const isFeatured = r.id === featuredId;
-          const bgImg = r.cover_image || 'https://placehold.co/600x400/e3e2df/434655?text=' + encodeURIComponent(r.name);
           const cuisineLabel = r.cuisine_type ? getTranslation('cuisine_label', lang).replace('{cuisine}', r.cuisine_type) : '';
-          const reversed = idx % 2 === 1;
 
           return (
-            <React.Fragment key={r.id}>
-              <div className={`flex flex-col md:flex-row ${reversed ? 'md:flex-row-reverse' : ''} gap-6 md:gap-8 items-center py-stack-lg`}>
-                <div className="w-full md:w-4/12 relative shrink-0">
-                  {isFeatured && (
-                    <div className="absolute top-4 right-4 z-10 stamped-badge-1 bg-tertiary-fixed-dim text-on-tertiary-fixed font-mono-badge text-mono-badge px-3 py-1 border border-on-background/10 uppercase">
-                      {getTranslation('premium_badge', lang)}
-                    </div>
-                  )}
-                  <img className="w-full h-[260px] md:h-[320px] object-cover arch-mask border border-on-background/10" src={bgImg} alt={r.name} />
-                </div>
-                <div className="w-full md:w-7/12 flex flex-col justify-center items-start">
-                  <span className="font-label-caps text-label-caps text-secondary uppercase tracking-widest mb-2">{getTranslation('category_restaurants', lang)}</span>
-                  <h3 className="font-headline-md text-headline-md mb-3 text-on-background">{r.name}</h3>
-                  {cuisineLabel && (
-                    <p className="font-body-md text-body-md text-on-surface-variant mb-6 max-w-xl">{cuisineLabel}</p>
-                  )}
-                  <button
-                    onClick={() => openMenu(r)}
-                    className="bg-primary text-on-primary font-label-caps text-label-caps uppercase px-6 py-3 hover:bg-primary-container transition-colors flex items-center gap-2"
-                  >
-                    {getTranslation('view_menu', lang)}
-                    <span className="material-symbols-outlined icon-directional">arrow_forward</span>
-                  </button>
-                </div>
+            <article key={r.id} className="bg-surface-container-lowest border border-on-background/10 flex flex-col w-full">
+              <div className="relative w-full h-[240px] md:h-[300px] shrink-0">
+                {isRealImage(r.cover_image) ? (
+                  <img className="w-full h-full object-cover" src={r.cover_image} alt={r.name} />
+                ) : (
+                  <MediaPlaceholder label={r.name} />
+                )}
+                {isFeatured && (
+                  <div className="absolute top-4 right-4 stamped-badge-1 bg-tertiary-fixed-dim text-on-tertiary-fixed font-mono-badge text-mono-badge px-2.5 py-1.5 border border-on-background/20 uppercase">
+                    {getTranslation('premium_badge', lang)}
+                  </div>
+                )}
               </div>
-              {idx < restaurants.length - 1 && <div className="horizon-rule" />}
-            </React.Fragment>
+              <div className="p-6 flex flex-col items-start">
+                <span className="font-label-caps text-label-caps text-secondary uppercase mb-2">
+                  {cuisineLabel || getTranslation('category_restaurants', lang)}
+                </span>
+                <h3 className={`font-headline-md text-headline-md mb-5 ${isFeatured ? 'text-primary' : 'text-on-background'}`}>{r.name}</h3>
+                <button
+                  onClick={() => openMenu(r)}
+                  className="w-full bg-primary text-on-primary font-label-caps text-label-caps uppercase py-4 hover:bg-primary-container transition-colors flex items-center justify-center gap-2"
+                >
+                  {/* fontSize inline: la hoja de Material Symbols fija 24px sobre
+                      la misma especificidad que el utility, y un icono de 24px
+                      junto a un label de 12px se come el botón. */}
+                  <span className="material-symbols-outlined" style={{ fontVariationSettings: "'FILL' 1", fontSize: '18px' }}>play_circle</span>
+                  {getTranslation('view_menu', lang)}
+                </button>
+              </div>
+            </article>
           );
         })}
       </div>

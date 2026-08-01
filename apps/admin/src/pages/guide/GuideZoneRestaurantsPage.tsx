@@ -53,6 +53,7 @@ export default function GuideZoneRestaurantsPage() {
 
   const [dialogOpen, setDialogOpen] = useState(false);
   const [searchOptions, setSearchOptions] = useState<RestaurantOption[]>([]);
+  const [searchQuery, setSearchQuery] = useState('');
   const [searching, setSearching] = useState(false);
   const [selectedRestaurant, setSelectedRestaurant] = useState<RestaurantOption | null>(null);
   const [tier, setTier] = useState<'basic' | 'featured'>('basic');
@@ -101,11 +102,13 @@ export default function GuideZoneRestaurantsPage() {
   const handleOpenDialog = () => {
     setSelectedRestaurant(null);
     setSearchOptions([]);
+    setSearchQuery('');
     setTier('basic');
     setDialogOpen(true);
   };
 
   const handleSearch = async (q: string) => {
+    setSearchQuery(q);
     if (!q.trim()) { setSearchOptions([]); return; }
     setSearching(true);
     try {
@@ -248,7 +251,7 @@ export default function GuideZoneRestaurantsPage() {
             renderInput={(params) => (
               <TextField {...params} label="Buscar restaurante por nombre" size="small" autoFocus />
             )}
-            noOptionsText="Escribe para buscar"
+            noOptionsText={searchQuery.trim() ? 'Sin resultados para esa búsqueda' : 'Escribe para buscar'}
           />
           <FormControl fullWidth size="small">
             <InputLabel>Destacado</InputLabel>

@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { getTranslation, getCategoryLabel } from '../lib/i18n';
 import MapModal from './MapModal';
 import PoiDetailModal, { PoiDetailItem } from './PoiDetailModal';
+import MediaPlaceholder, { isRealImage } from './MediaPlaceholder';
 
 interface POI {
   id: string;
@@ -64,7 +65,7 @@ export default function DiscoverSection({ pois, zoneName, zoneDescription, lang 
     <div className="flex flex-col gap-stack-lg">
       {/* Page Header */}
       <section className="flex flex-col gap-2">
-        <h2 className="font-display-xl text-display-xl text-on-background uppercase tracking-tighter">
+        <h2 className="font-display-xl text-display-lg md:text-display-xl text-on-background">
           {getTranslation('discover_title', lang).replace('{zone}', zoneName || getTranslation('surroundings_fallback', lang))}
         </h2>
         <p className="font-body-lg text-body-lg text-on-surface-variant max-w-2xl">
@@ -95,13 +96,16 @@ export default function DiscoverSection({ pois, zoneName, zoneDescription, lang 
       <section className="grid grid-cols-1 md:grid-cols-12 gap-x-gutter gap-y-stack-lg">
         {filteredItems.map((item) => {
           const isFeatured = item.id === featuredItemId;
-          const bgImg = item.image || 'https://placehold.co/600x400/e3e2df/434655?text=' + encodeURIComponent(item.name);
 
           if (isFeatured) {
             return (
               <article key={item.id} className="col-span-1 md:col-span-12 flex flex-col md:flex-row gap-6 md:gap-8 items-start border border-on-background/10 bg-surface-container-lowest p-4 md:p-6">
                 <div className="w-full md:w-5/12 aspect-[4/5] relative arch-mask overflow-hidden bg-surface-variant flex-shrink-0">
-                  <img className="w-full h-full object-cover" src={bgImg} alt={item.name} />
+                  {isRealImage(item.image) ? (
+                    <img className="w-full h-full object-cover" src={item.image} alt={item.name} />
+                  ) : (
+                    <MediaPlaceholder label={item.name} />
+                  )}
                   {item.rating && (
                     <div className="absolute top-4 right-4 stamped-badge-1 bg-tertiary-fixed-dim text-on-tertiary-fixed font-mono-badge text-mono-badge px-2 py-1 uppercase border border-on-background/10">
                       ★ {item.rating.toFixed(1)}
@@ -141,7 +145,11 @@ export default function DiscoverSection({ pois, zoneName, zoneDescription, lang 
           return (
             <article key={item.id} className="col-span-1 md:col-span-4 bg-surface-container-lowest border border-on-background/10 flex flex-col group">
               <div className="relative h-48 w-full arch-mask overflow-hidden m-2 bg-surface-variant">
-                <img className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" src={bgImg} alt={item.name} />
+                {isRealImage(item.image) ? (
+                  <img className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" src={item.image} alt={item.name} />
+                ) : (
+                  <MediaPlaceholder label={item.name} />
+                )}
                 {item.rating && (
                   <div className="absolute top-2 right-2 stamped-badge-2 bg-primary text-on-primary font-mono-badge text-mono-badge px-2 py-1 uppercase border border-on-background/10">
                     ★ {item.rating.toFixed(1)}

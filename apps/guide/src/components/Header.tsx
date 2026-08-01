@@ -73,7 +73,10 @@ export default function Header({ activeTab, onTabChange, lang, onLanguageChange,
         <div className="flex justify-between items-center w-full gap-4 py-4 md:py-6">
           <div className="flex items-center gap-2 min-w-0">
             <span className="material-symbols-outlined text-primary shrink-0" style={{ fontVariationSettings: "'FILL' 1" }}>cottage</span>
-            <span className="font-display-lg text-[18px] md:text-headline-md text-primary uppercase tracking-tight line-clamp-1">{apartmentName}</span>
+            {/* Cabecera tipo masthead editorial (Stitch): logotipo pequeño en
+                serif, versalitas y tracking amplio — no un titular grande. El
+                peso tipográfico del sistema va en los títulos de sección. */}
+            <span className="font-display-lg text-[14px] md:text-[16px] text-primary uppercase tracking-[0.18em] line-clamp-1">{apartmentName}</span>
           </div>
 
           {/* Web Navigation (Hidden on Mobile — BottomNavBar covers mobile tab switching) */}

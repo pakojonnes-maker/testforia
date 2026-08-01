@@ -119,6 +119,76 @@
   --font-label-sm: "Inter";
   --font-label-caps: "Archivo Narrow";
   --font-mono-badge: "Space Mono";
+
+  /* ⚠️ La escala tipográfica va en el espacio de nombres --text-*, NO en
+     --font-* (que solo define familias). Sin estos tokens, Tailwind v4
+     descarta silenciosamente TODAS las clases text-display-xl /
+     text-headline-md / text-body-md / text-label-caps / text-mono-badge…
+     y la app entera se renderiza a 16px heredados: los títulos serif salen
+     del tamaño del cuerpo y la jerarquía editorial desaparece (así estaba
+     desde el export de Stitch — tailwind.config.js sí las tenía, pero esta
+     app usa @tailwindcss/vite sin @config, así que ese archivo no compila).
+     El sufijo --line-height / --letter-spacing / --font-weight es la sintaxis
+     de modificadores de v4. */
+  --text-display-xl: 48px;
+  --text-display-xl--line-height: 52px;
+  --text-display-xl--letter-spacing: -0.03em;
+  --text-display-xl--font-weight: 600;
+
+  --text-display-lg: 36px;
+  --text-display-lg--line-height: 40px;
+  --text-display-lg--letter-spacing: -0.02em;
+  --text-display-lg--font-weight: 500;
+
+  --text-headline-lg: 32px;
+  --text-headline-lg--line-height: 1.15;
+  --text-headline-lg--letter-spacing: -0.01em;
+  --text-headline-lg--font-weight: 500;
+
+  --text-headline-lg-mobile: 26px;
+  --text-headline-lg-mobile--line-height: 1.2;
+  --text-headline-lg-mobile--letter-spacing: -0.01em;
+  --text-headline-lg-mobile--font-weight: 500;
+
+  --text-headline-md: 28px;
+  --text-headline-md--line-height: 32px;
+  --text-headline-md--font-weight: 500;
+
+  --text-headline-sm: 18px;
+  --text-headline-sm--line-height: 1.3;
+  --text-headline-sm--font-weight: 500;
+
+  --text-body-lg: 18px;
+  --text-body-lg--line-height: 28px;
+  --text-body-lg--font-weight: 400;
+
+  --text-body-md: 16px;
+  --text-body-md--line-height: 24px;
+  --text-body-md--font-weight: 400;
+
+  --text-label-lg: 16px;
+  --text-label-lg--line-height: 1.3;
+  --text-label-lg--letter-spacing: 0.01em;
+  --text-label-lg--font-weight: 600;
+
+  --text-label-md: 14px;
+  --text-label-md--line-height: 1.3;
+  --text-label-md--letter-spacing: 0.02em;
+  --text-label-md--font-weight: 600;
+
+  --text-label-sm: 12px;
+  --text-label-sm--line-height: 1.3;
+  --text-label-sm--letter-spacing: 0.02em;
+  --text-label-sm--font-weight: 600;
+
+  --text-label-caps: 12px;
+  --text-label-caps--line-height: 16px;
+  --text-label-caps--letter-spacing: 0.12em;
+  --text-label-caps--font-weight: 600;
+
+  --text-mono-badge: 11px;
+  --text-mono-badge--line-height: 12px;
+  --text-mono-badge--font-weight: 700;
 }
 
 @source "../index.html";
