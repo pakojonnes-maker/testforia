@@ -33,6 +33,8 @@ interface GuidebookData {
   pois: Array<{
     id: string; name: string; description: string; category: string;
     google_maps_url: string; media: any[];
+    poi_type?: string; access_type?: string; price_display?: string;
+    duration_text?: string; is_bookable?: boolean;
   }>;
   restaurants: Array<{
     id: string; name: string; slug: string; cuisine_type: string;

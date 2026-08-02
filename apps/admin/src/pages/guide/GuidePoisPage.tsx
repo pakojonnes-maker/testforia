@@ -39,6 +39,8 @@ interface POI {
   zone_id: string;
   category: string;
   access_type: string;
+  /** Texto libre que ve el huésped cuando access_type !== 'free' (ej. "12 €"). */
+  price_display?: string;
   name_es: string;
   name_en: string;
   description_es: string;
@@ -156,6 +158,7 @@ export default function GuidePoisPage() {
         zone_id: formData.zone_id,
         category: formData.category,
         access_type: formData.access_type,
+        price_display: formData.price_display,
         google_maps_url: formData.google_maps_url,
         google_place_id: formData.google_place_id,
         address: formData.address,
@@ -311,11 +314,24 @@ export default function GuidePoisPage() {
                   display: 'flex',
                   alignItems: 'flex-end',
                   p: 2,
+                  gap: 0.5,
                 }}>
-                  <Chip 
-                    label={poi.category} 
-                    size="small" 
-                    sx={{ bgcolor: 'rgba(255,255,255,0.85)', fontWeight: 600, fontSize: '0.7rem' }} 
+                  <Chip
+                    label={poi.category}
+                    size="small"
+                    sx={{ bgcolor: 'rgba(255,255,255,0.85)', fontWeight: 600, fontSize: '0.7rem' }}
+                  />
+                  {/* Mismo dato que ve el huésped en la tarjeta del guidebook */}
+                  <Chip
+                    label={(poi.access_type || 'free') === 'free'
+                      ? 'Gratis'
+                      : (poi.price_display || ACCESS_TYPES.find(a => a.value === poi.access_type)?.label || 'De pago')}
+                    size="small"
+                    sx={{
+                      bgcolor: (poi.access_type || 'free') === 'free' ? 'rgba(220,252,231,0.92)' : 'rgba(30,64,175,0.92)',
+                      color: (poi.access_type || 'free') === 'free' ? '#166534' : '#fff',
+                      fontWeight: 600, fontSize: '0.7rem',
+                    }}
                   />
                 </Box>
 
@@ -411,16 +427,26 @@ export default function GuidePoisPage() {
               <TextField fullWidth size="small" label="Tip rápido (EN)" value={formData.short_tip_en || ''} onChange={e => setFormData({...formData, short_tip_en: e.target.value})} />
             </Grid>
 
-            <Grid item xs={12} md={8}>
+            <Grid item xs={12} md={6}>
               <TextField fullWidth size="small" label="Dirección" value={formData.address || ''} onChange={e => setFormData({...formData, address: e.target.value})} />
             </Grid>
-            <Grid item xs={12} md={4}>
+            <Grid item xs={12} md={3}>
               <FormControl fullWidth size="small">
                 <InputLabel>Acceso</InputLabel>
                 <Select value={formData.access_type || 'free'} label="Acceso" onChange={e => setFormData({...formData, access_type: e.target.value})}>
                   {ACCESS_TYPES.map(a => <MenuItem key={a.value} value={a.value}>{a.label}</MenuItem>)}
                 </Select>
               </FormControl>
+            </Grid>
+            <Grid item xs={12} md={3}>
+              <TextField
+                fullWidth size="small" label="Precio / entrada"
+                placeholder="Ej. 12 €"
+                value={formData.price_display || ''}
+                disabled={(formData.access_type || 'free') === 'free'}
+                helperText="Se muestra en la tarjeta del huésped"
+                onChange={e => setFormData({...formData, price_display: e.target.value})}
+              />
             </Grid>
 
             <Grid item xs={12}>

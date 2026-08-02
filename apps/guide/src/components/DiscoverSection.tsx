@@ -3,6 +3,7 @@ import { getTranslation, getCategoryLabel } from '../lib/i18n';
 import MapModal from './MapModal';
 import PoiDetailModal, { PoiDetailItem } from './PoiDetailModal';
 import MediaPlaceholder, { isRealImage } from './MediaPlaceholder';
+import AccessBadge, { BookableBadge } from './AccessBadge';
 
 interface POI {
   id: string;
@@ -17,6 +18,11 @@ interface POI {
   distance_text?: string;
   latitude?: number;
   longitude?: number;
+  poi_type?: string;
+  access_type?: string;
+  price_display?: string;
+  duration_text?: string;
+  is_bookable?: boolean;
 }
 
 interface DiscoverSectionProps {
@@ -49,6 +55,8 @@ export default function DiscoverSection({ pois, zoneName, zoneDescription, lang 
     image: p.media?.[0]?.url, url: p.google_maps_url,
     rating: p.rating, travel_time_text: p.travel_time_text, travel_mode: p.travel_mode, distance_text: p.distance_text,
     latitude: p.latitude, longitude: p.longitude,
+    access_type: p.access_type, price_display: p.price_display,
+    duration_text: p.duration_text, is_bookable: p.is_bookable,
   }));
 
   const categories = [ALL_FILTER, ...Array.from(new Set(combinedItems.map(i => i.category)))];
@@ -113,6 +121,10 @@ export default function DiscoverSection({ pois, zoneName, zoneDescription, lang 
                       ★ {item.rating.toFixed(1)}
                     </div>
                   )}
+                  <div className="absolute top-4 left-4 flex flex-col items-start gap-2">
+                    <AccessBadge item={item} lang={lang} stamp={3} />
+                    {item.is_bookable && <BookableBadge lang={lang} />}
+                  </div>
                 </div>
                 <div className="w-full md:w-7/12 flex flex-col justify-between h-full">
                   <div>
@@ -120,7 +132,7 @@ export default function DiscoverSection({ pois, zoneName, zoneDescription, lang 
                     <h3 className="font-headline-md text-headline-md text-on-background mb-3">{item.name}</h3>
                     <p className="font-body-md text-body-md text-on-surface-variant mb-6 max-w-lg">{item.description}</p>
                   </div>
-                  <div className="flex flex-col sm:flex-row gap-4 mt-auto border-t border-on-background/10 pt-6">
+                  <div className="flex flex-col sm:flex-row sm:items-center gap-4 mt-auto border-t border-on-background/10 pt-6">
                     {item.travel_time_text && (
                       <div className="flex items-center gap-1 text-on-surface-variant shrink-0">
                         <span className="material-symbols-outlined text-[16px]">
@@ -129,6 +141,12 @@ export default function DiscoverSection({ pois, zoneName, zoneDescription, lang 
                         <span className="font-label-sm text-label-sm">
                           {item.travel_time_text}{item.distance_text ? ` / ${item.distance_text}` : ''}
                         </span>
+                      </div>
+                    )}
+                    {item.duration_text && (
+                      <div className="flex items-center gap-1 text-on-surface-variant shrink-0">
+                        <span className="material-symbols-outlined text-[16px]">schedule</span>
+                        <span className="font-label-sm text-label-sm">{item.duration_text}</span>
                       </div>
                     )}
                     <button
@@ -153,10 +171,14 @@ export default function DiscoverSection({ pois, zoneName, zoneDescription, lang 
                   <MediaPlaceholder label={item.name} />
                 )}
                 {item.rating && (
-                  <div className="absolute top-2 right-2 stamped-badge-2 bg-primary text-on-primary font-mono-badge text-mono-badge px-2 py-1 uppercase border border-on-background/10">
+                  <div className="absolute top-2 right-2 stamped-badge-2 bg-tertiary-fixed-dim text-on-tertiary-fixed font-mono-badge text-mono-badge px-2 py-1 uppercase border border-on-background/10">
                     ★ {item.rating.toFixed(1)}
                   </div>
                 )}
+                <div className="absolute top-2 left-2 flex flex-col items-start gap-1.5">
+                  <AccessBadge item={item} lang={lang} stamp={1} />
+                  {item.is_bookable && <BookableBadge lang={lang} />}
+                </div>
               </div>
               <div className="p-4 flex flex-col gap-2 flex-grow">
                 <span className="font-label-caps text-label-caps text-secondary uppercase tracking-widest">{getCategoryLabel(item.category, lang)}</span>

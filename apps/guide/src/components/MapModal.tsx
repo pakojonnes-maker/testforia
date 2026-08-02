@@ -4,6 +4,7 @@ import 'leaflet/dist/leaflet.css';
 import L from 'leaflet';
 import { getTranslation, getCategoryLabel } from '../lib/i18n';
 import { isRealImage } from './MediaPlaceholder';
+import { getAccessLabel, isFreeAccess } from './AccessBadge';
 
 // Fix leaflet default icon issue with bundlers
 delete (L.Icon.Default.prototype as any)._getIconUrl;
@@ -40,6 +41,9 @@ interface POI {
   longitude?: number;
   description?: string;
   media?: { url: string }[];
+  access_type?: string;
+  price_display?: string;
+  is_bookable?: boolean;
 }
 
 interface MapModalProps {
@@ -116,7 +120,12 @@ export default function MapModal({ pois, onClose, zoneName, lang, targetId }: Ma
                           />
                         )}
                         <strong className="text-sm">{poi.name}</strong>
-                        <p className="text-xs text-gray-500 mt-1">{getCategoryLabel(poi.category, lang)}</p>
+                        <p className="text-xs text-gray-500 mt-1">
+                          {getCategoryLabel(poi.category, lang)}
+                          <span className={isFreeAccess(poi) ? 'text-green-700' : 'text-gray-700'}>
+                            {' · '}{getAccessLabel(poi, lang)}
+                          </span>
+                        </p>
                         {poi.description && <p className="text-xs mt-1">{poi.description}</p>}
                       </div>
                     </Popup>

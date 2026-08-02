@@ -40,6 +40,8 @@ interface PreviewResult {
   match_score?: number | null;
   client_restaurant?: ClientRestaurantMatch | null;
   photo_preview_url?: string | null;
+  /** Derivado del priceLevel de Google; null cuando Google no dice nada. */
+  access_type?: 'free' | 'paid' | null;
   fields?: FieldDiff[];
 }
 
@@ -89,6 +91,11 @@ function buildPayload(row: ImportRow, zoneId: string): Record<string, unknown> {
     source: 'google_places',
     google_synced_at: new Date().toISOString(),
   };
+  // Solo al crear: en un update el host ya pudo fijar el acceso a mano y la
+  // señal de Google (que a menudo ni existe) no debe pisarlo.
+  if (row.action === 'create' && row.access_type) {
+    payload.access_type = row.access_type;
+  }
   (row.fields || []).forEach(f => {
     if (row.selectedFields[f.key] && f.googleValue !== null && f.googleValue !== undefined && f.googleValue !== '') {
       payload[f.key] = f.googleValue;

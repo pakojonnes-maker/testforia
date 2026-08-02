@@ -72,6 +72,15 @@ export const UI_STRINGS: Record<string, Record<string, string>> = {
   open_interactive_map: { es: 'Abrir Mapa Interactivo', en: 'Open Interactive Map', fr: 'Ouvrir la carte interactive', de: 'Interaktive Karte öffnen', it: 'Apri mappa interattiva', pt: 'Abrir mapa interativo', ca: 'Obrir mapa interactiu', ar: 'فتح الخريطة التفاعلية', ru: 'Открыть интерактивную карту', uk: 'Відкрити інтерактивну карту', zh: '打开互动地图', ja: 'インタラクティブマップを開く', ko: '인터랙티브 지도 열기' },
   filter_all: { es: 'Todos', en: 'All', fr: 'Tous', de: 'Alle', it: 'Tutti', pt: 'Todos', ca: 'Tots', ar: 'الكل', ru: 'Все', uk: 'Всі', zh: '全部', ja: 'すべて', ko: '전체' },
 
+  // Acceso / precio de un POI (access_type en guide_pois). `access_paid` solo se usa
+  // cuando el POI no tiene price_display; si lo tiene, se muestra el precio tal cual.
+  access_free: { es: 'Gratis', en: 'Free', fr: 'Gratuit', de: 'Kostenlos', it: 'Gratis', pt: 'Grátis', ca: 'Gratis', ar: 'مجاني', ru: 'Бесплатно', uk: 'Безкоштовно', zh: '免费', ja: '無料', ko: '무료' },
+  access_paid: { es: 'De pago', en: 'Paid', fr: 'Payant', de: 'Kostenpflichtig', it: 'A pagamento', pt: 'Pago', ca: 'De pagament', ar: 'مدفوع', ru: 'Платно', uk: 'Платно', zh: '收费', ja: '有料', ko: '유료' },
+  access_mixed: { es: 'Gratis / de pago', en: 'Free / paid', fr: 'Gratuit / payant', de: 'Kostenlos / kostenpflichtig', it: 'Gratis / a pagamento', pt: 'Grátis / pago', ca: 'Gratis / de pagament', ar: 'مجاني / مدفوع', ru: 'Бесплатно / платно', uk: 'Безкоштовно / платно', zh: '免费 / 收费', ja: '無料／有料', ko: '무료 / 유료' },
+  access_bookable: { es: 'Reservable', en: 'Bookable', fr: 'Réservable', de: 'Buchbar', it: 'Prenotabile', pt: 'Reservável', ca: 'Reservable', ar: 'قابل للحجز', ru: 'Можно забронировать', uk: 'Можна забронювати', zh: '可预订', ja: '予約可', ko: '예약 가능' },
+  filter_free: { es: 'Gratis', en: 'Free', fr: 'Gratuit', de: 'Kostenlos', it: 'Gratis', pt: 'Grátis', ca: 'Gratis', ar: 'مجاني', ru: 'Бесплатно', uk: 'Безкоштовно', zh: '免费', ja: '無料', ko: '무료' },
+  poi_duration_label: { es: 'Duración', en: 'Duration', fr: 'Durée', de: 'Dauer', it: 'Durata', pt: 'Duração', ca: 'Durada', ar: 'المدة', ru: 'Длительность', uk: 'Тривалість', zh: '时长', ja: '所要時間', ko: '소요 시간' },
+
   // ServicesSection — {zone} placeholder replaced via .replace('{zone}', ...)
   exclusive_promotions: { es: 'Promociones Exclusivas', en: 'Exclusive Deals', fr: 'Offres exclusives', de: 'Exklusive Angebote', it: 'Offerte esclusive', pt: 'Ofertas exclusivas', ca: 'Promocions exclusives', ar: 'عروض حصرية', ru: 'Эксклюзивные предложения', uk: 'Ексклюзивні пропозиції', zh: '专属优惠', ja: '限定オファー', ko: '독점 혜택' },
   services_subtitle: {

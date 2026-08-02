@@ -330,6 +330,15 @@ const PRICE_LEVEL_DISPLAY = {
     PRICE_LEVEL_VERY_EXPENSIVE: '€€€€',
 };
 
+// Google solo informa `priceLevel` en una parte de los sitios (sobre todo
+// hostelería). Sin señal devolvemos null y se queda el DEFAULT 'free' de la
+// columna, que el host corrige a mano — mejor eso que inventar "de pago".
+export function deriveAccessType(priceLevel) {
+    if (!priceLevel) return null;
+    if (priceLevel === 'PRICE_LEVEL_FREE') return 'free';
+    return PRICE_LEVEL_DISPLAY[priceLevel] ? 'paid' : null;
+}
+
 export function mapPlaceToPoi(place) {
     const { category, poi_type } = mapGoogleTypeToCategory(place.primaryType);
     return {
@@ -352,6 +361,7 @@ export function mapPlaceToPoi(place) {
         google_rating: place.rating ?? null,
         google_rating_count: place.userRatingCount ?? null,
         price_display: PRICE_LEVEL_DISPLAY[place.priceLevel] || null,
+        access_type: deriveAccessType(place.priceLevel),
         category,
         poi_type,
         source: 'google_places',
@@ -560,6 +570,10 @@ async function previewOne(env, rawUrl, zone) {
             match_score: match.poiMatch.score ?? null,
             client_restaurant: match.clientMatch,
             photo_preview_url: photoPreviewUrl, // solo para pintar en el admin — nunca se guarda en R2
+            // Fuera del diff de campos a propósito: es un derivado de `price_display`,
+            // no un campo que se elija por separado. Solo se aplica al crear (ver
+            // buildPayload en GuidePoisImportDialog) para no pisar lo que ya editó el host.
+            access_type: mapped.access_type,
             fields,
         };
     } catch (err) {

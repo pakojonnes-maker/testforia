@@ -1,6 +1,7 @@
 import React, { useEffect } from 'react';
 import { getTranslation, getCategoryLabel } from '../lib/i18n';
 import MediaPlaceholder, { isRealImage } from './MediaPlaceholder';
+import AccessBadge, { BookableBadge } from './AccessBadge';
 
 export interface PoiDetailItem {
   id: string;
@@ -13,6 +14,10 @@ export interface PoiDetailItem {
   travel_time_text?: string;
   travel_mode?: 'walk' | 'drive' | 'bike';
   distance_text?: string;
+  access_type?: string;
+  price_display?: string;
+  duration_text?: string;
+  is_bookable?: boolean;
 }
 
 interface PoiDetailModalProps {
@@ -51,11 +56,15 @@ export default function PoiDetailModal({ item, lang, onClose, onOpenMap }: PoiDe
           >
             <span className="material-symbols-outlined">close</span>
           </button>
-          {item.rating && (
-            <div className="absolute top-4 left-4 stamped-badge-1 flex items-center gap-1 bg-tertiary-fixed-dim text-on-tertiary-fixed font-mono-badge text-mono-badge px-2 py-1 border border-on-background/10">
-              ★ {item.rating.toFixed(1)}
-            </div>
-          )}
+          <div className="absolute top-4 left-4 flex flex-col items-start gap-2">
+            {item.rating && (
+              <span className="stamped-badge-1 flex items-center gap-1 bg-tertiary-fixed-dim text-on-tertiary-fixed font-mono-badge text-mono-badge px-2 py-1 border border-on-background/10">
+                ★ {item.rating.toFixed(1)}
+              </span>
+            )}
+            <AccessBadge item={item} lang={lang} stamp={3} />
+            {item.is_bookable && <BookableBadge lang={lang} />}
+          </div>
           <div className="absolute bottom-4 left-6 right-6">
             <span className="font-label-caps text-label-caps text-crisp-white/80 uppercase tracking-widest">{getCategoryLabel(item.category, lang)}</span>
             <h3 className="font-headline-md text-headline-md text-crisp-white">{item.name}</h3>
@@ -64,16 +73,27 @@ export default function PoiDetailModal({ item, lang, onClose, onOpenMap }: PoiDe
 
         {/* Body */}
         <div className="p-6 flex flex-col gap-4 overflow-y-auto">
-          {item.travel_time_text && (
-            <div className="flex items-center gap-1 text-on-surface-variant">
-              <span className="material-symbols-outlined text-[18px]">
-                {item.travel_mode === 'drive' ? 'directions_car' : 'directions_walk'}
-              </span>
-              <span className="font-label-sm text-label-sm">
-                {item.travel_time_text}{item.distance_text ? ` / ${item.distance_text}` : ''}
-              </span>
-            </div>
-          )}
+          <div className="flex flex-wrap items-center gap-x-5 gap-y-2">
+            {item.travel_time_text && (
+              <div className="flex items-center gap-1 text-on-surface-variant">
+                <span className="material-symbols-outlined text-[18px]">
+                  {item.travel_mode === 'drive' ? 'directions_car' : 'directions_walk'}
+                </span>
+                <span className="font-label-sm text-label-sm">
+                  {item.travel_time_text}{item.distance_text ? ` / ${item.distance_text}` : ''}
+                </span>
+              </div>
+            )}
+            {item.duration_text && (
+              <div className="flex items-center gap-1 text-on-surface-variant">
+                <span className="material-symbols-outlined text-[18px]">schedule</span>
+                <span className="font-label-sm text-label-sm">
+                  {getTranslation('poi_duration_label', lang)}: {item.duration_text}
+                </span>
+              </div>
+            )}
+            {/* El acceso/precio no se repite aquí: ya va como sello sobre la foto. */}
+          </div>
           <p className="font-body-md text-body-md text-on-surface-variant whitespace-pre-wrap leading-relaxed">
             {item.description}
           </p>

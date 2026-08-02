@@ -154,6 +154,7 @@ export async function handleGetGuidebook(env, slug, lang, origin) {
             SELECT
                 p.id, p.category, p.latitude, p.longitude, p.google_maps_url,
                 p.rating, p.travel_time_text, p.travel_mode, p.distance_text,
+                p.poi_type, p.access_type, p.price_display, p.duration_text, p.is_bookable,
                 COALESCE(t_name.value, t_name_es.value) AS name,
                 COALESCE(t_desc.value, t_desc_es.value) AS description
             FROM guide_apartment_pois gap
@@ -181,6 +182,7 @@ export async function handleGetGuidebook(env, slug, lang, origin) {
             SELECT
                 p.id, p.category, p.latitude, p.longitude, p.google_maps_url,
                 p.rating, p.travel_time_text, p.travel_mode, p.distance_text,
+                p.poi_type, p.access_type, p.price_display, p.duration_text, p.is_bookable,
                 COALESCE(t_name.value, t_name_es.value) AS name,
                 COALESCE(t_desc.value, t_desc_es.value) AS description
             FROM guide_pois p
@@ -467,6 +469,13 @@ export async function handleGetGuidebook(env, slug, lang, origin) {
             travel_time_text: poi.travel_time_text,
             travel_mode: poi.travel_mode,
             distance_text: poi.distance_text,
+            // Access/pricing: sin esto, en "Ubicaciones" un museo de pago se ve
+            // igual que una cala gratuita y que una experiencia reservable.
+            poi_type: poi.poi_type || 'sight',
+            access_type: poi.access_type || 'free',
+            price_display: poi.price_display || '',
+            duration_text: poi.duration_text || '',
+            is_bookable: poi.is_bookable === 1,
             media: poiMedia[poi.id] || []
         })),
         restaurants: (zoneRestaurants.results || []).map(r => ({
