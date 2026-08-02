@@ -65,33 +65,6 @@ function errorResponse(message, status = 400) {
 // seguro.
 const PLACE_ID_LIKE = /^[A-Za-z0-9_-]{18,}$/;
 
-async function followShortLink(rawUrl) {
-    let current = rawUrl;
-    for (let i = 0; i < 3; i++) {
-        let res;
-        try {
-            res = await fetch(current, {
-                method: 'GET',
-                redirect: 'manual',
-                headers: { 'User-Agent': 'Mozilla/5.0 (compatible; VisualTasteImporter/1.0)' },
-                signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
-            });
-        } catch (err) {
-            console.warn('[GuideImport] Fallo siguiendo enlace corto:', err.message);
-            return current;
-        }
-        const location = res.headers.get('location');
-        if (res.body) res.body.cancel().catch(() => {}); // no nos hace falta el cuerpo, solo la cabecera
-        if (!location || res.status < 300 || res.status >= 400) return current;
-        try {
-            current = new URL(location, current).toString();
-        } catch {
-            return current;
-        }
-    }
-    return current;
-}
-
 function extractFromMapsUrl(urlObj) {
     const full = urlObj.toString();
 
@@ -109,17 +82,73 @@ function extractFromMapsUrl(urlObj) {
     const coordMatch = pinMatch || viewportMatch;
 
     const pathMatch = urlObj.pathname.match(/\/maps\/place\/([^/@]+)/);
-    const name = pathMatch ? decodeURIComponent(pathMatch[1].replace(/\+/g, ' ')) : null;
+    const pathName = pathMatch ? decodeURIComponent(pathMatch[1].replace(/\+/g, ' ')) : null;
 
     const cid = urlObj.searchParams.get('cid');
 
-    if (coordMatch || name || cid) {
+    if (coordMatch || pathName || cid) {
         return {
-            name,
+            name: pathName,
             lat: coordMatch ? parseFloat(coordMatch[1]) : null,
             lng: coordMatch ? parseFloat(coordMatch[2]) : null,
             cid,
         };
+    }
+
+    // Un enlace corto (share.google) a veces no resuelve a una ficha de Maps,
+    // sino a una página de resultados/Knowledge Graph de Google
+    // (google.com/search?q=Nombre&kgmid=...). El nombre en `q` sigue
+    // sirviendo igual como texto de búsqueda para Text Search. Caso real
+    // encontrado en producción 2026-08-02: share.google/xxxx devolvía
+    // "No resuelto" porque solo se miraba la URL final tras seguir
+    // redirecciones, y esa URL final ni siquiera es de dominio maps.*.
+    const isGoogleSearchPage = /(^|\.)google\.[a-z.]+$/i.test(urlObj.hostname) && urlObj.pathname === '/search';
+    if (isGoogleSearchPage && qParam) {
+        return { name: qParam, lat: null, lng: null, cid: null };
+    }
+
+    return null;
+}
+
+/**
+ * Sigue redirecciones HTTP (redirect:'manual', hasta 4 saltos) probando
+ * extractFromMapsUrl en CADA salto antes de pedir el siguiente — no solo al
+ * final. Importa de verdad: un enlace share.google normalmente pasa por una
+ * URL intermedia que YA lleva el nombre del sitio en `q=`, y el salto
+ * siguiente suele caer en un muro de consentimiento de cookies de Google
+ * (un fetch de Worker no tiene cookie jar entre peticiones) que no aporta
+ * nada y solo gasta saltos. Comprobar en cada parada evita perseguir esa
+ * redirección inútil.
+ */
+async function resolveViaRedirects(startUrl) {
+    let current = startUrl;
+    for (let i = 0; i < 4; i++) {
+        let urlObj;
+        try { urlObj = new URL(current); } catch { return null; }
+
+        const extracted = extractFromMapsUrl(urlObj);
+        if (extracted) return extracted;
+
+        let res;
+        try {
+            res = await fetch(current, {
+                method: 'GET',
+                redirect: 'manual',
+                headers: { 'User-Agent': 'Mozilla/5.0 (compatible; VisualTasteImporter/1.0)' },
+                signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
+            });
+        } catch (err) {
+            console.warn('[GuideImport] Fallo siguiendo enlace:', err.message);
+            return null;
+        }
+        const location = res.headers.get('location');
+        if (res.body) res.body.cancel().catch(() => {}); // no nos hace falta el cuerpo, solo la cabecera
+        if (!location || res.status < 300 || res.status >= 400) return null;
+        try {
+            current = new URL(location, current).toString();
+        } catch {
+            return null;
+        }
     }
     return null;
 }
@@ -156,8 +185,13 @@ async function textSearchIdOnly(env, { textQuery, biasLat, biasLng, radius = 500
 /**
  * Acepta las formas habituales en que llega una ficha de Google Maps: un
  * place_id pelado, una URL larga de escritorio (con !3d/!4d o @lat,lng), un
- * enlace corto de móvil (maps.app.goo.gl, necesita seguir la redirección), o
- * texto libre ("El Pimpi Málaga"), sesgado por `bias` (normalmente la zona).
+ * enlace corto (maps.app.goo.gl, share.google, g.co...) que necesita seguir
+ * redirecciones, o texto libre ("El Pimpi Málaga"), sesgado por `bias`
+ * (normalmente la zona). No se mantiene una lista de dominios "conocidos" de
+ * enlace corto — se prueba a extraer de la URL tal cual primero (gratis, sin
+ * red) y solo si eso falla se siguen redirecciones probando en cada salto;
+ * así cualquier dominio de acortador nuevo que Google introduzca funciona
+ * igual sin tocar este código.
  * @returns {Promise<{placeId: string, via: string} | null>}
  */
 export async function resolvePlaceRef(env, rawInput, bias = {}) {
@@ -172,12 +206,11 @@ export async function resolvePlaceRef(env, rawInput, bias = {}) {
     try { urlObj = new URL(input); } catch { /* no es una URL: texto libre */ }
 
     if (urlObj) {
-        if (/goo\.gl$/i.test(urlObj.hostname)) {
-            const expanded = await followShortLink(urlObj.toString());
-            try { urlObj = new URL(expanded); } catch { /* si no expande a URL válida, seguimos con la corta */ }
+        let extracted = extractFromMapsUrl(urlObj);
+        if (!extracted) {
+            extracted = await resolveViaRedirects(urlObj.toString());
         }
 
-        const extracted = extractFromMapsUrl(urlObj);
         if (extracted?.placeId) return { placeId: extracted.placeId, via: 'url_place_id' };
 
         if (extracted?.name || extracted?.lat != null) {

@@ -132,20 +132,53 @@ console.log('\n--- resolvePlaceRef: formas de entrada ---');
 }
 {
     // Enlace corto de móvil: hay que seguir la redirección para llegar a la
-    // URL larga. followShortLink hace una comprobación extra tras el primer
-    // salto (por si la URL expandida fuera a su vez otro redirect, hasta 3
-    // saltos en total) — de ahí que se esperen 2 llamadas, no 1.
+    // URL larga. resolveViaRedirects prueba extractFromMapsUrl en CADA salto
+    // ANTES de pedir el siguiente, así que en cuanto la URL expandida trae un
+    // place_id ya no hace falta un segundo fetch para "confirmar" nada — de
+    // ahí 1 sola llamada, no 2.
     let callCount = 0;
     mockFetch(async (url) => {
         callCount++;
         if (String(url).includes('goo.gl')) {
             return new Response(null, { status: 302, headers: { location: 'https://www.google.com/maps/place/?q=place_id:ChIJSHORTLINK' } });
         }
-        return new Response(null, { status: 200 }); // la URL expandida no redirige más
+        throw new Error('No debería hacer falta un segundo fetch: la URL expandida ya se resuelve por extracción — ' + url);
     });
     const ref = await resolvePlaceRef({}, 'https://maps.app.goo.gl/abc123');
     assert('Sigue el enlace corto y extrae el place_id de la URL expandida', ref?.placeId === 'ChIJSHORTLINK');
-    assert('2 saltos de red: seguir el corto + confirmar que el largo no redirige', callCount === 2);
+    assert('1 solo salto de red: la URL expandida ya resuelve por extracción, sin fetch extra', callCount === 1);
+    restoreFetch();
+}
+{
+    // Caso real de producción (2026-08-02): share.google no lleva NINGÚN dato
+    // de Maps en la URL. Dos redirecciones HTTP (302 luego 301) llevan a una
+    // página de resultados/Knowledge Graph de Google
+    // (google.com/search?q=Nombre&kgmid=...) — el nombre real vive en `q=`
+    // de esa URL intermedia. Un tercer salto (fetch de la propia página de
+    // búsqueda) caería en un muro de consentimiento de cookies inútil, así
+    // que el test falla fuerte si el código llega a intentarlo.
+    let redirectHops = 0;
+    let capturedTextSearchBody = null;
+    mockFetch(async (url, opts) => {
+        const urlStr = String(url);
+        if (urlStr.startsWith('https://share.google/')) {
+            redirectHops++;
+            return new Response(null, { status: 302, headers: { location: 'https://www.google.com/share.google?q=8VcC4yfVat9iRWNaE' } });
+        }
+        if (urlStr.includes('google.com/share.google?q=')) {
+            redirectHops++;
+            return new Response(null, { status: 301, headers: { location: 'https://www.google.com/search?kgmid=/g/121k353j&q=Casa+de+los+Navajas&hl=es-ES' } });
+        }
+        if (urlStr.includes('places:searchText')) {
+            capturedTextSearchBody = JSON.parse(opts.body);
+            return new Response(JSON.stringify({ places: [{ id: 'ChIJCASANAVAJAS' }] }), { status: 200 });
+        }
+        throw new Error('No debería llegar a fetchear la página de búsqueda (muro de consentimiento inútil): ' + urlStr);
+    });
+    const ref = await resolvePlaceRef({ GOOGLE_PLACES_API_KEY: 'test-key' }, 'https://share.google/8VcC4yfVat9iRWNaE');
+    assert('2 saltos de redirección antes de extraer el nombre (sin llegar a la página de búsqueda)', redirectHops === 2);
+    assert('El nombre extraído de la URL intermedia se usa como textQuery de Text Search', capturedTextSearchBody?.textQuery === 'Casa de los Navajas');
+    assert('Resuelve un place_id vía Text Search a partir del nombre', ref?.placeId === 'ChIJCASANAVAJAS' && ref.via === 'url_search');
     restoreFetch();
 }
 {
