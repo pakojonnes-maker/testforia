@@ -2,12 +2,11 @@
 -- BDschemaFinal.sql — ESQUEMA REAL DE PRODUCCION
 -- =====================================================
 -- Base de datos D1: restaurant-menu-saas (7e8d1efe-2a54-4849-9a06-4c47152392bd)
--- Exportado el 2026-08-03 desde la BD en produccion, tras aplicar la
--- migracion 0085 (categoria de telefono 'emergency' + telefonos por defecto
--- en todos los apartamentos existentes + correccion del nombre de la
--- categoria 'door_code' en el catalogo).
--- 85 tablas (sin cambios de esquema respecto al export anterior — 0085 es
--- solo datos, no ALTER/CREATE TABLE nuevas).
+-- Exportado el 2026-08-04 desde la BD en produccion, tras aplicar la
+-- migracion 0086 (guide_agencies: nuevas columnas headline_font, body_font,
+-- label_font para tipografia por rol; se limpia el valor heredado de
+-- font_family, que queda deprecada en el esquema pero sin leerse en codigo).
+-- 85 tablas.
 --
 -- NO editar a mano. Para regenerar:
 --   npx wrangler d1 export restaurant-menu-saas --remote --no-data --output BDschemaFinal.sql
@@ -864,7 +863,7 @@ CREATE TABLE guide_agencies (
   is_active BOOLEAN DEFAULT TRUE,
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   modified_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-, primary_color TEXT, secondary_color TEXT, accent_color TEXT, font_family TEXT);
+, primary_color TEXT, secondary_color TEXT, accent_color TEXT, font_family TEXT, headline_font TEXT, body_font TEXT, label_font TEXT);
 CREATE TABLE guide_agency_staff (
   agency_id TEXT NOT NULL,
   user_id TEXT NOT NULL,
