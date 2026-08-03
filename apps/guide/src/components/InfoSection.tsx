@@ -85,48 +85,90 @@ export default function InfoSection({ infoItems, phones = [], lang }: InfoSectio
   const featuredItem = guideItems.length > 4 ? guideItems[guideItems.length - 1] : null;
   const remainingGrid = featuredItem ? gridItems : guideItems;
 
+  // El modal de código de entrada solo aporta algo cuando el anfitrión ha
+  // rellenado dónde recogerlo, sus coordenadas o una foto (migración 0084) —
+  // si no, la fila se queda como código + copiar, sin abrir un modal vacío.
+  const doorCodeHasPickupInfo = !!(doorCodeItem?.pickup_instructions || (doorCodeItem?.latitude != null && doorCodeItem?.longitude != null) || doorCodeItem?.media?.[0]?.url);
+  const hasQuickAccessGroup = !!wifiItem || !!doorCodeItem || phones.length > 0;
+
   return (
     <div className="flex flex-col gap-stack-lg">
-      {doorCodeItem && (() => {
-        // El modal solo aporta algo cuando el anfitrión ha rellenado dónde
-        // recogerlo, sus coordenadas o una foto (migración 0084) — si no, la
-        // fila se queda exactamente como antes (código + copiar), sin abrir
-        // un modal vacío.
-        const hasPickupInfo = !!(doorCodeItem.pickup_instructions || (doorCodeItem.latitude != null && doorCodeItem.longitude != null) || doorCodeItem.media?.[0]?.url);
-        return (
-          <div
-            className="bg-primary/5 border border-primary/25 p-4 flex items-center justify-between"
-            onClick={hasPickupInfo ? () => setShowEntryCodeModal(true) : undefined}
-            role={hasPickupInfo ? 'button' : undefined}
-            style={hasPickupInfo ? { cursor: 'pointer' } : undefined}
-          >
-            <div className="flex items-center gap-3">
-              <span className="material-symbols-outlined text-primary" style={{fontVariationSettings: "'FILL' 1"}}>door_front</span>
-              <div>
-                <p className="font-label-caps text-label-caps text-primary uppercase">{getTranslation('door_code_title', lang)}</p>
-                <p className="font-mono-badge text-[20px] text-on-background tracking-widest">{doorCodeItem.content}</p>
+      {/* Grupo WiFi + Código de Entrada + Teléfonos — una sola tarjeta con filas
+          apiladas separadas por hairline (como NETWORK/ENTRY CODE/HOUSE MANUAL
+          en Stitch), justo debajo del hero. El WiFi va destacado (fondo de
+          color) porque es lo primero que busca el huésped al llegar; los demás
+          quedan como filas planas dentro del mismo borde. */}
+      {hasQuickAccessGroup && (
+        <div className="border border-on-background/10">
+          {wifiItem && (
+            <div className="bg-primary text-on-primary p-4 flex items-center justify-between gap-3">
+              <div className="flex items-center gap-3 min-w-0">
+                <span className="material-symbols-outlined shrink-0" style={{fontVariationSettings: "'FILL' 1"}}>wifi</span>
+                <div className="min-w-0">
+                  <p className="font-label-caps text-label-caps uppercase opacity-80">{getTranslation('connectivity', lang)}</p>
+                  <p className="font-mono-badge text-[14px] whitespace-pre-wrap break-words">{wifiItem.content}</p>
+                </div>
               </div>
-            </div>
-            <div className="flex items-center">
               <button
-                onClick={e => { e.stopPropagation(); copyToClipboard(doorCodeItem.content, 'door_code'); }}
-                className="p-2 hover:bg-primary/10 transition-colors flex items-center gap-1"
+                onClick={() => copyToClipboard(wifiItem.content, 'wifi')}
+                className="p-2 hover:bg-on-primary/10 transition-colors flex items-center gap-1 shrink-0"
                 aria-label={getTranslation('copy_btn', lang)}
               >
-                {copiedKey === 'door_code' && (
-                  <span className="font-label-sm text-label-sm text-primary">{getTranslation('copied', lang)}</span>
-                )}
-                <span className="material-symbols-outlined text-primary text-[20px]">
-                  {copiedKey === 'door_code' ? 'check' : 'content_copy'}
-                </span>
+                {copiedKey === 'wifi' && <span className="font-label-sm text-label-sm">{getTranslation('copied', lang)}</span>}
+                <span className="material-symbols-outlined text-[20px]">{copiedKey === 'wifi' ? 'check' : 'content_copy'}</span>
               </button>
-              {hasPickupInfo && (
-                <span className="material-symbols-outlined text-primary text-[20px] icon-directional">chevron_right</span>
-              )}
             </div>
-          </div>
-        );
-      })()}
+          )}
+
+          {doorCodeItem && (
+            <div
+              className={`p-4 flex items-center justify-between ${wifiItem ? 'border-t border-on-background/10' : ''}`}
+              onClick={doorCodeHasPickupInfo ? () => setShowEntryCodeModal(true) : undefined}
+              role={doorCodeHasPickupInfo ? 'button' : undefined}
+              style={doorCodeHasPickupInfo ? { cursor: 'pointer' } : undefined}
+            >
+              <div className="flex items-center gap-3">
+                <span className="material-symbols-outlined text-primary" style={{fontVariationSettings: "'FILL' 1"}}>door_front</span>
+                <div>
+                  <p className="font-label-caps text-label-caps text-on-surface-variant uppercase">{getTranslation('door_code_title', lang)}</p>
+                  <p className="font-mono-badge text-[16px] text-on-background tracking-widest">{doorCodeItem.content}</p>
+                </div>
+              </div>
+              <div className="flex items-center">
+                <button
+                  onClick={e => { e.stopPropagation(); copyToClipboard(doorCodeItem.content, 'door_code'); }}
+                  className="p-2 hover:bg-primary/10 transition-colors flex items-center gap-1"
+                  aria-label={getTranslation('copy_btn', lang)}
+                >
+                  {copiedKey === 'door_code' && (
+                    <span className="font-label-sm text-label-sm text-primary">{getTranslation('copied', lang)}</span>
+                  )}
+                  <span className="material-symbols-outlined text-primary text-[20px]">
+                    {copiedKey === 'door_code' ? 'check' : 'content_copy'}
+                  </span>
+                </button>
+                {doorCodeHasPickupInfo && (
+                  <span className="material-symbols-outlined text-primary text-[20px] icon-directional">chevron_right</span>
+                )}
+              </div>
+            </div>
+          )}
+
+          {phones.length > 0 && (
+            <div
+              className={`p-4 flex items-center justify-between cursor-pointer ${(wifiItem || doorCodeItem) ? 'border-t border-on-background/10' : ''}`}
+              onClick={() => setShowPhonesModal(true)}
+              role="button"
+            >
+              <div className="flex items-center gap-3">
+                <span className="material-symbols-outlined text-primary" style={{fontVariationSettings: "'FILL' 1"}}>call</span>
+                <p className="font-label-caps text-label-caps text-on-surface-variant uppercase">{getTranslation('phones_title', lang)}</p>
+              </div>
+              <span className="material-symbols-outlined text-primary text-[20px] icon-directional">chevron_right</span>
+            </div>
+          )}
+        </div>
+      )}
 
       {showEntryCodeModal && doorCodeItem && (
         <EntryCodeModal
@@ -140,22 +182,6 @@ export default function InfoSection({ infoItems, phones = [], lang }: InfoSectio
         />
       )}
 
-      {/* Teléfonos (migración 0084) — mismo nivel que WiFi/Código de Entrada,
-          solo aparece si el anfitrión ha configurado al menos uno. */}
-      {phones.length > 0 && (
-        <div
-          className="bg-primary/5 border border-primary/25 p-4 flex items-center justify-between cursor-pointer"
-          onClick={() => setShowPhonesModal(true)}
-          role="button"
-        >
-          <div className="flex items-center gap-3">
-            <span className="material-symbols-outlined text-primary" style={{fontVariationSettings: "'FILL' 1"}}>call</span>
-            <p className="font-label-caps text-label-caps text-primary uppercase">{getTranslation('phones_title', lang)}</p>
-          </div>
-          <span className="material-symbols-outlined text-primary text-[20px] icon-directional">chevron_right</span>
-        </div>
-      )}
-
       {showPhonesModal && (
         <PhonesModal phones={phones} lang={lang} onClose={() => setShowPhonesModal(false)} />
       )}
@@ -163,7 +189,7 @@ export default function InfoSection({ infoItems, phones = [], lang }: InfoSectio
       {/* House Manual grid — arch-masked images, eyebrow key + headline */}
       {remainingGrid.length > 0 && (
         <section>
-          <h3 className="font-display-lg text-headline-lg md:text-display-lg text-on-background mb-stack-md">
+          <h3 className="font-display-lg text-headline-lg md:text-display-lg text-on-background uppercase tracking-wide mb-stack-md">
             {getTranslation('quick_guides', lang)}
           </h3>
           <div className="grid grid-cols-2 md:grid-cols-4 gap-x-gutter gap-y-stack-md">
@@ -226,41 +252,6 @@ export default function InfoSection({ infoItems, phones = [], lang }: InfoSectio
               </div>
             </div>
           )}
-        </section>
-      )}
-
-      {/* WiFi */}
-      {wifiItem && (
-        <section>
-          <h3 className="font-display-lg text-headline-lg md:text-display-lg text-on-background mb-stack-md">
-            {getTranslation('connectivity', lang)}
-          </h3>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-gutter">
-            <div className="bg-surface-container-lowest border border-on-background/10 p-6 flex flex-col justify-between h-40">
-              <div className="flex items-center gap-3">
-                <span className="material-symbols-outlined text-primary">wifi</span>
-                <h4 className="font-label-caps text-label-caps uppercase text-on-surface-variant">{wifiItem.title}</h4>
-              </div>
-              <div className="flex justify-between items-end">
-                <div>
-                  <p className="font-label-caps text-[10px] uppercase tracking-wider text-on-surface-variant mb-1">{getTranslation('network_password_label', lang)}</p>
-                  <p className="font-mono-badge text-[15px] text-on-background whitespace-pre-wrap">{wifiItem.content}</p>
-                </div>
-                <button
-                  onClick={() => copyToClipboard(wifiItem.content, 'wifi')}
-                  className="p-2 border border-on-background/10 text-primary hover:border-primary transition-colors flex items-center gap-1"
-                  title={getTranslation('copy_btn', lang)}
-                >
-                  {copiedKey === 'wifi' && (
-                    <span className="font-label-sm text-label-sm">{getTranslation('copied', lang)}</span>
-                  )}
-                  <span className="material-symbols-outlined text-[20px]">
-                    {copiedKey === 'wifi' ? 'check' : 'content_copy'}
-                  </span>
-                </button>
-              </div>
-            </div>
-          </div>
         </section>
       )}
 

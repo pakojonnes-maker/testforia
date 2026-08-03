@@ -61,7 +61,7 @@ export default function WelcomeHero({
       <div className="horizon-rule" />
 
       <div className="flex flex-col md:flex-row md:justify-between md:items-end gap-4">
-        <h1 className="font-display-xl text-display-lg md:text-display-xl text-primary max-w-2xl">
+        <h1 className="font-display-xl text-display-lg md:text-display-xl text-primary uppercase tracking-wide max-w-2xl">
           {apartmentName}
         </h1>
         {address && (

@@ -59,7 +59,7 @@ export default function RestaurantsSection({ restaurants, zoneName, lang, onInte
   return (
     <div className="flex flex-col gap-stack-lg">
       <section className="flex flex-col gap-2 max-w-2xl mx-auto w-full">
-        <h2 className="font-display-xl text-display-lg md:text-display-xl text-on-background">
+        <h2 className="font-display-xl text-display-lg md:text-display-xl text-on-background uppercase tracking-wide">
           {getTranslation('restaurants_title', lang).replace('{zone}', zoneName || getTranslation('surroundings_fallback', lang))}
         </h2>
         <p className="font-body-lg text-body-lg text-on-surface-variant">{getTranslation('restaurants_default_description', lang)}</p>

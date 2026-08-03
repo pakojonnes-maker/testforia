@@ -560,7 +560,42 @@ async function createApartment(env, data) {
     `).bind(id, data.agency_id, data.zone_id, data.name, slug,
         data.address || null, data.latitude || null, data.longitude || null, data.cover_image_url || null
     ).run();
+
+    await seedDefaultPhones(env, id, data.agency_id);
+
     return jsonResponse({ success: true, id, slug });
+}
+
+// Mismos 4 números que el backfill de la migración 0085 (emergencias/policía/
+// bomberos/ambulancia) + el de la agencia si tiene contact_phone — para que
+// un apartamento CREADO a partir de ahora no dependa de re-ejecutar una
+// migración para tener el checklist de teléfonos ya poblado. IDs
+// deterministas (mismo esquema que la migración) para que sea idempotente si
+// esto llegara a llamarse dos veces por error.
+async function seedDefaultPhones(env, apartmentId, agencyId) {
+    const statements = [
+        ['emergency', '112'],
+        ['police', '092'],
+        ['firefighters', '080'],
+        ['ambulance', '061'],
+    ].map(([categoryKey, phoneNumber]) =>
+        env.DB.prepare(`
+            INSERT OR IGNORE INTO guide_apartment_phones (id, apartment_id, category_key, phone_number)
+            VALUES (?, ?, ?, ?)
+        `).bind(`phone_${apartmentId}_${categoryKey}`, apartmentId, categoryKey, phoneNumber)
+    );
+
+    const agency = await env.DB.prepare('SELECT contact_phone FROM guide_agencies WHERE id = ?').bind(agencyId).first();
+    if (agency?.contact_phone?.trim()) {
+        statements.push(
+            env.DB.prepare(`
+                INSERT OR IGNORE INTO guide_apartment_phones (id, apartment_id, category_key, phone_number)
+                VALUES (?, ?, 'agency', ?)
+            `).bind(`phone_${apartmentId}_agency`, apartmentId, agency.contact_phone)
+        );
+    }
+
+    await env.DB.batch(statements);
 }
 
 async function updateApartment(env, id, data, isSuperAdmin, userAgencyIds) {

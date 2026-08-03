@@ -170,7 +170,7 @@ export default function ServicesSection({ experiences, storeItems, zoneName, apa
   return (
     <div className="flex flex-col gap-stack-lg pb-24">
       <section className="flex flex-col gap-2 max-w-2xl mx-auto w-full">
-        <h2 className="font-display-xl text-display-lg md:text-display-xl text-on-background">
+        <h2 className="font-display-xl text-display-lg md:text-display-xl text-on-background uppercase tracking-wide">
           {getTranslation('store_title', lang)}
         </h2>
         <p className="font-body-lg text-body-lg text-on-surface-variant">{getTranslation('store_subtitle', lang)}</p>

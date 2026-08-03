@@ -2014,6 +2014,15 @@ export default function GuideApartmentDetail() {
               />
             )}
 
+            {/* Sin esto es fácil no encontrar los campos de recogida: son 1 de
+                58 categorías y solo aparecen tras elegir justo "Código de
+                Entrada", sin ningún otro indicio en el formulario. */}
+            {selectedCategory && form.category_key !== 'door_code' && (
+              <Typography variant="caption" color="text.secondary">
+                ¿Buscas el mapa/foto de recogida de la llave? Eso vive en la categoría "Código de Entrada" (grupo Llegada y salida), no en "{selectedCategory.name}".
+              </Typography>
+            )}
+
             {/* Punto de recogida (migración 0084) — solo para door_code: es el
                 único caso pedido hoy (recoger la llave en la agencia, en una
                 cajetilla...). El campo es genérico en base de datos, así que

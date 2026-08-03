@@ -320,6 +320,7 @@ export default function GuidebookPage() {
               agencyName={agency.name}
               currentLang={lang}
             />
+            <InfoSection infoItems={apartment.info} phones={apartment.phones} lang={lang} />
             <FeaturedCarousel
               restaurants={restaurants}
               experiences={experiences}
@@ -328,8 +329,6 @@ export default function GuidebookPage() {
               onNavigateTab={setActiveTab}
               onIntent={(type, id, action) => logIntent(type, id, action)}
             />
-            {/* QuickInfoBar will be merged into InfoSection or updated later */}
-            <InfoSection infoItems={apartment.info} phones={apartment.phones} lang={lang} />
           </div>
         )}
 

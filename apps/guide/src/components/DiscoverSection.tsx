@@ -75,7 +75,7 @@ export default function DiscoverSection({ pois, zoneName, zoneDescription, lang 
     <div className="flex flex-col gap-stack-lg">
       {/* Page Header */}
       <section className="flex flex-col gap-2">
-        <h2 className="font-display-xl text-display-lg md:text-display-xl text-on-background">
+        <h2 className="font-display-xl text-display-lg md:text-display-xl text-on-background uppercase tracking-wide">
           {getTranslation('discover_title', lang).replace('{zone}', zoneName || getTranslation('surroundings_fallback', lang))}
         </h2>
         <p className="font-body-lg text-body-lg text-on-surface-variant max-w-2xl">
