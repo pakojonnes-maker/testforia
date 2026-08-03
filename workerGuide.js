@@ -116,7 +116,7 @@ export async function handleGetGuidebook(env, slug, lang, origin) {
 
         // Agency
         env.DB.prepare(`
-            SELECT id, name, slug, logo_url, primary_color, secondary_color, accent_color, font_family
+            SELECT id, name, slug, logo_url, primary_color, secondary_color, accent_color, headline_font, body_font, label_font
             FROM guide_agencies WHERE id = ? AND is_active = TRUE
         `).bind(apartment.agency_id).first(),
 
@@ -547,7 +547,9 @@ export async function handleGetGuidebook(env, slug, lang, origin) {
             primary_color: agency?.primary_color || null,
             secondary_color: agency?.secondary_color || null,
             accent_color: agency?.accent_color || null,
-            font_family: agency?.font_family || null,
+            headline_font: agency?.headline_font || null,
+            body_font: agency?.body_font || null,
+            label_font: agency?.label_font || null,
         },
         pois: (pois.results || []).map(poi => ({
             id: poi.id,

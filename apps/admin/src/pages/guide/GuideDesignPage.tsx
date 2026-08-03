@@ -7,20 +7,30 @@ import {
 } from '@mui/material';
 import { Save as SaveIcon, Upload as UploadIcon, Palette as PaletteIcon, TextFields as TextIcon, Image as ImageIcon } from '@mui/icons-material';
 
-const FONT_OPTIONS = ['Montserrat', 'Inter', 'Lato', 'Nunito', 'Open Sans', 'Poppins'];
+// Roles del sistema tipográfico del guidebook (apps/guide/src/index.css
+// @theme). El default de cada rol es el que usa el guidebook cuando la
+// agencia no personaliza nada; las alternativas son las mismas que
+// GuidebookPage.tsx sabe cargar bajo demanda (GOOGLE_FONT_QUERY) — si se
+// añade una fuente aquí, hay que añadirla también allí, o se aplicará la
+// variable CSS sin el archivo de fuente real.
+const HEADLINE_FONT_OPTIONS = ['Newsreader', 'Playfair Display', 'Lora', 'Fraunces'];
+const BODY_FONT_OPTIONS = ['Inter', 'Work Sans', 'Nunito Sans', 'Poppins'];
+const LABEL_FONT_OPTIONS = ['Archivo Narrow', 'Oswald', 'Barlow Condensed'];
 
 export default function GuideDesignPage() {
   const { currentAgency, adminMode } = useAuth();
-  
+
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
-  
+
   const [primaryColor, setPrimaryColor] = useState('#1E3A5F');
   const [secondaryColor, setSecondaryColor] = useState('#C96D4B');
   const [accentColor, setAccentColor] = useState('#D4A853');
-  const [fontFamily, setFontFamily] = useState('Montserrat');
+  const [headlineFont, setHeadlineFont] = useState('Newsreader');
+  const [bodyFont, setBodyFont] = useState('Inter');
+  const [labelFont, setLabelFont] = useState('Archivo Narrow');
   const [logoUrl, setLogoUrl] = useState('');
 
   useEffect(() => {
@@ -35,7 +45,9 @@ export default function GuideDesignPage() {
           setPrimaryColor(response.agency.primary_color || '#1E3A5F');
           setSecondaryColor(response.agency.secondary_color || '#C96D4B');
           setAccentColor(response.agency.accent_color || '#D4A853');
-          setFontFamily(response.agency.font_family || 'Montserrat');
+          setHeadlineFont(response.agency.headline_font || 'Newsreader');
+          setBodyFont(response.agency.body_font || 'Inter');
+          setLabelFont(response.agency.label_font || 'Archivo Narrow');
           setLogoUrl(response.agency.logo_url || '');
         }
       } catch (err: any) {
@@ -59,7 +71,9 @@ export default function GuideDesignPage() {
         primary_color: primaryColor,
         secondary_color: secondaryColor,
         accent_color: accentColor,
-        font_family: fontFamily
+        headline_font: headlineFont,
+        body_font: bodyFont,
+        label_font: labelFont
       };
       const response = await apiClient.request(`/guide/admin/agencies/${currentAgency.id}`, {
         method: 'PUT',
@@ -191,36 +205,41 @@ export default function GuideDesignPage() {
               <Typography variant="h6" fontWeight={600}>Tipografía</Typography>
             </Box>
             <Divider sx={{ mb: 3 }} />
-            <FormControl fullWidth sx={{ mb: 3 }}>
-              <InputLabel id="font-family-label">Fuente Principal</InputLabel>
-              <Select
-                labelId="font-family-label"
-                value={fontFamily}
-                label="Fuente Principal"
-                onChange={(e) => setFontFamily(e.target.value)}
-              >
-                {FONT_OPTIONS.map(font => (
-                  <MenuItem key={font} value={font} style={{ fontFamily: font }}>
-                    {font}
-                  </MenuItem>
-                ))}
-              </Select>
-            </FormControl>
-            <Box sx={{ 
-              p: 2, 
-              border: '1px dashed', 
-              borderColor: 'divider', 
-              borderRadius: 1,
-              bgcolor: 'background.default',
-              fontFamily: fontFamily 
-            }}>
-              <Typography variant="h5" style={{ fontFamily }} gutterBottom>
-                Ejemplo de Título
-              </Typography>
-              <Typography variant="body1" style={{ fontFamily }}>
-                Este es un ejemplo de cómo se verá el texto en tus guidebooks usando la fuente seleccionada.
-              </Typography>
-            </Box>
+
+            {([
+              { label: 'Titulares', value: headlineFont, setValue: setHeadlineFont, options: HEADLINE_FONT_OPTIONS, sample: 'Ejemplo de Título', variant: 'h5' as const },
+              { label: 'Cuerpo', value: bodyFont, setValue: setBodyFont, options: BODY_FONT_OPTIONS, sample: 'Así se verá el texto de cuerpo en tus guidebooks.', variant: 'body1' as const },
+              { label: 'Labels', value: labelFont, setValue: setLabelFont, options: LABEL_FONT_OPTIONS, sample: 'ETIQUETA DE EJEMPLO', variant: 'body2' as const },
+            ]).map(role => (
+              <Box key={role.label} sx={{ mb: 3 }}>
+                <FormControl fullWidth sx={{ mb: 1 }}>
+                  <InputLabel id={`font-${role.label}-label`}>{`Fuente — ${role.label}`}</InputLabel>
+                  <Select
+                    labelId={`font-${role.label}-label`}
+                    value={role.value}
+                    label={`Fuente — ${role.label}`}
+                    onChange={(e) => role.setValue(e.target.value)}
+                  >
+                    {role.options.map(font => (
+                      <MenuItem key={font} value={font} style={{ fontFamily: font }}>
+                        {font}
+                      </MenuItem>
+                    ))}
+                  </Select>
+                </FormControl>
+                <Box sx={{
+                  p: 1.5,
+                  border: '1px dashed',
+                  borderColor: 'divider',
+                  borderRadius: 1,
+                  bgcolor: 'background.default',
+                }}>
+                  <Typography variant={role.variant} style={{ fontFamily: role.value }}>
+                    {role.sample}
+                  </Typography>
+                </Box>
+              </Box>
+            ))}
           </Paper>
         </Grid>
 

@@ -493,7 +493,7 @@ async function createAgency(env, data) {
 async function updateAgency(env, id, data) {
     const sets = [];
     const vals = [];
-    for (const field of ['name', 'contact_email', 'contact_phone', 'logo_url', 'primary_color', 'secondary_color', 'accent_color', 'font_family']) {
+    for (const field of ['name', 'contact_email', 'contact_phone', 'logo_url', 'primary_color', 'secondary_color', 'accent_color', 'headline_font', 'body_font', 'label_font']) {
         if (data[field] !== undefined) { sets.push(`${field} = ?`); vals.push(data[field]); }
     }
     if (data.is_active !== undefined) { sets.push('is_active = ?'); vals.push(data.is_active ? 1 : 0); }

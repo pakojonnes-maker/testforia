@@ -36,7 +36,7 @@ interface GuidebookData {
   agency: {
     id: string; name: string; logo_url: string;
     primary_color: string | null; secondary_color: string | null; accent_color: string | null;
-    font_family: string | null;
+    headline_font: string | null; body_font: string | null; label_font: string | null;
   };
   pois: Array<{
     id: string; name: string; description: string; category: string;
@@ -141,8 +141,32 @@ export default function GuidebookPage() {
   // Desde el rediseño "Modern Mediterranean Editorial" (ago 2026), terracotta/
   // deep-sea son alias de primary (Azul Cobalto) / "Mar Profundo" — se siguen
   // sobrescribiendo con esos mismos nombres para no tocar cada componente.
-  const FONT_TOKENS = ['--font-body-md', '--font-body-lg', '--font-label-lg', '--font-label-sm', '--font-label-caps'];
-  const HEADLINE_FONT_TOKENS = ['--font-headline-md', '--font-headline-lg', '--font-headline-lg-mobile', '--font-display-lg', '--font-display-xl'];
+  // Tres roles independientes, uno por familia tipográfica del sistema
+  // (index.css @theme): titular/display, cuerpo, y label en mayúsculas.
+  // Antes había un solo grupo "headline" y otro "body+label" juntos, y
+  // faltaban --font-headline-sm y --font-label-md en sus listas — un olvido
+  // que no se notaba porque font_family pisaba los 3 roles con la misma
+  // fuente de todas formas.
+  const HEADLINE_FONT_TOKENS = ['--font-display-xl', '--font-display-lg', '--font-headline-lg', '--font-headline-lg-mobile', '--font-headline-md', '--font-headline-sm'];
+  const BODY_FONT_TOKENS = ['--font-body-md', '--font-body-lg'];
+  const LABEL_FONT_TOKENS = ['--font-label-lg', '--font-label-md', '--font-label-sm', '--font-label-caps'];
+
+  // Fuentes curadas seleccionables desde Diseño > Tipografía (admin). El
+  // valor por defecto de cada rol (Newsreader/Inter/Archivo Narrow) ya viene
+  // precargado en index.html y no necesita este mapa — solo las alternativas
+  // se cargan bajo demanda, para no meter 7 familias de más en cada guía que
+  // no las usa.
+  const GOOGLE_FONT_QUERY: Record<string, string> = {
+    'Playfair Display': 'Playfair+Display:ital,wght@0,400..900;1,400..900',
+    'Lora': 'Lora:ital,wght@0,400..700;1,400..700',
+    'Fraunces': 'Fraunces:ital,opsz,wght@0,9..144,100..900;1,9..144,100..900',
+    'Work Sans': 'Work+Sans:wght@300..900',
+    'Nunito Sans': 'Nunito+Sans:wght@300..900',
+    'Poppins': 'Poppins:wght@300;400;500;600;700',
+    'Oswald': 'Oswald:wght@300..700',
+    'Barlow Condensed': 'Barlow+Condensed:wght@300;400;500;600;700',
+  };
+
   useEffect(() => {
     const root = document.documentElement.style;
     if (data?.agency?.primary_color) {
@@ -168,21 +192,50 @@ export default function GuidebookPage() {
     document.querySelector('meta[name="theme-color"]')
       ?.setAttribute('content', data?.agency?.primary_color || '#0038AE');
 
-    // Una sola fuente para todo el guidebook, tal como la vista previa del
-    // admin (Diseño > Tipografía) da a entender: título y cuerpo con el mismo
-    // ejemplo. Los títulos conservan su propio conjunto de tokens porque llevan
-    // Newsreader (serif editorial) por defecto — un cambio de fuente de agencia
-    // debe sustituir también eso, no solo el cuerpo del texto.
+    // Cada rol (headline/body/label) se sobrescribe por separado: elegir una
+    // fuente de titulares para la agencia ya NO pisa el cuerpo ni los labels,
+    // y viceversa. Antes un único font_family se aplicaba a los 3 grupos de
+    // tokens a la vez, así que un valor "de fábrica" en el selector del admin
+    // (ver GuideDesignPage.tsx) bastaba para aplastar Newsreader/Archivo
+    // Narrow en todas las guías sin que nadie lo hubiera elegido.
     //
-    // Sin fuente de agencia NO se fuerza nada a mano: se quita la sobrescritura
-    // para que vuelvan los valores del @theme. Fijar 'Inter' aquí aplastaba
-    // --font-label-caps, que por defecto es Archivo Narrow — los "eyebrows"
-    // condensados del sistema editorial salían en Inter en TODAS las guías sin
-    // fuente propia, que son casi todas.
-    const agencyFont = data?.agency?.font_family ? `'${data.agency.font_family}', sans-serif` : null;
-    for (const token of [...FONT_TOKENS, ...HEADLINE_FONT_TOKENS]) {
-      if (agencyFont) root.setProperty(token, agencyFont);
-      else root.removeProperty(token);
+    // Sin fuente de agencia en un rol NO se fuerza nada a mano: se quita la
+    // sobrescritura de ese grupo para que vuelvan los valores del @theme.
+    const roles: Array<{ font: string | null | undefined; tokens: string[]; generic: string }> = [
+      { font: data?.agency?.headline_font, tokens: HEADLINE_FONT_TOKENS, generic: 'serif' },
+      { font: data?.agency?.body_font, tokens: BODY_FONT_TOKENS, generic: 'sans-serif' },
+      { font: data?.agency?.label_font, tokens: LABEL_FONT_TOKENS, generic: 'sans-serif' },
+    ];
+    for (const { font, tokens, generic } of roles) {
+      for (const token of tokens) {
+        if (font) root.setProperty(token, `'${font}', ${generic}`);
+        else root.removeProperty(token);
+      }
+    }
+
+    // Carga bajo demanda del webfont real para roles con una fuente distinta
+    // del default (que ya viene precargada en index.html) — sin esto, elegir
+    // "Playfair Display" en el admin fija la variable CSS pero el navegador
+    // no tiene el archivo de fuente y cae al fallback del sistema, el mismo
+    // bug que arrastraba Montserrat.
+    const customFamilies = Array.from(new Set(
+      roles.map(r => r.font).filter((f): f is string => !!f && !!GOOGLE_FONT_QUERY[f])
+    ));
+    const linkId = 'agency-custom-fonts';
+    const existingLink = document.getElementById(linkId) as HTMLLinkElement | null;
+    if (customFamilies.length > 0) {
+      const href = `https://fonts.googleapis.com/css2?${customFamilies.map(f => `family=${GOOGLE_FONT_QUERY[f]}`).join('&')}&display=swap`;
+      if (existingLink) {
+        if (existingLink.href !== href) existingLink.href = href;
+      } else {
+        const link = document.createElement('link');
+        link.id = linkId;
+        link.rel = 'stylesheet';
+        link.href = href;
+        document.head.appendChild(link);
+      }
+    } else if (existingLink) {
+      existingLink.remove();
     }
   }, [data?.agency]);
 
