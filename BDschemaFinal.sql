@@ -2,10 +2,14 @@
 -- BDschemaFinal.sql — ESQUEMA REAL DE PRODUCCION
 -- =====================================================
 -- Base de datos D1: restaurant-menu-saas (7e8d1efe-2a54-4849-9a06-4c47152392bd)
--- Exportado el 2026-08-03 desde la BD en produccion, tras aplicar la
--- migracion 0082 (guide_pois.google_synced_at + indice unico parcial sobre
--- google_place_id, para el importador de POIs desde Google Maps).
--- 82 tablas.
+-- Exportado el 2026-08-03 desde la BD en produccion, tras aplicar las
+-- migraciones 0083 (catalogo global de categorias de info del guidebook,
+-- guide_info_categories + category_key/use_custom_title en
+-- guide_apartment_info) y 0084 (latitude/longitude opcionales en
+-- guide_apartment_info para el punto de recogida del codigo de entrada, y
+-- guide_phone_categories/guide_apartment_phones para el checklist de
+-- telefonos por apartamento).
+-- 85 tablas.
 --
 -- NO editar a mano. Para regenerar:
 --   npx wrangler d1 export restaurant-menu-saas --remote --no-data --output BDschemaFinal.sql
@@ -897,7 +901,7 @@ CREATE TABLE guide_apartment_info (
   icon_name TEXT,
   order_index INTEGER DEFAULT 0,
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-  modified_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, is_sequential BOOLEAN DEFAULT FALSE, guide_group TEXT, has_checklist BOOLEAN DEFAULT FALSE,
+  modified_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, is_sequential BOOLEAN DEFAULT FALSE, guide_group TEXT, has_checklist BOOLEAN DEFAULT FALSE, category_key TEXT REFERENCES guide_info_categories(key), use_custom_title BOOLEAN DEFAULT FALSE, latitude REAL, longitude REAL,
   FOREIGN KEY (apartment_id) REFERENCES guide_apartments(id) ON DELETE CASCADE,
   UNIQUE(apartment_id, info_key)
 );
@@ -1197,6 +1201,37 @@ CREATE TABLE guide_store_order_items (
   FOREIGN KEY (order_id) REFERENCES guide_store_orders(id) ON DELETE CASCADE,
   FOREIGN KEY (item_id)  REFERENCES guide_store_items(id)
 );
+CREATE TABLE guide_info_categories (
+  key           TEXT PRIMARY KEY,
+  group_key     TEXT NOT NULL,
+  icon_name     TEXT NOT NULL,
+  color         TEXT NOT NULL,
+  image_r2_key  TEXT,
+  order_index   INTEGER DEFAULT 0,
+  is_active     BOOLEAN DEFAULT TRUE,
+  created_at    TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  modified_at   TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+CREATE TABLE guide_phone_categories (
+  key           TEXT PRIMARY KEY,
+  icon_name     TEXT NOT NULL,
+  order_index   INTEGER DEFAULT 0,
+  is_active     BOOLEAN DEFAULT TRUE,
+  created_at    TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  modified_at   TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+CREATE TABLE guide_apartment_phones (
+  id            TEXT PRIMARY KEY,
+  apartment_id  TEXT NOT NULL,
+  category_key  TEXT NOT NULL,
+  phone_number  TEXT NOT NULL,
+  label         TEXT,
+  order_index   INTEGER DEFAULT 0,
+  created_at    TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  modified_at   TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (apartment_id) REFERENCES guide_apartments(id) ON DELETE CASCADE,
+  FOREIGN KEY (category_key) REFERENCES guide_phone_categories(key)
+);
 CREATE INDEX idx_dishes_restaurant ON dishes(restaurant_id);
 CREATE INDEX idx_sections_restaurant ON sections(restaurant_id);
 CREATE INDEX idx_translations_entity ON translations(entity_id, entity_type);
@@ -1300,3 +1335,6 @@ CREATE INDEX idx_guide_store_orders_apt ON guide_store_orders(apartment_id, crea
 CREATE INDEX idx_guide_store_order_items_order ON guide_store_order_items(order_id);
 CREATE UNIQUE INDEX idx_guide_pois_google_place_id
   ON guide_pois(google_place_id) WHERE google_place_id IS NOT NULL;
+CREATE INDEX idx_guide_info_categories_group ON guide_info_categories(group_key, order_index);
+CREATE INDEX idx_guide_apartment_info_category ON guide_apartment_info(category_key);
+CREATE INDEX idx_guide_apartment_phones_apartment ON guide_apartment_phones(apartment_id, order_index);
