@@ -2,7 +2,7 @@
 -- BDschemaFinal.sql — ESQUEMA REAL DE PRODUCCION
 -- =====================================================
 -- Base de datos D1: restaurant-menu-saas (7e8d1efe-2a54-4849-9a06-4c47152392bd)
--- Exportado el 2026-08-01 desde la BD en produccion, tras aplicar la
+-- Exportado el 2026-08-03 desde la BD en produccion, tras aplicar la
 -- migracion 0082 (guide_pois.google_synced_at + indice unico parcial sobre
 -- google_place_id, para el importador de POIs desde Google Maps).
 -- 82 tablas.
