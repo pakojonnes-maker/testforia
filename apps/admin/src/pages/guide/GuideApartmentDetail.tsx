@@ -2046,49 +2046,53 @@ export default function GuideApartmentDetail() {
               </Box>
             )}
 
-            <Divider />
+            {selectedCategory && (
+              <>
+                <Divider />
 
-            <Typography variant="subtitle2" fontWeight={600} color="text.secondary">
-              Traducciones {form.use_custom_title ? '(título y contenido)' : '(solo contenido — el título lo pone la categoría)'}
-            </Typography>
+                <Typography variant="subtitle2" fontWeight={600} color="text.secondary">
+                  Traducciones {form.use_custom_title ? '(título y contenido)' : '(solo contenido — el título lo pone la categoría)'}
+                </Typography>
 
-            {loadingTranslations ? (
-              <Box sx={{ display: 'flex', justifyContent: 'center', py: 4 }}><CircularProgress size={28} /></Box>
-            ) : (
-              LANGUAGES.map(lang => (
-                <Box key={lang.code} sx={{ p: 2, borderRadius: 2, border: '1px solid', borderColor: 'divider', bgcolor: 'background.paper' }}>
-                  <Typography variant="subtitle2" sx={{ mb: 1.5, fontWeight: 600 }}>{lang.label}</Typography>
-                  {form.use_custom_title && (
-                    <TextField
-                      label="Título" fullWidth size="small"
-                      value={form.translations[lang.code]?.title || ''}
-                      onChange={(e) => setForm(prev => ({
-                        ...prev, translations: { ...prev.translations, [lang.code]: { ...prev.translations[lang.code], title: e.target.value } }
-                      }))}
-                      sx={{ mb: 1.5 }}
-                    />
-                  )}
-                  <TextField
-                    label="Contenido" fullWidth multiline minRows={2} maxRows={6} size="small"
-                    value={form.translations[lang.code]?.content || ''}
-                    onChange={(e) => setForm(prev => ({
-                      ...prev, translations: { ...prev.translations, [lang.code]: { ...prev.translations[lang.code], content: e.target.value } }
-                    }))}
-                    placeholder="Escribe aquí la información..."
-                  />
-                  {form.category_key === 'door_code' && (
-                    <TextField
-                      label="Dónde recogerlo" fullWidth multiline minRows={2} maxRows={6} size="small"
-                      value={form.translations[lang.code]?.pickup_instructions || ''}
-                      onChange={(e) => setForm(prev => ({
-                        ...prev, translations: { ...prev.translations, [lang.code]: { ...prev.translations[lang.code], pickup_instructions: e.target.value } }
-                      }))}
-                      placeholder="Ej: recógelo en la caja fuerte junto a la puerta, o en la agencia..."
-                      sx={{ mt: 1.5 }}
-                    />
-                  )}
-                </Box>
-              ))
+                {loadingTranslations ? (
+                  <Box sx={{ display: 'flex', justifyContent: 'center', py: 4 }}><CircularProgress size={28} /></Box>
+                ) : (
+                  LANGUAGES.map(lang => (
+                    <Box key={lang.code} sx={{ p: 2, borderRadius: 2, border: '1px solid', borderColor: 'divider', bgcolor: 'background.paper' }}>
+                      <Typography variant="subtitle2" sx={{ mb: 1.5, fontWeight: 600 }}>{lang.label}</Typography>
+                      {form.use_custom_title && (
+                        <TextField
+                          label="Título" fullWidth size="small"
+                          value={form.translations[lang.code]?.title || ''}
+                          onChange={(e) => setForm(prev => ({
+                            ...prev, translations: { ...prev.translations, [lang.code]: { ...prev.translations[lang.code], title: e.target.value } }
+                          }))}
+                          sx={{ mb: 1.5 }}
+                        />
+                      )}
+                      <TextField
+                        label="Contenido" fullWidth multiline minRows={2} maxRows={6} size="small"
+                        value={form.translations[lang.code]?.content || ''}
+                        onChange={(e) => setForm(prev => ({
+                          ...prev, translations: { ...prev.translations, [lang.code]: { ...prev.translations[lang.code], content: e.target.value } }
+                        }))}
+                        placeholder="Escribe aquí la información..."
+                      />
+                      {form.category_key === 'door_code' && (
+                        <TextField
+                          label="Dónde recogerlo" fullWidth multiline minRows={2} maxRows={6} size="small"
+                          value={form.translations[lang.code]?.pickup_instructions || ''}
+                          onChange={(e) => setForm(prev => ({
+                            ...prev, translations: { ...prev.translations, [lang.code]: { ...prev.translations[lang.code], pickup_instructions: e.target.value } }
+                          }))}
+                          placeholder="Ej: recógelo en la caja fuerte junto a la puerta, o en la agencia..."
+                          sx={{ mt: 1.5 }}
+                        />
+                      )}
+                    </Box>
+                  ))
+                )}
+              </>
             )}
 
             <Divider />
