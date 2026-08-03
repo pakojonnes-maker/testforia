@@ -2,14 +2,12 @@
 -- BDschemaFinal.sql — ESQUEMA REAL DE PRODUCCION
 -- =====================================================
 -- Base de datos D1: restaurant-menu-saas (7e8d1efe-2a54-4849-9a06-4c47152392bd)
--- Exportado el 2026-08-03 desde la BD en produccion, tras aplicar las
--- migraciones 0083 (catalogo global de categorias de info del guidebook,
--- guide_info_categories + category_key/use_custom_title en
--- guide_apartment_info) y 0084 (latitude/longitude opcionales en
--- guide_apartment_info para el punto de recogida del codigo de entrada, y
--- guide_phone_categories/guide_apartment_phones para el checklist de
--- telefonos por apartamento).
--- 85 tablas.
+-- Exportado el 2026-08-03 desde la BD en produccion, tras aplicar la
+-- migracion 0085 (categoria de telefono 'emergency' + telefonos por defecto
+-- en todos los apartamentos existentes + correccion del nombre de la
+-- categoria 'door_code' en el catalogo).
+-- 85 tablas (sin cambios de esquema respecto al export anterior — 0085 es
+-- solo datos, no ALTER/CREATE TABLE nuevas).
 --
 -- NO editar a mano. Para regenerar:
 --   npx wrangler d1 export restaurant-menu-saas --remote --no-data --output BDschemaFinal.sql
