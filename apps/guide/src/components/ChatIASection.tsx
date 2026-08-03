@@ -326,15 +326,14 @@ export default function ChatIASection({
 
   return (
     <div className="flex flex-col h-full min-h-0 w-full max-w-3xl mx-auto relative bg-surface">
-      {/* AI Header — "AI Concierge" (Stitch): avatar en arco, título en mayúsculas */}
-      <div className="text-center mb-8 shrink-0">
-        <div className="w-16 h-20 arch-mask bg-primary/10 border border-primary/20 flex items-center justify-center mx-auto mb-4">
+      {/* AI Header — "AI Concierge" (Stitch): avatar en arco, título pequeño en una línea.
+          Antes usaba text-display-lg (36px serif) para un rótulo de una palabra: se
+          rompía en 2 líneas y dominaba el panel entero. */}
+      <div className="text-center mb-6 shrink-0">
+        <div className="w-20 h-24 arch-mask bg-primary/10 border border-primary/20 flex items-center justify-center mx-auto mb-3">
           <span className="material-symbols-outlined text-primary text-3xl" style={{ fontVariationSettings: "'FILL' 1" }}>spark</span>
         </div>
-        <h2 className="font-display-lg text-display-lg text-primary uppercase tracking-widest mb-2">{getTranslation('chat_assistant_title', lang)}</h2>
-        <p className="font-body-md text-body-md text-on-surface-variant max-w-md mx-auto">
-          {getTranslation('chat_assistant_subtitle', lang)}
-        </p>
+        <h2 className="font-label-lg text-label-lg text-primary uppercase tracking-widest whitespace-nowrap">{getTranslation('chat_assistant_title', lang)}</h2>
       </div>
 
       {/* Chat History — las burbujas redondeadas son la única excepción del
@@ -432,11 +431,6 @@ export default function ChatIASection({
             )}
           </button>
         </div>
-
-        {/* AI disclaimer */}
-        <p className="text-center font-label-sm text-label-sm text-on-surface-variant/50 mt-3">
-          {getTranslation('chat_disclaimer', lang)}
-        </p>
       </div>
     </div>
   );

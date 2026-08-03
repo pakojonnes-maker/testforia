@@ -116,11 +116,14 @@ export default function ServicesSection({ experiences, storeItems, zoneName, apa
         const stamp = STAMP_CLASSES[idx % STAMP_CLASSES.length];
         return (
           <article key={item.id} className="bg-surface-container-lowest border border-on-background/10 flex flex-col relative w-full">
-            <div className="relative w-full aspect-[4/5] p-4">
+            {/* arch-mask va en este contenedor a sangre (sin padding), no en la imagen
+                interior — con p-4 alrededor el arco quedaba encogido y aplanado dentro
+                del hueco blanco, a diferencia del resto de la app (ver InfoSection.tsx). */}
+            <div className="relative w-full aspect-[4/5] arch-mask overflow-hidden">
               {isRealImage(item.cover_image_url) ? (
-                <img className="w-full h-full object-cover arch-mask" src={item.cover_image_url} alt={item.name} />
+                <img className="w-full h-full object-cover" src={item.cover_image_url} alt={item.name} />
               ) : (
-                <MediaPlaceholder label={item.name} className="arch-mask" />
+                <MediaPlaceholder label={item.name} />
               )}
               {/* Un solo sello por tarjeta, como en Stitch: el precio manda. El
                   badge "del anfitrión" era redundante — el epígrafe de la lista

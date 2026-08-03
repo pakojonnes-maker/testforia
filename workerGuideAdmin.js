@@ -13,6 +13,18 @@
 //   PUT    /guide/admin/apartments/:id              — Update apartment
 //   GET    /guide/admin/apartments/:id/info         — Get apartment info items
 //   POST   /guide/admin/apartments/:id/info         — Upsert apartment info
+//   GET    /guide/admin/apartments/:id/info/coverage — Per-language translation coverage
+//   GET    /guide/admin/apartments/:id/info/:infoId/translations — All langs for one block
+//   PUT    /guide/admin/apartments/:id/info/reorder — Reorder info blocks
+//   POST   /guide/admin/apartments/:id/info/bulk-translations — Import translations (JSON, all langs at once)
+//   POST   /guide/admin/apartments/:id/info/:infoId/media       — Upload a photo/video for an info block
+//   DELETE /guide/admin/apartments/:id/info/:infoId/media/:mid  — Delete one info block media item
+//   DELETE /guide/admin/apartments/:id/info/:infoId — Delete an info block
+//   GET    /guide/admin/info-categories             — Global info category catalog (icon/color/name)
+//   GET    /guide/admin/apartments/:id/phones       — List apartment phone entries (agency first)
+//   POST   /guide/admin/apartments/:id/phones       — Create/update a phone entry (checklist add/edit)
+//   DELETE /guide/admin/apartments/:id/phones/:pid  — Delete a phone entry (checklist remove)
+//   GET    /guide/admin/phone-categories             — Global phone category catalog (icon/name), read-only
 //   GET    /guide/admin/zones                       — List zones (superadmin)
 //   POST   /guide/admin/zones                       — Create zone (superadmin)
 //   PUT    /guide/admin/zones/:id                   — Update zone (superadmin)
@@ -129,6 +141,10 @@ export async function handleGuideAdminRequests(request, env) {
             const id = path.split('/')[1];
             return await updateApartment(env, id, await request.json(), isSuperAdmin, userAgencyIds);
         }
+        if (path.match(/^apartments\/[^/]+\/info\/coverage$/) && method === 'GET') {
+            const aptId = path.split('/')[1];
+            return await getApartmentInfoCoverage(env, aptId, isSuperAdmin, userAgencyIds);
+        }
         if (path.match(/^apartments\/[^/]+\/info$/) && method === 'GET') {
             const aptId = path.split('/')[1];
             const lang = url.searchParams.get('lang') || 'es';
@@ -137,6 +153,30 @@ export async function handleGuideAdminRequests(request, env) {
         if (path.match(/^apartments\/[^/]+\/info$/) && method === 'POST') {
             const aptId = path.split('/')[1];
             return await upsertApartmentInfo(env, aptId, await request.json(), isSuperAdmin, userAgencyIds);
+        }
+        if (path.match(/^apartments\/[^/]+\/info\/[^/]+\/translations$/) && method === 'GET') {
+            const parts = path.split('/');
+            return await getApartmentInfoTranslations(env, parts[1], parts[3], isSuperAdmin, userAgencyIds);
+        }
+        if (path.match(/^apartments\/[^/]+\/info\/reorder$/) && method === 'PUT') {
+            const aptId = path.split('/')[1];
+            return await reorderApartmentInfo(env, aptId, await request.json(), isSuperAdmin, userAgencyIds);
+        }
+        if (path.match(/^apartments\/[^/]+\/info\/bulk-translations$/) && method === 'POST') {
+            const aptId = path.split('/')[1];
+            return await bulkImportApartmentInfoTranslations(env, aptId, await request.json(), isSuperAdmin, userAgencyIds);
+        }
+        if (path.match(/^apartments\/[^/]+\/info\/[^/]+\/media$/) && method === 'POST') {
+            const parts = path.split('/');
+            return await addApartmentInfoMedia(env, parts[1], parts[3], request, isSuperAdmin, userAgencyIds);
+        }
+        if (path.match(/^apartments\/[^/]+\/info\/[^/]+\/media\/[^/]+$/) && method === 'DELETE') {
+            const parts = path.split('/');
+            return await deleteApartmentInfoMedia(env, parts[1], parts[3], parts[5], isSuperAdmin, userAgencyIds);
+        }
+        if (path.match(/^apartments\/[^/]+\/info\/[^/]+$/) && method === 'DELETE') {
+            const parts = path.split('/');
+            return await deleteApartmentInfo(env, parts[1], parts[3], isSuperAdmin, userAgencyIds);
         }
         if (path.match(/^apartments\/[^/]+\/stats$/) && method === 'GET') {
             const aptId = path.split('/')[1];
@@ -248,6 +288,30 @@ export async function handleGuideAdminRequests(request, env) {
         if (path.match(/^apartments\/[^/]+\/info\/[^/]+\/steps\/[^/]+$/) && method === 'DELETE') {
             const parts = path.split('/');
             return await deleteGuideInfoStep(env, parts[1], parts[3], parts[5], isSuperAdmin, userAgencyIds);
+        }
+
+        // ============ INFO CATEGORIES (global catalog, read-only for agencies) ============
+        if (path === 'info-categories' && method === 'GET') {
+            return await listInfoCategories(env, url.searchParams.get('lang'));
+        }
+
+        // ============ PHONES (per-apartment checklist) ============
+        if (path.match(/^apartments\/[^/]+\/phones$/) && method === 'GET') {
+            const aptId = path.split('/')[1];
+            return await listApartmentPhones(env, aptId, url.searchParams.get('lang') || 'es', isSuperAdmin, userAgencyIds);
+        }
+        if (path.match(/^apartments\/[^/]+\/phones$/) && method === 'POST') {
+            const aptId = path.split('/')[1];
+            return await upsertApartmentPhone(env, aptId, await request.json(), isSuperAdmin, userAgencyIds);
+        }
+        if (path.match(/^apartments\/[^/]+\/phones\/[^/]+$/) && method === 'DELETE') {
+            const parts = path.split('/');
+            return await deleteApartmentPhone(env, parts[1], parts[3], isSuperAdmin, userAgencyIds);
+        }
+
+        // ============ PHONE CATEGORIES (global catalog, read-only for agencies) ============
+        if (path === 'phone-categories' && method === 'GET') {
+            return await listPhoneCategories(env, url.searchParams.get('lang'));
         }
 
         // ============ ZONES (superadmin only) ============
@@ -526,19 +590,37 @@ async function updateApartment(env, id, data, isSuperAdmin, userAgencyIds) {
 // APARTMENT INFO (agency owners can edit)
 // ============================================
 async function getApartmentInfo(env, aptId, lang) {
+    // title/content deliberately do NOT fall back to 'es' here (unlike the public
+    // workerGuide.js) — the admin needs to show "no translation yet" per language
+    // tab. category_name is different: it's sourced from the global catalog, which
+    // is seeded complete in all 13 languages, so it's safe (and useful) to always
+    // resolve it — it's the preview of what the guest will actually see as the
+    // title when the host hasn't written a custom one.
     const items = await env.DB.prepare(`
-        SELECT 
-            ai.id, ai.info_key, ai.icon_name, ai.order_index,
+        SELECT
+            ai.id, ai.info_key, ai.icon_name, ai.order_index, ai.category_key, ai.use_custom_title,
+            ai.latitude, ai.longitude,
             t_title.value AS title,
-            t_content.value AS content
+            t_content.value AS content,
+            t_pickup.value AS pickup_instructions,
+            c.icon_name AS category_icon_name, c.color AS category_color, c.image_r2_key AS category_image_r2_key,
+            COALESCE(cat_name.value, cat_name_es.value) AS category_name,
+            CASE WHEN ai.use_custom_title THEN t_title.value ELSE COALESCE(cat_name.value, cat_name_es.value) END AS resolved_title
         FROM guide_apartment_info ai
-        LEFT JOIN translations t_title ON ai.id = t_title.entity_id 
+        LEFT JOIN translations t_title ON ai.id = t_title.entity_id
             AND t_title.entity_type = 'apartment_info' AND t_title.field = 'title' AND t_title.language_code = ?
-        LEFT JOIN translations t_content ON ai.id = t_content.entity_id 
+        LEFT JOIN translations t_content ON ai.id = t_content.entity_id
             AND t_content.entity_type = 'apartment_info' AND t_content.field = 'content' AND t_content.language_code = ?
+        LEFT JOIN translations t_pickup ON ai.id = t_pickup.entity_id
+            AND t_pickup.entity_type = 'apartment_info' AND t_pickup.field = 'pickup_instructions' AND t_pickup.language_code = ?
+        LEFT JOIN guide_info_categories c ON ai.category_key = c.key
+        LEFT JOIN translations cat_name ON c.key = cat_name.entity_id
+            AND cat_name.entity_type = 'info_category' AND cat_name.field = 'name' AND cat_name.language_code = ?
+        LEFT JOIN translations cat_name_es ON c.key = cat_name_es.entity_id
+            AND cat_name_es.entity_type = 'info_category' AND cat_name_es.field = 'name' AND cat_name_es.language_code = 'es'
         WHERE ai.apartment_id = ?
         ORDER BY ai.order_index ASC
-    `).bind(lang, lang, aptId).all();
+    `).bind(lang, lang, lang, lang, aptId).all();
 
     const infoResults = items.results || [];
     if (infoResults.length > 0) {
@@ -565,27 +647,91 @@ async function getApartmentInfo(env, aptId, lang) {
     return jsonResponse({ success: true, info: infoResults });
 }
 
-async function upsertApartmentInfo(env, aptId, data, isSuperAdmin, userAgencyIds) {
-    // Verify ownership
-    const apt = await env.DB.prepare('SELECT agency_id FROM guide_apartments WHERE id = ?').bind(aptId).first();
-    if (!apt) return errorResponse('Apartment not found', 404);
-    if (!isSuperAdmin && !userAgencyIds.includes(apt.agency_id)) return errorResponse('Forbidden', 403);
+// One aggregate query instead of fetching all 13 languages client-side just to
+// count non-empty blocks — powers the "es 12/12 · ja 0/12" coverage strip in
+// the admin so a host can see at a glance what still needs a manual translation
+// pass (see CLAUDE.md: no auto-translate yet, this is the manual-workflow helper).
+async function getApartmentInfoCoverage(env, aptId, isSuperAdmin, userAgencyIds) {
+    const access = await checkAptAccess(env, aptId, isSuperAdmin, userAgencyIds);
+    if (access.error) return access.error;
 
-    // data: { info_key, icon_name?, order_index?, translations: { es: { title, content }, en: { title, content } } }
-    const { info_key, icon_name, order_index, translations } = data;
+    const total = await env.DB.prepare(
+        'SELECT COUNT(*) as c FROM guide_apartment_info WHERE apartment_id = ?'
+    ).bind(aptId).first();
+
+    const rows = await env.DB.prepare(`
+        SELECT t.language_code, COUNT(DISTINCT t.entity_id) as c
+        FROM translations t
+        JOIN guide_apartment_info ai ON ai.id = t.entity_id
+        WHERE ai.apartment_id = ? AND t.entity_type = 'apartment_info' AND t.field = 'content'
+        GROUP BY t.language_code
+    `).bind(aptId).all();
+
+    const byLang = {};
+    for (const lang of ACTIVE_LANGUAGES) byLang[lang] = 0;
+    for (const r of (rows.results || [])) byLang[r.language_code] = r.c;
+
+    return jsonResponse({ success: true, total: total?.c || 0, by_lang: byLang });
+}
+
+// Every language at once for ONE info block — what the edit dialog needs to
+// populate all 13 language fields before showing the form. Loading only the
+// current tab's language here was the root cause of a data-loss bug: the old
+// dialog only ever knew about the language you were viewing, so saving wiped
+// out every other language it had never loaded. One cheap query, no join
+// needed beyond the ownership check (checkAptAccess already did that).
+async function getApartmentInfoTranslations(env, aptId, infoId, isSuperAdmin, userAgencyIds) {
+    const access = await checkAptAccess(env, aptId, isSuperAdmin, userAgencyIds);
+    if (access.error) return access.error;
+
+    const rows = await env.DB.prepare(
+        `SELECT language_code, field, value FROM translations WHERE entity_id = ? AND entity_type = 'apartment_info'`
+    ).bind(infoId).all();
+
+    const translations = {};
+    for (const r of (rows.results || [])) {
+        if (!translations[r.language_code]) translations[r.language_code] = {};
+        translations[r.language_code][r.field] = r.value;
+    }
+
+    return jsonResponse({ success: true, translations });
+}
+
+async function upsertApartmentInfo(env, aptId, data, isSuperAdmin, userAgencyIds) {
+    const access = await checkAptAccess(env, aptId, isSuperAdmin, userAgencyIds);
+    if (access.error) return access.error;
+
+    // data: { info_key, icon_name?, order_index?, category_key?, use_custom_title?,
+    //         latitude?, longitude?,
+    //         translations: { es: { title, content, pickup_instructions }, ... } }
+    // category_key drives the catalog (icon/color/translated name) that
+    // workerGuide.js resolves for the guest — see migration 0083. icon_name here
+    // is only an apartment-specific OVERRIDE of the category's icon; leave it null
+    // to inherit. use_custom_title=false (the default) means the title is entirely
+    // the category's name and translations.title is ignored/unused for this block.
+    // latitude/longitude (migración 0084) son opcionales y genéricos: el punto de
+    // recogida de ESTE item concreto (código de entrada, parking...) cuando no
+    // coincide con la ubicación del apartamento. pickup_instructions (texto de
+    // "dónde encontrarlo") vive en translations, no en columna — mismo EAV que
+    // title/content.
+    const { info_key, icon_name, order_index, category_key, use_custom_title, latitude, longitude, translations } = data;
     if (!info_key) return errorResponse('info_key is required');
 
     const infoId = `info_${aptId}_${info_key}`;
 
     // Upsert the info record
     await env.DB.prepare(`
-        INSERT INTO guide_apartment_info (id, apartment_id, info_key, icon_name, order_index)
-        VALUES (?, ?, ?, ?, ?)
+        INSERT INTO guide_apartment_info (id, apartment_id, info_key, icon_name, order_index, category_key, use_custom_title, latitude, longitude)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
         ON CONFLICT(apartment_id, info_key) DO UPDATE SET
             icon_name = COALESCE(excluded.icon_name, icon_name),
             order_index = excluded.order_index,
+            category_key = COALESCE(excluded.category_key, category_key),
+            use_custom_title = excluded.use_custom_title,
+            latitude = excluded.latitude,
+            longitude = excluded.longitude,
             modified_at = CURRENT_TIMESTAMP
-    `).bind(infoId, aptId, info_key, icon_name || null, order_index || 0).run();
+    `).bind(infoId, aptId, info_key, icon_name || null, order_index || 0, category_key || null, use_custom_title ? 1 : 0, latitude ?? null, longitude ?? null).run();
 
     // Upsert translations
     if (translations && typeof translations === 'object') {
@@ -607,6 +753,15 @@ async function upsertApartmentInfo(env, aptId, data, isSuperAdmin, userAgencyIds
                         VALUES (?, 'apartment_info', 'content', ?, ?)
                         ON CONFLICT(entity_id, entity_type, field, language_code) DO UPDATE SET value = excluded.value
                     `).bind(infoId, lang, fields.content)
+                );
+            }
+            if (fields.pickup_instructions !== undefined) {
+                statements.push(
+                    env.DB.prepare(`
+                        INSERT INTO translations (entity_id, entity_type, field, language_code, value)
+                        VALUES (?, 'apartment_info', 'pickup_instructions', ?, ?)
+                        ON CONFLICT(entity_id, entity_type, field, language_code) DO UPDATE SET value = excluded.value
+                    `).bind(infoId, lang, fields.pickup_instructions)
                 );
             }
         }
@@ -632,10 +787,292 @@ async function upsertApartmentInfo(env, aptId, data, isSuperAdmin, userAgencyIds
         }
     }
 
-    const slug = apt.slug || await getApartmentSlug(env, aptId);
-    if (slug) await touchGuideVersion(env, slug);
+    if (access.apt.slug) await touchGuideVersion(env, access.apt.slug);
 
     return jsonResponse({ success: true, infoId });
+}
+
+async function reorderApartmentInfo(env, aptId, data, isSuperAdmin, userAgencyIds) {
+    const access = await checkAptAccess(env, aptId, isSuperAdmin, userAgencyIds);
+    if (access.error) return access.error;
+    if (!data.items || !Array.isArray(data.items)) return errorResponse('items array required');
+
+    const statements = data.items.map(i =>
+        env.DB.prepare('UPDATE guide_apartment_info SET order_index = ? WHERE id = ? AND apartment_id = ?')
+        .bind(i.order_index, i.id, aptId)
+    );
+    if (statements.length > 0) await env.DB.batch(statements);
+
+    if (access.apt.slug) await touchGuideVersion(env, access.apt.slug);
+    return jsonResponse({ success: true });
+}
+
+async function deleteApartmentInfo(env, aptId, infoId, isSuperAdmin, userAgencyIds) {
+    const access = await checkAptAccess(env, aptId, isSuperAdmin, userAgencyIds);
+    if (access.error) return access.error;
+
+    const media = await env.DB.prepare(
+        'SELECT r2_key FROM guide_apartment_media WHERE apartment_info_id = ?'
+    ).bind(infoId).all();
+
+    // guide_apartment_media and guide_info_steps cascade via FK ON DELETE CASCADE.
+    // translations has no FK (it's a generic EAV table keyed by entity_id/entity_type)
+    // so it needs an explicit delete — same pattern as deleteGuideInfoStep below.
+    await env.DB.prepare('DELETE FROM guide_apartment_info WHERE id = ? AND apartment_id = ?').bind(infoId, aptId).run();
+    await env.DB.prepare('DELETE FROM translations WHERE entity_id = ? AND entity_type = ?').bind(infoId, 'apartment_info').run();
+
+    for (const m of (media.results || [])) {
+        await env.R2_BUCKET.delete(m.r2_key).catch(() => {});
+    }
+
+    if (access.apt.slug) await touchGuideVersion(env, access.apt.slug);
+    return jsonResponse({ success: true });
+}
+
+async function addApartmentInfoMedia(env, aptId, infoId, request, isSuperAdmin, userAgencyIds) {
+    const access = await checkAptAccess(env, aptId, isSuperAdmin, userAgencyIds);
+    if (access.error) return access.error;
+
+    try {
+        const formData = await request.formData();
+        const file = formData.get('file');
+        if (!file) return errorResponse('file required');
+
+        const ext = file.name.split('.').pop();
+        const uuid = generateId('');
+        const r2Key = `guide/apartments/${aptId}/info/${infoId}/${uuid}.${ext}`;
+
+        await env.R2_BUCKET.put(r2Key, file.stream(), {
+            httpMetadata: { contentType: file.type }
+        });
+
+        // Every upload becomes the new cover (order_index 0) — same UX as
+        // addPoiMedia's PRIMARY_IMAGE promotion below, adapted to this table's
+        // plain order_index (guide_apartment_media has no `role` column).
+        await env.DB.prepare(
+            'UPDATE guide_apartment_media SET order_index = order_index + 1 WHERE apartment_info_id = ?'
+        ).bind(infoId).run();
+
+        const id = generateId('aim');
+        const mediaType = file.type.startsWith('video/') ? 'video' : 'image';
+        await env.DB.prepare(`
+            INSERT INTO guide_apartment_media (id, apartment_info_id, r2_key, media_type, order_index)
+            VALUES (?, ?, ?, ?, 0)
+        `).bind(id, infoId, r2Key, mediaType).run();
+
+        if (access.apt.slug) await touchGuideVersion(env, access.apt.slug);
+
+        const origin = new URL(request.url).origin;
+        return jsonResponse({ success: true, id, r2_key: r2Key, url: `${origin}/media/${r2Key}`, media_type: mediaType });
+    } catch (err) {
+        return errorResponse('Upload failed: ' + err.message, 500);
+    }
+}
+
+async function deleteApartmentInfoMedia(env, aptId, infoId, mediaId, isSuperAdmin, userAgencyIds) {
+    const access = await checkAptAccess(env, aptId, isSuperAdmin, userAgencyIds);
+    if (access.error) return access.error;
+
+    const media = await env.DB.prepare(
+        'SELECT r2_key FROM guide_apartment_media WHERE id = ? AND apartment_info_id = ?'
+    ).bind(mediaId, infoId).first();
+    if (!media) return errorResponse('Not found', 404);
+
+    await env.R2_BUCKET.delete(media.r2_key);
+    await env.DB.prepare('DELETE FROM guide_apartment_media WHERE id = ?').bind(mediaId).run();
+
+    if (access.apt.slug) await touchGuideVersion(env, access.apt.slug);
+    return jsonResponse({ success: true });
+}
+
+// Bulk-import translations for an apartment's info blocks in one shot — the
+// backend half of the "export JSON / paste into an external AI / import JSON"
+// manual translation workflow (see CLAUDE.md: no in-app auto-translate yet).
+// Body shape mirrors the `translations` field already used by upsertApartmentInfo,
+// with one extra level keyed by info_key, so the JSON this apartment's
+// GET .../info?lang=es export produces is directly the template to fill in:
+//   { "wifi":  { "en": { "title": "...", "content": "..." }, "ja": {...} },
+//     "rules": { "en": {...}, ... } }
+async function bulkImportApartmentInfoTranslations(env, aptId, data, isSuperAdmin, userAgencyIds) {
+    const access = await checkAptAccess(env, aptId, isSuperAdmin, userAgencyIds);
+    if (access.error) return access.error;
+    if (!data || typeof data !== 'object' || Array.isArray(data)) {
+        return errorResponse('Body must be an object keyed by info_key');
+    }
+
+    const existing = await env.DB.prepare(
+        'SELECT info_key FROM guide_apartment_info WHERE apartment_id = ?'
+    ).bind(aptId).all();
+    const validKeys = new Set((existing.results || []).map(r => r.info_key));
+    const validLangs = new Set(ACTIVE_LANGUAGES);
+
+    const statements = [];
+    const skipped = [];
+    let importedFields = 0;
+
+    for (const [infoKey, byLang] of Object.entries(data)) {
+        if (!validKeys.has(infoKey)) { skipped.push(`${infoKey}: no existe ese bloque en este apartamento`); continue; }
+        if (!byLang || typeof byLang !== 'object') continue;
+        const infoId = `info_${aptId}_${infoKey}`;
+
+        for (const [lang, fields] of Object.entries(byLang)) {
+            if (!validLangs.has(lang)) { skipped.push(`${infoKey}.${lang}: idioma desconocido`); continue; }
+            if (!fields || typeof fields !== 'object') continue;
+
+            for (const field of ['title', 'content']) {
+                const value = fields[field];
+                // Reject blanks rather than store them — a half-formed paste
+                // must not silently wipe an existing translation (this is the
+                // same failure mode as the admin dialog bug being fixed
+                // alongside this: never overwrite good data with empty).
+                if (typeof value !== 'string' || value.trim() === '') continue;
+                statements.push(
+                    env.DB.prepare(`
+                        INSERT INTO translations (entity_id, entity_type, field, language_code, value)
+                        VALUES (?, 'apartment_info', ?, ?, ?)
+                        ON CONFLICT(entity_id, entity_type, field, language_code) DO UPDATE SET value = excluded.value
+                    `).bind(infoId, field, lang, value.trim())
+                );
+                importedFields++;
+            }
+        }
+    }
+
+    if (statements.length > 0) await env.DB.batch(statements);
+    if (access.apt.slug) await touchGuideVersion(env, access.apt.slug);
+
+    return jsonResponse({ success: true, imported_fields: importedFields, skipped });
+}
+
+// Global catalog of info categories (icon/color/translated name) — see migration
+// 0083. Read-only for every authenticated admin user (agency or superadmin): it's
+// platform-wide reference data, same access level as `zones`. name/hint fall back
+// to 'es' when the requested language is missing — 'hint' in particular is only
+// ever seeded in 'es' on purpose (it's a host-facing tooltip, not guest content;
+// see the migration's header comment for why translating it to all 13 wasn't worth it).
+async function listInfoCategories(env, lang) {
+    const l = lang || 'es';
+    const cats = await env.DB.prepare(`
+        SELECT c.key, c.group_key, c.icon_name, c.color, c.image_r2_key, c.order_index,
+               COALESCE(t_name.value, t_name_es.value) AS name,
+               COALESCE(t_hint.value, t_hint_es.value) AS hint
+        FROM guide_info_categories c
+        LEFT JOIN translations t_name ON c.key = t_name.entity_id
+            AND t_name.entity_type = 'info_category' AND t_name.field = 'name' AND t_name.language_code = ?
+        LEFT JOIN translations t_name_es ON c.key = t_name_es.entity_id
+            AND t_name_es.entity_type = 'info_category' AND t_name_es.field = 'name' AND t_name_es.language_code = 'es'
+        LEFT JOIN translations t_hint ON c.key = t_hint.entity_id
+            AND t_hint.entity_type = 'info_category' AND t_hint.field = 'hint' AND t_hint.language_code = ?
+        LEFT JOIN translations t_hint_es ON c.key = t_hint_es.entity_id
+            AND t_hint_es.entity_type = 'info_category' AND t_hint_es.field = 'hint' AND t_hint_es.language_code = 'es'
+        WHERE c.is_active = TRUE
+        ORDER BY c.order_index ASC
+    `).bind(l, l).all();
+
+    return jsonResponse({ success: true, categories: cats.results || [] });
+}
+
+// ============================================
+// PHONES (per-apartment checklist — migración 0084)
+// ============================================
+// Catálogo aparte de guide_info_categories: un teléfono necesita número +
+// "la agencia siempre primera", que no encaja en el modelo de bloque de texto
+// libre de apartment_info. Ver cabecera de la migración 0084.
+
+async function listApartmentPhones(env, aptId, lang, isSuperAdmin, userAgencyIds) {
+    const access = await checkAptAccess(env, aptId, isSuperAdmin, userAgencyIds);
+    if (access.error) return access.error;
+
+    const l = lang || 'es';
+    const rows = await env.DB.prepare(`
+        SELECT
+            p.id, p.category_key, p.phone_number, p.label, p.order_index,
+            pc.icon_name AS category_icon_name,
+            COALESCE(t_name.value, t_name_es.value) AS category_name
+        FROM guide_apartment_phones p
+        JOIN guide_phone_categories pc ON p.category_key = pc.key
+        LEFT JOIN translations t_name ON pc.key = t_name.entity_id
+            AND t_name.entity_type = 'phone_category' AND t_name.field = 'name' AND t_name.language_code = ?
+        LEFT JOIN translations t_name_es ON pc.key = t_name_es.entity_id
+            AND t_name_es.entity_type = 'phone_category' AND t_name_es.field = 'name' AND t_name_es.language_code = 'es'
+        WHERE p.apartment_id = ?
+        ORDER BY pc.order_index ASC, p.order_index ASC
+    `).bind(l, l, aptId).all();
+
+    return jsonResponse({ success: true, phones: rows.results || [] });
+}
+
+// Un solo endpoint para crear y editar (como upsertApartmentInfo): con `id` en
+// el body actualiza esa fila (verificando que sea de este apartamento), sin
+// `id` crea una nueva. 'custom' es la única categoría pensada para tener más
+// de una fila por apartamento, pero no se fuerza a nivel de base de datos —
+// el checklist del admin es quien impide duplicar agency/police/etc.
+async function upsertApartmentPhone(env, aptId, data, isSuperAdmin, userAgencyIds) {
+    const access = await checkAptAccess(env, aptId, isSuperAdmin, userAgencyIds);
+    if (access.error) return access.error;
+
+    const { id, category_key, phone_number, label, order_index } = data;
+    if (!category_key) return errorResponse('category_key is required');
+    if (!phone_number) return errorResponse('phone_number is required');
+
+    const category = await env.DB.prepare(
+        'SELECT key FROM guide_phone_categories WHERE key = ? AND is_active = TRUE'
+    ).bind(category_key).first();
+    if (!category) return errorResponse('Unknown phone category');
+
+    let phoneId = id;
+    if (id) {
+        const existing = await env.DB.prepare(
+            'SELECT id FROM guide_apartment_phones WHERE id = ? AND apartment_id = ?'
+        ).bind(id, aptId).first();
+        if (!existing) return errorResponse('Phone entry not found', 404);
+
+        await env.DB.prepare(`
+            UPDATE guide_apartment_phones
+            SET category_key = ?, phone_number = ?, label = ?, order_index = ?, modified_at = CURRENT_TIMESTAMP
+            WHERE id = ?
+        `).bind(category_key, phone_number, label || null, order_index || 0, id).run();
+    } else {
+        phoneId = generateId('phone');
+        await env.DB.prepare(`
+            INSERT INTO guide_apartment_phones (id, apartment_id, category_key, phone_number, label, order_index)
+            VALUES (?, ?, ?, ?, ?, ?)
+        `).bind(phoneId, aptId, category_key, phone_number, label || null, order_index || 0).run();
+    }
+
+    if (access.apt.slug) await touchGuideVersion(env, access.apt.slug);
+    return jsonResponse({ success: true, id: phoneId });
+}
+
+async function deleteApartmentPhone(env, aptId, phoneId, isSuperAdmin, userAgencyIds) {
+    const access = await checkAptAccess(env, aptId, isSuperAdmin, userAgencyIds);
+    if (access.error) return access.error;
+
+    await env.DB.prepare(
+        'DELETE FROM guide_apartment_phones WHERE id = ? AND apartment_id = ?'
+    ).bind(phoneId, aptId).run();
+
+    if (access.apt.slug) await touchGuideVersion(env, access.apt.slug);
+    return jsonResponse({ success: true });
+}
+
+// Catálogo global, solo lectura para agencias — mismo nivel de acceso que
+// info-categories/zones.
+async function listPhoneCategories(env, lang) {
+    const l = lang || 'es';
+    const cats = await env.DB.prepare(`
+        SELECT c.key, c.icon_name, c.order_index,
+               COALESCE(t_name.value, t_name_es.value) AS name
+        FROM guide_phone_categories c
+        LEFT JOIN translations t_name ON c.key = t_name.entity_id
+            AND t_name.entity_type = 'phone_category' AND t_name.field = 'name' AND t_name.language_code = ?
+        LEFT JOIN translations t_name_es ON c.key = t_name_es.entity_id
+            AND t_name_es.entity_type = 'phone_category' AND t_name_es.field = 'name' AND t_name_es.language_code = 'es'
+        WHERE c.is_active = TRUE
+        ORDER BY c.order_index ASC
+    `).bind(l, l).all();
+
+    return jsonResponse({ success: true, categories: cats.results || [] });
 }
 
 // ============================================

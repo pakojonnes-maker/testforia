@@ -22,7 +22,15 @@ interface GuidebookData {
   apartment: {
     id: string; name: string; slug: string; address: string;
     cover_image_url: string;
-    info: Array<{ id: string; key: string; icon: string; title: string; content: string; media: any[] }>;
+    info: Array<{
+      id: string; key: string; category?: string | null; icon: string; color?: string | null;
+      title: string; category_name?: string | null; content: string; media: any[];
+      category_image_url?: string | null;
+      pickup_instructions?: string | null; latitude?: number | null; longitude?: number | null;
+    }>;
+    phones: Array<{
+      id: string; category: string; icon: string; name: string; phone_number: string;
+    }>;
   };
   zone: { id: string; name: string; slug: string; region: string; description: string; cover_image_url: string };
   agency: {
@@ -39,6 +47,7 @@ interface GuidebookData {
   restaurants: Array<{
     id: string; name: string; slug: string; cuisine_type: string;
     tier: string; cover_image: string;
+    address: string | null; city: string | null; country: string | null;
   }>;
   experiences: Array<{
     id: string; name: string; description: string; category: string;
@@ -141,13 +150,23 @@ export default function GuidebookPage() {
       root.setProperty('--brand-secondary', data.agency.secondary_color || data.agency.primary_color);
       root.setProperty('--color-terracotta', data.agency.primary_color);
       root.setProperty('--color-deep-sea', data.agency.secondary_color || data.agency.primary_color);
+      // --color-primary es el token que de verdad leen border-primary/bg-primary/
+      // text-primary (77 usos en apps/guide/src, contra solo 5 de -terracotta) —
+      // sin esta línea la mayoría de la interfaz (líneas divisorias incluidas)
+      // se queda en el azul cobalto por defecto pase lo que pase en Diseño.
+      root.setProperty('--color-primary', data.agency.primary_color);
     } else {
       root.setProperty('--brand-primary', 'var(--mar-azul)');
       root.setProperty('--brand-secondary', 'var(--mar-profundo)');
       root.setProperty('--color-terracotta', '#0038AE');
       root.setProperty('--color-deep-sea', '#001550');
+      root.setProperty('--color-primary', '#0038AE');
     }
     root.setProperty('--color-accent-gold', data?.agency?.accent_color || '#F7BE29');
+
+    // Tinta la barra de estado del navegador/PWA en móvil con el mismo color.
+    document.querySelector('meta[name="theme-color"]')
+      ?.setAttribute('content', data?.agency?.primary_color || '#0038AE');
 
     // Una sola fuente para todo el guidebook, tal como la vista previa del
     // admin (Diseño > Tipografía) da a entender: título y cuerpo con el mismo
@@ -310,7 +329,7 @@ export default function GuidebookPage() {
               onIntent={(type, id, action) => logIntent(type, id, action)}
             />
             {/* QuickInfoBar will be merged into InfoSection or updated later */}
-            <InfoSection infoItems={apartment.info} lang={lang} />
+            <InfoSection infoItems={apartment.info} phones={apartment.phones} lang={lang} />
           </div>
         )}
 

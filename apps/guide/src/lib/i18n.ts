@@ -25,6 +25,8 @@ export const UI_STRINGS: Record<string, Record<string, string>> = {
 
   // InfoSection
   door_code_title: { es: 'Código de Entrada', en: 'Entry Code', fr: "Code d'accès", de: 'Zugangscode', it: "Codice d'ingresso", pt: 'Código de entrada', ca: "Codi d'entrada", ar: 'رمز الدخول', ru: 'Код входа', uk: 'Код входу', zh: '门禁密码', ja: '入口コード', ko: '출입 코드' },
+  entry_code_pickup_title: { es: 'Dónde recogerlo', en: 'Where to find it', fr: 'Où le récupérer', de: 'Wo du ihn findest', it: 'Dove ritirarlo', pt: 'Onde encontrar', ca: 'On recollir-lo', ar: 'أين تجده', ru: 'Где его получить', uk: 'Де його отримати', zh: '在哪里领取', ja: '受け取り場所', ko: '수령 위치' },
+  phones_title: { es: 'Teléfonos', en: 'Phone Numbers', fr: 'Numéros de téléphone', de: 'Telefonnummern', it: 'Numeri di telefono', pt: 'Números de telefone', ca: 'Telèfons', ar: 'أرقام الهاتف', ru: 'Телефоны', uk: 'Телефони', zh: '电话号码', ja: '電話番号', ko: '전화번호' },
   quick_guides: { es: 'Guías Rápidas', en: 'Quick Guides', fr: 'Guides rapides', de: 'Kurzanleitungen', it: 'Guide rapide', pt: 'Guias rápidos', ca: 'Guies ràpides', ar: 'أدلة سريعة', ru: 'Краткие инструкции', uk: 'Короткі інструкції', zh: '快速指南', ja: 'クイックガイド', ko: '빠른 안내' },
   connectivity: { es: 'Conectividad', en: 'Connectivity', fr: 'Connectivité', de: 'Konnektivität', it: 'Connettività', pt: 'Conectividade', ca: 'Connectivitat', ar: 'الاتصال', ru: 'Подключение', uk: 'Підключення', zh: '网络连接', ja: '接続', ko: '연결' },
   network_password_label: { es: 'Red / Contraseña', en: 'Network / Password', fr: 'Réseau / Mot de passe', de: 'Netzwerk / Passwort', it: 'Rete / Password', pt: 'Rede / Senha', ca: 'Xarxa / Contrasenya', ar: 'الشبكة / كلمة المرور', ru: 'Сеть / Пароль', uk: 'Мережа / Пароль', zh: '网络 / 密码', ja: 'ネットワーク／パスワード', ko: '네트워크 / 비밀번호' },
@@ -104,38 +106,8 @@ export const UI_STRINGS: Record<string, Record<string, string>> = {
   no_services: { es: 'No hay promociones disponibles', en: 'No promotions available', fr: 'Aucune offre disponible', de: 'Keine Angebote verfügbar', it: 'Nessuna offerta disponibile', pt: 'Sem ofertas disponíveis', ca: 'No hi ha promocions disponibles', ar: 'لا توجد عروض متاحة', ru: 'Нет доступных акций', uk: 'Немає доступних акцій', zh: '暂无优惠活动', ja: '現在ご利用いただけるお得情報はありません', ko: '이용 가능한 프로모션이 없습니다' },
 
   // ChatIASection
-  chat_assistant_title: { es: 'Asistente Virtual', en: 'Virtual Assistant', fr: 'Assistant virtuel', de: 'Virtueller Assistent', it: 'Assistente virtuale', pt: 'Assistente virtual', ca: 'Assistent virtual', ar: 'المساعد الافتراضي', ru: 'Виртуальный ассистент', uk: 'Віртуальний асистент', zh: '虚拟助手', ja: 'バーチャルアシスタント', ko: '가상 어시스턴트' },
-  chat_assistant_subtitle: {
-    es: 'Hola. Estoy aquí para ayudarte a aprovechar al máximo tu estancia.',
-    en: "Hi there. I'm here to help you make the most of your stay.",
-    fr: 'Bonjour. Je suis là pour vous aider à profiter au maximum de votre séjour.',
-    de: 'Hallo. Ich bin hier, um dir zu helfen, das Beste aus deinem Aufenthalt zu machen.',
-    it: 'Ciao. Sono qui per aiutarti a goderti al massimo il tuo soggiorno.',
-    pt: 'Olá. Estou aqui para o ajudar a aproveitar ao máximo a sua estadia.',
-    ca: 'Hola. Sóc aquí per ajudar-te a gaudir al màxim de la teva estada.',
-    ar: 'مرحبًا. أنا هنا لمساعدتك على الاستفادة القصوى من إقامتك.',
-    ru: 'Привет! Я здесь, чтобы помочь вам максимально насладиться пребыванием.',
-    uk: 'Привіт! Я тут, щоб допомогти вам максимально насолодитися перебуванням.',
-    zh: '你好，我在这里帮助你充分享受本次住宿。',
-    ja: 'こんにちは。滞在を最大限楽しめるようお手伝いします。',
-    ko: '안녕하세요. 머무는 동안 최고의 시간을 보낼 수 있도록 도와드릴게요.',
-  },
+  chat_assistant_title: { es: 'Conserje IA', en: 'AI Concierge', fr: 'Concierge IA', de: 'KI-Concierge', it: 'Concierge IA', pt: 'Concierge IA', ca: 'Consergeria IA', ar: 'كونسيرج الذكاء الاصطناعي', ru: 'ИИ-консьерж', uk: 'ІІ-консьєрж', zh: 'AI礼宾', ja: 'AIコンシェルジュ', ko: 'AI 컨시어지' },
   chat_placeholder: { es: 'Escribe tu mensaje aquí...', en: 'Type your message here...', fr: 'Écrivez votre message ici...', de: 'Schreibe hier deine Nachricht...', it: 'Scrivi qui il tuo messaggio...', pt: 'Escreva a sua mensagem aqui...', ca: 'Escriu el teu missatge aquí...', ar: 'اكتب رسالتك هنا...', ru: 'Введите сообщение...', uk: 'Введіть повідомлення...', zh: '在此输入您的消息...', ja: 'メッセージを入力してください...', ko: '메시지를 입력하세요...' },
-  chat_disclaimer: {
-    es: 'Asistente con IA · Las respuestas se basan en la información de tu alojamiento',
-    en: "AI-powered assistant · Answers are based on your accommodation's information",
-    fr: 'Assistant IA · Les réponses sont basées sur les informations de votre logement',
-    de: 'KI-gestützter Assistent · Antworten basieren auf den Informationen deiner Unterkunft',
-    it: 'Assistente IA · Le risposte si basano sulle informazioni del tuo alloggio',
-    pt: 'Assistente com IA · As respostas baseiam-se na informação do seu alojamento',
-    ca: "Assistent amb IA · Les respostes es basen en la informació del teu allotjament",
-    ar: 'مساعد يعمل بالذكاء الاصطناعي · تعتمد الإجابات على معلومات مكان إقامتك',
-    ru: 'ИИ-ассистент · Ответы основаны на информации о вашем жилье',
-    uk: 'ІІ-асистент · Відповіді ґрунтуються на інформації про ваше житло',
-    zh: 'AI 智能助手 · 回答基于您住宿信息',
-    ja: 'AIアシスタント · 回答は宿泊施設の情報に基づいています',
-    ko: 'AI 어시스턴트 · 답변은 숙소 정보를 기반으로 합니다',
-  },
   chat_loading_demo: {
     es: 'El asistente está cargando los datos del apartamento. Por favor inténtalo de nuevo en un momento.',
     en: 'The assistant is loading the apartment data. Please try again in a moment.',

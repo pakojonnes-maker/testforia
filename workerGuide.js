@@ -107,7 +107,7 @@ export async function handleGetGuidebook(env, slug, lang, origin) {
     const hasAssignedPois = aptPoisCheck?.count > 0;
 
     // 2. Parallel load: zone, agency, info, POIs, experiences, restaurants, welcome modal, store items
-    const [zone, agency, apartmentInfo, pois, experiences, zoneRestaurants, welcomeModal, storeItems] = await Promise.all([
+    const [zone, agency, apartmentInfo, pois, experiences, zoneRestaurants, welcomeModal, storeItems, apartmentPhones] = await Promise.all([
         // Zone
         env.DB.prepare(`
             SELECT id, name, slug, country, region, latitude, longitude, cover_image_url
@@ -121,13 +121,35 @@ export async function handleGetGuidebook(env, slug, lang, origin) {
         `).bind(apartment.agency_id).first(),
 
         // Apartment info with translations (falls back to Spanish when the
-        // requested language has no translation row yet)
+        // requested language has no translation row yet).
+        //
+        // Title comes from one of two places (see migration 0083):
+        //   use_custom_title = TRUE  -> the apartment's own translations.title,
+        //                               same as before this migration existed.
+        //   use_custom_title = FALSE (default) -> the global category's name,
+        //                               shared across every apartment so a host
+        //                               never has to translate "Lavadora" again.
+        // icon/color/image follow the same inherit-unless-overridden shape:
+        // an apartment-specific icon_name wins if set, otherwise the category's.
+        // The category's own name/icon/color are seeded in all 13 languages for
+        // every category (migration 0083), so cat_name_es is only a safety net,
+        // never expected to actually fire for a real category_key.
         env.DB.prepare(`
             SELECT
-                ai.id, ai.info_key, ai.icon_name, ai.order_index,
-                COALESCE(t_title.value, t_title_es.value) AS title,
-                COALESCE(t_content.value, t_content_es.value) AS content
+                ai.id, ai.info_key, ai.order_index, ai.category_key, ai.use_custom_title,
+                ai.latitude, ai.longitude,
+                COALESCE(ai.icon_name, c.icon_name) AS icon,
+                c.color AS category_color,
+                c.image_r2_key AS category_image_r2_key,
+                COALESCE(cat_name.value, cat_name_es.value) AS category_name,
+                CASE WHEN ai.use_custom_title
+                    THEN COALESCE(t_title.value, t_title_es.value)
+                    ELSE COALESCE(cat_name.value, cat_name_es.value)
+                END AS title,
+                COALESCE(t_content.value, t_content_es.value) AS content,
+                COALESCE(t_pickup.value, t_pickup_es.value) AS pickup_instructions
             FROM guide_apartment_info ai
+            LEFT JOIN guide_info_categories c ON ai.category_key = c.key
             LEFT JOIN translations t_title ON ai.id = t_title.entity_id
                 AND t_title.entity_type = 'apartment_info'
                 AND t_title.field = 'title'
@@ -136,6 +158,14 @@ export async function handleGetGuidebook(env, slug, lang, origin) {
                 AND t_title_es.entity_type = 'apartment_info'
                 AND t_title_es.field = 'title'
                 AND t_title_es.language_code = ?
+            LEFT JOIN translations cat_name ON c.key = cat_name.entity_id
+                AND cat_name.entity_type = 'info_category'
+                AND cat_name.field = 'name'
+                AND cat_name.language_code = ?
+            LEFT JOIN translations cat_name_es ON c.key = cat_name_es.entity_id
+                AND cat_name_es.entity_type = 'info_category'
+                AND cat_name_es.field = 'name'
+                AND cat_name_es.language_code = ?
             LEFT JOIN translations t_content ON ai.id = t_content.entity_id
                 AND t_content.entity_type = 'apartment_info'
                 AND t_content.field = 'content'
@@ -144,9 +174,17 @@ export async function handleGetGuidebook(env, slug, lang, origin) {
                 AND t_content_es.entity_type = 'apartment_info'
                 AND t_content_es.field = 'content'
                 AND t_content_es.language_code = ?
+            LEFT JOIN translations t_pickup ON ai.id = t_pickup.entity_id
+                AND t_pickup.entity_type = 'apartment_info'
+                AND t_pickup.field = 'pickup_instructions'
+                AND t_pickup.language_code = ?
+            LEFT JOIN translations t_pickup_es ON ai.id = t_pickup_es.entity_id
+                AND t_pickup_es.entity_type = 'apartment_info'
+                AND t_pickup_es.field = 'pickup_instructions'
+                AND t_pickup_es.language_code = ?
             WHERE ai.apartment_id = ?
             ORDER BY ai.order_index ASC
-        `).bind(lang, FALLBACK_LANG, lang, FALLBACK_LANG, apartment.id).all(),
+        `).bind(lang, FALLBACK_LANG, lang, FALLBACK_LANG, lang, FALLBACK_LANG, lang, FALLBACK_LANG, apartment.id).all(),
 
         // POIs with translations (falls back to Spanish when missing)
         hasAssignedPois
@@ -246,14 +284,17 @@ export async function handleGetGuidebook(env, slug, lang, origin) {
             ORDER BY e.is_featured DESC, e.order_index ASC
         `).bind(lang, FALLBACK_LANG, lang, FALLBACK_LANG, lang, FALLBACK_LANG, apartment.zone_id).all(),
 
-        // Zone restaurants (bridge to existing restaurants table)
+        // Zone restaurants (bridge to existing restaurants table). address/city/country
+        // (no lat/long on this table — restaurants live outside guide_pois, ver
+        // BDschemaFinal.sql) alimentan el botón "Cómo Llegar": Google Maps admite
+        // texto libre como destination=, no hace falta geocodificar aquí.
         env.DB.prepare(`
-            SELECT 
-                r.id, r.name, r.slug,
+            SELECT
+                r.id, r.name, r.slug, r.address, r.city, r.country,
                 zr.tier, zr.cuisine_type_override AS cuisine_type,
-                (SELECT dm.r2_key FROM dish_media dm 
-                 JOIN dishes d ON dm.dish_id = d.id 
-                 WHERE d.restaurant_id = r.id AND dm.is_primary = 1 
+                (SELECT dm.r2_key FROM dish_media dm
+                 JOIN dishes d ON dm.dish_id = d.id
+                 WHERE d.restaurant_id = r.id AND dm.is_primary = 1
                  LIMIT 1) AS cover_image
             FROM guide_zone_restaurants zr
             JOIN restaurants r ON zr.restaurant_id = r.id AND r.is_active = TRUE
@@ -320,7 +361,24 @@ export async function handleGetGuidebook(env, slug, lang, origin) {
                 AND t_cta_es.language_code = ?
             WHERE si.is_active = TRUE AND (si.apartment_id = ? OR si.owner_type = 'platform')
             ORDER BY si.is_featured DESC, si.order_index ASC
-        `).bind(lang, FALLBACK_LANG, lang, FALLBACK_LANG, lang, FALLBACK_LANG, apartment.id).all()
+        `).bind(lang, FALLBACK_LANG, lang, FALLBACK_LANG, lang, FALLBACK_LANG, apartment.id).all(),
+
+        // Apartment phones (migración 0084) — la agencia va siempre primera por
+        // order_index del catálogo (10), luego policía/bomberos/ambulancia/otro.
+        env.DB.prepare(`
+            SELECT
+                p.id, p.category_key, p.phone_number, p.label,
+                pc.icon_name AS category_icon_name,
+                COALESCE(t_name.value, t_name_es.value) AS category_name
+            FROM guide_apartment_phones p
+            JOIN guide_phone_categories pc ON p.category_key = pc.key
+            LEFT JOIN translations t_name ON pc.key = t_name.entity_id
+                AND t_name.entity_type = 'phone_category' AND t_name.field = 'name' AND t_name.language_code = ?
+            LEFT JOIN translations t_name_es ON pc.key = t_name_es.entity_id
+                AND t_name_es.entity_type = 'phone_category' AND t_name_es.field = 'name' AND t_name_es.language_code = ?
+            WHERE p.apartment_id = ?
+            ORDER BY pc.order_index ASC, p.order_index ASC
+        `).bind(lang, FALLBACK_LANG, apartment.id).all()
     ]);
 
     if (!zone) {
@@ -434,10 +492,44 @@ export async function handleGetGuidebook(env, slug, lang, origin) {
             info: (apartmentInfo.results || []).map(info => ({
                 id: info.id,
                 key: info.info_key,
-                icon: info.icon_name,
+                category: info.category_key,
+                icon: info.icon || 'info',
+                color: info.category_color || null,
                 title: info.title || info.info_key,
+                // Only meaningful when it differs from `title` — i.e. the host
+                // wrote a custom title on top of the category (e.g. "Lavadora —
+                // planta baja"). The frontend uses this to show the category as
+                // a small eyebrow above the custom headline; when there's no
+                // custom title the two are identical, so showing both would
+                // just repeat the same word twice.
+                category_name: info.category_name || null,
                 content: info.content || '',
-                media: aptMedia[info.id] || []
+                // Punto de recogida opcional (migración 0084) — solo relevante cuando
+                // difiere de la ubicación del apartamento (código de entrada en la
+                // agencia, parking en otra dirección...). null/null si no se ha
+                // configurado, el frontend simplemente no muestra el botón "Cómo llegar".
+                pickup_instructions: info.pickup_instructions || null,
+                latitude: info.latitude ?? null,
+                longitude: info.longitude ?? null,
+                // Apartment-specific photos (guide_apartment_media) always win.
+                // category_image_url is the shared stock photo for this category
+                // (migration 0083, still empty for most categories at launch —
+                // null here just means "no photo", the frontend falls back to
+                // icon+color). Kept separate from `media` rather than synthesized
+                // into it, so the UI can tell "the host's own photo" apart from
+                // "the shared default" if that distinction ever matters.
+                media: aptMedia[info.id] || [],
+                category_image_url: info.category_image_r2_key ? `${mediaOrigin}/media/${info.category_image_r2_key}` : null
+            })),
+            // Teléfonos (migración 0084) — ya vienen ordenados agencia-primero desde
+            // la query (pc.order_index). Vacío si el anfitrión no ha configurado
+            // ninguno; el frontend simplemente no muestra la fila "Teléfonos".
+            phones: (apartmentPhones.results || []).map(p => ({
+                id: p.id,
+                category: p.category_key,
+                icon: p.category_icon_name || 'call',
+                name: p.label || p.category_name || p.category_key,
+                phone_number: p.phone_number
             }))
         },
         zone: {
@@ -484,7 +576,12 @@ export async function handleGetGuidebook(env, slug, lang, origin) {
             slug: r.slug,
             cuisine_type: r.cuisine_type,
             tier: r.tier,
-            cover_image: r.cover_image ? `${mediaOrigin}/media/${r.cover_image}` : null
+            cover_image: r.cover_image ? `${mediaOrigin}/media/${r.cover_image}` : null,
+            // Sin lat/long en esta tabla (restaurants vive fuera de guide_pois) —
+            // el botón "Cómo llegar" arma el destino de Google Maps con este texto.
+            address: r.address || null,
+            city: r.city || null,
+            country: r.country || null
         })),
         experiences: processedExperiences,
         store_items: (storeItems.results || []).map(item => ({

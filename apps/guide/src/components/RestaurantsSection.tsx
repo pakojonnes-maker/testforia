@@ -9,6 +9,9 @@ interface Restaurant {
   cuisine_type: string;
   tier: string;
   cover_image: string;
+  address: string | null;
+  city: string | null;
+  country: string | null;
 }
 
 interface RestaurantsSectionProps {
@@ -43,6 +46,14 @@ export default function RestaurantsSection({ restaurants, zoneName, lang, onInte
   const openMenu = (r: Restaurant) => {
     onIntent('restaurant', r.id, 'click_menu');
     if (r.slug) window.open(buildRestaurantUrl(r.slug), '_blank');
+  };
+
+  // Sin lat/long (la tabla restaurants no las tiene, ver workerGuide.js) — Google
+  // Maps acepta texto libre como destination=, así que no hace falta geocodificar.
+  const openDirections = (r: Restaurant) => {
+    onIntent('restaurant', r.id, 'click_directions');
+    const destination = [r.name, r.address, r.city, r.country].filter(Boolean).join(', ');
+    window.open(`https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(destination)}`, '_blank');
   };
 
   return (
@@ -80,16 +91,25 @@ export default function RestaurantsSection({ restaurants, zoneName, lang, onInte
                   {cuisineLabel || getTranslation('category_restaurants', lang)}
                 </span>
                 <h3 className={`font-headline-md text-headline-md mb-5 ${isFeatured ? 'text-primary' : 'text-on-background'}`}>{r.name}</h3>
-                <button
-                  onClick={() => openMenu(r)}
-                  className="w-full bg-primary text-on-primary font-label-caps text-label-caps uppercase py-4 hover:bg-primary-container transition-colors flex items-center justify-center gap-2"
-                >
+                <div className="flex gap-3 w-full">
                   {/* fontSize inline: la hoja de Material Symbols fija 24px sobre
                       la misma especificidad que el utility, y un icono de 24px
                       junto a un label de 12px se come el botón. */}
-                  <span className="material-symbols-outlined" style={{ fontVariationSettings: "'FILL' 1", fontSize: '18px' }}>play_circle</span>
-                  {getTranslation('view_menu', lang)}
-                </button>
+                  <button
+                    onClick={() => openMenu(r)}
+                    className="flex-1 bg-primary text-on-primary font-label-caps text-label-caps uppercase py-4 hover:bg-primary-container transition-colors flex items-center justify-center gap-2"
+                  >
+                    <span className="material-symbols-outlined" style={{ fontVariationSettings: "'FILL' 1", fontSize: '18px' }}>play_circle</span>
+                    {getTranslation('view_menu', lang)}
+                  </button>
+                  <button
+                    onClick={() => openDirections(r)}
+                    className="flex-1 border border-primary text-primary font-label-caps text-label-caps uppercase py-4 hover:bg-primary hover:text-on-primary transition-colors flex items-center justify-center gap-2"
+                  >
+                    <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>directions</span>
+                    {getTranslation('directions', lang)}
+                  </button>
+                </div>
               </div>
             </article>
           );
