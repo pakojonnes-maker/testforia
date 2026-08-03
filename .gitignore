@@ -36,6 +36,11 @@ out/
 .env.*
 .env.local
 
+# Secretos locales de wrangler (JWT_SECRET, etc. para `wrangler dev`) — no tenía
+# entrada propia; .env* no lo cubre porque el nombre no empieza por ".env".
+.dev.vars
+.dev.vars.*
+
 # Bóveda de secretos. Vive en %USERPROFILE%\.visualtaste\ (fuera del repo),
 # pero se ignora también aquí por si alguna vez se copia a mano. Ver SECRETS.md.
 .visualtaste/

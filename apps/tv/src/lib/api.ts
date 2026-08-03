@@ -10,7 +10,11 @@ export interface GuidebookData {
     id: string; name: string; slug: string; address: string
     cover_image_url: string
     wifi: { ssid: string | null; password: string | null; security: 'WPA' | 'WEP' | 'nopass' }
-    info: Array<{ id: string; key: string; icon: string; title: string; content: string; media: any[] }>
+    info: Array<{
+      id: string; key: string; category?: string | null; icon: string; color?: string | null;
+      title: string; category_name?: string | null; content: string; media: any[];
+      category_image_url?: string | null;
+    }>
   }
   zone: { id: string; name: string; slug: string; region: string; description: string; cover_image_url: string }
   agency: { id: string; name: string; logo_url: string; primary_color: string | null; secondary_color: string | null; accent_color: string | null }

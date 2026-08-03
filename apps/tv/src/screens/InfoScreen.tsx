@@ -21,13 +21,18 @@ function ContentLines({ content }: { content: string }) {
   )
 }
 
+// The category catalog (migration 0083) gives every info item a color; older
+// rows without a category_key fall back to the same teal this tile always used.
 function InfoCard({ item, autoFocus }: { item: InfoItem; autoFocus?: boolean }) {
+  const tileBackground = item.color
+    ? `linear-gradient(140deg, ${item.color}, ${item.color}cc)`
+    : 'linear-gradient(140deg,#7ad7d1,#128099)'
   return (
     <Focusable id={`info-${item.id}`} autoFocus={autoFocus}>
       <div className="flex h-full w-[340px] shrink-0 flex-col gap-4 rounded-3xl p-7 text-left shadow-xl"
         style={{ background: 'rgba(251,248,242,0.96)' }}>
         <div className="grid h-16 w-16 shrink-0 place-items-center rounded-2xl text-4xl"
-          style={{ background: 'linear-gradient(140deg,#7ad7d1,#128099)' }}>
+          style={{ background: tileBackground }}>
           {infoIcon(item.icon, item.key)}
         </div>
         <div className="font-display text-2xl font-bold text-ink">{item.title}</div>
