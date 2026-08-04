@@ -93,21 +93,22 @@ export default function GuideDesignPage() {
 
   const handleLogoUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
-    if (!file) return;
+    if (!file || !currentAgency) return;
 
     try {
       const formData = new FormData();
       formData.append('file', file);
-      // Assuming a generic media upload endpoint that accepts formData and returns { url }
+      // Agency-scoped upload — NOT the shared /media/upload in workerMedia.js,
+      // which requires a dish_id and 400s for anything guidebook-related.
       const token = localStorage.getItem('auth_token') || '';
-      const uploadRes = await fetch(`${import.meta.env.VITE_API_URL || 'https://visualtasteworker.franciscotortosaestudios.workers.dev'}/media/upload`, {
+      const uploadRes = await fetch(`${import.meta.env.VITE_API_URL || 'https://visualtasteworker.franciscotortosaestudios.workers.dev'}/guide/admin/agencies/${currentAgency.id}/media`, {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${token}`
         },
         body: formData
       });
-      
+
       const data = await uploadRes.json();
       if (data.success && data.url) {
         setLogoUrl(data.url);

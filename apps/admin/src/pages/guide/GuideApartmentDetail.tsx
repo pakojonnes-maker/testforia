@@ -630,16 +630,20 @@ export default function GuideApartmentDetail() {
     }
   };
 
+  // Uses the guide-specific upload endpoint (just R2 + URL back, no DB row),
+  // NOT the shared /media/upload in workerMedia.js — that one requires a
+  // dish_id and 400s for anything guidebook-related (see CLAUDE.md;
+  // addApartmentInfoMedia/addPoiMedia hit the same wall for their own uploads).
   const uploadFile = async (file: File): Promise<{ r2_key: string; url: string; media_type: string }> => {
     const formData = new FormData();
     formData.append('file', file);
-    const response = await fetch(`${MEDIA_BASE}/media/upload`, {
+    const response = await fetch(`${MEDIA_BASE}/guide/admin/apartments/${id}/media`, {
       method: 'POST',
       headers: { 'Authorization': `Bearer ${localStorage.getItem('auth_token')}` },
       body: formData
     });
     const result = await response.json();
-    if (!result.success) throw new Error(result.message || 'Error al subir el archivo');
+    if (!result.success) throw new Error(result.message || result.error || 'Error al subir el archivo');
     return {
       r2_key: result.r2_key,
       url: result.url || `${MEDIA_BASE}/media/${result.r2_key}`,
@@ -648,11 +652,10 @@ export default function GuideApartmentDetail() {
   };
 
   // Info block media goes through its own dedicated endpoint (POST/DELETE
-  // .../info/:infoId/media), NOT the shared /media/upload used below for the
-  // apartment cover — that one requires a dish_id and 400s for anything
-  // guidebook-related (see CLAUDE.md; addPoiMedia already worked around this
-  // for POIs the same way). Persists immediately, same UX as POI photos:
-  // requires the block to be saved first so an infoId exists.
+  // .../info/:infoId/media) instead of uploadFile above — it persists a row
+  // in guide_apartment_media, whereas uploadFile is for plain image_url
+  // fields. Persists immediately, same UX as POI photos: requires the block
+  // to be saved first so an infoId exists.
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     if (!e.target.files || e.target.files.length === 0 || !id || !editingItem) return;
     setUploadingMedia(true);

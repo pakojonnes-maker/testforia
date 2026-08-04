@@ -172,7 +172,9 @@ export default function GuideStorePage() {
       const fd = new FormData();
       fd.append('file', file);
       const token = localStorage.getItem('auth_token') || '';
-      const res = await fetch(`${MEDIA_BASE}/media/upload`, {
+      // Platform catalog upload — NOT the shared /media/upload in workerMedia.js,
+      // which requires a dish_id and 400s for anything guidebook-related.
+      const res = await fetch(`${MEDIA_BASE}/guide/admin/store-items/media`, {
         method: 'POST',
         headers: { 'Authorization': `Bearer ${token}` },
         body: fd,

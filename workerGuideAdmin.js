@@ -17,6 +17,9 @@
 //   GET    /guide/admin/apartments/:id/info/:infoId/translations — All langs for one block
 //   PUT    /guide/admin/apartments/:id/info/reorder — Reorder info blocks
 //   POST   /guide/admin/apartments/:id/info/bulk-translations — Import translations (JSON, all langs at once)
+//   POST   /guide/admin/apartments/:id/media                    — Upload a file, get back a URL (no DB row; for cover/welcome image_url fields)
+//   POST   /guide/admin/agencies/:id/media                      — Upload a file, get back a URL (no DB row; for agency logo)
+//   POST   /guide/admin/store-items/media                       — Upload a file, get back a URL (no DB row; for platform store item photo, superadmin only)
 //   POST   /guide/admin/apartments/:id/info/:infoId/media       — Upload a photo/video for an info block
 //   DELETE /guide/admin/apartments/:id/info/:infoId/media/:mid  — Delete one info block media item
 //   DELETE /guide/admin/apartments/:id/info/:infoId — Delete an info block
@@ -122,6 +125,11 @@ export async function handleGuideAdminRequests(request, env) {
             if (!isSuperAdmin && !userAgencyIds.includes(id)) return errorResponse('Forbidden', 403);
             return await updateAgency(env, id, await request.json());
         }
+        if (path.match(/^agencies\/[^/]+\/media$/) && method === 'POST') {
+            const id = path.split('/')[1];
+            if (!isSuperAdmin && !userAgencyIds.includes(id)) return errorResponse('Forbidden', 403);
+            return await uploadGenericMedia(env, request, `guide/agencies/${id}`);
+        }
 
         // ============ APARTMENTS ============
         if (path === 'apartments' && method === 'GET') {
@@ -165,6 +173,10 @@ export async function handleGuideAdminRequests(request, env) {
         if (path.match(/^apartments\/[^/]+\/info\/bulk-translations$/) && method === 'POST') {
             const aptId = path.split('/')[1];
             return await bulkImportApartmentInfoTranslations(env, aptId, await request.json(), isSuperAdmin, userAgencyIds);
+        }
+        if (path.match(/^apartments\/[^/]+\/media$/) && method === 'POST') {
+            const aptId = path.split('/')[1];
+            return await uploadApartmentMedia(env, aptId, request, isSuperAdmin, userAgencyIds);
         }
         if (path.match(/^apartments\/[^/]+\/info\/[^/]+\/media$/) && method === 'POST') {
             const parts = path.split('/');
@@ -223,6 +235,10 @@ export async function handleGuideAdminRequests(request, env) {
         if (path === 'store-items' && method === 'POST') {
             if (!isSuperAdmin) return errorResponse('Only superadmin can manage the platform catalog', 403);
             return await createPlatformStoreItem(env, await request.json());
+        }
+        if (path === 'store-items/media' && method === 'POST') {
+            if (!isSuperAdmin) return errorResponse('Only superadmin can manage the platform catalog', 403);
+            return await uploadGenericMedia(env, request, 'guide/store');
         }
         if (path.match(/^store-items\/[^/]+$/) && method === 'PUT') {
             if (!isSuperAdmin) return errorResponse('Only superadmin can manage the platform catalog', 403);
@@ -862,6 +878,42 @@ async function deleteApartmentInfo(env, aptId, infoId, isSuperAdmin, userAgencyI
 
     if (access.apt.slug) await touchGuideVersion(env, access.apt.slug);
     return jsonResponse({ success: true });
+}
+
+// Generic upload: puts the file in R2 under r2PathPrefix and hands back a
+// URL, no DB row. For fields that store a plain image_url directly on an
+// entity (apartment cover/welcome image, agency logo, platform store item
+// photo) — not gallery media tied to an info block or POI. Those must NOT
+// go through the shared /media/upload in workerMedia.js, which requires a
+// dish_id and 400s for anything guidebook-related (see CLAUDE.md;
+// addApartmentInfoMedia/addPoiMedia hit the same wall for their own uploads).
+// Callers are responsible for the access check before calling this.
+async function uploadGenericMedia(env, request, r2PathPrefix) {
+    try {
+        const formData = await request.formData();
+        const file = formData.get('file');
+        if (!file) return errorResponse('file required');
+
+        const ext = file.name.split('.').pop();
+        const uuid = generateId('');
+        const r2Key = `${r2PathPrefix}/${uuid}.${ext}`;
+
+        await env.R2_BUCKET.put(r2Key, file.stream(), {
+            httpMetadata: { contentType: file.type }
+        });
+
+        const origin = new URL(request.url).origin;
+        const mediaType = file.type.startsWith('video/') ? 'video' : 'image';
+        return jsonResponse({ success: true, r2_key: r2Key, url: `${origin}/media/${r2Key}`, media_type: mediaType });
+    } catch (err) {
+        return errorResponse('Upload failed: ' + err.message, 500);
+    }
+}
+
+async function uploadApartmentMedia(env, aptId, request, isSuperAdmin, userAgencyIds) {
+    const access = await checkAptAccess(env, aptId, isSuperAdmin, userAgencyIds);
+    if (access.error) return access.error;
+    return await uploadGenericMedia(env, request, `guide/apartments/${aptId}`);
 }
 
 async function addApartmentInfoMedia(env, aptId, infoId, request, isSuperAdmin, userAgencyIds) {
