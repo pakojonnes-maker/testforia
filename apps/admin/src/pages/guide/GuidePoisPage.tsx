@@ -18,7 +18,8 @@ import {
   DirectionsCar as DriveIcon,
   DirectionsBike as BikeIcon,
   Upload as UploadIcon,
-  TravelExplore as TravelExploreIcon
+  TravelExplore as TravelExploreIcon,
+  Translate as TranslateIcon
 } from '@mui/icons-material';
 
 const CATEGORIES = ['Restaurantes', 'Playas', 'Cultura', 'Naturaleza', 'Actividades', 'Compras', 'Otro'];
@@ -80,6 +81,8 @@ export default function GuidePoisPage() {
     is_active: true, travel_mode: 'walk', rating: 0
   });
   const [saving, setSaving] = useState(false);
+  const [translating, setTranslating] = useState(false);
+  const [translateInfo, setTranslateInfo] = useState<string | null>(null);
 
   useEffect(() => {
     if (!user?.is_superadmin) return;
@@ -116,6 +119,49 @@ export default function GuidePoisPage() {
       setError(err.message || 'Error al cargar POIs');
     } finally {
       setLoading(false);
+    }
+  };
+
+  /**
+   * Backfill de traducciones de toda la zona. Solo rellena idiomas que faltan
+   * (el backend nunca pisa un texto ya escrito), así que es seguro relanzarlo:
+   * los POIs ya traducidos salen como "al día" sin gastar ni una neurona.
+   * Si se agota el presupuesto diario de IA, corta y lo dice — se retoma mañana.
+   */
+  const handleTranslateZone = async () => {
+    if (pois.length === 0) return;
+    setTranslating(true);
+    setTranslateInfo(null);
+    setError(null);
+
+    const ids = pois.map(p => p.id);
+    let translated = 0, upToDate = 0, failed = 0, budgetExhausted = false;
+
+    try {
+      // 25 = MAX_ENTITIES_PER_REQUEST en workerGuideTranslate.js.
+      for (let i = 0; i < ids.length; i += 25) {
+        const response = await apiClient.request('/guide/admin/translate', {
+          method: 'POST',
+          body: JSON.stringify({ entity_type: 'poi', entity_ids: ids.slice(i, i + 25) }),
+        });
+        for (const result of (response.results || [])) {
+          if (result.status === 'translated' || result.status === 'partial') translated++;
+          else if (result.status === 'up_to_date') upToDate++;
+          else if (result.status === 'budget_exhausted') budgetExhausted = true;
+          else failed++;
+        }
+        if ((response.pending_ids || []).length > 0) { budgetExhausted = true; break; }
+      }
+      setTranslateInfo(
+        `${translated} POIs traducidos, ${upToDate} ya estaban al día` +
+        (failed > 0 ? `, ${failed} sin traducir` : '') +
+        (budgetExhausted ? '. Límite diario de IA alcanzado — relanza mañana para el resto.' : '.')
+      );
+      await reloadPois(selectedZone);
+    } catch (err: any) {
+      setError(err.message || 'Error al traducir la zona');
+    } finally {
+      setTranslating(false);
     }
   };
 
@@ -280,6 +326,14 @@ export default function GuidePoisPage() {
           <Button variant="outlined" startIcon={<TravelExploreIcon />} onClick={() => setOpenImportDialog(true)} disabled={!selectedZone}>
             Importar de Google
           </Button>
+          <Button
+            variant="outlined"
+            startIcon={translating ? <CircularProgress size={18} /> : <TranslateIcon />}
+            onClick={handleTranslateZone}
+            disabled={!selectedZone || translating || pois.length === 0}
+          >
+            {translating ? 'Traduciendo…' : 'Traducir zona'}
+          </Button>
           <Button variant="contained" startIcon={<AddIcon />} onClick={() => handleOpenDialog()} disabled={!selectedZone}>
             Añadir POI
           </Button>
@@ -287,6 +341,9 @@ export default function GuidePoisPage() {
       </Box>
 
       {error && <Alert severity="error" sx={{ mb: 3 }}>{error}</Alert>}
+      {translateInfo && (
+        <Alert severity="info" sx={{ mb: 3 }} onClose={() => setTranslateInfo(null)}>{translateInfo}</Alert>
+      )}
 
       {loading ? (
         <Box sx={{ display: 'flex', justifyContent: 'center', py: 8 }}>

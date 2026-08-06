@@ -114,6 +114,7 @@ cambios sin commitear de otra sesión en curso dando vueltas por el repo. Antes 
 | `workerGuideAdmin.js` | Admin del guidebook (`/guide/admin/*`). El más grande (~76KB). |
 | `workerGuideTracking.js` | Tracking del guidebook (`/guide/track/*`). |
 | `workerGuideAI.js` | Asistente IA del guidebook (`/guide/ai/*`, usa binding `AI`). |
+| `workerGuideTranslate.js` | Traducción automática a los 13 idiomas (`POST /guide/admin/translate`, Workers AI). Rellena `translations` sin pisar lo ya escrito. Tiene presupuesto diario propio para no dejar sin neuronas al chatbot de `workerGuideAI.js` — los dos comparten el tier gratuito de la cuenta. |
 | `workerGuideCache.js` | Versionado de la caché KV del guide/carta (`getGuideVersion`, `touchGuideVersion`, `touchZoneGuideVersions`, `*MenuVersion`). Ver el aviso de caché más abajo. |
 | `workerTvScreen.js` | VisualTaste TV: `/guide/tv/config/:pairingCode`, `/guide/tv/track`, `/guide/admin/tv/*`. **Debe registrarse en `worker.js` ANTES del bloque `/guide/admin/`** o ese handler devuelve 404 duro. |
 | `workerAuthz.js` | Autorización multi-tenant: `checkRestaurantScope`, `getRestaurantAccess`, `requireRole`, `ROLE_RANK`. Todo endpoint nuevo con `:slug`/`restaurantId` pasa por aquí. |

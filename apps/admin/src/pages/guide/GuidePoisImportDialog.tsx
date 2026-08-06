@@ -68,6 +68,28 @@ const STATUS_META: Record<PreviewStatus, { label: string; color: 'success' | 'wa
 // Estados sin ficha de Google que mapear: no hay nada que crear/actualizar.
 const TERMINAL_ERROR_STATUSES: PreviewStatus[] = ['unresolved', 'budget_exceeded', 'not_found', 'error'];
 
+// Respuesta de POST /guide/admin/translate (workerGuideTranslate.js). Google
+// solo devuelve la ficha en un idioma, así que sin este paso un POI importado
+// se queda monolingüe: la traducción a los otros 12 la hace Workers AI.
+interface TranslateResult {
+  id: string;
+  status: 'translated' | 'partial' | 'up_to_date' | 'skipped' | 'failed' | 'budget_exhausted';
+  written: number;
+  langs?: string[];
+  failed_langs?: string[];
+}
+
+interface TranslateSummary {
+  translated: number;
+  upToDate: number;
+  failed: number;
+  budgetExhausted: boolean;
+  error?: string;
+}
+
+// Debe coincidir con MAX_ENTITIES_PER_REQUEST en workerGuideTranslate.js.
+const MAX_TRANSLATE_BATCH = 25;
+
 function defaultActionFor(status: PreviewStatus): RowAction {
   if (status === 'new') return 'create';
   if (status === 'existing') return 'update';
@@ -126,17 +148,21 @@ export default function GuidePoisImportDialog({ open, onClose, zones, defaultZon
   const [error, setError] = useState<string | null>(null);
   const [rows, setRows] = useState<ImportRow[]>([]);
   const [summary, setSummary] = useState<{ created: number; updated: number; failed: number } | null>(null);
+  const [autoTranslate, setAutoTranslate] = useState(true);
+  const [translating, setTranslating] = useState(false);
+  const [translationSummary, setTranslationSummary] = useState<TranslateSummary | null>(null);
 
   const reset = () => {
     setPhase('input');
     setUrlsText('');
     setRows([]);
     setSummary(null);
+    setTranslationSummary(null);
     setError(null);
   };
 
   const handleClose = () => {
-    if (loading || importing) return;
+    if (loading || importing || translating) return;
     reset();
     onClose();
   };
@@ -178,9 +204,43 @@ export default function GuidePoisImportDialog({ open, onClose, zones, defaultZon
     setRows(prev => prev.map((row, i) => i === rowIndex ? { ...row, action } : row));
   };
 
+  /**
+   * Traduce en una segunda pasada, después de guardar. Deliberadamente separado
+   * del import: si Workers AI falla o se queda sin presupuesto diario, los POIs
+   * ya están guardados y solo queda pendiente la traducción, que se puede
+   * reintentar sin volver a tocar Google.
+   */
+  const runTranslation = async (ids: string[]) => {
+    setTranslating(true);
+    const agg: TranslateSummary = { translated: 0, upToDate: 0, failed: 0, budgetExhausted: false };
+    try {
+      for (let i = 0; i < ids.length; i += MAX_TRANSLATE_BATCH) {
+        const response = await apiClient.request('/guide/admin/translate', {
+          method: 'POST',
+          body: JSON.stringify({ entity_type: 'poi', entity_ids: ids.slice(i, i + MAX_TRANSLATE_BATCH) }),
+        });
+        for (const result of (response.results || []) as TranslateResult[]) {
+          if (result.status === 'translated' || result.status === 'partial') agg.translated++;
+          else if (result.status === 'up_to_date') agg.upToDate++;
+          else if (result.status === 'budget_exhausted') agg.budgetExhausted = true;
+          else agg.failed++;
+        }
+        // El backend corta el lote en cuanto se agota el presupuesto diario y
+        // devuelve lo que quedó sin tocar; mandar más lotes solo sumaría errores.
+        if ((response.pending_ids || []).length > 0) { agg.budgetExhausted = true; break; }
+      }
+    } catch (err: any) {
+      agg.error = err.message || 'Error al traducir.';
+    }
+    setTranslationSummary(agg);
+    setTranslating(false);
+  };
+
   const handleImportSelected = async () => {
     setImporting(true);
+    setTranslationSummary(null);
     let created = 0, updated = 0, failed = 0;
+    const importedIds: string[] = [];
 
     for (let i = 0; i < rows.length; i++) {
       const row = rows[i];
@@ -190,11 +250,13 @@ export default function GuidePoisImportDialog({ open, onClose, zones, defaultZon
       try {
         const payload = buildPayload(row, zoneId);
         if (row.action === 'create') {
-          await apiClient.request('/guide/admin/pois', { method: 'POST', body: JSON.stringify(payload) });
+          const response = await apiClient.request('/guide/admin/pois', { method: 'POST', body: JSON.stringify(payload) });
+          if (response?.id) importedIds.push(response.id as string);
           created++;
         } else {
           if (!row.existing_poi_id) throw new Error('No hay POI existente al que actualizar.');
           await apiClient.request(`/guide/admin/pois/${row.existing_poi_id}`, { method: 'PUT', body: JSON.stringify(payload) });
+          importedIds.push(row.existing_poi_id);
           updated++;
         }
         setRows(prev => prev.map((r, idx) => idx === i ? { ...r, outcome: 'done' } : r));
@@ -207,6 +269,11 @@ export default function GuidePoisImportDialog({ open, onClose, zones, defaultZon
     setImporting(false);
     setSummary({ created, updated, failed });
     if (created > 0 || updated > 0) onImported();
+
+    if (autoTranslate && importedIds.length > 0) {
+      await runTranslation(importedIds);
+      onImported();
+    }
   };
 
   const hasSelectableRows = rows.some(r => r.action !== 'skip');
@@ -237,6 +304,14 @@ export default function GuidePoisImportDialog({ open, onClose, zones, defaultZon
               value={urlsText}
               onChange={e => setUrlsText(e.target.value)}
             />
+            <FormControlLabel
+              control={<Checkbox checked={autoTranslate} onChange={e => setAutoTranslate(e.target.checked)} />}
+              label="Traducir automáticamente a los 13 idiomas al importar"
+            />
+            <Typography variant="caption" color="text.secondary" sx={{ mt: -1.5, ml: 4 }}>
+              Google devuelve la ficha en un solo idioma. La traducción la genera la IA de Cloudflare
+              a partir del español y nunca sobrescribe un texto que ya hayas escrito tú.
+            </Typography>
             {error && <Alert severity="error">{error}</Alert>}
           </Box>
         )}
@@ -247,6 +322,28 @@ export default function GuidePoisImportDialog({ open, onClose, zones, defaultZon
               <Alert severity={summary.failed > 0 ? 'warning' : 'success'}>
                 Importación terminada: {summary.created} creados, {summary.updated} actualizados
                 {summary.failed > 0 ? `, ${summary.failed} con error` : ''}.
+              </Alert>
+            )}
+            {translating && (
+              <Alert severity="info" icon={<CircularProgress size={18} />}>
+                Traduciendo a los otros 12 idiomas…
+              </Alert>
+            )}
+            {translationSummary && !translating && (
+              <Alert severity={
+                translationSummary.error || translationSummary.budgetExhausted || translationSummary.failed > 0
+                  ? 'warning'
+                  : 'success'
+              }>
+                {translationSummary.error
+                  ? `Los POIs se guardaron, pero la traducción falló: ${translationSummary.error}`
+                  : <>
+                      Traducción: {translationSummary.translated} POIs traducidos
+                      {translationSummary.upToDate > 0 ? `, ${translationSummary.upToDate} ya estaban al día` : ''}
+                      {translationSummary.failed > 0 ? `, ${translationSummary.failed} sin traducir` : ''}.
+                      {translationSummary.budgetExhausted && ' Se alcanzó el límite diario de IA — vuelve a lanzarlo mañana para los que falten (los POIs ya están guardados).'}
+                    </>
+                }
               </Alert>
             )}
             {error && <Alert severity="error">{error}</Alert>}
@@ -380,10 +477,14 @@ export default function GuidePoisImportDialog({ open, onClose, zones, defaultZon
         )}
         {phase === 'review' && (
           <>
-            <Button onClick={() => setPhase('input')} disabled={importing}>Volver</Button>
-            <Button onClick={handleClose} disabled={importing}>Cerrar</Button>
-            <Button variant="contained" onClick={handleImportSelected} disabled={importing || !hasSelectableRows}>
-              {importing ? <CircularProgress size={20} /> : 'Importar seleccionados'}
+            <Button onClick={() => setPhase('input')} disabled={importing || translating}>Volver</Button>
+            <Button onClick={handleClose} disabled={importing || translating}>Cerrar</Button>
+            <Button
+              variant="contained"
+              onClick={handleImportSelected}
+              disabled={importing || translating || !hasSelectableRows}
+            >
+              {importing || translating ? <CircularProgress size={20} /> : 'Importar seleccionados'}
             </Button>
           </>
         )}

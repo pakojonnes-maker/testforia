@@ -22,6 +22,7 @@ import { handleGuideAI } from './workerGuideAI.js';
 import { handleGuideStoreRequests } from './workerGuideStore.js';
 import { handleTvScreenRequests } from './workerTvScreen.js';
 import { handleGuideImportRequests } from './workerGuideImport.js';
+import { handleGuideTranslateRequests } from './workerGuideTranslate.js';
 import { checkRestaurantScope } from './workerAuthz.js';
 // CORS: la allowlist vive en workerCors.js, compartida con los demás módulos.
 import { getCorsHeaders } from './workerCors.js';
@@ -216,6 +217,12 @@ export default {
                 // genérico "Guide admin" de abajo, mismo motivo que TV screens arriba.
                 if (url.pathname.startsWith('/guide/admin/import/')) {
                     const response = await handleGuideImportRequests(request, env);
+                    if (response) return addCorsHeaders(response, request);
+                }
+                // Traductor automático (Workers AI): antes de "Guide admin" por el
+                // mismo motivo que el importador.
+                if (url.pathname === '/guide/admin/translate') {
+                    const response = await handleGuideTranslateRequests(request, env);
                     if (response) return addCorsHeaders(response, request);
                 }
                 // Guide admin
