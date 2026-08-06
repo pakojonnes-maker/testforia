@@ -24,6 +24,8 @@
 //   DELETE /guide/admin/apartments/:id/info/:infoId/media/:mid  — Delete one info block media item
 //   DELETE /guide/admin/apartments/:id/info/:infoId — Delete an info block
 //   GET    /guide/admin/info-categories             — Global info category catalog (icon/color/name)
+//   POST   /guide/admin/info-categories/:key/media  — Upload the default image for a category (superadmin only)
+//   DELETE /guide/admin/info-categories/:key/media  — Clear a category's default image (superadmin only)
 //   GET    /guide/admin/apartments/:id/phones       — List apartment phone entries (agency first)
 //   POST   /guide/admin/apartments/:id/phones       — Create/update a phone entry (checklist add/edit)
 //   DELETE /guide/admin/apartments/:id/phones/:pid  — Delete a phone entry (checklist remove)
@@ -309,6 +311,16 @@ export async function handleGuideAdminRequests(request, env) {
         // ============ INFO CATEGORIES (global catalog, read-only for agencies) ============
         if (path === 'info-categories' && method === 'GET') {
             return await listInfoCategories(env, url.searchParams.get('lang'));
+        }
+        if (path.match(/^info-categories\/[^/]+\/media$/) && method === 'POST') {
+            if (!isSuperAdmin) return errorResponse('Only superadmin can manage the platform catalog', 403);
+            const key = path.split('/')[1];
+            return await uploadInfoCategoryMedia(env, key, request);
+        }
+        if (path.match(/^info-categories\/[^/]+\/media$/) && method === 'DELETE') {
+            if (!isSuperAdmin) return errorResponse('Only superadmin can manage the platform catalog', 403);
+            const key = path.split('/')[1];
+            return await deleteInfoCategoryMedia(env, key);
         }
 
         // ============ PHONES (per-apartment checklist) ============
@@ -1057,6 +1069,50 @@ async function listInfoCategories(env, lang) {
     `).bind(l, l).all();
 
     return jsonResponse({ success: true, categories: cats.results || [] });
+}
+
+// Sets the platform-wide default image for a category (guide_info_categories.
+// image_r2_key, migration 0083 — nace NULL a propósito). Every apartment's
+// guidebook falls back to this when the host hasn't uploaded their own photo
+// for that info block (guide_apartment_media wins when present — see the
+// category_image_url comment in workerGuide.js). Unlike uploadGenericMedia's
+// other callers (apartment/agency/store-item image_url), there's no separate
+// PUT to save this field from — image_r2_key is the only editable thing on a
+// category from the admin, so upload = save in one round-trip.
+async function uploadInfoCategoryMedia(env, key, request) {
+    const cat = await env.DB.prepare(`SELECT key FROM guide_info_categories WHERE key = ?`).bind(key).first();
+    if (!cat) return errorResponse('Category not found', 404);
+
+    try {
+        const formData = await request.formData();
+        const file = formData.get('file');
+        if (!file) return errorResponse('file required');
+
+        const ext = file.name.split('.').pop();
+        const uuid = generateId('');
+        const r2Key = `guide/categories/${key}/${uuid}.${ext}`;
+
+        await env.R2_BUCKET.put(r2Key, file.stream(), {
+            httpMetadata: { contentType: file.type }
+        });
+
+        await env.DB.prepare(`
+            UPDATE guide_info_categories SET image_r2_key = ?, modified_at = CURRENT_TIMESTAMP WHERE key = ?
+        `).bind(r2Key, key).run();
+
+        const origin = new URL(request.url).origin;
+        return jsonResponse({ success: true, r2_key: r2Key, url: `${origin}/media/${r2Key}` });
+    } catch (err) {
+        return errorResponse('Upload failed: ' + err.message, 500);
+    }
+}
+
+async function deleteInfoCategoryMedia(env, key) {
+    const result = await env.DB.prepare(`
+        UPDATE guide_info_categories SET image_r2_key = NULL, modified_at = CURRENT_TIMESTAMP WHERE key = ?
+    `).bind(key).run();
+    if (result.meta.changes === 0) return errorResponse('Category not found', 404);
+    return jsonResponse({ success: true });
 }
 
 // ============================================

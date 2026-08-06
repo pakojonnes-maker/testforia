@@ -53,6 +53,7 @@ import {
   LocalActivity as LocalActivityIcon,
   Storefront as StoreIcon,
   Insights as ConversionsIcon,
+  Collections as CollectionsIcon,
   Loyalty as LoyaltyIcon,
   Shield as ShieldIcon,
   ContentCopy as ContentCopyIcon,
@@ -393,6 +394,13 @@ export default function DashboardLayout() {
         text: 'Tienda (catálogo)',
         icon: <StoreIcon />,
         path: '/guide/store',
+        featureKey: null,
+        section: 'CATÁLOGO'
+      },
+      {
+        text: 'Imágenes de categorías',
+        icon: <CollectionsIcon />,
+        path: '/guide/categories',
         featureKey: null,
         section: 'CATÁLOGO'
       },
