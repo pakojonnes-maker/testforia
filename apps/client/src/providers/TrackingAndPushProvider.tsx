@@ -194,10 +194,22 @@ function setVisitorId(id: string) {
   localStorage.setItem(VISITOR_KEY, JSON.stringify(item));
 }
 
-function hasRejectedAnalytics(): boolean {
+/**
+ * ⚖️ Consentimiento OPT-IN. Solo devuelve true con un "sí" explícito guardado.
+ *
+ * Antes esto era `hasRejectedAnalytics()` (=== 'false') y la sesión se abría salvo
+ * que hubiera un rechazo previo. En la primera visita — o sea, en el 100% de los
+ * QR de mesa — el valor es null: el banner tardaba 1,5 s en aparecer, la sesión ya
+ * había arrancado y el backend recibía consentAnalytics: true a fuego. Eso es
+ * consentimiento presunto, prohibido por el art. 6.1.a RGPD y el art. 22.2 LSSI
+ * (y es exactamente el patrón que sanciona la AEPD).
+ *
+ * El silencio no es consentimiento: sin 'true' no se abre sesión ni se envía nada.
+ */
+function hasAnalyticsConsent(): boolean {
   if (typeof window === 'undefined') return false;
   try {
-    return localStorage.getItem(CONSENT_KEY) === 'false';
+    return localStorage.getItem(CONSENT_KEY) === 'true';
   } catch {
     return false;
   }
@@ -677,12 +689,11 @@ function readReferral(urlParams: URLSearchParams): {
 }
 
 async function startTrackingSession(restaurantId: string): Promise<{ sessionId: string | null; visitorId: string | null }> {
-  // ✅ FIX: el banner de cookies era decorativo. "Rechazar" escribía
-  // vt_consent_analytics='false' en localStorage y nadie lo leía nunca: la sesión
-  // arrancaba igual y el backend insertaba consent_analytics=1 a fuego. Ahora un
-  // rechazo explícito impide crear la sesión y, por tanto, cualquier evento.
-  if (hasRejectedAnalytics()) {
-    console.log('🚫 [Session] Analítica rechazada por el usuario, no se inicia sesión');
+  // ⚖️ Sin consentimiento explícito no hay sesión. Cubre los dos casos que antes
+  // se colaban: el rechazo (que ya se respetaba) y el silencio de la primera
+  // visita (que no). Ver hasAnalyticsConsent().
+  if (!hasAnalyticsConsent()) {
+    console.log('🚫 [Session] Sin consentimiento de analítica, no se inicia sesión');
     return { sessionId: null, visitorId: null };
   }
 

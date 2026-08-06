@@ -105,6 +105,9 @@ function App() {
 
     if (path === '/' && !isMenuDomain) return 'home'; // Home solo en dominio principal
     if (path.startsWith('/legal/privacy')) return 'privacy';
+    // Aviso legal (art. 10 LSSI). Se acepta /legal/aviso y /legal/legal-notice
+    // porque el enlace se pinta en apps con idiomas distintos.
+    if (path.startsWith('/legal/aviso') || path.startsWith('/legal/legal-notice')) return 'legal-notice';
     if (path.startsWith('/reserve/')) return 'reserve';
 
     // Magic link redemption - two formats:
@@ -233,7 +236,8 @@ function App() {
 
   const _renderPageContent = () => {
     if (currentPage === 'home') return <HomePage />;
-    if (currentPage === 'privacy') return <PrivacyPolicyPage />;
+    if (currentPage === 'privacy') return <PrivacyPolicyPage doc="privacy" />;
+    if (currentPage === 'legal-notice') return <PrivacyPolicyPage doc="legal-notice" />;
     if (currentPage === 'notfound') return <NotFoundPage />;
 
     if (currentPage === 'landing') {

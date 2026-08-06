@@ -12,6 +12,7 @@ import {
 } from '@mui/material';
 import { Close, CardGiftcard, CheckCircle } from '@mui/icons-material';
 import { useNavigate } from 'react-router-dom';
+import { ensureVisitorId } from '../../hooks/useLoyaltyCard';
 import { useTranslation } from '../../contexts/TranslationContext';
 import { API_URL } from '../../lib/apiClient';
 import type { TransitionProps } from '@mui/material/transitions';
@@ -90,10 +91,13 @@ const LoyaltyCardModal: React.FC<LoyaltyCardModalProps> = ({
         setLoading(true);
         setPinError(null);
         try {
+            // El cliente está pidiendo su sello: aquí sí puede crearse el id de
+            // visitante aunque haya rechazado la analítica (ver ensureVisitorId).
+            const stampVisitorId = visitorId || ensureVisitorId();
             const res = await fetch(`${API_URL}/api/loyalty/stamp`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ restaurant_id: restaurantId, visitor_id: visitorId, pin })
+                body: JSON.stringify({ restaurant_id: restaurantId, visitor_id: stampVisitorId, pin })
             });
             const data = await res.json();
             if (!res.ok || !data.success) {

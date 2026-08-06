@@ -15,6 +15,8 @@ import RestaurantsSection from '../components/RestaurantsSection';
 import ServicesSection from '../components/ServicesSection';
 import ChatIASection from '../components/ChatIASection';
 import WelcomeModal, { WelcomeModalData } from '../components/WelcomeModal';
+import ConsentBanner from '../components/ConsentBanner';
+import { getConsent, subscribeToConsent, type ConsentState } from '../lib/consent';
 import { getTranslation, ACTIVE_LANGUAGES, isRtl } from '../lib/i18n';
 
 // Types
@@ -85,6 +87,12 @@ export default function GuidebookPage() {
   const langRef = useRef(lang);
   langRef.current = lang;
   const welcomeShownRef = useRef(false);
+
+  // Estado del consentimiento. Se lee al montar y se mantiene al día porque el
+  // banner y la página legal emiten un evento al cambiarlo: así aceptar abre la
+  // sesión en caliente y revocar la corta, sin recargar la página.
+  const [consent, setConsentState] = useState<ConsentState>(() => getConsent());
+  useEffect(() => subscribeToConsent(setConsentState), []);
 
   // Fetch guidebook data
   useEffect(() => {
@@ -249,9 +257,14 @@ export default function GuidebookPage() {
   //  2. El listener de `visibilitychange` era una función anónima que el cleanup
   //     nunca eliminaba, así que se acumulaba uno por cada re-ejecución del
   //     efecto y disparaba N llamadas a session/end por cada ocultación.
+  //  3. Ahora depende también del consentimiento: las funciones de tracking están
+  //     capadas en lib/api.ts, así que sin permiso este efecto no manda nada. Al
+  //     aceptar en el banner, `consent` cambia y el efecto se vuelve a ejecutar
+  //     para abrir la sesión sin obligar al huésped a recargar.
   useEffect(() => {
     const apartmentId = data?.apartment?.id;
     if (!apartmentId) return;
+    if (consent !== 'granted') return;
 
     let cancelled = false;
     const startedAt = Date.now();
@@ -285,7 +298,7 @@ export default function GuidebookPage() {
       document.removeEventListener('visibilitychange', handleVisibility);
       endSession();
     };
-  }, [data?.apartment?.id]);
+  }, [data?.apartment?.id, consent]);
 
   // Track section view when tab changes
   useEffect(() => {
@@ -447,8 +460,17 @@ export default function GuidebookPage() {
           color: 'var(--gris-medio)'
         }}>
           <p>Powered by <a href="https://visualtastes.com" target="_blank" rel="noopener noreferrer" style={{ color: 'var(--brand-primary)', fontWeight: 700 }}>VisualTastes Guidebook</a></p>
+          {/* El acceso a la información legal tiene que estar disponible de forma
+              permanente y directa (art. 10 LSSI), no solo dentro del banner. */}
+          <p style={{ marginTop: '8px' }}>
+            <a href={`/legal?lang=${lang}`} style={{ color: 'inherit', textDecoration: 'underline' }}>
+              {getTranslation('legal_link', lang)}
+            </a>
+          </p>
         </footer>
       )}
+
+      <ConsentBanner lang={lang} legalHref={`/legal?lang=${lang}`} />
     </div>
   );
 }

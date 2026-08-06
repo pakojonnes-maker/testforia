@@ -209,6 +209,12 @@ export default function ServicesSection({ experiences, storeItems, zoneName, apa
             <p className="font-body-md text-body-md text-on-surface-variant mt-1">
               {getTranslation('services_subtitle', lang).replace('{zone}', zoneName)}
             </p>
+            {/* Las experiencias son el caso más claro de recomendación retribuida:
+                el anfitrión cobra comisión si el huésped reserva. Identificarlo es
+                obligatorio (Directiva 2005/29/CE, anexo I.11). */}
+            <p className="font-body-sm text-[11px] leading-snug text-on-surface-variant/60 mt-1">
+              {getTranslation('affiliate_disclosure', lang)}
+            </p>
           </div>
           <div className="grid grid-cols-1 md:grid-cols-12 gap-x-gutter gap-y-stack-lg">
             {experiences.map((exp, idx) => {

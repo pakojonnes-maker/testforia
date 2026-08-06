@@ -219,6 +219,69 @@ export const UI_STRINGS: Record<string, Record<string, string>> = {
   restaurants_title: { es: 'Restaurantes en {zone}', en: 'Restaurants in {zone}', fr: 'Restaurants à {zone}', de: 'Restaurants in {zone}', it: 'Ristoranti a {zone}', pt: 'Restaurantes em {zone}', ca: 'Restaurants a {zone}', ar: 'مطاعم في {zone}', ru: 'Рестораны в {zone}', uk: 'Ресторани в {zone}', zh: '{zone}的餐厅', ja: '{zone}のレストラン', ko: '{zone}의 레스토랑' },
   restaurants_default_description: { es: 'Descubre dónde comer durante tu estancia.', en: 'Discover where to eat during your stay.', fr: 'Découvrez où manger pendant votre séjour.', de: 'Entdecke, wo du während deines Aufenthalts essen kannst.', it: 'Scopri dove mangiare durante il tuo soggiorno.', pt: 'Descubra onde comer durante a sua estadia.', ca: 'Descobreix on menjar durant la teva estada.', ar: 'اكتشف أين تأكل خلال إقامتك.', ru: 'Узнайте, где поесть во время вашего пребывания.', uk: 'Дізнайтеся, де поїсти під час перебування.', zh: '探索住宿期间的用餐地点。', ja: '滞在中のお食事場所を見つけましょう。', ko: '머무는 동안 식사할 곳을 찾아보세요.' },
   no_restaurants: { es: 'No hay restaurantes disponibles', en: 'No restaurants available', fr: 'Aucun restaurant disponible', de: 'Keine Restaurants verfügbar', it: 'Nessun ristorante disponibile', pt: 'Sem restaurantes disponíveis', ca: 'No hi ha restaurants disponibles', ar: 'لا توجد مطاعم متاحة', ru: 'Нет доступных ресторанов', uk: 'Немає доступних ресторанів', zh: '暂无可用餐厅', ja: '利用可能なレストランがありません', ko: '이용 가능한 레스토랑이 없습니다' },
+
+  // ── Consentimiento, avisos legales y transparencia ──────────────────────────
+  // Estas cadenas SÍ van en los 13 idiomas: el consentimiento tiene que ser
+  // comprensible para quien lo da (art. 12 RGPD), y el huésped de un apartamento
+  // turístico es extranjero la mayoría de las veces. El texto largo de la página
+  // legal va en es/en y cae a inglés en el resto (ver LegalPage.tsx).
+  consent_title: { es: 'Tú decides', en: 'Your choice', fr: 'À vous de choisir', de: 'Du entscheidest', it: 'Decidi tu', pt: 'Você decide', ca: 'Tu decideixes', ar: 'القرار لك', ru: 'Вы решаете', uk: 'Ви вирішуєте', zh: '由您决定', ja: 'あなたが選べます', ko: '직접 선택하세요' },
+  consent_body: {
+    es: 'Queremos guardar un identificador aleatorio en tu dispositivo para saber qué partes de la guía se usan más. No es publicidad y no hay terceros. Si dices que no, la guía funciona exactamente igual.',
+    en: 'We would like to store a random identifier on your device to understand which parts of the guide get used. No advertising, no third parties. If you say no, the guide works exactly the same.',
+    fr: "Nous souhaitons enregistrer un identifiant aléatoire sur votre appareil pour savoir quelles parties du guide sont utilisées. Pas de publicité, pas de tiers. Si vous refusez, le guide fonctionne exactement pareil.",
+    de: 'Wir möchten eine zufällige Kennung auf deinem Gerät speichern, um zu verstehen, welche Teile des Guides genutzt werden. Keine Werbung, keine Dritten. Wenn du ablehnst, funktioniert der Guide genauso.',
+    it: 'Vorremmo salvare un identificatore casuale sul tuo dispositivo per capire quali parti della guida vengono usate. Nessuna pubblicità, nessuna terza parte. Se rifiuti, la guida funziona esattamente allo stesso modo.',
+    pt: 'Gostaríamos de guardar um identificador aleatório no seu dispositivo para saber que partes do guia são usadas. Sem publicidade e sem terceiros. Se recusar, o guia funciona exatamente igual.',
+    ca: 'Volem desar un identificador aleatori al teu dispositiu per saber quines parts de la guia es fan servir més. No és publicitat i no hi ha tercers. Si dius que no, la guia funciona exactament igual.',
+    ar: 'نود تخزين معرّف عشوائي على جهازك لمعرفة أجزاء الدليل الأكثر استخدامًا. لا إعلانات ولا أطراف ثالثة. إذا رفضت، سيعمل الدليل بالطريقة نفسها تمامًا.',
+    ru: 'Мы хотели бы сохранить случайный идентификатор на вашем устройстве, чтобы понимать, какие разделы гида используются. Никакой рекламы и третьих лиц. Если откажетесь, гид будет работать точно так же.',
+    uk: 'Ми хотіли б зберегти випадковий ідентифікатор на вашому пристрої, щоб розуміти, які розділи гіда використовуються. Жодної реклами та третіх сторін. Якщо відмовитеся, гід працюватиме так само.',
+    zh: '我们希望在您的设备上存储一个随机标识符，以了解指南的哪些部分最常被使用。没有广告，也没有第三方。若您拒绝，指南的功能完全不变。',
+    ja: 'ガイドのどの部分が使われているかを把握するため、ランダムな識別子を端末に保存したいと考えています。広告や第三者提供はありません。拒否されても、ガイドは同じように使えます。',
+    ko: '가이드의 어떤 부분이 사용되는지 파악하기 위해 기기에 무작위 식별자를 저장하고자 합니다. 광고나 제3자 제공은 없습니다. 거부하셔도 가이드는 동일하게 작동합니다.',
+  },
+  consent_accept: { es: 'Aceptar', en: 'Accept', fr: 'Accepter', de: 'Akzeptieren', it: 'Accetta', pt: 'Aceitar', ca: 'Acceptar', ar: 'موافق', ru: 'Принять', uk: 'Прийняти', zh: '接受', ja: '同意する', ko: '동의' },
+  consent_reject: { es: 'Rechazar', en: 'Decline', fr: 'Refuser', de: 'Ablehnen', it: 'Rifiuta', pt: 'Recusar', ca: 'Rebutjar', ar: 'رفض', ru: 'Отклонить', uk: 'Відхилити', zh: '拒绝', ja: '拒否する', ko: '거부' },
+  legal_link: { es: 'Privacidad y aviso legal', en: 'Privacy & legal notice', fr: 'Confidentialité et mentions légales', de: 'Datenschutz & Impressum', it: 'Privacy e note legali', pt: 'Privacidade e aviso legal', ca: 'Privacitat i avís legal', ar: 'الخصوصية والإشعار القانوني', ru: 'Конфиденциальность и правовая информация', uk: 'Конфіденційність і правова інформація', zh: '隐私与法律声明', ja: 'プライバシーと法的表示', ko: '개인정보 및 법적 고지' },
+
+  // Art. 50.1 del Reglamento (UE) 2024/1689 (AI Act), aplicable desde el
+  // 2026-08-02: hay que informar de que se interactúa con una IA de forma clara
+  // y en la primera interacción. El saludo del chat ya lo insinúa, pero se pierde
+  // con el scroll — este aviso es fijo bajo el input.
+  ai_disclosure: {
+    es: 'Estás hablando con una IA. Puede equivocarse: confirma con tu anfitrión lo importante.',
+    en: 'You are talking to an AI. It can make mistakes — check anything important with your host.',
+    fr: "Vous parlez à une IA. Elle peut se tromper : vérifiez l'essentiel auprès de votre hôte.",
+    de: 'Du sprichst mit einer KI. Sie kann sich irren – kläre Wichtiges mit deinem Gastgeber.',
+    it: "Stai parlando con un'IA. Può sbagliare: verifica le cose importanti con il tuo host.",
+    pt: 'Está a falar com uma IA. Pode enganar-se: confirme o que for importante com o seu anfitrião.',
+    ca: "Estàs parlant amb una IA. Es pot equivocar: confirma amb el teu amfitrió el que sigui important.",
+    ar: 'أنت تتحدث مع ذكاء اصطناعي. قد يخطئ — تأكد من الأمور المهمة مع مضيفك.',
+    ru: 'Вы общаетесь с ИИ. Он может ошибаться — важное уточняйте у хозяина жилья.',
+    uk: 'Ви спілкуєтеся з ШІ. Він може помилятися — важливе уточнюйте у власника житла.',
+    zh: '您正在与人工智能对话。它可能出错，重要事项请向房东确认。',
+    ja: 'これはAIとの会話です。誤ることがあります。大事なことはホストにご確認ください。',
+    ko: 'AI와 대화하고 있습니다. 오류가 있을 수 있으니 중요한 내용은 호스트에게 확인하세요.',
+  },
+
+  // Directiva 2005/29/CE (art. 7.2 y anexo I.11) y TRLGDCU: una recomendación
+  // retribuida que no se identifica como tal es publicidad encubierta.
+  affiliate_disclosure: {
+    es: 'Algunas recomendaciones son colaboraciones comerciales de tu anfitrión.',
+    en: 'Some recommendations are commercial partnerships of your host.',
+    fr: "Certaines recommandations sont des partenariats commerciaux de votre hôte.",
+    de: 'Einige Empfehlungen sind kommerzielle Kooperationen deines Gastgebers.',
+    it: 'Alcuni consigli sono collaborazioni commerciali del tuo host.',
+    pt: 'Algumas recomendações são parcerias comerciais do seu anfitrião.',
+    ca: "Algunes recomanacions són col·laboracions comercials del teu amfitrió.",
+    ar: 'بعض التوصيات هي شراكات تجارية لمضيفك.',
+    ru: 'Некоторые рекомендации — коммерческие партнёрства вашего хозяина.',
+    uk: 'Деякі рекомендації — комерційні партнерства вашого господаря.',
+    zh: '部分推荐为房东的商业合作内容。',
+    ja: '一部のおすすめは、ホストによる商業提携です。',
+    ko: '일부 추천은 호스트의 상업적 제휴입니다.',
+  },
 };
 
 export function getTranslation(key: string, lang: string): string {

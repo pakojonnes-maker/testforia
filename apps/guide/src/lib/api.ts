@@ -1,5 +1,6 @@
 // src/lib/api.ts — API helper for the guide app
 import { getTranslation } from './i18n';
+import { hasConsent } from './consent';
 
 const API_URL = import.meta.env.VITE_API_URL || 'https://visualtasteworker.franciscotortosaestudios.workers.dev';
 
@@ -15,8 +16,35 @@ export async function fetchGuidebook(slug: string, lang: string = 'es') {
 const VISITOR_KEY = 'vt_guide_visitor_id';
 const VISITOR_TTL = 365 * 24 * 60 * 60 * 1000; // 12 meses
 
+function randomUuid(): string {
+  return crypto.randomUUID
+    ? crypto.randomUUID()
+    : 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, c => {
+      const r = (Math.random() * 16) | 0;
+      return (c === 'x' ? r : (r & 0x3) | 0x8).toString(16);
+    });
+}
+
 /**
- * Identificador anónimo y estable del visitante, persistido en localStorage.
+ * Id efímero, solo en memoria: muere al recargar y no toca el dispositivo.
+ *
+ * Es lo que se usa cuando el huésped NO ha consentido pero necesita un
+ * identificador para un servicio que ha pedido él (el rate limit del chat, un
+ * pedido de la Tienda). Así ese caso funciona sin escribir nada persistente.
+ */
+let ephemeralId: string | null = null;
+function getEphemeralId(): string {
+  if (!ephemeralId) ephemeralId = randomUuid();
+  return ephemeralId;
+}
+
+/**
+ * Identificador estable del visitante, persistido en localStorage.
+ *
+ * ⚖️ REQUIERE CONSENTIMIENTO. Sin él devuelve un id de memoria y NO escribe nada
+ * en el dispositivo (art. 22.2 LSSI: el almacenamiento local necesita permiso
+ * igual que las cookies). Ojo: es un id que permite reconocer a la misma persona
+ * durante 12 meses, así que es dato personal seudonimizado, no anónimo.
  *
  * Sustituye a `getDeviceFingerprint()` como identidad principal: aquel hash de
  * 32 bits sobre UA + idioma + resolución + zona horaria colisionaba de forma
@@ -25,6 +53,8 @@ const VISITOR_TTL = 365 * 24 * 60 * 60 * 1000; // 12 meses
  * En producción, 66 sesiones se agrupaban en solo 9 identidades.
  */
 export function getVisitorId(): string {
+  if (!hasConsent()) return getEphemeralId();
+
   try {
     const raw = localStorage.getItem(VISITOR_KEY);
     if (raw) {
@@ -34,12 +64,7 @@ export function getVisitorId(): string {
   } catch {
     // localStorage bloqueado (modo privado, cookies de terceros): seguimos abajo.
   }
-  const id = crypto.randomUUID
-    ? crypto.randomUUID()
-    : 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, c => {
-      const r = (Math.random() * 16) | 0;
-      return (c === 'x' ? r : (r & 0x3) | 0x8).toString(16);
-    });
+  const id = randomUuid();
   try {
     localStorage.setItem(VISITOR_KEY, JSON.stringify({ value: id, expiry: Date.now() + VISITOR_TTL }));
   } catch { /* sin storage: el id vive solo esta sesión */ }
@@ -65,6 +90,9 @@ const GUIDE_REFERRAL_COOKIE_MAX_AGE_DAYS = 30;
  * host normal (sirve igual para probar el flujo en desarrollo).
  */
 export function setReferralCookie(apartmentId: string, sessionId: string | null) {
+  // ⚖️ Atribución entre guide y menu: cookie propia pero de finalidad analítica,
+  // no necesaria para mostrar la guía. Sin consentimiento no se escribe.
+  if (!hasConsent()) return;
   try {
     const host = window.location.hostname;
     const isVisualtastesDomain = host === 'visualtastes.com' || host.endsWith('.visualtastes.com');
@@ -80,6 +108,9 @@ export function setReferralCookie(apartmentId: string, sessionId: string | null)
 }
 
 export async function trackSessionStart(apartmentId: string, language: string) {
+  // ⚖️ Analítica pura: sin consentimiento no se abre sesión, y por tanto no hay
+  // ni section-views ni intents que registrar (ambos cuelgan de sessionId).
+  if (!hasConsent()) return null;
   try {
     const res = await fetch(`${API_URL}/guide/track/session/start`, {
       method: 'POST',
@@ -118,6 +149,7 @@ export function buildMenuUrl(menuBase: string, slug: string, apartmentId: string
 }
 
 export async function trackSessionEnd(sessionId: string, duration?: number) {
+  if (!hasConsent()) return;
   try {
     // La duración la calcula el cliente porque el servidor solo veía `started_at`
     // y, al llamarse esto en cada `visibilitychange`, la sesión quedaba cerrada
@@ -139,6 +171,7 @@ export async function trackIntent(data: {
   targetId: string;
   actionTaken: string;
 }) {
+  if (!hasConsent()) return;
   try {
     await fetch(`${API_URL}/guide/track/intent`, {
       method: 'POST',
@@ -196,6 +229,7 @@ export async function submitStoreOrder(params: {
 }
 
 export async function trackSectionView(apartmentId: string, sessionId: string | null, section: string) {
+  if (!hasConsent()) return;
   try {
     await fetch(`${API_URL}/guide/track/section-view`, {
       method: 'POST',
@@ -224,6 +258,13 @@ function getBrowser(): string {
   return 'unknown';
 }
 
+/**
+ * ⚖️ Huella de dispositivo. Solo se llama desde trackSessionStart(), que ya está
+ * detrás del consentimiento — NO la invoques desde ningún otro sitio sin
+ * comprobar hasConsent() antes. El fingerprinting está expresamente cubierto por
+ * el art. 5.3 de la Directiva ePrivacy (Directrices 2/2023 del CEPD) y es de los
+ * tratamientos peor vistos por las autoridades cuando se hace sin permiso.
+ */
 function getDeviceFingerprint(): string {
   const parts = [
     navigator.userAgent,

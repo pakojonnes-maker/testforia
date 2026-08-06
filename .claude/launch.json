@@ -27,6 +27,13 @@
       "port": 5176
     },
     {
+      "_comment": "Segunda instancia del guide para sesiones paralelas, igual que worker-verify. OJO: el 5185 no está en ALLOWED_ORIGINS (workerCors.js), así que las llamadas al worker se bloquean — sirve para pantallas sin API, como /legal.",
+      "name": "guide-verify",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["--prefix", "apps/guide", "run", "dev", "--", "--port", "5185"],
+      "port": 5185
+    },
+    {
       "name": "worker",
       "runtimeExecutable": "npx",
       "runtimeArgs": ["wrangler", "dev"],

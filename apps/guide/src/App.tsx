@@ -4,6 +4,7 @@ import { lazy, Suspense } from 'react';
 
 const GuidebookPage = lazy(() => import('./pages/GuidebookPage'));
 const LandingPage = lazy(() => import('./pages/LandingPage'));
+const LegalPage = lazy(() => import('./pages/LegalPage'));
 
 function Loading() {
   return (
@@ -20,6 +21,10 @@ export default function App() {
       <Routes>
         {/* Landing page (sales) */}
         <Route path="/" element={<LandingPage />} />
+        {/* Privacidad + aviso legal. Va ANTES de /:slug o el router la trataría
+            como el slug de un apartamento llamado "legal". El idioma llega por
+            ?lang= para no arrastrar el estado del guidebook. */}
+        <Route path="/legal" element={<LegalPage />} />
         {/* Guidebook for a specific apartment */}
         <Route path="/:slug" element={<GuidebookPage />} />
       </Routes>

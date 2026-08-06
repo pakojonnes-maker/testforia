@@ -653,11 +653,55 @@ const ReservePage: React.FC = () => {
                     sx={{ '& .MuiInputBase-input': { color: brandColors.text }, '& .MuiInput-underline:before': { borderBottomColor: 'rgba(255,255,255,0.2)' }, '& .MuiInputLabel-root': { color: 'rgba(255,255,255,0.4)' }, '& .MuiInput-underline:after': { borderBottomColor: brandColors.primary } }}
                 />
 
-                <Box mt={2}>
+                {/*
+                  ⚖️ Dos casillas con naturaleza jurídica DISTINTA, y por eso van separadas:
+
+                  - La primera es un acuse de haber sido informado, no una base jurídica.
+                    Gestionar la reserva se ampara en el art. 6.1.b RGPD (medidas
+                    precontractuales), no en el consentimiento: pedir "acepto la política"
+                    como si fuera la base es un error clásico, porque implicaría que el
+                    cliente puede retirarlo y obligarnos a cancelar la reserva. Antes, además,
+                    la etiqueta no enlazaba a ninguna parte: se pedía aceptar un texto
+                    invisible.
+                  - La segunda sí es consentimiento (art. 6.1.a RGPD y art. 21 LSSI), es
+                    libre, y por eso NO bloquea el botón de confirmar.
+                */}
+                <Box mt={2} display="flex" flexDirection="column" gap={0.5}>
+                    {/* Primera capa informativa (enfoque por capas que admite la AEPD):
+                        lo esencial a la vista, el detalle a un clic. */}
+                    <Typography variant="caption" sx={{ opacity: 0.55, lineHeight: 1.6, mb: 0.5 }}>
+                        {t(
+                            'reserve_privacy_layer',
+                            'El restaurante tratará tus datos para gestionar esta reserva y contactarte si hay cambios. No se ceden a terceros con fines publicitarios.'
+                        )}
+                    </Typography>
                     <FormControlLabel
                         control={<Checkbox sx={{ color: 'rgba(255,255,255,0.4)', '&.Mui-checked': { color: brandColors.primary } }}
                             checked={clientDetails.gdpr_policy} onChange={e => setClientDetails({ ...clientDetails, gdpr_policy: e.target.checked })} />}
-                        label={<Typography variant="body2" sx={{ opacity: 0.7 }}>{t('reserve_policy_accept', 'Acepto la política de privacidad')}</Typography>}
+                        label={
+                            <Typography variant="body2" sx={{ opacity: 0.7 }}>
+                                {t('reserve_policy_accept', 'He leído la información sobre privacidad')}{' '}
+                                <Box
+                                    component="a"
+                                    href="/legal/privacy"
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    onClick={e => e.stopPropagation()}
+                                    sx={{ color: brandColors.primary, textDecoration: 'underline' }}
+                                >
+                                    {t('reserve_policy_link', 'Ver política de privacidad')}
+                                </Box>
+                            </Typography>
+                        }
+                    />
+                    <FormControlLabel
+                        control={<Checkbox sx={{ color: 'rgba(255,255,255,0.4)', '&.Mui-checked': { color: brandColors.primary } }}
+                            checked={clientDetails.gdpr_marketing} onChange={e => setClientDetails({ ...clientDetails, gdpr_marketing: e.target.checked })} />}
+                        label={
+                            <Typography variant="body2" sx={{ opacity: 0.7 }}>
+                                {t('reserve_marketing_accept', 'Quiero recibir ofertas y novedades del restaurante por email (opcional)')}
+                            </Typography>
+                        }
                     />
                 </Box>
 

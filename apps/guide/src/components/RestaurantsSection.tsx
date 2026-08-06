@@ -63,6 +63,13 @@ export default function RestaurantsSection({ restaurants, zoneName, lang, onInte
           {getTranslation('restaurants_title', lang).replace('{zone}', zoneName || getTranslation('surroundings_fallback', lang))}
         </h2>
         <p className="font-body-lg text-body-lg text-on-surface-variant">{getTranslation('restaurants_default_description', lang)}</p>
+        {/* Divulgación de la relación comercial. Una recomendación retribuida que
+            no se identifica como tal es publicidad encubierta (Directiva
+            2005/29/CE, art. 7.2 y anexo I.11; en España, TRLGDCU y Ley 3/1991).
+            El backend ya registra estos clics como `guide_affiliate_intents`. */}
+        <p className="font-body-sm text-[11px] leading-snug text-on-surface-variant/60">
+          {getTranslation('affiliate_disclosure', lang)}
+        </p>
       </section>
 
       <div className="horizon-rule max-w-2xl mx-auto" />

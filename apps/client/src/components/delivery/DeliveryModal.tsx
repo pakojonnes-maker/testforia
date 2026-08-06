@@ -513,6 +513,48 @@ const DeliveryModal: React.FC<DeliveryModalProps> = ({
                                         }}
                                     />
 
+                                    {/*
+                                      Capa informativa del art. 13 RGPD. Este formulario recoge
+                                      nombre, teléfono y dirección postal — datos que identifican a
+                                      una persona sin ambigüedad — y hasta ahora no informaba de
+                                      nada ni enlazaba a la política.
+
+                                      Ojo con el campo "Notas": su placeholder invita a escribir
+                                      alergias, que son datos de salud (art. 9 RGPD). Por eso se
+                                      advierte de que solo indique lo imprescindible: el aviso
+                                      convierte lo que escriba en una manifestación explícita y
+                                      voluntaria suya, en lugar de un dato de salud que hemos
+                                      solicitado sin amparo.
+                                    */}
+                                    <Box
+                                        sx={{
+                                            bgcolor: 'rgba(255,255,255,0.04)',
+                                            border: '1px solid rgba(255,255,255,0.08)',
+                                            borderRadius: 2,
+                                            p: 1.5,
+                                        }}
+                                    >
+                                        <Typography variant="caption" sx={{ color: 'rgba(255,255,255,0.65)', display: 'block', lineHeight: 1.6 }}>
+                                            🔒 <strong>{restaurantName}</strong> tratará tu nombre, teléfono
+                                            y dirección para preparar y entregar este pedido, y para
+                                            cumplir sus obligaciones fiscales. No se usan para publicidad.
+                                            Puedes ejercer tus derechos de acceso, rectificación y
+                                            supresión como se explica en la{' '}
+                                            <Box
+                                                component="a"
+                                                href="/legal/privacy"
+                                                target="_blank"
+                                                rel="noopener noreferrer"
+                                                sx={{ color: '#fff', textDecoration: 'underline' }}
+                                            >
+                                                política de privacidad
+                                            </Box>
+                                            . Si tienes alergias, indícalo en las notas y{' '}
+                                            <strong>confírmalo también por teléfono</strong>: los platos se
+                                            elaboran en cocinas donde se manipulan todos los alérgenos.
+                                        </Typography>
+                                    </Box>
+
                                     {/* Payment Method Selection */}
                                     {(deliveryConfig?.payment_methods?.cash || deliveryConfig?.payment_methods?.card) && (
                                         <Box>
@@ -670,12 +712,28 @@ const DeliveryModal: React.FC<DeliveryModalProps> = ({
                     <Divider sx={{ mb: 2, borderColor: 'rgba(255,255,255,0.1)' }} />
 
                     {/* Total */}
-                    <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
+                    <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1 }}>
                         <Typography variant="h6" fontWeight={700}>{ui('total', 'Total')}</Typography>
                         <Typography variant="h5" fontWeight={800} sx={{ color: '#6366f1' }}>
                             {finalTotal.toFixed(2)}€
                         </Typography>
                     </Box>
+
+                    {/*
+                      Art. 60 y 98 TRLGDCU: el precio anunciado al consumidor debe ser el
+                      final con impuestos incluidos, y debe quedar claro que el pedido
+                      obliga a pagar. El contrato se cierra en la conversación de WhatsApp
+                      con el restaurante, no al pulsar el botón, así que no se fuerza el
+                      literal "pedido con obligación de pago" en la etiqueta — pero sí se
+                      dice aquí, que es donde el usuario está mirando el importe.
+                    */}
+                    <Typography
+                        variant="caption"
+                        sx={{ color: 'rgba(255,255,255,0.5)', display: 'block', mb: 3, lineHeight: 1.5 }}
+                    >
+                        IVA incluido. Al enviar el pedido confirmas que deseas contratarlo y
+                        que conlleva la obligación de pagar este importe al restaurante.
+                    </Typography>
 
                     {/* Action Buttons */}
                     <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.5 }}>

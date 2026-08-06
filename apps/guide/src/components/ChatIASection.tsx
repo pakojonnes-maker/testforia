@@ -431,6 +431,19 @@ export default function ChatIASection({
             )}
           </button>
         </div>
+
+        {/* Art. 50.1 del Reglamento (UE) 2024/1689 (AI Act), aplicable desde el
+            2 de agosto de 2026: hay que avisar de forma clara y distinguible de
+            que se está interactuando con una IA. El saludo de bienvenida ya lo
+            decía, pero se pierde en cuanto el huésped hace scroll — este aviso
+            es fijo y siempre visible junto al input.
+
+            Va también la advertencia de falibilidad: el asistente sirve códigos
+            de acceso, horarios y recomendaciones, y un error ahí tiene
+            consecuencias reales para el huésped. */}
+        <p className="mt-2 px-2 text-center font-body-sm text-[11px] leading-snug text-on-surface-variant/70">
+          {getTranslation('ai_disclosure', lang)}
+        </p>
       </div>
     </div>
   );
