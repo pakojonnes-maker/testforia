@@ -28,11 +28,12 @@
 // (docs: workers-ai/platform/errors). Para que hubiera cargos habría que
 // contratar Workers Paid a mano. Aun así, este módulo NO se apoya solo en eso:
 //
-//   - Presupuesto diario propio (TRANSLATE_AI_BUDGET) dimensionado para gastar
-//     como mucho ~6.000 de las 10.000 neuronas del día, dejando ~4.000
-//     garantizadas al asistente IA del huésped (workerGuideAI.js). Sin esto, un
-//     backfill de todo el catálogo dejaría a los huéspedes sin chat hasta las
-//     00:00 UTC — el riesgo real aquí es de disponibilidad, no de dinero.
+//   - Presupuesto diario propio (TRANSLATE_NEURON_BUDGET): 6.000 de las 10.000
+//     neuronas del día, dejando ~4.000 garantizadas al asistente IA del huésped
+//     (workerGuideAI.js). Se contabiliza el gasto REAL leyendo el `usage` que
+//     devuelve Workers AI, no un número de llamadas. Sin esto, un backfill de
+//     todo el catálogo dejaría a los huéspedes sin chat hasta las 00:00 UTC —
+//     el riesgo real aquí es de disponibilidad, no de dinero.
 //   - Límite por usuario (anti-bucle si el admin le da mil veces al botón).
 //   - Todo pasa por el AI Gateway 'guidebook-ai', que ya tiene configurado un
 //     spend limit real de $5/día impuesto por Cloudflare en el borde. Hoy en
@@ -42,7 +43,9 @@
 //     acotado: una descripción kilométrica no puede disparar el gasto.
 //
 // Cuentas con el modelo elegido (~17 neuronas por llamada, 3 llamadas por
-// entidad): ~50 neuronas por POI → ~115 POIs/día dentro del presupuesto.
+// entidad): ~50 neuronas por POI → ~120 POIs/día dentro del presupuesto. La
+// respuesta del endpoint devuelve el gasto exacto en `usage`, así que ese
+// número se puede contrastar con la realidad en vez de creérselo.
 // =====================================================
 
 import { verifyJWT, hitRateLimit } from './workerAuthentication.js';
@@ -62,11 +65,25 @@ const TRANSLATE_MODEL = '@cf/google/gemma-4-26b-a4b-it';
 // traducciones visibles en las analíticas junto al resto del gasto de IA.
 const AI_GATEWAY_ID = 'guidebook-ai';
 
-// ~350 llamadas/día ≈ 5.950 neuronas, poco menos del 60% del tier gratuito.
-// El resto queda para el asistente del huésped. Si se sube este número, revisar
-// antes la cuenta de la cabecera: es lo único que separa un backfill de dejar
-// el chat caído el resto del día.
-const TRANSLATE_AI_BUDGET = { limit: 350, windowSeconds: 86400 };
+// Tarifas publicadas de TRANSLATE_MODEL (workers-ai/platform/pricing). Si se
+// cambia de modelo hay que cambiarlas aquí también, o el contador mentirá.
+const NEURONS_PER_M_INPUT = 9091;
+const NEURONS_PER_M_OUTPUT = 27273;
+
+// 6.000 de las 10.000 neuronas gratis del día. Las ~4.000 restantes quedan para
+// el asistente IA del huésped (workerGuideAI.js), que comparte la misma bolsa de
+// la cuenta. Subir esto es exactamente lo que separa un backfill grande de
+// dejar a los huéspedes sin chat hasta las 00:00 UTC.
+const TRANSLATE_NEURON_BUDGET = 6000;
+const BUDGET_KEY = 'translate:neurons:daily';
+const BUDGET_WINDOW_SECONDS = 86400;
+
+// Cuando Workers AI no devuelve `usage` (no está garantizado en todos los
+// modelos ni en todos los caminos), se imputa esto en vez de 0. Contar 0 haría
+// que el presupuesto no avanzara nunca y el cortafuegos no serviría de nada.
+// Es una sobreestimación deliberada: ~17 es el coste típico de una llamada.
+const FALLBACK_NEURONS_PER_CALL = 25;
+
 // Red de seguridad anti-bucle por usuario, no un límite de negocio.
 const TRANSLATE_PER_USER = { limit: 120, windowSeconds: 3600 };
 
@@ -112,6 +129,78 @@ function chunk(arr, size) {
     const out = [];
     for (let i = 0; i < arr.length; i += size) out.push(arr.slice(i, i + size));
     return out;
+}
+
+// ---------------------------------------------------------------------------
+// Contabilidad de neuronas
+// ---------------------------------------------------------------------------
+// Workers AI devuelve `usage` (prompt_tokens / completion_tokens) en cada
+// respuesta de generación de texto, así que el gasto no se estima: se lee. Se
+// convierte a neuronas con las tarifas del modelo para poder (a) enseñarle al
+// admin lo que ha costado cada ejecución y (b) cortar por gasto real en vez de
+// por número de llamadas, que era solo un proxy.
+
+/** @returns {number} neuronas consumidas por una llamada, según su `usage`. */
+export function neuronsForUsage(usage) {
+    const inTokens = usage?.prompt_tokens;
+    const outTokens = usage?.completion_tokens;
+    if (typeof inTokens !== 'number' || typeof outTokens !== 'number') {
+        return FALLBACK_NEURONS_PER_CALL;
+    }
+    return (inTokens * NEURONS_PER_M_INPUT + outTokens * NEURONS_PER_M_OUTPUT) / 1_000_000;
+}
+
+/**
+ * Estado del presupuesto diario, con ventana fija en KV al estilo de
+ * hitRateLimit(). Sin binding de KV se deja pasar (y se avisa): quedarse sin
+ * traductor porque falta un namespace sería peor que traducir sin contador, y
+ * en plan Free el gasto no puede generar factura de todas formas.
+ */
+async function readBudget(env) {
+    if (!env.RATE_LIMIT_KV) return { spent: 0, remaining: TRANSLATE_NEURON_BUDGET, resetsIn: 0, tracked: false };
+    const now = Math.floor(Date.now() / 1000);
+    try {
+        const data = await env.RATE_LIMIT_KV.get(BUDGET_KEY, { type: 'json' });
+        if (data && now - data.windowStart < BUDGET_WINDOW_SECONDS) {
+            return {
+                spent: data.spent,
+                remaining: Math.max(0, TRANSLATE_NEURON_BUDGET - data.spent),
+                resetsIn: BUDGET_WINDOW_SECONDS - (now - data.windowStart),
+                windowStart: data.windowStart,
+                tracked: true,
+            };
+        }
+        return { spent: 0, remaining: TRANSLATE_NEURON_BUDGET, resetsIn: BUDGET_WINDOW_SECONDS, windowStart: now, tracked: true };
+    } catch (err) {
+        console.error('[GuideTranslate] No se pudo leer el presupuesto:', err.message);
+        return { spent: 0, remaining: TRANSLATE_NEURON_BUDGET, resetsIn: 0, tracked: false };
+    }
+}
+
+/**
+ * Suma el gasto REAL después de la llamada. Consecuencia asumida: como el
+ * cobro es posterior, una llamada puede rebasar el tope por su propio coste
+ * (~17 neuronas) antes de que el corte actúe. Es la misma eventual consistency
+ * que documentan los spend limits de AI Gateway, y a esta escala da igual.
+ */
+async function addSpentNeurons(env, neurons) {
+    if (!env.RATE_LIMIT_KV || neurons <= 0) return;
+    const now = Math.floor(Date.now() / 1000);
+    try {
+        const data = await env.RATE_LIMIT_KV.get(BUDGET_KEY, { type: 'json' });
+        const inWindow = data && now - data.windowStart < BUDGET_WINDOW_SECONDS;
+        const windowStart = inWindow ? data.windowStart : now;
+        const spent = (inWindow ? data.spent : 0) + neurons;
+        await env.RATE_LIMIT_KV.put(
+            BUDGET_KEY,
+            JSON.stringify({ spent, windowStart }),
+            // El TTL cubre lo que resta de ventana, no la ventana entera: si no,
+            // cada llamada la extendería y el presupuesto no se resetearía nunca.
+            { expirationTtl: Math.max(60, BUDGET_WINDOW_SECONDS - (now - windowStart)) }
+        );
+    } catch (err) {
+        console.error('[GuideTranslate] No se pudo apuntar el gasto:', err.message);
+    }
 }
 
 // ---------------------------------------------------------------------------
@@ -176,14 +265,13 @@ export function parseModelJson(raw) {
  * @returns {Promise<{ ok: boolean, translations?: object, error?: string, budget?: boolean }>}
  */
 async function translateGroup(env, sourceFields, targetLangs) {
-    // El presupuesto se consume ANTES de llamar al modelo, igual que en
+    // El presupuesto se comprueba ANTES de llamar al modelo, igual que en
     // workerGuideAI.js: al agotarse, el coste marginal es cero de verdad, no
-    // "una llamada que luego descartamos".
-    if (env.RATE_LIMIT_KV) {
-        const budget = await hitRateLimit(env, 'translate:ai_budget', TRANSLATE_AI_BUDGET);
-        if (!budget.allowed) {
-            return { ok: false, budget: true, error: 'daily_ai_budget_exhausted' };
-        }
+    // "una llamada que luego descartamos". El apunte del gasto sí va después,
+    // porque hasta que no responde no se sabe cuánto ha costado.
+    const budget = await readBudget(env);
+    if (budget.tracked && budget.remaining <= 0) {
+        return { ok: false, budget: true, error: 'daily_ai_budget_exhausted', neurons: 0 };
     }
 
     let response;
@@ -207,13 +295,21 @@ async function translateGroup(env, sourceFields, targetLangs) {
         // capacidad) y los errores de red. Se propaga el mensaje para que el
         // admin vea por qué no se tradujo, en vez de un fallo mudo.
         console.warn('[GuideTranslate] Workers AI falló:', err.message);
-        return { ok: false, error: err.message || 'ai_error' };
+        // Si la llamada no llegó a completarse no hay nada que imputar: el
+        // error incluye el 3036 (tier agotado), que no consume neuronas.
+        return { ok: false, error: err.message || 'ai_error', neurons: 0 };
     }
+
+    // Se apunta el gasto aunque la respuesta venga mal formada: el modelo ha
+    // consumido igual, y no contarlo dejaría un agujero por el que una racha de
+    // respuestas basura se saltaría el presupuesto entero.
+    const neurons = neuronsForUsage(response?.usage);
+    await addSpentNeurons(env, neurons);
 
     const parsed = parseModelJson(response?.response);
     if (!parsed) {
         console.warn('[GuideTranslate] Respuesta no parseable del modelo');
-        return { ok: false, error: 'invalid_model_output' };
+        return { ok: false, error: 'invalid_model_output', neurons };
     }
 
     // Se filtra lo que devuelve el modelo contra lo que se pidió: un idioma
@@ -235,7 +331,7 @@ async function translateGroup(env, sourceFields, targetLangs) {
         if (Object.keys(fields).length > 0) clean[lang] = fields;
     }
 
-    return { ok: true, translations: clean };
+    return { ok: true, translations: clean, neurons };
 }
 
 // ---------------------------------------------------------------------------
@@ -293,7 +389,7 @@ export async function translateEntity(env, entityId, entityType, { fields, targe
     const { source, existing } = await loadEntityTranslations(env, entityId, entityType, fields);
 
     if (Object.keys(source).length === 0) {
-        return { id: entityId, status: 'skipped', reason: 'no_source_content', written: 0 };
+        return { id: entityId, status: 'skipped', reason: 'no_source_content', written: 0, neurons: 0 };
     }
 
     // Por idioma, qué campos faltan de verdad. Si no falta nada, no se gasta
@@ -307,12 +403,15 @@ export async function translateEntity(env, entityId, entityType, { fields, targe
 
     const langsToDo = Object.keys(pending);
     if (langsToDo.length === 0) {
-        return { id: entityId, status: 'up_to_date', written: 0 };
+        // Este es el caso que hace idempotente al backfill: relanzarlo sobre lo
+        // ya traducido sale de aquí sin tocar la IA, con coste cero.
+        return { id: entityId, status: 'up_to_date', written: 0, neurons: 0 };
     }
 
     const collected = {};
     const failedLangs = [];
     let budgetHit = false;
+    let neurons = 0;
 
     for (const group of chunk(langsToDo, LANG_GROUP_SIZE)) {
         // Solo se mandan al modelo los campos que hacen falta para ESTE grupo:
@@ -324,6 +423,7 @@ export async function translateEntity(env, entityId, entityType, { fields, targe
         for (const f of neededFields) groupSource[f] = source[f];
 
         const result = await translateGroup(env, groupSource, group);
+        neurons += result.neurons || 0;
         if (!result.ok) {
             failedLangs.push(...group);
             if (result.budget) { budgetHit = true; break; } // sin presupuesto, los grupos siguientes fallarían igual
@@ -351,6 +451,7 @@ export async function translateEntity(env, entityId, entityType, { fields, targe
             : doneLangs.length > 0 ? 'translated'
             : 'failed',
         written,
+        neurons,
         langs: doneLangs,
         failed_langs: [...new Set(failedLangs)],
     };
@@ -393,6 +494,7 @@ async function runTranslation(env, body, userId) {
 
     const results = [];
     const touchedZones = new Set();
+    let spentNeurons = 0;
     for (const entityId of entity_ids) {
         try {
             const result = await translateEntity(env, entityId, entity_type, {
@@ -401,6 +503,7 @@ async function runTranslation(env, body, userId) {
                 force: force === true,
             });
             results.push(result);
+            spentNeurons += result.neurons || 0;
             if (result.written > 0 && entity_type === 'poi') {
                 const poi = await env.DB.prepare('SELECT zone_id FROM guide_pois WHERE id = ?').bind(entityId).first();
                 if (poi?.zone_id) touchedZones.add(poi.zone_id);
@@ -421,6 +524,7 @@ async function runTranslation(env, body, userId) {
         await touchZoneGuideVersions(env, zoneId);
     }
 
+    const budgetAfter = await readBudget(env);
     const pendingIds = entity_ids.slice(results.length);
     return jsonResponse({
         success: true,
@@ -428,6 +532,19 @@ async function runTranslation(env, body, userId) {
         target_langs: targetLangs,
         fields: selectedFields,
         results,
+        // Gasto REAL de esta ejecución, calculado con el `usage` que devuelve
+        // Workers AI — no una estimación. `budget_*` es el presupuesto de ESTE
+        // traductor, NO las neuronas restantes de la cuenta: el asistente IA del
+        // huésped gasta de la misma bolsa de 10.000/día y no se cuenta aquí. Si
+        // algún día se quiere el número real de la cuenta, sale del dashboard de
+        // Workers AI o de la GraphQL Analytics API, no de este contador.
+        usage: {
+            neurons_spent: Math.round(spentNeurons * 10) / 10,
+            budget_limit: TRANSLATE_NEURON_BUDGET,
+            budget_remaining: Math.round(budgetAfter.remaining),
+            budget_resets_in_seconds: budgetAfter.resetsIn,
+            budget_tracked: budgetAfter.tracked,
+        },
         // No vacío solo cuando se cortó por presupuesto: le dice al frontend
         // exactamente qué reintentar mañana, sin recalcularlo.
         pending_ids: pendingIds,

@@ -79,11 +79,28 @@ interface TranslateResult {
   failed_langs?: string[];
 }
 
+/**
+ * Gasto real de la ejecución, calculado por el backend con el `usage` que
+ * devuelve Workers AI. OJO: `budget_remaining` es el presupuesto del TRADUCTOR,
+ * no las neuronas que le quedan a la cuenta — el chatbot del huésped gasta de
+ * la misma bolsa diaria y no aparece aquí. Etiquetarlo mal en la UI sería
+ * darle al superadmin un número en el que confiar que no es el que cree.
+ */
+interface TranslateUsage {
+  neurons_spent: number;
+  budget_limit: number;
+  budget_remaining: number;
+  budget_resets_in_seconds: number;
+  budget_tracked: boolean;
+}
+
 interface TranslateSummary {
   translated: number;
   upToDate: number;
   failed: number;
   budgetExhausted: boolean;
+  neuronsSpent: number;
+  usage?: TranslateUsage;
   error?: string;
 }
 
@@ -212,13 +229,19 @@ export default function GuidePoisImportDialog({ open, onClose, zones, defaultZon
    */
   const runTranslation = async (ids: string[]) => {
     setTranslating(true);
-    const agg: TranslateSummary = { translated: 0, upToDate: 0, failed: 0, budgetExhausted: false };
+    const agg: TranslateSummary = { translated: 0, upToDate: 0, failed: 0, budgetExhausted: false, neuronsSpent: 0 };
     try {
       for (let i = 0; i < ids.length; i += MAX_TRANSLATE_BATCH) {
         const response = await apiClient.request('/guide/admin/translate', {
           method: 'POST',
           body: JSON.stringify({ entity_type: 'poi', entity_ids: ids.slice(i, i + MAX_TRANSLATE_BATCH) }),
         });
+        // El presupuesto restante es el del último lote, que es el más reciente;
+        // el gasto sí se acumula entre lotes.
+        if (response.usage) {
+          agg.usage = response.usage as TranslateUsage;
+          agg.neuronsSpent += response.usage.neurons_spent || 0;
+        }
         for (const result of (response.results || []) as TranslateResult[]) {
           if (result.status === 'translated' || result.status === 'partial') agg.translated++;
           else if (result.status === 'up_to_date') agg.upToDate++;
@@ -342,6 +365,14 @@ export default function GuidePoisImportDialog({ open, onClose, zones, defaultZon
                       {translationSummary.upToDate > 0 ? `, ${translationSummary.upToDate} ya estaban al día` : ''}
                       {translationSummary.failed > 0 ? `, ${translationSummary.failed} sin traducir` : ''}.
                       {translationSummary.budgetExhausted && ' Se alcanzó el límite diario de IA — vuelve a lanzarlo mañana para los que falten (los POIs ya están guardados).'}
+                      {translationSummary.usage?.budget_tracked && (
+                        <Typography variant="caption" color="text.secondary" component="div" sx={{ mt: 0.5 }}>
+                          Coste: {Math.round(translationSummary.neuronsSpent)} neuronas ·
+                          {' '}quedan {translationSummary.usage.budget_remaining.toLocaleString('es-ES')} de{' '}
+                          {translationSummary.usage.budget_limit.toLocaleString('es-ES')} del presupuesto diario del
+                          traductor (no incluye lo que gasta el asistente de los huéspedes).
+                        </Typography>
+                      )}
                     </>
                 }
               </Alert>

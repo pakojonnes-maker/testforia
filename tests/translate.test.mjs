@@ -16,7 +16,7 @@
 import { loadWorkerModule } from './_load.mjs';
 
 const { module: translator, cleanup } = await loadWorkerModule('workerGuideTranslate.js');
-const { parseModelJson, translateEntity, handleGuideTranslateRequests } = translator;
+const { parseModelJson, translateEntity, handleGuideTranslateRequests, neuronsForUsage } = translator;
 
 // --- Utilidades -------------------------------------------------------------
 
@@ -53,7 +53,12 @@ function makeEnv(rows, aiResponder) {
                 // El prompt lleva el JSON del origen y la lista de idiomas; se
                 // guarda entero para poder afirmar sobre lo que se le pidió.
                 aiCalls.push({ model, prompt: opts.messages.map(m => m.content).join('\n') });
-                return { response: aiResponder(aiCalls.length) };
+                const out = aiResponder(aiCalls.length);
+                // Workers AI devuelve `usage` en generación de texto; el módulo
+                // lo usa para contabilizar neuronas reales.
+                return typeof out === 'string'
+                    ? { response: out, usage: { prompt_tokens: 300, completion_tokens: 500 } }
+                    : out;
             },
         },
         DB: {
@@ -238,6 +243,92 @@ console.log('\n--- translateEntity: un fallo del modelo no tira el resto ---');
     assert('Estado "partial" cuando falla un grupo', result.status === 'partial', result.status);
     assert('Los grupos que sí funcionaron se guardan', env.written.length > 0);
     assert('Se informa de qué idiomas fallaron', (result.failed_langs || []).length === 4, JSON.stringify(result.failed_langs));
+}
+
+console.log('\n--- neuronsForUsage: gasto real, no estimado ---');
+{
+    // Tarifas de gemma-4-26b-a4b-it: 9.091 entrada / 27.273 salida por M tokens.
+    // 300 in + 500 out = 0.0027273 + 0.0136365 M-neuronas ≈ 16.36
+    const n = neuronsForUsage({ prompt_tokens: 300, completion_tokens: 500 });
+    assert('300 in + 500 out ≈ 16,4 neuronas', Math.abs(n - 16.36) < 0.1, String(n));
+    assert('Sin usage → fallback, NO cero', neuronsForUsage(undefined) === 25);
+    assert('usage incompleto → fallback', neuronsForUsage({ prompt_tokens: 100 }) === 25);
+    assert('Cero tokens → cero neuronas', neuronsForUsage({ prompt_tokens: 0, completion_tokens: 0 }) === 0);
+}
+
+console.log('\n--- Contabilidad: lo que no se traduce no se cobra ---');
+{
+    const rows = [
+        { entity_id: 'poi_5', entity_type: 'poi', language_code: 'es', field: 'description', value: 'Hola' },
+        ...ALL_TARGETS.map(l => ({ entity_id: 'poi_5', entity_type: 'poi', language_code: l, field: 'description', value: 'x' })),
+    ];
+    const env = makeEnv(rows, () => '{}');
+    const result = await translateEntity(env, 'poi_5', 'poi', {
+        fields: ['description'], targetLangs: ALL_TARGETS, force: false,
+    });
+    assert('Un POI ya al día cuesta 0 neuronas', result.neurons === 0);
+}
+{
+    const rows = [
+        { entity_id: 'poi_6', entity_type: 'poi', language_code: 'es', field: 'description', value: 'Hola' },
+    ];
+    const env = makeEnv(rows, () => JSON.stringify(
+        Object.fromEntries(ALL_TARGETS.map(l => [l, { description: `d-${l}` }]))
+    ));
+    const result = await translateEntity(env, 'poi_6', 'poi', {
+        fields: ['description'], targetLangs: ALL_TARGETS, force: false,
+    });
+    // 3 llamadas × 16,36 ≈ 49
+    assert('Un POI completo cuesta ~49 neuronas (3 llamadas)', Math.abs(result.neurons - 49.09) < 0.5, String(result.neurons));
+}
+{
+    // Una respuesta ilegible consume igual: si no se contara, una racha de
+    // respuestas basura se saltaría el presupuesto entero.
+    const rows = [
+        { entity_id: 'poi_7', entity_type: 'poi', language_code: 'es', field: 'description', value: 'Hola' },
+    ];
+    const env = makeEnv(rows, () => 'no puedo ayudarte');
+    const result = await translateEntity(env, 'poi_7', 'poi', {
+        fields: ['description'], targetLangs: ['en'], force: false,
+    });
+    assert('Una respuesta basura del modelo SÍ se contabiliza', result.neurons > 0, String(result.neurons));
+    assert('...y no se guarda nada', result.written === 0);
+}
+
+console.log('\n--- Presupuesto en neuronas: corta y no llama al modelo ---');
+{
+    const rows = [
+        { entity_id: 'poi_8', entity_type: 'poi', language_code: 'es', field: 'description', value: 'Hola' },
+    ];
+    const env = makeEnv(rows, () => JSON.stringify({ en: { description: 'Hi' } }));
+    // KV que dice que el presupuesto del día ya está gastado.
+    env.RATE_LIMIT_KV = {
+        async get() { return { spent: 6000, windowStart: Math.floor(Date.now() / 1000) }; },
+        async put() {},
+    };
+    const result = await translateEntity(env, 'poi_8', 'poi', {
+        fields: ['description'], targetLangs: ALL_TARGETS, force: false,
+    });
+    assert('Presupuesto agotado → budget_exhausted', result.status === 'budget_exhausted', result.status);
+    assert('Presupuesto agotado → CERO llamadas al modelo', env.aiCalls.length === 0);
+    assert('Presupuesto agotado → coste marginal cero', result.neurons === 0);
+}
+{
+    // Con presupuesto disponible sí traduce y apunta el gasto en KV.
+    const rows = [
+        { entity_id: 'poi_9', entity_type: 'poi', language_code: 'es', field: 'description', value: 'Hola' },
+    ];
+    const env = makeEnv(rows, () => JSON.stringify({ en: { description: 'Hi' } }));
+    let stored = null;
+    env.RATE_LIMIT_KV = {
+        async get() { return stored; },
+        async put(_k, v) { stored = JSON.parse(v); },
+    };
+    await translateEntity(env, 'poi_9', 'poi', {
+        fields: ['description'], targetLangs: ['en'], force: false,
+    });
+    assert('Con presupuesto sí llama al modelo', env.aiCalls.length === 1);
+    assert('El gasto queda apuntado en KV', stored?.spent > 0, JSON.stringify(stored));
 }
 
 console.log('\n--- handleGuideTranslateRequests: guardarraíles HTTP ---');

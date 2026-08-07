@@ -135,7 +135,8 @@ export default function GuidePoisPage() {
     setError(null);
 
     const ids = pois.map(p => p.id);
-    let translated = 0, upToDate = 0, failed = 0, budgetExhausted = false;
+    let translated = 0, upToDate = 0, failed = 0, budgetExhausted = false, neurons = 0;
+    let usage: { budget_remaining: number; budget_limit: number; budget_tracked: boolean } | null = null;
 
     try {
       // 25 = MAX_ENTITIES_PER_REQUEST en workerGuideTranslate.js.
@@ -144,6 +145,10 @@ export default function GuidePoisPage() {
           method: 'POST',
           body: JSON.stringify({ entity_type: 'poi', entity_ids: ids.slice(i, i + 25) }),
         });
+        if (response.usage) {
+          usage = response.usage;
+          neurons += response.usage.neurons_spent || 0;
+        }
         for (const result of (response.results || [])) {
           if (result.status === 'translated' || result.status === 'partial') translated++;
           else if (result.status === 'up_to_date') upToDate++;
@@ -155,7 +160,13 @@ export default function GuidePoisPage() {
       setTranslateInfo(
         `${translated} POIs traducidos, ${upToDate} ya estaban al día` +
         (failed > 0 ? `, ${failed} sin traducir` : '') +
-        (budgetExhausted ? '. Límite diario de IA alcanzado — relanza mañana para el resto.' : '.')
+        (budgetExhausted ? '. Límite diario de IA alcanzado — relanza mañana para el resto' : '') +
+        `. Coste: ${Math.round(neurons)} neuronas` +
+        // Se dice explícitamente "del traductor": el asistente de los huéspedes
+        // gasta de la misma bolsa diaria de la cuenta y no está contado aquí.
+        (usage?.budget_tracked
+          ? ` · quedan ${usage.budget_remaining.toLocaleString('es-ES')} de ${usage.budget_limit.toLocaleString('es-ES')} del presupuesto diario del traductor.`
+          : '.')
       );
       await reloadPois(selectedZone);
     } catch (err: any) {
