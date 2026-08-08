@@ -173,26 +173,54 @@ export const SplashScreen = ({ isAppReady, onComplete, disableConsent = false }:
                                                 Experiencia VisualTaste
                                             </Typography>
                                             <Typography variant="body2" color="rgba(255, 255, 255, 0.7)" mb={3} lineHeight={1.5}>
-                                                Utilizamos cookies para recordar tus preferencias y mejorar la experiencia.
+                                                Guardamos un identificador aleatorio en tu dispositivo para saber
+                                                qué platos interesan más. No es publicidad y no hay terceros. Si
+                                                dices que no, la carta funciona igual.
                                             </Typography>
 
+                                            {/*
+                                              ⚖️ Aceptar y rechazar, mismo nivel y mismo peso visual.
+                                              Antes solo había "Aceptar todo" (destacado) y "Configurar
+                                              cookies": rechazar exigía un paso extra, que es el patrón
+                                              engañoso que sanciona la AEPD y que describen las
+                                              Directrices 3/2022 del CEPD. Esta es la superficie de
+                                              consentimiento REAL del menú — el CookieConsentBanner solo
+                                              aparece después del splash, así que arreglarlo allí no
+                                              bastaba.
+                                            */}
                                             <Box display="flex" flexDirection="column" gap={1.5}>
-                                                <Button
-                                                    fullWidth
-                                                    variant="contained"
-                                                    onClick={() => handleConsent(true)}
-                                                    sx={{
-                                                        bgcolor: '#E6B15F',
-                                                        color: '#000',
-                                                        fontWeight: 'bold',
-                                                        py: 1.5,
-                                                        fontSize: '1rem',
-                                                        '&:hover': { bgcolor: '#F0C070' },
-                                                        boxShadow: '0 4px 15px rgba(230, 177, 95, 0.3)'
-                                                    }}
-                                                >
-                                                    Aceptar todo
-                                                </Button>
+                                                <Box display="flex" gap={1.5}>
+                                                    <Button
+                                                        fullWidth
+                                                        variant="contained"
+                                                        onClick={() => handleConsent(false)}
+                                                        sx={{
+                                                            bgcolor: 'rgba(255,255,255,0.16)',
+                                                            color: '#fff',
+                                                            fontWeight: 'bold',
+                                                            py: 1.5,
+                                                            fontSize: '1rem',
+                                                            '&:hover': { bgcolor: 'rgba(255,255,255,0.26)' }
+                                                        }}
+                                                    >
+                                                        Rechazar
+                                                    </Button>
+                                                    <Button
+                                                        fullWidth
+                                                        variant="contained"
+                                                        onClick={() => handleConsent(true)}
+                                                        sx={{
+                                                            bgcolor: '#E6B15F',
+                                                            color: '#000',
+                                                            fontWeight: 'bold',
+                                                            py: 1.5,
+                                                            fontSize: '1rem',
+                                                            '&:hover': { bgcolor: '#F0C070' }
+                                                        }}
+                                                    >
+                                                        Aceptar
+                                                    </Button>
+                                                </Box>
 
                                                 <Button
                                                     fullWidth
@@ -205,7 +233,7 @@ export const SplashScreen = ({ isAppReady, onComplete, disableConsent = false }:
                                                     variant="outlined"
                                                     size="medium"
                                                 >
-                                                    Configurar cookies
+                                                    Configurar
                                                 </Button>
 
                                                 <Typography variant="caption" color="rgba(255,255,255,0.4)" fontSize="0.7rem" mt={1}>
@@ -234,7 +262,10 @@ export const SplashScreen = ({ isAppReady, onComplete, disableConsent = false }:
                                                 <Box display="flex" justifyContent="space-between" alignItems="center" p={1.5} sx={{ bgcolor: 'rgba(255,255,255,0.03)', borderRadius: 1 }}>
                                                     <Box>
                                                         <Typography variant="body2" color="#fff" fontWeight="bold">Analíticas</Typography>
-                                                        <Typography variant="caption" color="rgba(255,255,255,0.5)" display="block" lineHeight={1.2}>Métricas anónimas de uso.</Typography>
+                                                        {/* No es "anónimo": el identificador dura 12 meses y permite
+                                                            reconocer visitas repetidas, así que es dato seudonimizado.
+                                                            Decir "anónimo" aquí contradiría la política de privacidad. */}
+                                                        <Typography variant="caption" color="rgba(255,255,255,0.5)" display="block" lineHeight={1.2}>Identificador aleatorio, 12 meses. Sin publicidad.</Typography>
                                                     </Box>
                                                     <Switch
                                                         checked={analyticsEnabled}
