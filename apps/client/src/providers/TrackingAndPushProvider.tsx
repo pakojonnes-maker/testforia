@@ -779,6 +779,15 @@ export function TrackingAndPushProvider({ restaurantId, children }: Props) {
         console.error('❌ [Provider] Error en inicialización:', error);
       } finally {
         if (isMounted) setIsInitialized(true);
+        // ⚠️ Liberar el cerrojo. Solo servía para que StrictMode no montara dos
+        // sesiones (la segunda invocación entra y sale por el guard de arriba
+        // ANTES de que este finally se ejecute), pero se quedaba en true para
+        // siempre. Con la analítica presunta daba igual, porque la sesión ya se
+        // había abierto aquí. Ahora que sin consentimiento este arranque no crea
+        // nada, el único camino restante es el listener de 'vt-consent-update',
+        // y ese exige !initializingRef.current: quedaba bloqueado para siempre y
+        // aceptar las cookies no arrancaba la analítica nunca.
+        initializingRef.current = false;
       }
     };
 
