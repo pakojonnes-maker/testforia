@@ -83,9 +83,19 @@ export default function BottomSheet({ snap, onSnapChange, peekHeight, header, ch
   // Keep the DOM in sync with `snap`/measured height when they change from
   // OUTSIDE a gesture (tab switch, selecting a POI changes peekHeight, window
   // resize). Skipped mid-drag so it doesn't fight the live touch.
+  // The very first time we have a real containerHeight, snap the sheet to its
+  // starting position INSTANTLY (no transition) instead of animating into
+  // place from translateY(0). Two reasons: (1) translateY(0) is "fully
+  // expanded", so relying on a 260ms transition to get from there to peek
+  // means the sheet visibly covers the whole map for a beat on every mount;
+  // (2) a transition that starts before the tab is fully visible/composited
+  // can end up stuck showing its `from` frame indefinitely in some browsers,
+  // leaving the sheet expanded until something else forces a style recalc.
+  const hasPositionedRef = useRef(false);
   useEffect(() => {
     if (dragRef.current.active || !containerHeight) return;
-    applyTransform(translateFor(snap), true);
+    applyTransform(translateFor(snap), hasPositionedRef.current);
+    hasPositionedRef.current = true;
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [snap, containerHeight, peekHeight]);
 
@@ -202,7 +212,7 @@ export default function BottomSheet({ snap, onSnapChange, peekHeight, header, ch
     <div
       ref={sheetRef}
       data-no-tab-swipe
-      className="absolute inset-x-0 bottom-0 h-full flex flex-col bg-surface-container-lowest border-t border-on-background/10"
+      className="absolute inset-x-0 bottom-0 h-full flex flex-col bg-background border-t border-on-background/10"
       style={{ willChange: 'transform' }}
     >
       <div

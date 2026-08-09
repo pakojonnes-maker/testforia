@@ -437,6 +437,20 @@ button{font-family:inherit;cursor:pointer;border:none;background:none;outline:no
   animation: tab-slide-in-left 0.28s cubic-bezier(0.16, 1, 0.3, 1) both;
 }
 
+/* Leaflet's own stylesheet (leaflet.css) gives its internal layers z-index
+   values up to 1000 (.leaflet-top/.leaflet-bottom, the zoom control's
+   corner) and 400 (.leaflet-pane, the tiles/markers themselves) — but never
+   makes .leaflet-container a stacking context of its own (no z-index, no
+   transform, no isolation in Leaflet's CSS). Without this rule, those
+   internal z-index values are NOT contained: they get promoted straight
+   into the Explore tab's shared stacking context and outrank the floating
+   ExploreTopBar (z-20) and BottomSheet, which have no reason to know
+   Leaflet's internal numbering scheme even exists. isolation:isolate is the
+   standard fix for exactly this — everything inside stays inside. */
+.leaflet-container {
+  isolation: isolate;
+}
+
 /* Explore tab map pins (mapPins.ts). Plain CSS custom properties instead of
    Tailwind utilities, on purpose: this HTML is built as a string inside a
    Leaflet L.divIcon(), not JSX, so Tailwind's scanner can't reliably see it —

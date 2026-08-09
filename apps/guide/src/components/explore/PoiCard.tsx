@@ -26,8 +26,8 @@ export default function PoiCard({ poi, lang, variant, onOpen, travelLabel, selec
     <button
       type="button"
       onClick={onOpen}
-      className={`w-full flex items-stretch gap-3 text-left border bg-surface-container-lowest transition-colors ${
-        selected ? 'border-primary' : 'border-on-background/10 hover:border-primary'
+      className={`w-full flex items-stretch gap-3 text-left border-b border-on-background/10 transition-colors ${
+        selected ? 'bg-primary/5' : 'hover:bg-on-background/[0.03]'
       }`}
     >
       <div className={`relative ${imgSizeClass} shrink-0 arch-mask overflow-hidden bg-surface-variant`}>
