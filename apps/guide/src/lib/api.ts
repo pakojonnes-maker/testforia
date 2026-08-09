@@ -13,6 +13,24 @@ export async function fetchGuidebook(slug: string, lang: string = 'es') {
   return res.json();
 }
 
+/**
+ * "Browse another city" for the Explore map tab (GET /guide/:slug/explore).
+ * Only ever call this for a zone OTHER than the guest's home zone — the home
+ * zone's POIs already come from fetchGuidebook() above, and may be a curated
+ * subset/order the host picked (guide_apartment_pois); this endpoint always
+ * returns the zone's full, uncurated catalog. See useExploreState.ts, which
+ * enforces that and caches the result per zone+lang so re-selecting a city
+ * already seen this session doesn't refetch it.
+ */
+export async function fetchExploreZone(apartmentSlug: string, zoneSlug: string, lang: string = 'es') {
+  const res = await fetch(`${API_URL}/guide/${apartmentSlug}/explore?zone=${encodeURIComponent(zoneSlug)}&lang=${lang}`);
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.error || `HTTP ${res.status}`);
+  }
+  return res.json();
+}
+
 const VISITOR_KEY = 'vt_guide_visitor_id';
 const VISITOR_TTL = 365 * 24 * 60 * 60 * 1000; // 12 meses
 

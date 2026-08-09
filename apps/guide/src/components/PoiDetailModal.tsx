@@ -24,7 +24,8 @@ interface PoiDetailModalProps {
   item: PoiDetailItem;
   lang: string;
   onClose: () => void;
-  onOpenMap: () => void;
+  /** Optional: the Explore tab's map is already behind the sheet, so it skips this button entirely. */
+  onOpenMap?: () => void;
 }
 
 export default function PoiDetailModal({ item, lang, onClose, onOpenMap }: PoiDetailModalProps) {
@@ -101,13 +102,15 @@ export default function PoiDetailModal({ item, lang, onClose, onOpenMap }: PoiDe
 
         {/* Actions */}
         <div className="p-6 pt-0 flex flex-col sm:flex-row gap-3 mt-auto">
-          <button
-            onClick={onOpenMap}
-            className="flex-1 py-3 border border-primary text-primary font-label-caps text-label-caps uppercase hover:bg-primary hover:text-on-primary transition-colors flex items-center justify-center gap-2"
-          >
-            <span className="material-symbols-outlined text-[18px]">map</span>
-            {getTranslation('view_map', lang)}
-          </button>
+          {onOpenMap && (
+            <button
+              onClick={onOpenMap}
+              className="flex-1 py-3 border border-primary text-primary font-label-caps text-label-caps uppercase hover:bg-primary hover:text-on-primary transition-colors flex items-center justify-center gap-2"
+            >
+              <span className="material-symbols-outlined text-[18px]">map</span>
+              {getTranslation('view_map', lang)}
+            </button>
+          )}
           {item.url && (
             <button
               onClick={() => window.open(item.url, '_blank')}

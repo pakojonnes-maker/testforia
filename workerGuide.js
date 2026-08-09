@@ -5,7 +5,7 @@
 // ============================================
 
 import { ACTIVE_LANGUAGES } from './workerGuideAdmin.js';
-import { getGuideVersion } from './workerGuideCache.js';
+import { getGuideVersion, getZoneExploreVersion, getZoneCatalogVersion } from './workerGuideCache.js';
 
 const FALLBACK_LANG = 'es'; // es is the source of truth (see CLAUDE.md §5)
 // Media URLs must be absolute: the guide/TV frontends live on a different
@@ -24,6 +24,31 @@ function jsonResponse(data, status = 200) {
 
 function errorResponse(message, status = 400) {
     return jsonResponse({ success: false, error: message }, status);
+}
+
+// Shared by handleGetGuidebook (home zone's POIs) and handleGetExplore (any zone
+// in the same region) — same R2-backed media table, same URL shape either way.
+export async function loadPoiMedia(env, poiIds, mediaOrigin) {
+    if (!poiIds || poiIds.length === 0) return {};
+    const placeholders = poiIds.map(() => '?').join(',');
+    const mediaResults = await env.DB.prepare(`
+        SELECT poi_id, id, r2_key, media_type, role, order_index
+        FROM guide_poi_media
+        WHERE poi_id IN (${placeholders})
+        ORDER BY order_index ASC
+    `).bind(...poiIds).all();
+
+    const byPoi = {};
+    for (const media of (mediaResults.results || [])) {
+        if (!byPoi[media.poi_id]) byPoi[media.poi_id] = [];
+        byPoi[media.poi_id].push({
+            id: media.id,
+            url: `${mediaOrigin}/media/${media.r2_key}`,
+            type: media.media_type,
+            role: media.role
+        });
+    }
+    return byPoi;
 }
 
 // Fallback for apartments without dedicated wifi_ssid/wifi_password columns:
@@ -49,10 +74,29 @@ function parseWifiFromInfo(content) {
  */
 export async function handleGuideRequests(request, env) {
     const url = new URL(request.url);
+    if (request.method !== 'GET') return null;
+
+    // GET /guide/:slug/explore?zone=<zone_slug> — "browse another city" for the
+    // Airbnb-style map tab. Must be checked BEFORE the plain /guide/:slug match
+    // below, or the /^\/guide\/([^/]+)$/ regex never gets a chance (it doesn't
+    // match the extra /explore segment anyway, but keep the order in case that
+    // ever changes).
+    const exploreMatch = url.pathname.match(/^\/guide\/([^/]+)\/explore$/);
+    if (exploreMatch) {
+        const [, apartmentSlug] = exploreMatch;
+        const zoneSlug = url.searchParams.get('zone');
+        const lang = url.searchParams.get('lang') || 'es';
+        try {
+            return await handleGetExplore(env, apartmentSlug, zoneSlug, lang, url.origin);
+        } catch (error) {
+            console.error('[Guide] Explore error:', error);
+            return errorResponse('Error loading explore data: ' + error.message, 500);
+        }
+    }
 
     // Only handle GET /guide/:slug
     const match = url.pathname.match(/^\/guide\/([^/]+)$/);
-    if (!match || request.method !== 'GET') return null;
+    if (!match) return null;
 
     const slug = match[1];
     const lang = url.searchParams.get('lang') || 'es';
@@ -106,8 +150,8 @@ export async function handleGetGuidebook(env, slug, lang, origin) {
     ).bind(apartment.id).first();
     const hasAssignedPois = aptPoisCheck?.count > 0;
 
-    // 2. Parallel load: zone, agency, info, POIs, experiences, restaurants, welcome modal, store items
-    const [zone, agency, apartmentInfo, pois, experiences, zoneRestaurants, welcomeModal, storeItems, apartmentPhones] = await Promise.all([
+    // 2. Parallel load: zone, agency, info, POIs, experiences, restaurants, welcome modal, store items, sibling cities
+    const [zone, agency, apartmentInfo, pois, experiences, zoneRestaurants, welcomeModal, storeItems, apartmentPhones, cities] = await Promise.all([
         // Zone
         env.DB.prepare(`
             SELECT id, name, slug, country, region, latitude, longitude, cover_image_url
@@ -378,7 +422,25 @@ export async function handleGetGuidebook(env, slug, lang, origin) {
                 AND t_name_es.entity_type = 'phone_category' AND t_name_es.field = 'name' AND t_name_es.language_code = ?
             WHERE p.apartment_id = ?
             ORDER BY pc.order_index ASC, p.order_index ASC
-        `).bind(lang, FALLBACK_LANG, apartment.id).all()
+        `).bind(lang, FALLBACK_LANG, apartment.id).all(),
+
+        // Sibling cities in the same region (Costa del Sol today), each with its
+        // own visitable-POI count, for the Explore tab's city picker. Resolved via
+        // a subquery on this apartment's own zone rather than a second round-trip,
+        // since `zone` above isn't awaited yet when this array is built. Same
+        // is_active/coords/latitude-not-null filter as the POIs query below, so the
+        // count shown here always matches what /guide/:slug/explore?zone=<slug>
+        // actually returns.
+        env.DB.prepare(`
+            SELECT z2.id, z2.name, z2.slug, z2.latitude, z2.longitude, z2.cover_image_url,
+                   COUNT(p.id) AS poi_count
+            FROM guide_zones z2
+            LEFT JOIN guide_pois p
+                   ON p.zone_id = z2.id AND p.is_active = TRUE AND p.latitude IS NOT NULL
+            WHERE z2.region = (SELECT region FROM guide_zones WHERE id = ?) AND z2.is_active = TRUE
+            GROUP BY z2.id, z2.name, z2.slug, z2.latitude, z2.longitude, z2.cover_image_url
+            ORDER BY z2.name ASC
+        `).bind(apartment.zone_id).all()
     ]);
 
     if (!zone) {
@@ -389,26 +451,7 @@ export async function handleGetGuidebook(env, slug, lang, origin) {
 
     // 3. Load POI media
     const poiIds = (pois.results || []).map(p => p.id);
-    let poiMedia = {};
-    if (poiIds.length > 0) {
-        const placeholders = poiIds.map(() => '?').join(',');
-        const mediaResults = await env.DB.prepare(`
-            SELECT poi_id, id, r2_key, media_type, role, order_index
-            FROM guide_poi_media
-            WHERE poi_id IN (${placeholders})
-            ORDER BY order_index ASC
-        `).bind(...poiIds).all();
-
-        for (const media of (mediaResults.results || [])) {
-            if (!poiMedia[media.poi_id]) poiMedia[media.poi_id] = [];
-            poiMedia[media.poi_id].push({
-                id: media.id,
-                url: `${mediaOrigin}/media/${media.r2_key}`,
-                type: media.media_type,
-                role: media.role
-            });
-        }
-    }
+    const poiMedia = await loadPoiMedia(env, poiIds, mediaOrigin);
 
     // 4. Load apartment media
     const infoIds = (apartmentInfo.results || []).map(i => i.id);
@@ -484,6 +527,12 @@ export async function handleGetGuidebook(env, slug, lang, origin) {
             slug: apartment.slug,
             address: apartment.address,
             cover_image_url: apartment.cover_image_url,
+            // Exposed for the Explore tab: straight-line distance to POIs in a
+            // city other than home (those don't have a precomputed travel_time_text).
+            // null for apartments the host never geocoded — the frontend just
+            // omits the distance row rather than showing 0km or lying.
+            latitude: apartment.latitude ?? null,
+            longitude: apartment.longitude ?? null,
             wifi: {
                 ssid: apartment.wifi_ssid || wifiFallback.ssid,
                 password: apartment.wifi_password || wifiFallback.password,
@@ -537,9 +586,29 @@ export async function handleGetGuidebook(env, slug, lang, origin) {
             name: zone.name,
             slug: zone.slug,
             region: zone.region,
+            country: zone.country || null,
+            // Fallback center for the Explore map when there are no POIs to
+            // fitBounds() on (e.g. every POI filtered out). Was already selected
+            // by the query above but never made it into the response until now.
+            latitude: zone.latitude ?? null,
+            longitude: zone.longitude ?? null,
             cover_image_url: zone.cover_image_url,
             description: zoneDesc?.value || ''
         },
+        // Sibling cities in the same region, for the Explore tab's city picker.
+        // is_home flags the apartment's own zone so the frontend can badge it and
+        // skip refetching it via /guide/:slug/explore (this payload already has
+        // its full, possibly host-curated, POI list in `pois` below).
+        cities: (cities.results || []).map(c => ({
+            id: c.id,
+            name: c.name,
+            slug: c.slug,
+            latitude: c.latitude,
+            longitude: c.longitude,
+            cover_image_url: c.cover_image_url,
+            poi_count: c.poi_count || 0,
+            is_home: c.slug === zone.slug
+        })),
         agency: {
             id: agency?.id,
             name: agency?.name || 'Host',
@@ -616,6 +685,169 @@ export async function handleGetGuidebook(env, slug, lang, origin) {
             lang,
             available_langs: ACTIVE_LANGUAGES,
             active_devices_24h: deviceCount?.count || 0
+        }
+    };
+
+    if (env.GUIDE_CACHE && cacheKey) {
+        await env.GUIDE_CACHE.put(cacheKey, JSON.stringify(responseData), { expirationTtl: 86400 });
+    }
+
+    return jsonResponse(responseData);
+}
+
+/**
+ * GET /guide/:apartment_slug/explore?zone=<zone_slug>&lang=xx
+ *
+ * "Browse another city" for the Explore map tab: given an apartment (proves the
+ * caller has a legitimate guidebook link — this stays unauthenticated like the
+ * rest of /guide/*, so it's scoping, not a security boundary) and a target zone
+ * slug, returns that zone's full POI catalog plus the list of sibling cities in
+ * the same region.
+ *
+ * Deliberately never used for the apartment's own home zone: GET /guide/:slug
+ * already returns that zone's POIs in `pois`, which may be a host-curated
+ * subset/order (guide_apartment_pois.order_override) — this endpoint always
+ * returns the *uncurated* full zone catalog, so calling it for home would
+ * silently drop that curation. The frontend keeps the home zone's POIs from
+ * the main payload and only calls this for a different zone.
+ */
+export async function handleGetExplore(env, apartmentSlug, zoneSlug, lang, origin) {
+    if (!zoneSlug) return errorResponse('zone is required', 400);
+
+    // 1. Resolve the apartment's own region + home zone slug. Also doubles as
+    // the "does this apartment slug exist and is it active" check.
+    const home = await env.DB.prepare(`
+        SELECT z.region AS region, z.slug AS home_zone_slug
+        FROM guide_apartments a
+        JOIN guide_zones z ON a.zone_id = z.id
+        WHERE a.slug = ? AND a.is_active = TRUE
+    `).bind(apartmentSlug).first();
+
+    if (!home) return errorResponse('Apartment not found', 404);
+
+    // 2. Resolve the target zone and confirm it's in the same region as home.
+    // Without this check, any live apartment slug becomes a key to browse every
+    // zone in the database, not just the ones a guest could plausibly want.
+    const zone = await env.DB.prepare(`
+        SELECT id, name, slug, country, region, latitude, longitude, cover_image_url
+        FROM guide_zones WHERE slug = ? AND is_active = TRUE
+    `).bind(zoneSlug).first();
+
+    if (!zone || zone.region !== home.region) {
+        return errorResponse('Zone not found', 404);
+    }
+
+    // KV cache: keyed by zone + lang, versioned by two independent counters —
+    // ver:zone:{slug} (bumped on any POI/experience edit within this zone, see
+    // touchZoneGuideVersions) and ver:zonecatalog (bumped only when a zone itself
+    // is created/edited, which changes the `cities` list every response includes).
+    // Either one changing invalidates the cached payload.
+    let cacheKey = null;
+    if (env.GUIDE_CACHE) {
+        const [zoneVer, catalogVer] = await Promise.all([
+            getZoneExploreVersion(env, zone.slug),
+            getZoneCatalogVersion(env),
+        ]);
+        cacheKey = `explore:${zone.slug}:${lang}:v${zoneVer}.${catalogVer}`;
+        const cached = await env.GUIDE_CACHE.get(cacheKey);
+        if (cached) {
+            return new Response(cached, {
+                headers: { 'Content-Type': 'application/json', 'X-Cache': 'HIT' }
+            });
+        }
+    }
+
+    const [cities, pois] = await Promise.all([
+        // Sibling cities in the same region — same shape/query as the `cities`
+        // embedded in GET /guide/:slug, so the frontend uses one type for both.
+        env.DB.prepare(`
+            SELECT z2.id, z2.name, z2.slug, z2.latitude, z2.longitude, z2.cover_image_url,
+                   COUNT(p.id) AS poi_count
+            FROM guide_zones z2
+            LEFT JOIN guide_pois p
+                   ON p.zone_id = z2.id AND p.is_active = TRUE AND p.latitude IS NOT NULL
+            WHERE z2.region = ? AND z2.is_active = TRUE
+            GROUP BY z2.id, z2.name, z2.slug, z2.latitude, z2.longitude, z2.cover_image_url
+            ORDER BY z2.name ASC
+        `).bind(zone.region).all(),
+
+        // Every active, mappable POI in the target zone. Unlike GET /guide/:slug,
+        // there's no per-apartment curation to honor here — guide_apartment_pois
+        // only ever applies to the guest's own home zone — so this is always the
+        // full zone catalog, same projection as the p.zone_id branch of the main
+        // guidebook query minus the apartment-relative travel fields.
+        env.DB.prepare(`
+            SELECT
+                p.id, p.category, p.latitude, p.longitude, p.google_maps_url,
+                p.rating, p.poi_type, p.access_type, p.price_display, p.duration_text, p.is_bookable,
+                COALESCE(t_name.value, t_name_es.value) AS name,
+                COALESCE(t_desc.value, t_desc_es.value) AS description
+            FROM guide_pois p
+            LEFT JOIN translations t_name ON p.id = t_name.entity_id
+                AND t_name.entity_type = 'poi' AND t_name.field = 'name' AND t_name.language_code = ?
+            LEFT JOIN translations t_name_es ON p.id = t_name_es.entity_id
+                AND t_name_es.entity_type = 'poi' AND t_name_es.field = 'name' AND t_name_es.language_code = ?
+            LEFT JOIN translations t_desc ON p.id = t_desc.entity_id
+                AND t_desc.entity_type = 'poi' AND t_desc.field = 'description' AND t_desc.language_code = ?
+            LEFT JOIN translations t_desc_es ON p.id = t_desc_es.entity_id
+                AND t_desc_es.entity_type = 'poi' AND t_desc_es.field = 'description' AND t_desc_es.language_code = ?
+            WHERE p.zone_id = ? AND p.is_active = TRUE AND p.latitude IS NOT NULL
+            ORDER BY p.order_index ASC
+        `).bind(lang, FALLBACK_LANG, lang, FALLBACK_LANG, zone.id).all(),
+    ]);
+
+    const mediaOrigin = origin || DEFAULT_MEDIA_ORIGIN;
+    const poiIds = (pois.results || []).map(p => p.id);
+    const poiMedia = await loadPoiMedia(env, poiIds, mediaOrigin);
+
+    const responseData = {
+        success: true,
+        zone: {
+            id: zone.id,
+            name: zone.name,
+            slug: zone.slug,
+            region: zone.region,
+            country: zone.country || null,
+            latitude: zone.latitude ?? null,
+            longitude: zone.longitude ?? null,
+            cover_image_url: zone.cover_image_url,
+        },
+        cities: (cities.results || []).map(c => ({
+            id: c.id,
+            name: c.name,
+            slug: c.slug,
+            latitude: c.latitude,
+            longitude: c.longitude,
+            cover_image_url: c.cover_image_url,
+            poi_count: c.poi_count || 0,
+            is_home: c.slug === home.home_zone_slug
+        })),
+        pois: (pois.results || []).map(poi => ({
+            id: poi.id,
+            name: poi.name || poi.id,
+            description: poi.description || '',
+            category: poi.category,
+            latitude: poi.latitude,
+            longitude: poi.longitude,
+            google_maps_url: poi.google_maps_url,
+            rating: poi.rating,
+            // Travel times are relative to the guest's own apartment — meaningless
+            // (and actively misleading) for a POI in a city that isn't home. The
+            // frontend falls back to a straight-line distance from the apartment's
+            // own lat/lng when these are null instead of reusing stale home-zone text.
+            travel_time_text: null,
+            travel_mode: null,
+            distance_text: null,
+            poi_type: poi.poi_type || 'sight',
+            access_type: poi.access_type || 'free',
+            price_display: poi.price_display || '',
+            duration_text: poi.duration_text || '',
+            is_bookable: poi.is_bookable === 1,
+            media: poiMedia[poi.id] || []
+        })),
+        meta: {
+            lang,
+            is_home_zone: zone.slug === home.home_zone_slug
         }
     };
 

@@ -94,6 +94,11 @@ const PUBLIC_ROUTES = [
     { method: 'GET', pattern: /^\/system\/icons$/ },
     // Guidebook public routes
     { method: 'GET', pattern: /^\/guide\/[\w-]+$/ },
+    // "Browse another city" for the Explore map tab. Negative lookahead keeps this
+    // from ever matching /guide/admin/*, /guide/track/*, etc. even though none of
+    // those currently have a trailing /explore segment — belt and suspenders on
+    // an auth-bypass list.
+    { method: 'GET', pattern: /^\/guide\/(?!admin\/|track\/|ai\/|store\/|tv\/)[\w-]+\/explore$/ },
     { method: 'ALL', pattern: /^\/guide\/track\// },
     { method: 'POST', pattern: /^\/guide\/ai\// },
     { method: 'POST', pattern: /^\/guide\/store\/orders$/ },

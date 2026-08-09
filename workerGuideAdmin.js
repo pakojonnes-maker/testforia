@@ -46,7 +46,7 @@
 // ============================================
 
 import { verifyJWT } from './workerAuthentication.js';
-import { touchGuideVersion, touchZoneGuideVersions, touchAllGuideVersions } from './workerGuideCache.js';
+import { touchGuideVersion, touchZoneGuideVersions, touchAllGuideVersions, touchZoneCatalogVersion } from './workerGuideCache.js';
 
 function jsonResponse(data, status = 200) {
     return new Response(JSON.stringify(data), {
@@ -1588,6 +1588,10 @@ async function createZone(env, data) {
     `).bind(id, data.name, slug, data.country || 'ES', data.region || null,
         data.latitude || null, data.longitude || null, data.cover_image_url || null
     ).run();
+    // A new zone is a new sibling city for every other apartment in the same
+    // region's explore city picker — bump the shared catalog, not just this
+    // (still empty) zone's own POI cache.
+    await touchZoneCatalogVersion(env);
     return jsonResponse({ success: true, id, slug });
 }
 
@@ -1603,6 +1607,9 @@ async function updateZone(env, id, data) {
     vals.push(id);
     await env.DB.prepare(`UPDATE guide_zones SET ${sets.join(', ')} WHERE id = ?`).bind(...vals).run();
     await touchZoneGuideVersions(env, id);
+    // Name/lat-lng/is_active feed the city picker shown to every apartment in the
+    // region, not just this zone's own guidebooks — same reasoning as createZone.
+    await touchZoneCatalogVersion(env);
     return jsonResponse({ success: true });
 }
 

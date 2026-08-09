@@ -15,6 +15,7 @@ export const ALLOWED_ORIGINS = [
     'http://localhost:5174',   // dev admin
     'http://localhost:5175',   // dev guide
     'http://localhost:5176',   // dev tv
+    'http://localhost:5185',   // dev guide-verify (segunda instancia para sesiones paralelas, ver .claude/launch.json)
     'http://menu.localhost:5173',
     'http://admin.localhost:5174',
 ];

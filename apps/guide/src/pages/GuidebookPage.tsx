@@ -10,7 +10,7 @@ import FeaturedCarousel from '../components/FeaturedCarousel';
 import Header from '../components/Header';
 import BottomNavBar from '../components/BottomNavBar';
 import InfoSection from '../components/InfoSection';
-import DiscoverSection from '../components/DiscoverSection';
+import ExploreSection from '../components/explore/ExploreSection';
 import RestaurantsSection from '../components/RestaurantsSection';
 import ServicesSection from '../components/ServicesSection';
 import ChatIASection from '../components/ChatIASection';
@@ -18,12 +18,17 @@ import WelcomeModal, { WelcomeModalData } from '../components/WelcomeModal';
 import ConsentBanner from '../components/ConsentBanner';
 import { getConsent, subscribeToConsent, type ConsentState } from '../lib/consent';
 import { getTranslation, ACTIVE_LANGUAGES, isRtl } from '../lib/i18n';
+import type { GuidePoi, CitySummary, ZoneSummary } from '../lib/types';
 
 // Types
 interface GuidebookData {
   apartment: {
     id: string; name: string; slug: string; address: string;
     cover_image_url: string;
+    // Straight-line distance origin for POIs outside the home zone — see
+    // GuidePoi.travel_time_text and lib/poiCategories.ts haversineKm. null for
+    // apartments the host never geocoded.
+    latitude: number | null; longitude: number | null;
     info: Array<{
       id: string; key: string; category?: string | null; icon: string; color?: string | null;
       title: string; category_name?: string | null; content: string; media: any[];
@@ -34,18 +39,18 @@ interface GuidebookData {
       id: string; category: string; icon: string; name: string; phone_number: string;
     }>;
   };
-  zone: { id: string; name: string; slug: string; region: string; description: string; cover_image_url: string };
+  zone: ZoneSummary;
+  // Sibling cities in zone.region, for the Explore tab's city picker. Falls
+  // back to [] for guidebooks cached before this field existed — see the KV
+  // cache note in workerGuide.js (24h TTL, shape changes don't invalidate on
+  // their own).
+  cities: CitySummary[];
   agency: {
     id: string; name: string; logo_url: string;
     primary_color: string | null; secondary_color: string | null; accent_color: string | null;
     headline_font: string | null; body_font: string | null; label_font: string | null;
   };
-  pois: Array<{
-    id: string; name: string; description: string; category: string;
-    google_maps_url: string; media: any[];
-    poi_type?: string; access_type?: string; price_display?: string;
-    duration_text?: string; is_bookable?: boolean;
-  }>;
+  pois: GuidePoi[];
   restaurants: Array<{
     id: string; name: string; slug: string; cuisine_type: string;
     tier: string; cover_image: string;
@@ -76,7 +81,11 @@ const TAB_ORDER: TabKey[] = ['info', 'discover', 'restaurants', 'services', 'cha
 // propio scroll horizontal no debe robarse el gesto (rail de categorías/chips
 // con overflow-x-auto, y el mapa Leaflet, que ya vive dentro de un modal).
 const SWIPE_THRESHOLD_PX = 60;
-const SWIPE_IGNORE_SELECTOR = '.hide-scrollbar, .leaflet-container, input, textarea, select';
+// [data-no-tab-swipe] is set on the Explore tab's bottom sheet, top bar and
+// search panel: that whole tab is map-or-sheet, so tab-swiping is disabled
+// there entirely (matches Airbnb — you don't change sections by dragging on
+// a map) rather than trying to carve out exceptions per sub-element.
+const SWIPE_IGNORE_SELECTOR = '.hide-scrollbar, .leaflet-container, [data-no-tab-swipe], input, textarea, select';
 
 export default function GuidebookPage() {
   const { slug } = useParams<{ slug: string }>();
@@ -415,14 +424,25 @@ export default function GuidebookPage() {
   const { apartment, zone, agency, pois, restaurants, experiences, store_items } = data;
 
   const isChatTab = activeTab === 'chat';
+  // Explore (mapa fullscreen + bottom sheet) needs the same "app shell" as
+  // chat: a fixed-height container instead of a page that scrolls, because
+  // Leaflet needs a real pixel height to size its tiles against and the sheet
+  // is absolutely positioned within <main>. Kept as its own flag (not folded
+  // into isChatTab) because the two still differ below — chat uses h-screen,
+  // explore uses h-dvh (no bottom input bar fighting mobile browser chrome).
+  const isExploreTab = activeTab === 'discover';
+  const isFullBleed = isChatTab || isExploreTab;
 
   // min-h-screen deja crecer la página más allá del viewport, que es lo que
   // queremos en las pestañas normales (contenido largo, footer al final). En
-  // el chat necesitamos justo lo contrario: un h-screen fijo para que
-  // "flex-1 min-h-0" en <main> tenga una altura real que repartir — si no, el
-  // input de texto termina más abajo del viewport, fuera de la vista.
+  // el chat y en explorar necesitamos justo lo contrario: una altura fija
+  // para que "flex-1 min-h-0" en <main> tenga una altura real que repartir —
+  // si no, el input de texto (chat) o el mapa (explorar) terminan más abajo
+  // del viewport o con 0px de alto.
+  const rootHeightClass = isChatTab ? 'h-screen overflow-hidden' : isExploreTab ? 'h-dvh overflow-hidden' : 'min-h-screen';
+
   return (
-    <div className={`guide-app font-body-md text-on-surface bg-background relative flex flex-col ${isChatTab ? 'h-screen overflow-hidden' : 'min-h-screen'}`}>
+    <div className={`guide-app font-body-md text-on-surface bg-background relative flex flex-col ${rootHeightClass}`}>
       <div className="film-grain" />
       {showWelcome && data.welcome_modal && (
         <WelcomeModal welcome={data.welcome_modal} onClose={() => setShowWelcome(false)} lang={lang} />
@@ -436,13 +456,16 @@ export default function GuidebookPage() {
         apartmentName={apartment.name}
       />
 
-      {/* El chat es una app de pantalla completa (input fijo cerca del nav
-          inferior, sin scroll de página) — el resto de pestañas son contenido
-          desplazable normal con su propio footer. pb-16 en móvil reserva el
-          alto del BottomNavBar fijo (h-16) para que no tape el input. */}
+      {/* El chat y explorar son apps de pantalla completa sin scroll de página
+          (el chat con su input fijo cerca del nav inferior, explorar con el
+          mapa + bottom sheet) — el resto de pestañas son contenido desplazable
+          normal con su propio footer. pb-16 en móvil reserva el alto del
+          BottomNavBar fijo (h-16) para que no tape el input/sheet. */}
       <main
         className={isChatTab
           ? "flex-1 min-h-0 flex flex-col w-full max-w-container-max mx-auto px-margin-mobile md:px-margin-desktop pt-6 pb-16 md:pb-6"
+          : isExploreTab
+          ? "relative flex-1 min-h-0 overflow-hidden pb-16 md:pb-0"
           : "w-full max-w-container-max mx-auto px-margin-mobile md:px-margin-desktop py-8 flex flex-col gap-12"}
         onTouchStart={handleTouchStart}
         onTouchMove={handleTouchMove}
@@ -471,12 +494,14 @@ export default function GuidebookPage() {
         )}
 
         {activeTab === 'discover' && (
-          <div className={tabAnimClass}>
-            <DiscoverSection
-              pois={pois}
-              zoneName={zone.name}
-              zoneDescription={zone.description}
+          <div className={`relative h-full ${tabAnimClass}`}>
+            <ExploreSection
+              apartmentSlug={apartment.slug}
               lang={lang}
+              zone={zone}
+              cities={data.cities ?? []}
+              pois={pois}
+              apartmentLatLng={apartment.latitude != null && apartment.longitude != null ? [apartment.latitude, apartment.longitude] : null}
             />
           </div>
         )}
@@ -528,7 +553,7 @@ export default function GuidebookPage() {
 
       <BottomNavBar activeTab={activeTab} onTabChange={setActiveTab} lang={lang} />
 
-      {!isChatTab && (
+      {!isFullBleed && (
         <footer style={{
           textAlign: 'center',
           padding: '32px 16px',

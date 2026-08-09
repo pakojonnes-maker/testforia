@@ -436,3 +436,45 @@ button{font-family:inherit;cursor:pointer;border:none;background:none;outline:no
 .tab-slide-in-left {
   animation: tab-slide-in-left 0.28s cubic-bezier(0.16, 1, 0.3, 1) both;
 }
+
+/* Explore tab map pins (mapPins.ts). Plain CSS custom properties instead of
+   Tailwind utilities, on purpose: this HTML is built as a string inside a
+   Leaflet L.divIcon(), not JSX, so Tailwind's scanner can't reliably see it —
+   and --color-primary / --color-tertiary-fixed-dim need to keep tracking the
+   agency's runtime theme override (GuidebookPage.tsx), which var() does
+   automatically. Flat/square by design-system rule (0px radius, 1px hairline,
+   no shadow) — the only shape difference is free (square glyph) vs paid
+   (pill with a price), which doubles as an at-a-glance "costs money" signal. */
+.vt-poi-pin {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  height: 30px;
+  min-width: 30px;
+  padding: 0 6px;
+  background: var(--color-surface-container-lowest);
+  border: 1px solid color-mix(in srgb, var(--color-on-background) 15%, transparent);
+  color: var(--color-primary);
+  box-shadow: none;
+}
+.vt-poi-pin .material-symbols-outlined {
+  font-size: 16px;
+  line-height: 1;
+}
+.vt-poi-pin-label {
+  font-family: var(--font-mono-badge);
+  font-size: 10px;
+  font-weight: 700;
+  white-space: nowrap;
+  line-height: 1;
+}
+.vt-poi-pin--paid {
+  background: var(--color-tertiary-fixed-dim);
+  color: var(--color-on-tertiary-fixed);
+}
+.vt-poi-pin--selected {
+  background: var(--color-primary);
+  color: var(--color-on-primary);
+  transform: scale(1.15);
+}
