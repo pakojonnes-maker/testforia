@@ -418,3 +418,21 @@ button{font-family:inherit;cursor:pointer;border:none;background:none;outline:no
 .reveal-in {
   animation: reveal-up 0.7s cubic-bezier(0.16, 1, 0.3, 1) both;
 }
+
+/* Transición al cambiar de pestaña (tap en BottomNavBar/Header o swipe lateral
+   en GuidebookPage.tsx) — la dirección la decide qué tan lejos está la nueva
+   pestaña de la anterior en TAB_ORDER, no cómo se disparó el cambio. */
+@keyframes tab-slide-in-right {
+  from { opacity: 0; transform: translateX(24px); }
+  to { opacity: 1; transform: translateX(0); }
+}
+@keyframes tab-slide-in-left {
+  from { opacity: 0; transform: translateX(-24px); }
+  to { opacity: 1; transform: translateX(0); }
+}
+.tab-slide-in-right {
+  animation: tab-slide-in-right 0.28s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+.tab-slide-in-left {
+  animation: tab-slide-in-left 0.28s cubic-bezier(0.16, 1, 0.3, 1) both;
+}

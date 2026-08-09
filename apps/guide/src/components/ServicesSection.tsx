@@ -115,7 +115,7 @@ export default function ServicesSection({ experiences, storeItems, zoneName, apa
         const qty = cart[item.id] || 0;
         const stamp = STAMP_CLASSES[idx % STAMP_CLASSES.length];
         return (
-          <article key={item.id} className="bg-surface-container-lowest border border-on-background/10 flex flex-col relative w-full">
+          <article key={item.id} className="flex flex-col relative w-full">
             {/* arch-mask va en este contenedor a sangre (sin padding), no en la imagen
                 interior — con p-4 alrededor el arco quedaba encogido y aplanado dentro
                 del hueco blanco, a diferencia del resto de la app (ver InfoSection.tsx). */}

@@ -69,6 +69,14 @@ interface GuidebookData {
 }
 
 type TabKey = 'info' | 'discover' | 'restaurants' | 'services' | 'chat';
+const TAB_ORDER: TabKey[] = ['info', 'discover', 'restaurants', 'services', 'chat'];
+
+// Swipe horizontal entre pestañas: umbral mínimo antes de considerarlo un gesto
+// intencional (no un scroll vertical ligeramente torcido), y selectores cuyo
+// propio scroll horizontal no debe robarse el gesto (rail de categorías/chips
+// con overflow-x-auto, y el mapa Leaflet, que ya vive dentro de un modal).
+const SWIPE_THRESHOLD_PX = 60;
+const SWIPE_IGNORE_SELECTOR = '.hide-scrollbar, .leaflet-container, input, textarea, select';
 
 export default function GuidebookPage() {
   const { slug } = useParams<{ slug: string }>();
@@ -81,6 +89,65 @@ export default function GuidebookPage() {
   });
   const [activeTab, setActiveTab] = useState<TabKey>('info');
   const [showWelcome, setShowWelcome] = useState(false);
+
+  // Dirección de la transición al cambiar de pestaña — se deriva de la posición
+  // en TAB_ORDER, así que tanto un tap en el nav como un swipe animan igual.
+  const [slideDirection, setSlideDirection] = useState<'forward' | 'backward'>('forward');
+  const prevTabIndexRef = useRef(TAB_ORDER.indexOf('info'));
+  useEffect(() => {
+    const newIndex = TAB_ORDER.indexOf(activeTab);
+    setSlideDirection(newIndex >= prevTabIndexRef.current ? 'forward' : 'backward');
+    prevTabIndexRef.current = newIndex;
+  }, [activeTab]);
+  const tabAnimClass = slideDirection === 'forward' ? 'tab-slide-in-right' : 'tab-slide-in-left';
+
+  // Swipe lateral para moverse entre pestañas. Se ignora si el gesto empieza
+  // dentro de un scroller horizontal propio (rail de categorías/chips, mapa) o
+  // con un modal abierto (los 5 modales de esta app marcan document.body con
+  // overflow:hidden mientras están montados — señal ya existente, no hay que
+  // inventar un nuevo flag de "hay un modal abierto").
+  const swipeStateRef = useRef<{ x: number; y: number; active: boolean; locked: 'h' | 'v' | null }>({ x: 0, y: 0, active: false, locked: null });
+
+  const handleTouchStart = (e: React.TouchEvent) => {
+    const state = swipeStateRef.current;
+    if (e.touches.length !== 1 || document.body.style.overflow === 'hidden' || (e.target as HTMLElement).closest(SWIPE_IGNORE_SELECTOR)) {
+      state.active = false;
+      return;
+    }
+    state.x = e.touches[0].clientX;
+    state.y = e.touches[0].clientY;
+    state.active = true;
+    state.locked = null;
+  };
+
+  const handleTouchMove = (e: React.TouchEvent) => {
+    const state = swipeStateRef.current;
+    if (!state.active || e.touches.length !== 1) return;
+    const dx = e.touches[0].clientX - state.x;
+    const dy = e.touches[0].clientY - state.y;
+    if (!state.locked) {
+      if (Math.abs(dx) < 10 && Math.abs(dy) < 10) return;
+      state.locked = Math.abs(dx) > Math.abs(dy) ? 'h' : 'v';
+    }
+    // Con el gesto ya identificado como horizontal, evita que la página haga
+    // scroll vertical a la vez que se arrastra entre pestañas.
+    if (state.locked === 'h') e.preventDefault();
+  };
+
+  const handleTouchEnd = (e: React.TouchEvent) => {
+    const state = swipeStateRef.current;
+    if (!state.active || state.locked !== 'h') {
+      state.active = false;
+      return;
+    }
+    state.active = false;
+    const dx = e.changedTouches[0].clientX - state.x;
+    if (Math.abs(dx) < SWIPE_THRESHOLD_PX) return;
+    const currentIndex = TAB_ORDER.indexOf(activeTab);
+    const nextIndex = currentIndex + (dx < 0 ? 1 : -1);
+    if (nextIndex >= 0 && nextIndex < TAB_ORDER.length) setActiveTab(TAB_ORDER[nextIndex]);
+  };
+
   const sessionIdRef = useRef<string | null>(null);
   // Espejo de `lang` para que el efecto de sesión pueda leer el idioma actual sin
   // declararlo como dependencia (cambiar de idioma no debe reiniciar la sesión).
@@ -373,11 +440,16 @@ export default function GuidebookPage() {
           inferior, sin scroll de página) — el resto de pestañas son contenido
           desplazable normal con su propio footer. pb-16 en móvil reserva el
           alto del BottomNavBar fijo (h-16) para que no tape el input. */}
-      <main className={isChatTab
-        ? "flex-1 min-h-0 flex flex-col w-full max-w-container-max mx-auto px-margin-mobile md:px-margin-desktop pt-6 pb-16 md:pb-6"
-        : "w-full max-w-container-max mx-auto px-margin-mobile md:px-margin-desktop py-8 flex flex-col gap-12"}>
+      <main
+        className={isChatTab
+          ? "flex-1 min-h-0 flex flex-col w-full max-w-container-max mx-auto px-margin-mobile md:px-margin-desktop pt-6 pb-16 md:pb-6"
+          : "w-full max-w-container-max mx-auto px-margin-mobile md:px-margin-desktop py-8 flex flex-col gap-12"}
+        onTouchStart={handleTouchStart}
+        onTouchMove={handleTouchMove}
+        onTouchEnd={handleTouchEnd}
+      >
         {activeTab === 'info' && (
-          <div style={{ animation: 'fadeIn 0.4s ease forwards' }} className="flex flex-col gap-12">
+          <div className={`flex flex-col gap-12 ${tabAnimClass}`}>
             <WelcomeHero
               apartmentName={apartment.name}
               address={apartment.address}
@@ -399,39 +471,45 @@ export default function GuidebookPage() {
         )}
 
         {activeTab === 'discover' && (
-          <DiscoverSection
-            pois={pois}
-            zoneName={zone.name}
-            zoneDescription={zone.description}
-            lang={lang}
-          />
+          <div className={tabAnimClass}>
+            <DiscoverSection
+              pois={pois}
+              zoneName={zone.name}
+              zoneDescription={zone.description}
+              lang={lang}
+            />
+          </div>
         )}
 
         {activeTab === 'restaurants' && (
-          <RestaurantsSection
-            restaurants={restaurants}
-            zoneName={zone.name}
-            lang={lang}
-            onIntent={(type, id, action) => logIntent(type, id, action)}
-            buildRestaurantUrl={(restaurantSlug) =>
-              buildMenuUrl(MENU_URL, restaurantSlug, apartment.id, sessionIdRef.current)}
-          />
+          <div className={tabAnimClass}>
+            <RestaurantsSection
+              restaurants={restaurants}
+              zoneName={zone.name}
+              lang={lang}
+              onIntent={(type, id, action) => logIntent(type, id, action)}
+              buildRestaurantUrl={(restaurantSlug) =>
+                buildMenuUrl(MENU_URL, restaurantSlug, apartment.id, sessionIdRef.current)}
+            />
+          </div>
         )}
 
         {activeTab === 'services' && (
-          <ServicesSection
-            experiences={experiences}
-            storeItems={store_items || []}
-            zoneName={zone.name}
-            apartmentId={apartment.id}
-            apartmentName={apartment.name}
-            sessionId={sessionIdRef.current}
-            lang={lang}
-            onIntent={(type, id, action) => logIntent(type, id, action)}
-          />
+          <div className={tabAnimClass}>
+            <ServicesSection
+              experiences={experiences}
+              storeItems={store_items || []}
+              zoneName={zone.name}
+              apartmentId={apartment.id}
+              apartmentName={apartment.name}
+              sessionId={sessionIdRef.current}
+              lang={lang}
+              onIntent={(type, id, action) => logIntent(type, id, action)}
+            />
+          </div>
         )}
         {activeTab === 'chat' && (
-          <div className="flex-1 min-h-0 flex flex-col" style={{ animation: 'fadeIn 0.4s ease forwards' }}>
+          <div className={`flex-1 min-h-0 flex flex-col ${tabAnimClass}`}>
             <ChatIASection
               lang={lang}
               apartmentId={data?.apartment?.id}

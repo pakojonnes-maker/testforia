@@ -109,7 +109,7 @@ export default function DiscoverSection({ pois, zoneName, zoneDescription, lang 
 
           if (isFeatured) {
             return (
-              <article key={item.id} className="col-span-1 md:col-span-12 flex flex-col md:flex-row gap-6 md:gap-8 items-start border border-on-background/10 bg-surface-container-lowest p-4 md:p-6">
+              <article key={item.id} className="col-span-1 md:col-span-12 flex flex-col md:flex-row gap-6 md:gap-8 items-start p-4 md:p-6">
                 <div className="w-full md:w-5/12 aspect-[4/5] relative arch-mask overflow-hidden bg-surface-variant flex-shrink-0">
                   {isRealImage(item.image) ? (
                     <img className="w-full h-full object-cover" src={item.image} alt={item.name} />
@@ -163,7 +163,7 @@ export default function DiscoverSection({ pois, zoneName, zoneDescription, lang 
 
           // Secondary Cards
           return (
-            <article key={item.id} className="col-span-1 md:col-span-4 bg-surface-container-lowest border border-on-background/10 flex flex-col group">
+            <article key={item.id} className="col-span-1 md:col-span-4 flex flex-col group">
               <div className="relative aspect-[4/5] w-full arch-mask overflow-hidden m-2 bg-surface-variant">
                 {isRealImage(item.image) ? (
                   <img className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" src={item.image} alt={item.name} />
