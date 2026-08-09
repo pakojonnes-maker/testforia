@@ -21,13 +21,20 @@ interface PoiCardProps {
 export default function PoiCard({ poi, lang, variant, onOpen, travelLabel, selected }: PoiCardProps) {
   const image = poi.media?.[0]?.url;
   const imgSizeClass = variant === 'peek' ? 'w-16 h-16' : 'w-20 h-20';
+  // The peek card IS always the selected POI by construction (it's only ever
+  // rendered for one) — showing a "selected" tint on it too would be
+  // redundant with its position/close-button and just look like an
+  // unexplained highlighted box. The tint earns its keep in the row list,
+  // where it's the one visual cue for "this is the one you picked" among
+  // everything else.
+  const showSelectedTint = selected && variant === 'row';
 
   return (
     <button
       type="button"
       onClick={onOpen}
       className={`w-full flex items-stretch gap-3 text-left border-b border-on-background/10 transition-colors ${
-        selected ? 'bg-primary/5' : 'hover:bg-on-background/[0.03]'
+        showSelectedTint ? 'bg-primary/5' : 'hover:bg-on-background/[0.03]'
       }`}
     >
       <div className={`relative ${imgSizeClass} shrink-0 arch-mask overflow-hidden bg-surface-variant`}>

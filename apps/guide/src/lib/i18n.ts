@@ -100,6 +100,10 @@ export const UI_STRINGS: Record<string, Record<string, string>> = {
   explore_city_error: { es: 'No hemos podido cargar esta ciudad', en: "We couldn't load this city", fr: "Nous n'avons pas pu charger cette ville", de: 'Diese Stadt konnte nicht geladen werden', it: 'Non è stato possibile caricare questa città', pt: 'Não foi possível carregar esta cidade', ca: 'No hem pogut carregar aquesta ciutat', ar: 'تعذر تحميل هذه المدينة', ru: 'Не удалось загрузить этот город', uk: 'Не вдалося завантажити це місто', zh: '无法加载该城市', ja: 'この都市を読み込めませんでした', ko: '이 도시를 불러올 수 없습니다' },
   explore_retry: { es: 'Reintentar', en: 'Retry', fr: 'Réessayer', de: 'Erneut versuchen', it: 'Riprova', pt: 'Tentar novamente', ca: 'Torna-ho a provar', ar: 'إعادة المحاولة', ru: 'Повторить', uk: 'Повторити', zh: '重试', ja: '再試行', ko: '다시 시도' },
   explore_home_city_badge: { es: 'Tu zona', en: 'Your area', fr: 'Votre zone', de: 'Deine Umgebung', it: 'La tua zona', pt: 'A sua zona', ca: 'La teva zona', ar: 'منطقتك', ru: 'Ваш район', uk: 'Ваш район', zh: '您所在的区域', ja: 'あなたのエリア', ko: '내 지역' },
+  // Eyebrow label above the city name in the collapsed search trigger (ExploreTopBar).
+  explore_where_to: { es: 'A dónde', en: 'Where to', fr: 'Où aller', de: 'Wohin', it: 'Dove andare', pt: 'Para onde', ca: 'On anar', ar: 'إلى أين', ru: 'Куда', uk: 'Куди', zh: '去哪里', ja: 'どこへ', ko: '어디로' },
+  // aria-label of the "tune" icon that shows/hides the category chip rail.
+  explore_filters: { es: 'Filtros', en: 'Filters', fr: 'Filtres', de: 'Filter', it: 'Filtri', pt: 'Filtros', ca: 'Filtres', ar: 'الفلاتر', ru: 'Фильтры', uk: 'Фільтри', zh: '筛选', ja: 'フィルター', ko: '필터' },
   // Distancia en línea recta al alojamiento — solo se usa para POIs de una
   // ciudad distinta a la de casa, donde travel_time_text llega null a propósito
   // (ver workerGuide.js: esos tiempos son relativos al piso y mentirían aquí).

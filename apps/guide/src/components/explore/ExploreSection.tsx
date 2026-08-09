@@ -59,6 +59,11 @@ export default function ExploreSection({ apartmentSlug, lang, zone, cities, pois
   // (BottomSheet vs a plain <aside>), not just their styling.
   const isDesktop = useMediaQuery('(min-width: 768px)');
 
+  // Category chips stay hidden until the guest asks for them (tune icon) —
+  // the floating chrome over the map should default to just search + the
+  // free/premium toggles, not a full row of category buttons.
+  const [filtersOpen, setFiltersOpen] = useState(false);
+
   const topBarRef = useRef<HTMLDivElement>(null);
   const [topBarHeight, setTopBarHeight] = useState(0);
   useLayoutEffect(() => {
@@ -84,8 +89,11 @@ export default function ExploreSection({ apartmentSlug, lang, zone, cities, pois
   };
 
   // Taller peek once something's selected — enough room for the mini POI
-  // card instead of just a result count line. Unused on desktop (no sheet).
-  const peekHeight = selectedPoi ? 148 : 92;
+  // card instead of just a result count line. The no-selection default is
+  // tall enough to show one COMPLETE list row (not just a sliver of it) —
+  // handle + count line (~65px) + one row card (~80px image-driven height)
+  // + breathing room. Unused on desktop (no sheet).
+  const peekHeight = selectedPoi ? 148 : 210;
 
   const topBar = (
     <ExploreTopBar
@@ -98,6 +106,8 @@ export default function ExploreSection({ apartmentSlug, lang, zone, cities, pois
       categories={categories}
       activeCategory={activeCategory}
       onCategoryChange={setActiveCategory}
+      filtersOpen={filtersOpen}
+      onToggleFilters={() => setFiltersOpen(v => !v)}
       free={access.free}
       paid={access.paid}
       onToggleFree={toggleFree}
