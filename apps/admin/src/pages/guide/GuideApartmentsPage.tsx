@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
 import { apiClient } from '../../lib/apiClient';
+import GuideApartmentImportDialog from './GuideApartmentImportDialog';
 import {
   Box, Typography, Grid, Card, CardContent, CardActions,
   Button, IconButton, Chip, CircularProgress, Alert,
@@ -16,6 +17,7 @@ import {
   QrCode2 as QrIcon,
   LocationOn as LocationIcon,
   Visibility as ViewIcon,
+  UploadFile as UploadFileIcon,
 } from '@mui/icons-material';
 
 interface Apartment {
@@ -43,6 +45,7 @@ export default function GuideApartmentsPage() {
   const [zones, setZones] = useState<Zone[]>([]);
   const [loading, setLoading] = useState(true);
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [importOpen, setImportOpen] = useState(false);
   const [form, setForm] = useState({ name: '', address: '', zone_id: '' });
   const [saving, setSaving] = useState(false);
 
@@ -106,14 +109,24 @@ export default function GuideApartmentsPage() {
             {currentAgency.name} — {apartments.length} apartamento{apartments.length !== 1 ? 's' : ''}
           </Typography>
         </Box>
-        <Button
-          variant="contained"
-          startIcon={<AddIcon />}
-          onClick={handleOpenCreate}
-          sx={{ borderRadius: 2 }}
-        >
-          Nuevo Apartamento
-        </Button>
+        <Box sx={{ display: 'flex', gap: 1 }}>
+          <Button
+            variant="outlined"
+            startIcon={<UploadFileIcon />}
+            onClick={() => setImportOpen(true)}
+            sx={{ borderRadius: 2 }}
+          >
+            Importar desde Excel
+          </Button>
+          <Button
+            variant="contained"
+            startIcon={<AddIcon />}
+            onClick={handleOpenCreate}
+            sx={{ borderRadius: 2 }}
+          >
+            Nuevo Apartamento
+          </Button>
+        </Box>
       </Box>
 
       {loading ? (
@@ -249,6 +262,14 @@ export default function GuideApartmentsPage() {
           </Button>
         </DialogActions>
       </Dialog>
+
+      <GuideApartmentImportDialog
+        open={importOpen}
+        onClose={() => setImportOpen(false)}
+        agencyId={currentAgency.id}
+        zones={zones}
+        onImported={loadData}
+      />
     </Box>
   );
 }

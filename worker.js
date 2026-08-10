@@ -22,6 +22,7 @@ import { handleGuideAI } from './workerGuideAI.js';
 import { handleGuideStoreRequests } from './workerGuideStore.js';
 import { handleTvScreenRequests } from './workerTvScreen.js';
 import { handleGuideImportRequests } from './workerGuideImport.js';
+import { handleGuideApartmentImportRequests } from './workerGuideApartmentImport.js';
 import { handleGuideTranslateRequests } from './workerGuideTranslate.js';
 import { checkRestaurantScope } from './workerAuthz.js';
 // CORS: la allowlist vive en workerCors.js, compartida con los demás módulos.
@@ -222,6 +223,12 @@ export default {
                 // genérico "Guide admin" de abajo, mismo motivo que TV screens arriba.
                 if (url.pathname.startsWith('/guide/admin/import/')) {
                     const response = await handleGuideImportRequests(request, env);
+                    if (response) return addCorsHeaders(response, request);
+                }
+                // Importador masivo de apartamentos desde Excel/CSV: mismo motivo y
+                // misma posición que el importador de POIs justo arriba.
+                if (url.pathname.startsWith('/guide/admin/import/apartments/')) {
+                    const response = await handleGuideApartmentImportRequests(request, env);
                     if (response) return addCorsHeaders(response, request);
                 }
                 // Traductor automático (Workers AI): antes de "Guide admin" por el
