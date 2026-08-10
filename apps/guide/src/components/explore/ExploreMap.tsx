@@ -85,7 +85,11 @@ export default function ExploreMap({ pois, zone, selectedPoiId, onSelectPoi, top
   }, [zone.id]);
 
   return (
-    <MapContainer center={initialCenter} zoom={13} style={{ height: '100%', width: '100%' }} scrollWheelZoom>
+    // zoomControl={false}: hides Leaflet's default +/- button widget. Pinch
+    // (touchZoom), double-tap (doubleClickZoom) and scroll (scrollWheelZoom
+    // below) are separate Leaflet options, all true by default — removing
+    // the button doesn't touch them, gesture zoom keeps working as-is.
+    <MapContainer center={initialCenter} zoom={13} style={{ height: '100%', width: '100%' }} scrollWheelZoom zoomControl={false}>
       <TileLayer
         attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
         url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
