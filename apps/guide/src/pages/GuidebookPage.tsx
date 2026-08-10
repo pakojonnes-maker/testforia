@@ -448,13 +448,18 @@ export default function GuidebookPage() {
         <WelcomeModal welcome={data.welcome_modal} onClose={() => setShowWelcome(false)} lang={lang} />
       )}
 
-      <Header
-        activeTab={activeTab}
-        onTabChange={setActiveTab}
-        lang={lang}
-        onLanguageChange={handleLanguageChange}
-        apartmentName={apartment.name}
-      />
+      {/* Explore is a fullscreen map — the app masthead would just eat into
+          it for no reason. Its own ExploreTopBar carries the language
+          switcher instead, in the same row as the search pill. */}
+      {!isExploreTab && (
+        <Header
+          activeTab={activeTab}
+          onTabChange={setActiveTab}
+          lang={lang}
+          onLanguageChange={handleLanguageChange}
+          apartmentName={apartment.name}
+        />
+      )}
 
       {/* El chat y explorar son apps de pantalla completa sin scroll de página
           (el chat con su input fijo cerca del nav inferior, explorar con el
@@ -498,6 +503,7 @@ export default function GuidebookPage() {
             <ExploreSection
               apartmentSlug={apartment.slug}
               lang={lang}
+              onLanguageChange={handleLanguageChange}
               zone={zone}
               cities={data.cities ?? []}
               pois={pois}

@@ -1,10 +1,12 @@
 import React from 'react';
 import { getTranslation } from '../../lib/i18n';
+import { LanguageSwitcher } from '../Header';
 import CategoryChipRail from './CategoryChipRail';
 import ExperienceToggles from './ExperienceToggles';
 
 interface ExploreTopBarProps {
   lang: string;
+  onLanguageChange?: (lang: string) => void;
   cityName: string;
   isHomeZone: boolean;
   homeCityName: string;
@@ -32,7 +34,7 @@ interface ExploreTopBarProps {
 // flat system — this is the floating map UI, Airbnb-style, per the user's
 // reference mockup; the sheet/cards below keep the flat/bordered system.
 export default function ExploreTopBar({
-  lang, cityName, isHomeZone, homeCityName, onOpenSearch, onGoHome,
+  lang, onLanguageChange, cityName, isHomeZone, homeCityName, onOpenSearch, onGoHome,
   categories, activeCategory, onCategoryChange, filtersOpen, onToggleFilters,
   free, paid, onToggleFree, onTogglePaid,
 }: ExploreTopBarProps) {
@@ -77,6 +79,9 @@ export default function ExploreTopBar({
             <span className="material-symbols-outlined text-[20px]">home</span>
           </button>
         )}
+        {/* Explore has no app header (see GuidebookPage.tsx) — the language
+            switcher lives here instead, same corner it always sat in. */}
+        <LanguageSwitcher lang={lang} onLanguageChange={onLanguageChange} variant="floating" />
       </div>
       <ExperienceToggles free={free} paid={paid} onToggleFree={onToggleFree} onTogglePaid={onTogglePaid} lang={lang} />
       {filtersOpen && categories.length > 0 && (

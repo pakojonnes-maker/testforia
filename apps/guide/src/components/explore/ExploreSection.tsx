@@ -14,11 +14,18 @@ import type { GuidePoi, CitySummary, ZoneSummary } from '../../lib/types';
 interface ExploreSectionProps {
   apartmentSlug: string;
   lang: string;
+  onLanguageChange?: (lang: string) => void;
   zone: ZoneSummary; // the apartment's own (home) zone
   cities: CitySummary[];
   pois: GuidePoi[]; // home zone's POIs, from the main guidebook payload
   apartmentLatLng: [number, number] | null;
 }
+
+// BottomSheet's own drag-handle chrome around whatever `header` it's given:
+// pt-2 (8) + the drag bar itself (h-1 = 4) + pb-1 (4) = 16px, fixed regardless
+// of header content. Kept in sync with BottomSheet.tsx by hand since it's
+// simple, unchanging markup, not worth threading a measured value back up for.
+const SHEET_HANDLE_CHROME_PX = 16;
 
 function toDetailItem(poi: GuidePoi, travelLabel: string | null): PoiDetailItem {
   return {
@@ -40,7 +47,7 @@ function toDetailItem(poi: GuidePoi, travelLabel: string | null): PoiDetailItem 
   };
 }
 
-export default function ExploreSection({ apartmentSlug, lang, zone, cities, pois, apartmentLatLng }: ExploreSectionProps) {
+export default function ExploreSection({ apartmentSlug, lang, onLanguageChange, zone, cities, pois, apartmentLatLng }: ExploreSectionProps) {
   const explore = useExploreState({ apartmentSlug, lang, homeZone: zone, homePois: pois, homeCities: cities });
   const {
     activeZone, isHomeZone, zoneStatus, retry, setActiveZone,
@@ -88,16 +95,43 @@ export default function ExploreSection({ apartmentSlug, lang, zone, cities, pois
     return getTranslation('explore_travel_from_home', lang).replace('{distance}', formatDistanceKm(km));
   };
 
-  // Taller peek once something's selected — enough room for the mini POI
-  // card instead of just a result count line. The no-selection default is
-  // tall enough to show one COMPLETE list row (not just a sliver of it) —
-  // handle + count line (~65px) + one row card (~80px image-driven height)
-  // + breathing room. Unused on desktop (no sheet).
-  const peekHeight = selectedPoi ? 148 : 210;
+  // Peek shows the sheet's header content and NOTHING past it — not a
+  // sliver of the next row, not empty space. Measured from the actual
+  // rendered header (count row + first card, or the selected peek card),
+  // rather than a guessed constant: card height varies with a 2-line title,
+  // a longer travel label, etc., and a hardcoded number drifts out of sync
+  // with real content sooner or later. 98 is a close-enough first guess
+  // (matches one row card) so the sheet doesn't visibly jump on first paint
+  // while this settles from its real ResizeObserver reading.
+  const headerContentRef = useRef<HTMLDivElement>(null);
+  const [headerContentHeight, setHeaderContentHeight] = useState(98);
+  useLayoutEffect(() => {
+    if (isDesktop) return;
+    const el = headerContentRef.current;
+    if (!el) return;
+    const measure = () => setHeaderContentHeight(el.offsetHeight);
+    measure();
+    const ro = new ResizeObserver(measure);
+    ro.observe(el);
+    return () => ro.disconnect();
+    // Re-attach whenever the header's CONTENT identity changes (selection
+    // toggles between "count row" and "selected card") — same element ref,
+    // but ResizeObserver already re-fires on any size change regardless, so
+    // this dependency is really just for the it's-a-new-DOM-subtree case.
+  }, [isDesktop, selectedPoi?.id]);
+  const peekHeight = SHEET_HANDLE_CHROME_PX + headerContentHeight;
+
+  // Idle with results and nothing selected: the first card lives in the
+  // sheet's fixed header (see peekHeight above) so "peek" shows exactly one
+  // full card, not a sliver of a second one — the rest scroll normally.
+  const showFirstCardInHeader = !selectedPoi && zoneStatus === 'idle' && visiblePois.length > 0;
+  const [firstVisiblePoi, ...restVisiblePois] = visiblePois;
+  const scrollablePois = showFirstCardInHeader ? restVisiblePois : visiblePois;
 
   const topBar = (
     <ExploreTopBar
       lang={lang}
+      onLanguageChange={onLanguageChange}
       cityName={activeZone.name}
       isHomeZone={isHomeZone}
       homeCityName={zone.name}
@@ -134,9 +168,11 @@ export default function ExploreSection({ apartmentSlug, lang, zone, cities, pois
     <PoiDetailModal item={toDetailItem(detailPoi, travelLabelFor(detailPoi))} lang={lang} onClose={closeDetail} />
   );
 
-  // Shared between mobile (inside BottomSheet) and desktop (inside <aside>) —
-  // same PoiCard, same states, so the two layouts never drift apart.
-  const listBody = (
+  // Shared between mobile (inside BottomSheet's scrollable children) and
+  // desktop (inside <aside>, the full list — desktop has no peek/header
+  // split, so it always gets the complete, unsliced list). Status/empty
+  // states rendered once regardless of which list is passed in.
+  const renderPoiRows = (poisToShow: GuidePoi[]) => (
     <>
       {zoneStatus === 'loading' && (
         <p className="p-6 text-center font-body-md text-body-md text-on-surface-variant">
@@ -160,7 +196,7 @@ export default function ExploreSection({ apartmentSlug, lang, zone, cities, pois
           {getTranslation('explore_filters_empty', lang)}
         </p>
       )}
-      {zoneStatus === 'idle' && visiblePois.map(poi => (
+      {zoneStatus === 'idle' && poisToShow.map(poi => (
         <PoiCard
           key={poi.id}
           poi={poi}
@@ -179,7 +215,7 @@ export default function ExploreSection({ apartmentSlug, lang, zone, cities, pois
       <div className="flex h-full">
         <aside className="w-[420px] shrink-0 border-r border-on-background/10 overflow-y-auto flex flex-col">
           <div className="p-3 border-b border-on-background/10 shrink-0">{topBar}</div>
-          <div className="p-3 flex flex-col gap-2">{listBody}</div>
+          <div className="p-3 flex flex-col gap-2">{renderPoiRows(visiblePois)}</div>
         </aside>
         <div className="relative flex-1">
           <ExploreMap
@@ -222,40 +258,58 @@ export default function ExploreSection({ apartmentSlug, lang, zone, cities, pois
         onSnapChange={setSnap}
         peekHeight={peekHeight}
         header={
-          selectedPoi ? (
-            <div className="px-3 pb-2 flex items-center gap-2">
-              <div className="flex-1 min-w-0">
-                <PoiCard
-                  poi={selectedPoi}
-                  lang={lang}
-                  variant="peek"
-                  selected
-                  onOpen={() => openDetail(selectedPoi.id)}
-                  travelLabel={travelLabelFor(selectedPoi)}
-                />
+          <div ref={headerContentRef}>
+            {selectedPoi ? (
+              <div className="px-3 pb-2 flex items-center gap-2">
+                <div className="flex-1 min-w-0">
+                  <PoiCard
+                    poi={selectedPoi}
+                    lang={lang}
+                    variant="peek"
+                    selected
+                    onOpen={() => openDetail(selectedPoi.id)}
+                    travelLabel={travelLabelFor(selectedPoi)}
+                  />
+                </div>
+                <button
+                  type="button"
+                  onClick={clearSelection}
+                  aria-label={getTranslation('close', lang)}
+                  className="w-8 h-8 shrink-0 flex items-center justify-center border border-on-background/10 bg-surface-container-lowest"
+                >
+                  <span className="material-symbols-outlined text-[18px]">close</span>
+                </button>
               </div>
-              <button
-                type="button"
-                onClick={clearSelection}
-                aria-label={getTranslation('close', lang)}
-                className="w-8 h-8 shrink-0 flex items-center justify-center border border-on-background/10 bg-surface-container-lowest"
-              >
-                <span className="material-symbols-outlined text-[18px]">close</span>
-              </button>
-            </div>
-          ) : (
-            <div className="px-4 pb-2 flex items-center justify-between gap-2">
-              <span className="font-label-sm text-label-sm text-on-surface-variant">
-                {getTranslation('explore_results_count', lang).replace('{count}', String(visiblePois.length))}
-              </span>
-              <span className="font-label-sm text-label-sm text-on-surface-variant/70">
-                {getTranslation('explore_drag_hint', lang)}
-              </span>
-            </div>
-          )
+            ) : (
+              <>
+                <div className="px-4 pb-1 flex items-center justify-between gap-2">
+                  <span className="font-label-sm text-label-sm text-on-surface-variant">
+                    {getTranslation('explore_results_count', lang).replace('{count}', String(visiblePois.length))}
+                  </span>
+                  <span className="font-label-sm text-label-sm text-on-surface-variant/70">
+                    {getTranslation('explore_drag_hint', lang)}
+                  </span>
+                </div>
+                {/* Only the FIRST card sits in the fixed header — peek shows
+                    exactly one complete card, not a sliver of a second one
+                    (see peekHeight above). The rest scroll normally below. */}
+                {showFirstCardInHeader && (
+                  <div className="px-3 pb-2">
+                    <PoiCard
+                      poi={firstVisiblePoi}
+                      lang={lang}
+                      variant="row"
+                      onOpen={() => { selectPoi(firstVisiblePoi.id); openDetail(firstVisiblePoi.id); }}
+                      travelLabel={travelLabelFor(firstVisiblePoi)}
+                    />
+                  </div>
+                )}
+              </>
+            )}
+          </div>
         }
       >
-        <div className="p-3 flex flex-col gap-2">{listBody}</div>
+        <div className="p-3 flex flex-col gap-2">{renderPoiRows(scrollablePois)}</div>
       </BottomSheet>
 
       {detailModal}
