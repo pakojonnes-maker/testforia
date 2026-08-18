@@ -2,10 +2,11 @@
 -- BDschemaFinal.sql — ESQUEMA REAL DE PRODUCCION
 -- =====================================================
 -- Base de datos D1: restaurant-menu-saas (7e8d1efe-2a54-4849-9a06-4c47152392bd)
--- Exportado el 2026-08-04 desde la BD en produccion, tras aplicar la
--- migracion 0086 (guide_agencies: nuevas columnas headline_font, body_font,
--- label_font para tipografia por rol; se limpia el valor heredado de
--- font_family, que queda deprecada en el esquema pero sin leerse en codigo).
+-- Exportado el 2026-08-18 desde la BD en produccion, tras aplicar la
+-- migracion 0087 (guide_apartments: columnas de listing para el importador
+-- de apartamentos desde URL — capacity, bedrooms, bathrooms, size_m2,
+-- checkin_time, checkout_time, property_type, description, amenities,
+-- gallery_urls, source_url, source_payload, imported_at; todas NULLABLE).
 -- 85 tablas.
 --
 -- NO editar a mano. Para regenerar:
@@ -13,7 +14,7 @@
 --
 -- Mantener este archivo actualizado tras cada migracion que se aplique con
 -- --remote: el export sobrescribe esta cabecera entera, hay que reponerla a
--- mano (fecha, migracion aplicada, numero de tablas) despues de regenerar.
+-- mano (ver CLAUDE.md §3).
 -- =====================================================
 
 PRAGMA defer_foreign_keys=TRUE;
@@ -887,7 +888,7 @@ CREATE TABLE guide_apartments (
   qr_code_url TEXT,
   is_active BOOLEAN DEFAULT TRUE,
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-  modified_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, wifi_ssid TEXT, wifi_password TEXT, wifi_security TEXT DEFAULT 'WPA', contact_whatsapp TEXT,
+  modified_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, wifi_ssid TEXT, wifi_password TEXT, wifi_security TEXT DEFAULT 'WPA', contact_whatsapp TEXT, capacity INTEGER, bedrooms INTEGER, bathrooms REAL, size_m2 INTEGER, checkin_time TEXT, checkout_time TEXT, property_type TEXT, description TEXT, amenities TEXT, gallery_urls TEXT, source_url TEXT, source_payload TEXT, imported_at TIMESTAMP,
   FOREIGN KEY (agency_id) REFERENCES guide_agencies(id),
   FOREIGN KEY (zone_id) REFERENCES guide_zones(id)
 );
