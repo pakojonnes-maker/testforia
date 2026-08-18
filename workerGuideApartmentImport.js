@@ -84,8 +84,12 @@ function slugify(name) {
  * resolvePlaceRef en workerGuideImport.js (que busca una FICHA de Google
  * Maps), un piso privado no es un "place" — por eso esto usa la Geocoding
  * API clásica, no Places Text Search.
+ *
+ * Exportada: workerGuideApartmentLink.js (importador desde URL) la reutiliza
+ * para la vía 3 (dirección en texto plano) y como relleno de coordenadas
+ * cuando una web de origen publica dirección pero no lat/lng estructurada.
  */
-async function geocodeAddress(env, address) {
+export async function geocodeAddress(env, address) {
     if (!address || !address.trim()) return { ok: false, reason: 'no_address' };
     if (!env.GOOGLE_PLACES_API_KEY) return { ok: false, reason: 'not_configured' };
     if (env.RATE_LIMIT_KV) {
@@ -134,7 +138,10 @@ function resolveZone(zoneName, zones) {
     return bestScore >= LIKELY_MATCH_THRESHOLD ? { zone: best, score: bestScore } : { zone: null, score: bestScore };
 }
 
-function findLikelyDuplicate(name, existingApartments) {
+// Exportada: workerGuideApartmentLink.js la reutiliza para avisar de
+// "probable duplicado" con el mismo umbral y criterio que el importador de
+// Excel, en vez de mantener una segunda copia de este scoring.
+export function findLikelyDuplicate(name, existingApartments) {
     let best = null, bestScore = 0;
     for (const apt of existingApartments) {
         const score = nameSimilarity(apt.name, name);

@@ -5,6 +5,7 @@ import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
 import { apiClient } from '../../lib/apiClient';
 import GuideApartmentImportDialog from './GuideApartmentImportDialog';
+import GuideApartmentLinkDialog from './GuideApartmentLinkDialog';
 import {
   Box, Typography, Grid, Card, CardContent, CardActions,
   Button, IconButton, Chip, CircularProgress, Alert,
@@ -18,6 +19,7 @@ import {
   LocationOn as LocationIcon,
   Visibility as ViewIcon,
   UploadFile as UploadFileIcon,
+  Link as LinkIcon,
 } from '@mui/icons-material';
 
 interface Apartment {
@@ -46,6 +48,7 @@ export default function GuideApartmentsPage() {
   const [loading, setLoading] = useState(true);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [importOpen, setImportOpen] = useState(false);
+  const [linkImportOpen, setLinkImportOpen] = useState(false);
   const [form, setForm] = useState({ name: '', address: '', zone_id: '' });
   const [saving, setSaving] = useState(false);
 
@@ -110,6 +113,14 @@ export default function GuideApartmentsPage() {
           </Typography>
         </Box>
         <Box sx={{ display: 'flex', gap: 1 }}>
+          <Button
+            variant="outlined"
+            startIcon={<LinkIcon />}
+            onClick={() => setLinkImportOpen(true)}
+            sx={{ borderRadius: 2 }}
+          >
+            Importar desde URL
+          </Button>
           <Button
             variant="outlined"
             startIcon={<UploadFileIcon />}
@@ -269,6 +280,17 @@ export default function GuideApartmentsPage() {
         agencyId={currentAgency.id}
         zones={zones}
         onImported={loadData}
+      />
+
+      <GuideApartmentLinkDialog
+        open={linkImportOpen}
+        onClose={() => setLinkImportOpen(false)}
+        agencyId={currentAgency.id}
+        zones={zones}
+        onCreated={(apartmentId) => {
+          loadData();
+          navigate(`/guide/apartments/${apartmentId}`);
+        }}
       />
     </Box>
   );

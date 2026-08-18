@@ -17,7 +17,7 @@
 //   GET    /guide/admin/apartments/:id/info/:infoId/translations — All langs for one block
 //   PUT    /guide/admin/apartments/:id/info/reorder — Reorder info blocks
 //   POST   /guide/admin/apartments/:id/info/bulk-translations — Import translations (JSON, all langs at once)
-//   POST   /guide/admin/apartments/:id/media                    — Upload a file, get back a URL (no DB row; for cover/welcome image_url fields)
+//   POST   /guide/admin/apartments/:id/media                    — Upload a file, get back a URL (no DB row; for cover/welcome image_url fields). Accepts multipart (file) OR application/json ({source_url}) to fetch-and-store a remote image (importador desde URL)
 //   POST   /guide/admin/agencies/:id/media                      — Upload a file, get back a URL (no DB row; for agency logo)
 //   POST   /guide/admin/store-items/media                       — Upload a file, get back a URL (no DB row; for platform store item photo, superadmin only)
 //   POST   /guide/admin/apartments/:id/info/:infoId/media       — Upload a photo/video for an info block
@@ -47,6 +47,7 @@
 
 import { verifyJWT } from './workerAuthentication.js';
 import { touchGuideVersion, touchZoneGuideVersions, touchAllGuideVersions, touchZoneCatalogVersion } from './workerGuideCache.js';
+import { isSafeExternalUrl } from './workerGuideApartmentLink.js';
 
 function jsonResponse(data, status = 200) {
     return new Response(JSON.stringify(data), {
@@ -582,11 +583,30 @@ async function createApartment(env, data) {
     }
     const id = generateId('apt');
     const slug = data.slug || data.name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+
+    // Campos de listing (migración 0087, importador desde URL en
+    // workerGuideApartmentLink.js): todos opcionales y NULL explícito si no
+    // vienen — D1 es estricto con undefined. El alta manual y el importador
+    // de Excel no los envían, así que se comportan exactamente igual que
+    // antes de esta migración.
+    const amenitiesJson = data.amenities != null ? JSON.stringify(data.amenities) : null;
+    const galleryJson = data.gallery_urls != null ? JSON.stringify(data.gallery_urls) : null;
+    const sourcePayloadJson = data.source_payload != null ? JSON.stringify(data.source_payload) : null;
+
     await env.DB.prepare(`
-        INSERT INTO guide_apartments (id, agency_id, zone_id, name, slug, address, latitude, longitude, cover_image_url)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-    `).bind(id, data.agency_id, data.zone_id, data.name, slug,
-        data.address || null, data.latitude || null, data.longitude || null, data.cover_image_url || null
+        INSERT INTO guide_apartments (
+            id, agency_id, zone_id, name, slug, address, latitude, longitude, cover_image_url,
+            capacity, bedrooms, bathrooms, size_m2, checkin_time, checkout_time, property_type,
+            description, amenities, gallery_urls, source_url, source_payload, imported_at
+        )
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `).bind(
+        id, data.agency_id, data.zone_id, data.name, slug,
+        data.address || null, data.latitude || null, data.longitude || null, data.cover_image_url || null,
+        data.capacity ?? null, data.bedrooms ?? null, data.bathrooms ?? null, data.size_m2 ?? null,
+        data.checkin_time || null, data.checkout_time || null, data.property_type || null,
+        data.description || null, amenitiesJson, galleryJson,
+        data.source_url || null, sourcePayloadJson, data.imported_at || null
     ).run();
 
     await seedDefaultPhones(env, id, data.agency_id);
@@ -925,7 +945,57 @@ async function uploadGenericMedia(env, request, r2PathPrefix) {
 async function uploadApartmentMedia(env, aptId, request, isSuperAdmin, userAgencyIds) {
     const access = await checkAptAccess(env, aptId, isSuperAdmin, userAgencyIds);
     if (access.error) return access.error;
+
+    // El importador desde URL (GuideApartmentLinkDialog.tsx /
+    // workerGuideApartmentLink.js) ofrece portadas que son una URL remota de
+    // la web de origen, no un File del navegador. Bajarla aquí, en el
+    // Worker, evita que el navegador tenga que re-subir bytes de un origen
+    // ajeno — la mayoría de webs de alojamiento no ponen CORS en sus
+    // imágenes, así que un fetch() desde el admin fallaría.
+    const contentType = request.headers.get('content-type') || '';
+    if (contentType.includes('application/json')) {
+        let body;
+        try { body = await request.json(); } catch { return errorResponse('Invalid JSON body'); }
+        return await uploadGenericMediaFromUrl(env, request, body?.source_url, `guide/apartments/${aptId}`);
+    }
     return await uploadGenericMedia(env, request, `guide/apartments/${aptId}`);
+}
+
+// Máx. 8 MB: portadas reales de un piso, no vídeo. isSafeExternalUrl viene de
+// workerGuideApartmentLink.js — mismo criterio de host seguro que el fetch de
+// HTML del importador, para no mantener dos listas de bloqueo distintas.
+const MAX_REMOTE_IMAGE_BYTES = 8 * 1024 * 1024;
+const REMOTE_IMAGE_FETCH_TIMEOUT_MS = 8000;
+
+async function uploadGenericMediaFromUrl(env, request, sourceUrl, r2PathPrefix) {
+    if (!sourceUrl) return errorResponse('source_url required');
+    let urlObj;
+    try { urlObj = new URL(sourceUrl); } catch { return errorResponse('source_url inválida'); }
+    if (!isSafeExternalUrl(urlObj)) return errorResponse('source_url no permitida', 400);
+
+    let res;
+    try {
+        res = await fetch(sourceUrl, { signal: AbortSignal.timeout(REMOTE_IMAGE_FETCH_TIMEOUT_MS) });
+    } catch (err) {
+        return errorResponse('No se pudo descargar la imagen: ' + err.message, 502);
+    }
+    if (!res.ok) return errorResponse(`La imagen respondió ${res.status}`, 502);
+
+    const contentType = res.headers.get('content-type') || '';
+    if (!contentType.startsWith('image/')) return errorResponse('La URL no apunta a una imagen', 400);
+
+    const buffer = await res.arrayBuffer();
+    if (buffer.byteLength === 0) return errorResponse('Imagen vacía', 400);
+    if (buffer.byteLength > MAX_REMOTE_IMAGE_BYTES) return errorResponse('Imagen demasiado grande (máx. 8MB)', 400);
+
+    const ext = (contentType.split('/')[1] || 'jpg').split(';')[0].replace(/[^a-z0-9]/gi, '') || 'jpg';
+    const uuid = generateId('');
+    const r2Key = `${r2PathPrefix}/${uuid}.${ext}`;
+
+    await env.R2_BUCKET.put(r2Key, buffer, { httpMetadata: { contentType } });
+
+    const origin = new URL(request.url).origin;
+    return jsonResponse({ success: true, r2_key: r2Key, url: `${origin}/media/${r2Key}`, media_type: 'image' });
 }
 
 async function addApartmentInfoMedia(env, aptId, infoId, request, isSuperAdmin, userAgencyIds) {

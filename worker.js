@@ -23,6 +23,7 @@ import { handleGuideStoreRequests } from './workerGuideStore.js';
 import { handleTvScreenRequests } from './workerTvScreen.js';
 import { handleGuideImportRequests } from './workerGuideImport.js';
 import { handleGuideApartmentImportRequests } from './workerGuideApartmentImport.js';
+import { handleGuideApartmentLinkRequests } from './workerGuideApartmentLink.js';
 import { handleGuideTranslateRequests } from './workerGuideTranslate.js';
 import { checkRestaurantScope } from './workerAuthz.js';
 // CORS: la allowlist vive en workerCors.js, compartida con los demás módulos.
@@ -219,8 +220,32 @@ export default {
                     const response = await handleTvScreenRequests(request, env);
                     if (response) return addCorsHeaders(response, request);
                 }
+                // Importador de apartamentos desde URL: debe ir ANTES de
+                // handleGuideImportRequests (justo abajo), no solo antes de "Guide
+                // admin". handleGuideImportRequests enruta sobre el prefijo ANCHO
+                // "/guide/admin/import/" (no solo "places/") y exige superadmin
+                // ANTES de mirar el sub-path — un usuario de agencia (no
+                // superadmin) golpeando /guide/admin/import/apartments/from-url se
+                // comería un 403 del módulo equivocado si esto se registrara
+                // después (mismo problema de fondo que ya tiene hoy
+                // /guide/admin/import/apartments/preview — ver TODO más abajo).
+                if (url.pathname === '/guide/admin/import/apartments/from-url') {
+                    const response = await handleGuideApartmentLinkRequests(request, env);
+                    if (response) return addCorsHeaders(response, request);
+                }
                 // Importador de POIs desde Google Maps: debe ir ANTES del bloque
                 // genérico "Guide admin" de abajo, mismo motivo que TV screens arriba.
+                //
+                // TODO (bug pre-existente, no de esta sesión): este handler enruta
+                // sobre el prefijo ancho "/guide/admin/import/" y exige superadmin
+                // ANTES de comprobar si el sub-path es siquiera suyo (solo reconoce
+                // "places/preview"). Efecto: un usuario de agencia NO superadmin que
+                // llama a /guide/admin/import/apartments/preview (el importador de
+                // Excel, que sí permite staff de agencia) recibe un 403 de ESTE
+                // módulo antes de llegar al suyo. Arreglo de una línea: cambiar el
+                // gate de workerGuideImport.js:624 de '/guide/admin/import/' a
+                // '/guide/admin/import/places/'. No se toca aquí por quedar fuera
+                // del alcance de este cambio.
                 if (url.pathname.startsWith('/guide/admin/import/')) {
                     const response = await handleGuideImportRequests(request, env);
                     if (response) return addCorsHeaders(response, request);

@@ -22,8 +22,9 @@
     "test:auth": "node tests/auth.test.mjs",
     "test:security": "node tests/sessions-mfa-invites.test.mjs",
     "test:import": "node tests/import.test.mjs",
+    "test:apartment-link": "node tests/apartment-link.test.mjs",
     "test:translate": "node tests/translate.test.mjs",
-    "test": "npm run test:authz && npm run test:auth && npm run test:security && npm run test:import && npm run test:translate"
+    "test": "npm run test:authz && npm run test:auth && npm run test:security && npm run test:import && npm run test:apartment-link && npm run test:translate"
   },
   "dependencies": {
     "framer-motion": "^12.23.9",
