@@ -127,6 +127,26 @@ console.log('\n--- parseModelJson: respuestas reales de modelos instruct ---');
     assert('JSON roto → null (no revienta)', parseModelJson('{"en": {"description"') === null);
     assert('Entrada vacía → null', parseModelJson('') === null);
     assert('Entrada no-string → null', parseModelJson(undefined) === null);
+
+    // Real en producción (2026-08-19, grupo "ar"+"ru"): un objeto JSON por
+    // idioma en vez de uno solo con todas las claves.
+    const concat = parseModelJson('{"ar":{"description":"مرحبا"}}\n{"ru":{"description":"Привет"}}');
+    assert('JSON concatenado (un objeto por idioma) se fusiona', concat?.ar?.description === 'مرحبا' && concat?.ru?.description === 'Привет', JSON.stringify(concat));
+
+    const concatWithGarbage = parseModelJson('{"en":{"description":"Hi"}} esto no es json {roto');
+    assert('Si un trozo del JSON concatenado está roto, se conserva el que sí parsea', concatWithGarbage?.en?.description === 'Hi', JSON.stringify(concatWithGarbage));
+
+    assert('Llaves literales dentro de un string no rompen el escaneo', parseModelJson('{"en":{"description":"usa {curly} braces"}}')?.en?.description === 'usa {curly} braces');
+
+    // Fuerza el camino de fusión (el conjunto no es JSON válido de por sí) y
+    // comprueba que las llaves dentro de un string no descuadran la cuenta de
+    // profundidad al separar los objetos concatenados.
+    const concatWithBraceInString = parseModelJson('{"en":{"description":"a {weird} value"}} {"fr":{"description":"normal"}}');
+    assert(
+        'JSON concatenado con llaves dentro de un string se fusiona bien',
+        concatWithBraceInString?.en?.description === 'a {weird} value' && concatWithBraceInString?.fr?.description === 'normal',
+        JSON.stringify(concatWithBraceInString)
+    );
 }
 
 console.log('\n--- translateGroup: acepta el formato chat-completions (choices[].message.content) ---');

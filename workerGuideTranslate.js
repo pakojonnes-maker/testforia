@@ -264,11 +264,57 @@ export function parseModelJson(raw) {
     const start = raw.indexOf('{');
     const end = raw.lastIndexOf('}');
     if (start === -1 || end === -1 || end <= start) return null;
+    const slice = raw.slice(start, end + 1);
     try {
-        return JSON.parse(raw.slice(start, end + 1));
+        return JSON.parse(slice);
     } catch {
-        return null;
+        // Visto en producción (2026-08-19, grupo "ar"+"ru"): al pedir varios
+        // idiomas en un grupo, el modelo a veces devuelve un objeto JSON POR
+        // IDIOMA en vez de uno solo con todas las claves —
+        // `{"ar":{...}}\n{"ru":{...}}` en lugar de `{"ar":{...},"ru":{...}}`.
+        // Cada trozo es JSON válido por separado; solo el conjunto (primera
+        // '{' a última '}') no lo es. Se recuperan los objetos de nivel
+        // superior y se fusionan, en vez de tirar el grupo entero (y sus
+        // neuronas) por un detalle de formato.
+        return mergeConcatenatedJsonObjects(slice);
     }
+}
+
+/**
+ * Escanea `text` por objetos `{...}` de nivel superior (llevando la cuenta de
+ * profundidad de llaves e ignorando las que caen dentro de un string, para no
+ * confundirse con '{'/'}' literales en el texto traducido) y los fusiona en
+ * uno solo. Un trozo individual que no parsee se descarta sin tirar el resto.
+ */
+function mergeConcatenatedJsonObjects(text) {
+    const merged = {};
+    let depth = 0, objStart = -1, inString = false, escape = false, foundAny = false;
+    for (let i = 0; i < text.length; i++) {
+        const ch = text[i];
+        if (escape) { escape = false; continue; }
+        if (ch === '\\') { escape = true; continue; }
+        if (ch === '"') { inString = !inString; continue; }
+        if (inString) continue;
+        if (ch === '{') {
+            if (depth === 0) objStart = i;
+            depth++;
+        } else if (ch === '}') {
+            depth--;
+            if (depth === 0 && objStart !== -1) {
+                try {
+                    const obj = JSON.parse(text.slice(objStart, i + 1));
+                    if (obj && typeof obj === 'object') {
+                        Object.assign(merged, obj);
+                        foundAny = true;
+                    }
+                } catch {
+                    // trozo individual roto: se ignora, no tira el resto
+                }
+                objStart = -1;
+            }
+        }
+    }
+    return foundAny ? merged : null;
 }
 
 /**
