@@ -49,7 +49,6 @@ import {
   Dashboard as GuideDashboardIcon,
   SwapHoriz as SwapIcon,
   Palette as PaletteIcon,
-  LocationOn as LocationOnIcon,
   LocalActivity as LocalActivityIcon,
   Storefront as StoreIcon,
   Insights as ConversionsIcon,
@@ -373,23 +372,18 @@ export default function DashboardLayout() {
       featureKey: null,
       section: 'GESTIÓN'
     },
-    // Read-only for agency staff (they see which promotions are active, nothing more);
-    // full CRUD + commission data is gated server-side to superadmin.
+    // Lugares y Experiencias se fusionaron en una sola pantalla (guide_pois es
+    // una tabla única desde la migración 0059) — antes eran dos entradas de menú
+    // para el mismo CRUD. El personal de agencia solo ve experiencias activas, en
+    // lectura (sin comisiones, filtrado server-side), de ahí el rótulo distinto.
     {
-      text: 'Experiencias',
+      text: user?.is_superadmin ? 'Lugares y experiencias' : 'Experiencias',
       icon: <LocalActivityIcon />,
-      path: '/guide/experiences',
+      path: '/guide/catalog',
       featureKey: null,
       section: 'CATÁLOGO'
     },
     ...(user?.is_superadmin ? [
-      {
-        text: 'Localizaciones',
-        icon: <LocationOnIcon />,
-        path: '/guide/pois',
-        featureKey: null,
-        section: 'CATÁLOGO'
-      },
       {
         text: 'Tienda (catálogo)',
         icon: <StoreIcon />,

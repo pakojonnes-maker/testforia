@@ -371,7 +371,16 @@ export async function handleGuideAdminRequests(request, env) {
         // ============ POIs (superadmin only) ============
         if (path === 'pois' && method === 'GET') {
             const zoneId = url.searchParams.get('zone_id');
-            return await listPOIs(env, zoneId);
+            // kind / include_inactive solo para superadmin: a este endpoint también
+            // llega el personal de agencia (selector de POIs de un apartamento) y
+            // las filas reservables llevan comisiones y action_data, que ahí no se
+            // enseñan (ver el stripping de listExperiences).
+            const kind = isSuperAdmin ? (url.searchParams.get('kind') || 'place') : 'place';
+            const includeInactive = isSuperAdmin && url.searchParams.get('include_inactive') === '1';
+            if (!['place', 'experience', 'all'].includes(kind)) {
+                return errorResponse('kind must be place, experience or all');
+            }
+            return await listPOIs(env, zoneId, { kind, includeInactive });
         }
         if (path === 'pois' && method === 'POST') {
             if (!isSuperAdmin) return errorResponse('Only superadmin can manage POIs', 403);
@@ -1929,9 +1938,18 @@ async function updateZone(env, id, data) {
 // ============================================
 // POIs (superadmin only)
 // ============================================
-async function listPOIs(env, zoneId) {
-    let query = `SELECT p.*, t_name.value AS name_es, t_name_en.value AS name_en, t_desc.value AS description_es, t_desc_en.value AS description_en,
-            t_tip.value AS short_tip_es, t_tip_en.value AS short_tip_en
+// `kind` decide qué mitad de la tabla unificada se devuelve: 'place' (POIs del
+// mapa), 'experience' (reservables, is_bookable = 1) o 'all' (el catálogo entero
+// de la zona, que es lo que pinta la pantalla unificada del admin).
+// Los valores por defecto reproducen el contrato antiguo — solo lugares activos —
+// porque de este endpoint también come el selector de POIs de un apartamento
+// (GuideApartmentDetail), al que sí llegan usuarios de agencia.
+async function listPOIs(env, zoneId, options = {}) {
+    const { kind = 'place', includeInactive = false } = options;
+    let query = `SELECT p.*, p.subcategory AS service_subcategory,
+            t_name.value AS name_es, t_name_en.value AS name_en, t_desc.value AS description_es, t_desc_en.value AS description_en,
+            t_tip.value AS short_tip_es, t_tip_en.value AS short_tip_en,
+            t_cta.value AS cta_label_es, t_cta_en.value AS cta_label_en
         FROM guide_pois p
         LEFT JOIN translations t_name ON p.id = t_name.entity_id
             AND t_name.entity_type = 'poi' AND t_name.field = 'name' AND t_name.language_code = 'es'
@@ -1945,10 +1963,17 @@ async function listPOIs(env, zoneId) {
             AND t_tip.entity_type = 'poi' AND t_tip.field = 'short_tip' AND t_tip.language_code = 'es'
         LEFT JOIN translations t_tip_en ON p.id = t_tip_en.entity_id
             AND t_tip_en.entity_type = 'poi' AND t_tip_en.field = 'short_tip' AND t_tip_en.language_code = 'en'
-        WHERE p.is_active = TRUE AND (p.is_bookable = 0 OR p.is_bookable IS NULL)`;
+        LEFT JOIN translations t_cta ON p.id = t_cta.entity_id
+            AND t_cta.entity_type = 'poi' AND t_cta.field = 'cta_label' AND t_cta.language_code = 'es'
+        LEFT JOIN translations t_cta_en ON p.id = t_cta_en.entity_id
+            AND t_cta_en.entity_type = 'poi' AND t_cta_en.field = 'cta_label' AND t_cta_en.language_code = 'en'
+        WHERE 1 = 1`;
     const params = [];
+    if (!includeInactive) query += ' AND p.is_active = TRUE';
+    if (kind === 'place') query += ' AND (p.is_bookable = 0 OR p.is_bookable IS NULL)';
+    else if (kind === 'experience') query += ' AND p.is_bookable = 1';
     if (zoneId) { query += ' AND p.zone_id = ?'; params.push(zoneId); }
-    query += ' ORDER BY p.order_index ASC';
+    query += ' ORDER BY p.is_featured DESC, p.order_index ASC';
     const result = await env.DB.prepare(query).bind(...params).all();
     return jsonResponse({ success: true, pois: result.results || [] });
 }
@@ -1960,11 +1985,19 @@ const POI_WRITABLE_FIELDS = [
     'latitude', 'longitude', 'address', 'google_maps_url', 'google_place_id', 'what3words',
     'rating', 'rating_count', 'google_rating', 'google_rating_count',
     'opening_hours', 'phone', 'website_url', 'booking_url', 'duration_text',
+    'travel_mode', 'travel_time_text', 'distance_text',
     'price_amount', 'price_currency', 'price_display', 'original_price_display', 'discount_display',
     'action_type', 'action_data', 'action_prefilled_message',
     'commission_type', 'commission_value', 'badge_type',
     'cover_image_url', 'source', 'external_id', 'order_index', 'google_synced_at'
 ];
+
+// El formulario manda '' cuando el admin vacía un campo. Guardarlo tal cual
+// rompe guide_pois.travel_mode, que tiene CHECK(travel_mode IN ('walk','drive','bike')),
+// y ensucia los numéricos; NULL es lo que el guidebook entiende por "sin dato".
+function normalizePoiValue(value) {
+    return value === '' ? null : value;
+}
 
 function collectPoiTranslations(data, fields) {
     const translations = {};
@@ -1985,7 +2018,7 @@ async function createPOI(env, data) {
     const cols = ['id', 'zone_id'];
     const vals = [id, data.zone_id];
     for (const field of POI_WRITABLE_FIELDS) {
-        if (data[field] !== undefined) { cols.push(field); vals.push(data[field]); }
+        if (data[field] !== undefined) { cols.push(field); vals.push(normalizePoiValue(data[field])); }
     }
     for (const boolField of ['is_bookable', 'is_featured']) {
         if (data[boolField] !== undefined) { cols.push(boolField); vals.push(data[boolField] ? 1 : 0); }
@@ -2009,7 +2042,7 @@ async function updatePOI(env, id, data) {
     const sets = [];
     const vals = [];
     for (const field of POI_WRITABLE_FIELDS) {
-        if (data[field] !== undefined) { sets.push(`${field} = ?`); vals.push(data[field]); }
+        if (data[field] !== undefined) { sets.push(`${field} = ?`); vals.push(normalizePoiValue(data[field])); }
     }
     for (const boolField of ['is_bookable', 'is_featured', 'is_active']) {
         if (data[boolField] !== undefined) { sets.push(`${boolField} = ?`); vals.push(data[boolField] ? 1 : 0); }
@@ -2291,7 +2324,7 @@ async function createExperience(env, data) {
     const cols = ['id', 'zone_id', 'is_bookable', 'poi_type', 'access_type'];
     const vals = [id, d.zone_id, 1, d.poi_type || 'experience', d.access_type || 'paid'];
     for (const field of POI_WRITABLE_FIELDS) {
-        if (d[field] !== undefined) { cols.push(field); vals.push(d[field]); }
+        if (d[field] !== undefined) { cols.push(field); vals.push(normalizePoiValue(d[field])); }
     }
     if (d.is_featured !== undefined) { cols.push('is_featured'); vals.push(d.is_featured ? 1 : 0); }
     // commission defaults preserved from the old experiences handler
@@ -2316,7 +2349,7 @@ async function updateExperience(env, id, data) {
     const sets = [];
     const vals = [];
     for (const field of POI_WRITABLE_FIELDS) {
-        if (d[field] !== undefined) { sets.push(`${field} = ?`); vals.push(d[field]); }
+        if (d[field] !== undefined) { sets.push(`${field} = ?`); vals.push(normalizePoiValue(d[field])); }
     }
     for (const boolField of ['is_featured', 'is_active', 'is_bookable']) {
         if (d[boolField] !== undefined) { sets.push(`${boolField} = ?`); vals.push(d[boolField] ? 1 : 0); }

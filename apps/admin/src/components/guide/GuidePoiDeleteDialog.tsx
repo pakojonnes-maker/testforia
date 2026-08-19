@@ -1,7 +1,7 @@
 // src/components/guide/GuidePoiDeleteDialog.tsx
-// Diálogo de borrado de un POI / experiencia. Compartido por GuidePoisPage y
-// GuideExperiencesPage porque desde que guide_pois se unificó las dos pantallas
-// editan la misma tabla, y el borrado tiene que comportarse igual en las dos.
+// Diálogo de borrado de un lugar / experiencia, usado por GuideCatalogPage
+// (que fusionó las antiguas GuidePoisPage y GuideExperiencesPage: desde que
+// guide_pois se unificó, las dos pantallas editaban la misma tabla).
 //
 // Un POI no pertenece a un apartamento: vive en la zona y lo comparten todos.
 // Por eso, antes de dejar confirmar, se pide /usage al worker y se enseña a

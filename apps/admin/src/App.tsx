@@ -28,8 +28,10 @@ const GuideAgencyDashboard = lazy(() => import('./pages/guide/GuideAgencyDashboa
 const GuideApartmentsPage = lazy(() => import('./pages/guide/GuideApartmentsPage'));
 const GuideApartmentDetail = lazy(() => import('./pages/guide/GuideApartmentDetail'));
 const GuideDesignPage = lazy(() => import('./pages/guide/GuideDesignPage'));
-const GuidePoisPage = lazy(() => import('./pages/guide/GuidePoisPage'));
-const GuideExperiencesPage = lazy(() => import('./pages/guide/GuideExperiencesPage'));
+// GuidePoisPage y GuideExperiencesPage se fusionaron: en guide_pois las dos
+// pantallas editaban la misma tabla (is_bookable las distinguía), así que ahora
+// es una sola pantalla con pestañas Lugares/Experiencias en vez de dos rutas.
+const GuideCatalogPage = lazy(() => import('./pages/guide/GuideCatalogPage'));
 const GuideStorePage = lazy(() => import('./pages/guide/GuideStorePage'));
 const GuideCategoriesPage = lazy(() => import('./pages/guide/GuideCategoriesPage'));
 const GuideZoneRestaurantsPage = lazy(() => import('./pages/guide/GuideZoneRestaurantsPage'));
@@ -197,21 +199,17 @@ function App() {
             }
           />
           <Route
-            path="guide/pois"
+            path="guide/catalog"
             element={
               <Suspense fallback={<LinearProgress />}>
-                <GuidePoisPage />
+                <GuideCatalogPage />
               </Suspense>
             }
           />
-          <Route
-            path="guide/experiences"
-            element={
-              <Suspense fallback={<LinearProgress />}>
-                <GuideExperiencesPage />
-              </Suspense>
-            }
-          />
+          {/* Alias de las rutas antiguas: enlaces guardados o abiertos en otra
+              pestaña siguen funcionando en vez de dar un 404 de React Router. */}
+          <Route path="guide/pois" element={<Navigate to="/guide/catalog" replace />} />
+          <Route path="guide/experiences" element={<Navigate to="/guide/catalog" replace />} />
           <Route
             path="guide/store"
             element={
