@@ -193,7 +193,7 @@ section('Qué se borra y qué NO');
         ['translations', /^DELETE FROM translations WHERE entity_type = 'poi' AND entity_id = \?1$/],
         ['guide_poi_media', /^DELETE FROM guide_poi_media WHERE poi_id = \?1$/],
         ['guide_apartment_pois', /^DELETE FROM guide_apartment_pois WHERE poi_id = \?1$/],
-        ['guide_coupons', /^DELETE FROM guide_coupons WHERE poi_id = \?1 OR experience_id = \?1$/],
+        ['guide_coupons', /^DELETE FROM guide_coupons WHERE poi_id = \?1$/],
         ['guide_pois', /^DELETE FROM guide_pois WHERE id = \?1$/],
     ];
     for (const [tabla, re] of OBLIGATORIAS) {

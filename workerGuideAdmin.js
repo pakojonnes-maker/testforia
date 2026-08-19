@@ -2080,8 +2080,7 @@ async function updatePOI(env, id, data) {
 //   SE BORRA
 //     guide_poi_media + los objetos R2 bajo guide/pois/{id}/ (prefijo exclusivo)
 //     translations con entity_type = 'poi' (13 idiomas x 4 campos)
-//     guide_coupons de esa experiencia (por poi_id y por el experience_id
-//       heredado de cuando guide_experiences era una tabla aparte)
+//     guide_coupons de esa experiencia (por poi_id)
 //     guide_apartment_pois ... las asignaciones a apartamentos. No es daño
 //       colateral: el POI deja de existir, no puede seguir en el mapa de nadie.
 //     guide_affiliate_intents con target_type='experience' y guide_tv_events de
@@ -2122,7 +2121,7 @@ async function getPoiUsage(env, id) {
             (SELECT COUNT(*) FROM guide_apartment_pois WHERE poi_id = ?1) AS apartments,
             (SELECT COUNT(*) FROM guide_poi_media      WHERE poi_id = ?1) AS media,
             (SELECT COUNT(*) FROM translations WHERE entity_type = 'poi' AND entity_id = ?1) AS translations,
-            (SELECT COUNT(*) FROM guide_coupons WHERE poi_id = ?1 OR experience_id = ?1) AS coupons,
+            (SELECT COUNT(*) FROM guide_coupons WHERE poi_id = ?1) AS coupons,
             (SELECT COUNT(*) FROM guide_affiliate_intents
                 WHERE target_type = 'experience' AND target_id = ?1) AS clicks,
             (SELECT COUNT(*) FROM guide_tv_events
@@ -2170,7 +2169,7 @@ async function deletePoi(env, request, id, userData) {
             (SELECT COUNT(*) FROM guide_apartment_pois WHERE poi_id = ?1) AS apartments,
             (SELECT COUNT(*) FROM guide_poi_media      WHERE poi_id = ?1) AS media,
             (SELECT COUNT(*) FROM translations WHERE entity_type = 'poi' AND entity_id = ?1) AS translations,
-            (SELECT COUNT(*) FROM guide_coupons WHERE poi_id = ?1 OR experience_id = ?1) AS coupons,
+            (SELECT COUNT(*) FROM guide_coupons WHERE poi_id = ?1) AS coupons,
             (SELECT COUNT(*) FROM guide_affiliate_intents
                 WHERE target_type = 'experience' AND target_id = ?1) AS clicks,
             (SELECT COUNT(*) FROM guide_tv_events
@@ -2203,9 +2202,7 @@ async function deletePoi(env, request, id, userData) {
         p(`DELETE FROM translations WHERE entity_type = 'poi' AND entity_id = ?1`),
         p(`DELETE FROM guide_affiliate_intents WHERE target_type = 'experience' AND target_id = ?1`),
         p(`DELETE FROM guide_tv_events WHERE event_type = 'poi_select' AND target_id = ?1`),
-        // experience_id es la FK heredada de cuando las experiencias vivían en su
-        // propia tabla; hay cupones antiguos que sólo la tienen rellena.
-        p(`DELETE FROM guide_coupons WHERE poi_id = ?1 OR experience_id = ?1`),
+        p(`DELETE FROM guide_coupons WHERE poi_id = ?1`),
         // Sólo las filas de enlace de ESTE POI: los demás POIs del apartamento
         // siguen en su sitio.
         p(`DELETE FROM guide_apartment_pois WHERE poi_id = ?1`),
