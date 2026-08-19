@@ -83,6 +83,7 @@ console.log('\n--- resolveApartmentDraft: vía 1, JSON-LD VacationRental complet
         {
             "@context": "https://schema.org",
             "@type": "VacationRental",
+            "identifier": "abc-123",
             "name": "Amplio piso para 4 en el centro",
             "description": "Piso reformado a 2 min de la playa.",
             "additionalType": "Apartment",
@@ -93,12 +94,17 @@ console.log('\n--- resolveApartmentDraft: vía 1, JSON-LD VacationRental complet
             "longitude": -4.54923,
             "image": ["https://example.com/1.jpg", "https://example.com/2.jpg"],
             "amenityFeature": [{ "@type": "LocationFeatureSpecification", "name": "WiFi" }, { "@type": "LocationFeatureSpecification", "name": "Piscina" }],
+            "aggregateRating": { "@type": "AggregateRating", "ratingValue": 4.9, "ratingCount": "12" },
             "containsPlace": {
                 "@type": "Accommodation",
                 "occupancy": { "@type": "QuantitativeValue", "value": 4 },
                 "numberOfBedrooms": 2,
                 "numberOfBathroomsTotal": 1,
-                "floorSize": { "@type": "QuantitativeValue", "value": 65 }
+                "floorSize": { "@type": "QuantitativeValue", "value": 65 },
+                "bed": [
+                    { "@type": "BedDetails", "typeOfBed": "Double", "numberOfBeds": 1 },
+                    { "@type": "BedDetails", "typeOfBed": "Single", "numberOfBeds": 2 }
+                ]
             }
         }
         </script>
@@ -119,6 +125,9 @@ console.log('\n--- resolveApartmentDraft: vía 1, JSON-LD VacationRental complet
     assert('Dormitorios/baños/m² desde containsPlace', draft.fields.bedrooms.value === 2 && draft.fields.bathrooms.value === 1 && draft.fields.size_m2.value === 65);
     assert('Check-in/out', draft.fields.checkin_time.value === '15:00' && draft.fields.checkout_time.value === '11:00');
     assert('Amenities como array de strings', Array.isArray(draft.fields.amenities.value) && draft.fields.amenities.value.includes('Piscina'));
+    assert('Identifier del estándar (schema.org, no ad-hoc)', draft.fields.identifier.value === 'abc-123');
+    assert('aggregateRating: value + count (ratingCount como string se coacciona a número)', draft.fields.rating_value.value === 4.9 && draft.fields.rating_count.value === 12);
+    assert('containsPlace.bed como array de BedDetails: se suman los numberOfBeds', draft.fields.beds.value === 3);
     assert('2 imágenes extraídas del JSON-LD', draft.images.length === 2 && draft.images[0] === 'https://example.com/1.jpg');
     assert('source_payload incluye el nodo JSON-LD crudo', Array.isArray(draft.source_payload.jsonld) && draft.source_payload.jsonld.length === 1);
 }
@@ -135,13 +144,15 @@ console.log('\n--- resolveApartmentDraft: vía 1, JSON-LD mínimo de Airbnb + pi
         {
             "@context": "https://schema.org",
             "@type": "VacationRental",
+            "identifier": "RGVtYW5kU3RheUxpc3Rpbmc6NTQ4MjcxOTgyNjYyNjA4NTc5",
             "name": "Lujoso Atico duplex en el centro de Benalmadena.",
             "description": "Lujoso apartamento tipo Atico Duplex de 162 metros ubicado en el centro de Benalmadena, con parking privado.",
             "image": ["https://a0.muscache.com/im/pictures/1.jpeg"],
             "containsPlace": { "@type": "Accommodation", "occupancy": { "@type": "QuantitativeValue", "value": 4 } },
             "latitude": 36.60088,
             "longitude": -4.53177,
-            "address": { "addressLocality": "Benalmádena" }
+            "address": { "addressLocality": "Benalmádena" },
+            "aggregateRating": { "@type": "AggregateRating", "ratingValue": 4.78, "ratingCount": "68" }
         }
         </script>
         <meta property="og:title" content="Apartamento · Benalmádena · ★4,78 · 3 dormitorios · 4 camas · 2,5 baños">
@@ -155,8 +166,10 @@ console.log('\n--- resolveApartmentDraft: vía 1, JSON-LD mínimo de Airbnb + pi
         assert('Nombre y capacidad siguen viniendo del JSON-LD (no se pisan)', draft.fields.name.source === 'jsonld' && draft.fields.capacity.value === 4 && draft.fields.capacity.source === 'jsonld');
         assert('Dormitorios rellenados desde el og:title', draft.fields.bedrooms.value === 3 && draft.fields.bedrooms.source === 'opengraph');
         assert('Baños con decimal (coma→punto) desde el og:title', draft.fields.bathrooms.value === 2.5 && draft.fields.bathrooms.source === 'opengraph');
+        assert('Camas rellenadas desde el og:title (containsPlace.bed no viene en el JSON-LD real de Airbnb)', draft.fields.beds.value === 4 && draft.fields.beds.source === 'opengraph');
         assert('Tipo de propiedad (primer segmento) desde el og:title', draft.fields.property_type.value === 'Apartamento' && draft.fields.property_type.source === 'opengraph');
         assert('m² y check-in/out siguen vacíos: Airbnb no los publica en ningún metadato', draft.fields.size_m2.value === null && draft.fields.checkin_time.value === null);
+        assert('Identifier y rating desde el JSON-LD (sí los trae Airbnb)', draft.fields.identifier.value === 'RGVtYW5kU3RheUxpc3Rpbmc6NTQ4MjcxOTgyNjYyNjA4NTc5' && draft.fields.rating_value.value === 4.78 && draft.fields.rating_count.value === 68);
     }
 }
 {
@@ -206,6 +219,39 @@ console.log('\n--- resolveApartmentDraft: muro de bots (Booking.com, AWS WAF) --
     const draft = await resolveApartmentDraft({}, 'https://web-con-recaptcha.example.com/piso');
     restoreFetch();
     assert('Un recaptcha suelto no bloquea la extracción de una ficha real', draft.ok === true && draft.fields.name.value === 'Piso con formulario de contacto');
+}
+
+console.log('\n--- resolveApartmentDraft: vía 1, schema.org/Product sin address (caso real: motor de reservas propio) ---');
+{
+    // Caso real (2026-08-19): 797holidayrentals.com (el "sitio oficial" que
+    // Google exige enlazar desde su ficha) marca la página con Product, no
+    // con VacationRental — sin numberOfBedrooms/numberOfBathroomsTotal ni
+    // `address`, solo containsPlace:{name:"Benalmádena"}. Esos datos SÍ
+    // existen, pero solo dentro de una descripción en prosa libre — parsear
+    // eso con regex es demasiado frágil para el valor que da (y el propio
+    // texto ya se ve entero en el campo Descripción del diálogo), así que
+    // deliberadamente NO se intenta.
+    const html = `<!doctype html><html><head>
+        <script type="application/ld+json">
+        {
+            "@context": "https://schema.org/",
+            "@type": "Product",
+            "name": "Piso con motor de reservas propio",
+            "description": "Descripción larga con dos baños y dos dormitorios mencionados en prosa.",
+            "image": ["https://example.com/foto1.jpg"],
+            "geo": { "@type": "GeoCoordinates", "latitude": "36.6007914", "longitude": "-4.5320566" },
+            "containsPlace": { "@type": "Place", "name": "Benalmádena" }
+        }
+        </script>
+    </head><body></body></html>`;
+    mockFetch(async () => htmlResponse(html));
+    const draft = await resolveApartmentDraft({}, 'https://motor-reservas.example.com/piso');
+    restoreFetch();
+    assert('Resuelve con matched_type Product (fallback)', draft.ok === true && draft.matched_type === 'Product', JSON.stringify(draft));
+    if (draft.ok) {
+        assert('Dirección rellenada desde containsPlace.name (no queda vacía)', draft.fields.address.value === 'Benalmádena');
+        assert('Sin dormitorios/baños estructurados: Product no los tiene, se queda null (no se inventan)', draft.fields.bedrooms.value === null && draft.fields.bathrooms.value === null);
+    }
 }
 
 console.log('\n--- resolveApartmentDraft: vía 1, solo OpenGraph (sin JSON-LD) ---');
@@ -338,6 +384,8 @@ console.log('\n--- resolveApartmentDraft: vía 2, URL de Google Maps ---');
                 location: { latitude: 36.5, longitude: -4.5 },
                 editorialSummary: { text: 'Sinopsis de Google' },
                 googleMapsUri: 'https://maps.google.com/?cid=123',
+                rating: 4.6,
+                userRatingCount: 25,
             }), { status: 200 });
         }
         throw new Error('fetch inesperado: ' + u + ' ' + JSON.stringify(opts));
@@ -348,6 +396,7 @@ console.log('\n--- resolveApartmentDraft: vía 2, URL de Google Maps ---');
     if (draft.ok) {
         assert('Sin fotos en la vía de Maps (fallback deliberadamente sin foto)', draft.images.length === 0);
         assert('Nombre y dirección desde Place Details', draft.fields.name.value === 'Apartahotel Ejemplo' && draft.fields.address.value === 'Calle Falsa 123');
+        assert('Rating de Google viene gratis en la misma llamada (ya estaba en el field mask)', draft.fields.rating_value.value === 4.6 && draft.fields.rating_count.value === 25);
     }
 }
 

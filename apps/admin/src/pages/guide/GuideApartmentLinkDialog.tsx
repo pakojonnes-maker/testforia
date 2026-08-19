@@ -64,6 +64,7 @@ interface EditableDraft {
   capacity: string;
   bedrooms: string;
   bathrooms: string;
+  beds: string;
   size_m2: string;
   checkin_time: string;
   checkout_time: string;
@@ -93,6 +94,7 @@ function toEditable(fields: Record<string, DraftField>): EditableDraft {
     capacity: str('capacity'),
     bedrooms: str('bedrooms'),
     bathrooms: str('bathrooms'),
+    beds: str('beds'),
     size_m2: str('size_m2'),
     checkin_time: str('checkin_time'),
     checkout_time: str('checkout_time'),
@@ -183,6 +185,7 @@ export default function GuideApartmentLinkDialog({ open, onClose, agencyId, zone
           capacity: toNumOrUndef(draft.capacity),
           bedrooms: toNumOrUndef(draft.bedrooms),
           bathrooms: toNumOrUndef(draft.bathrooms),
+          beds: toNumOrUndef(draft.beds),
           size_m2: toNumOrUndef(draft.size_m2),
           checkin_time: draft.checkin_time || undefined,
           checkout_time: draft.checkout_time || undefined,
@@ -193,6 +196,12 @@ export default function GuideApartmentLinkDialog({ open, onClose, agencyId, zone
           source_url: response?.source_url || input.trim(),
           source_payload: response?.source_payload ?? undefined,
           imported_at: new Date().toISOString(),
+          // rating_value/rating_count/external_identifier: informativos, no
+          // editables por el admin (no tiene sentido "corregir" una nota
+          // ajena) — se leen directo de la respuesta, no del draft editable.
+          rating_value: (typeof response?.fields?.rating_value?.value === 'number') ? response.fields.rating_value.value : undefined,
+          rating_count: (typeof response?.fields?.rating_count?.value === 'number') ? response.fields.rating_count.value : undefined,
+          external_identifier: (typeof response?.fields?.identifier?.value === 'string') ? response.fields.identifier.value : undefined,
         }),
       });
       const aptId = createRes.id as string;
@@ -268,6 +277,13 @@ export default function GuideApartmentLinkDialog({ open, onClose, agencyId, zone
             <Alert severity="success">
               Datos extraídos ({response?.source_kind === 'jsonld' ? 'ficha estructurada' : response?.source_kind === 'opengraph' ? 'metadatos de la web' : response?.source_kind === 'places' ? 'Google Maps' : 'dirección geocodificada'}
               {response?.matched_type ? ` · ${response.matched_type}` : ''}). Revisa y corrige lo que haga falta antes de crear.
+              {typeof response?.fields?.rating_value?.value === 'number' && (
+                <>
+                  {' · '}★{response.fields.rating_value.value}
+                  {typeof response?.fields?.rating_count?.value === 'number' ? ` (${response.fields.rating_count.value})` : ''}
+                  {' en la web de origen'}
+                </>
+              )}
             </Alert>
             {response?.likely_duplicate && (
               <Alert severity="warning">
@@ -315,6 +331,9 @@ export default function GuideApartmentLinkDialog({ open, onClose, agencyId, zone
               </Grid>
               <Grid item xs={6} sm={3}>
                 <TextField label="Baños" type="number" fullWidth value={draft.bathrooms} onChange={(e) => updateDraft({ bathrooms: e.target.value })} />
+              </Grid>
+              <Grid item xs={6} sm={3}>
+                <TextField label="Camas" type="number" fullWidth value={draft.beds} onChange={(e) => updateDraft({ beds: e.target.value })} />
               </Grid>
               <Grid item xs={6} sm={3}>
                 <TextField label="m²" type="number" fullWidth value={draft.size_m2} onChange={(e) => updateDraft({ size_m2: e.target.value })} />

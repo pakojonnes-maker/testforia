@@ -597,16 +597,18 @@ async function createApartment(env, data) {
         INSERT INTO guide_apartments (
             id, agency_id, zone_id, name, slug, address, latitude, longitude, cover_image_url,
             capacity, bedrooms, bathrooms, size_m2, checkin_time, checkout_time, property_type,
-            description, amenities, gallery_urls, source_url, source_payload, imported_at
+            description, amenities, gallery_urls, source_url, source_payload, imported_at,
+            beds, rating_value, rating_count, external_identifier
         )
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `).bind(
         id, data.agency_id, data.zone_id, data.name, slug,
         data.address || null, data.latitude || null, data.longitude || null, data.cover_image_url || null,
         data.capacity ?? null, data.bedrooms ?? null, data.bathrooms ?? null, data.size_m2 ?? null,
         data.checkin_time || null, data.checkout_time || null, data.property_type || null,
         data.description || null, amenitiesJson, galleryJson,
-        data.source_url || null, sourcePayloadJson, data.imported_at || null
+        data.source_url || null, sourcePayloadJson, data.imported_at || null,
+        data.beds ?? null, data.rating_value ?? null, data.rating_count ?? null, data.external_identifier || null
     ).run();
 
     await seedDefaultPhones(env, id, data.agency_id);

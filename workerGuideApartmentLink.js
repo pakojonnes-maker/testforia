@@ -332,6 +332,11 @@ async function resolveFromGoogleMaps(env, rawInput) {
             address: place.shortFormattedAddress || place.formattedAddress || null,
             latitude: place.location?.latitude ?? null,
             longitude: place.location?.longitude ?? null,
+            // fetchPlaceDetails ya pide rating/userRatingCount en su field
+            // mask (workerGuideImport.js) para el importador de POIs — viene
+            // gratis en la misma llamada, sin coste ni request extra.
+            rating_value: place.rating ?? null,
+            rating_count: place.userRatingCount ?? null,
         }, 'places'),
         images: [],
         source_payload: place,
@@ -460,6 +465,38 @@ function addressOf(v) {
     return null;
 }
 
+// containsPlace.bed en el estándar puede venir como número suelto, como
+// QuantitativeValue ({value: N}), o como un array de BedDetails
+// ({typeOfBed, numberOfBeds} por cada tipo de cama) — se suman todos. No hay
+// un caso real capturado con este campo poblado; se implementa igual porque
+// es del vocabulario documentado, no una suposición.
+function bedsOf(v) {
+    if (v == null) return null;
+    if (Array.isArray(v)) {
+        const sum = v.reduce((acc, b) => acc + (numberOf(b?.numberOfBeds) ?? numberOf(b) ?? 0), 0);
+        return sum > 0 ? sum : null;
+    }
+    return numberOf(v?.numberOfBeds ?? v?.value ?? v);
+}
+
+// `identifier` suele ser un string/numero plano (797holidayrentals: "402809")
+// o un PropertyValue ({value: "..."}) — a diferencia de textOf, no cae a
+// .name/.text porque un PropertyValue.name sería la ETIQUETA del campo
+// ("SKU"), no el identificador en sí.
+function identifierOf(v) {
+    if (v == null) return null;
+    if (typeof v === 'string' || typeof v === 'number') return String(v);
+    if (typeof v === 'object' && v.value != null) return String(v.value);
+    return null;
+}
+
+// ratingCount suele venir como string en JSON-LD real (comprobado: Airbnb
+// pone "68", no 68) — numberOf ya lo coacciona.
+function ratingOf(aggregateRating) {
+    if (!aggregateRating || typeof aggregateRating !== 'object') return { value: null, count: null };
+    return { value: numberOf(aggregateRating.ratingValue), count: numberOf(aggregateRating.ratingCount) };
+}
+
 function amenitiesOf(...sources) {
     const all = [];
     for (const s of sources) {
@@ -482,12 +519,18 @@ function amenitiesOf(...sources) {
 function extractListingNode(node) {
     const place = firstOf(node.containsPlace) || {};
     const geo = node.geo || place.geo || {};
+    const rating = ratingOf(node.aggregateRating);
 
     return {
         name: textOf(node.name),
         description: textOf(node.description),
         property_type: textOf(node.additionalType) || textOf(place.additionalType),
-        address: addressOf(node.address),
+        // Sitios que marcan con schema.org/Product (no VacationRental) no
+        // siempre traen `address` — a veces solo ponen la ciudad como
+        // containsPlace: {"@type":"Place","name":"..."} (comprobado con un
+        // motor de reservas real, 797holidayrentals.com). Es peor que una
+        // dirección completa, pero mejor que dejarlo vacío.
+        address: addressOf(node.address) || textOf(place.name),
         latitude: numberOf(node.latitude ?? geo.latitude),
         longitude: numberOf(node.longitude ?? geo.longitude),
         checkin_time: textOf(node.checkinTime),
@@ -496,6 +539,10 @@ function extractListingNode(node) {
         bedrooms: numberOf(node.numberOfBedrooms ?? place.numberOfBedrooms),
         bathrooms: numberOf(node.numberOfBathroomsTotal ?? place.numberOfBathroomsTotal),
         size_m2: numberOf(node.floorSize?.value ?? place.floorSize?.value),
+        beds: bedsOf(node.bed ?? place.bed),
+        identifier: identifierOf(node.identifier),
+        rating_value: rating.value,
+        rating_count: rating.count,
         amenities: amenitiesOf(node.amenityFeature, place.amenityFeature),
         images: imagesOf(node.image),
     };
@@ -523,6 +570,12 @@ function parseOpenGraphTitleHints(ogTitle) {
     if (bathroomsPart) {
         const n = parseFloat(bathroomsPart.replace(',', '.'));
         if (Number.isFinite(n)) hints.bathrooms = n;
+    }
+    // /bed(?!room)/ para no confundir "beds" con "bedroom" en inglés.
+    const bedsPart = parts.find(p => /cama|bed(?!room)/i.test(p));
+    if (bedsPart) {
+        const n = parseInt(bedsPart, 10);
+        if (Number.isFinite(n)) hints.beds = n;
     }
     // El primer segmento suele ser el tipo de alojamiento ("Apartamento",
     // "Casa", "Habitación privada"...) — se descarta si tiene dígitos (sería
@@ -577,6 +630,10 @@ function extractFromHtml(html, finalUrl) {
     setField('bedrooms', listing?.bedrooms, null);
     setField('bathrooms', listing?.bathrooms, null);
     setField('size_m2', listing?.size_m2, null);
+    setField('beds', listing?.beds, null);
+    setField('identifier', listing?.identifier, null);
+    setField('rating_value', listing?.rating_value, null);
+    setField('rating_count', listing?.rating_count, null);
     setField('amenities', listing?.amenities, null);
 
     // Relleno de huecos con las pistas del og:title (ver
@@ -588,6 +645,9 @@ function extractFromHtml(html, finalUrl) {
     }
     if (fields.bathrooms.value == null && ogHints.bathrooms != null) {
         fields.bathrooms = { value: ogHints.bathrooms, source: 'opengraph' };
+    }
+    if (fields.beds.value == null && ogHints.beds != null) {
+        fields.beds = { value: ogHints.beds, source: 'opengraph' };
     }
     if (fields.property_type.value == null && ogHints.property_type) {
         fields.property_type = { value: ogHints.property_type, source: 'opengraph' };
