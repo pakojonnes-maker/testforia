@@ -42,6 +42,7 @@ import {
   Storefront as StoreIcon,
   ShoppingBag as OrdersIcon,
   Search as SearchIcon,
+  DeleteForever as DeleteForeverIcon,
 } from '@mui/icons-material';
 import QRCodeGenerator, { QRCodeHandle } from '../../components/QRCodeGenerator';
 
@@ -167,6 +168,7 @@ const LANGUAGES = [
 export default function GuideApartmentDetail() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
+  const { user } = useAuth();
 
   // State
   const [apartment, setApartment] = useState<any>(null);
@@ -203,6 +205,14 @@ export default function GuideApartmentDetail() {
   const [uploadingMedia, setUploadingMedia] = useState(false);
   const [deletingInfo, setDeletingInfo] = useState(false);
   const [reorderingInfo, setReorderingInfo] = useState(false);
+
+  // Eliminar apartamento (solo superadmin). Confirmación por frase escrita:
+  // un botón + "¿Seguro?" es demasiado fácil de pulsar por inercia para una
+  // acción que borra la guía entera y su analítica sin vuelta atrás.
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [deleteConfirmText, setDeleteConfirmText] = useState('');
+  const [deletingApartment, setDeletingApartment] = useState(false);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
 
   // Category picker (inside the create/edit dialog)
   const [categoryPickerOpen, setCategoryPickerOpen] = useState(false);
@@ -792,6 +802,25 @@ export default function GuideApartmentDetail() {
     }
   };
 
+  const DELETE_CONFIRMATION = 'borrar apartamento';
+
+  const handleDeleteApartment = async () => {
+    if (!id) return;
+    setDeletingApartment(true);
+    setDeleteError(null);
+    try {
+      // El worker vuelve a validar la frase: este check solo evita el viaje.
+      await apiClient.request(`/guide/admin/apartments/${id}`, {
+        method: 'DELETE',
+        body: JSON.stringify({ confirm: deleteConfirmText }),
+      });
+      navigate('/guide/apartments');
+    } catch (err: any) {
+      setDeleteError(err.message || 'Error al eliminar el apartamento');
+      setDeletingApartment(false);
+    }
+  };
+
   // ---------- Bienvenida (welcome modal) tab ----------
   const handleWelcomeImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     if (!e.target.files || e.target.files.length === 0) return;
@@ -1165,6 +1194,84 @@ export default function GuideApartmentDetail() {
           </Button>
         </Box>
       </Paper>
+
+      {/* Zona de peligro — solo superadmin. El staff de la agencia puede editarlo
+          todo menos esto, así que ni siquiera ve la sección. */}
+      {user?.is_superadmin && (
+        <Paper
+          elevation={0}
+          sx={{ p: 3, mt: 3, borderRadius: 3, border: '1px solid', borderColor: 'error.light', bgcolor: 'rgba(211, 47, 47, 0.04)' }}
+        >
+          <Typography variant="h6" fontWeight={600} color="error.main" gutterBottom sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+            <DeleteForeverIcon /> Zona de peligro
+          </Typography>
+          <Typography variant="body2" color="text.secondary" sx={{ mb: 2, maxWidth: 640 }}>
+            Eliminar el apartamento borra <strong>para siempre</strong> su guía y normas, teléfonos,
+            modal de bienvenida, tienda y pedidos, pantallas TV emparejadas, fotos subidas y toda su
+            analítica. Los <strong>POIs y restaurantes</strong> asociados <strong>no se borran</strong>:
+            son de la zona y los comparten los demás apartamentos, así que solo se desasignan de este.
+          </Typography>
+          <Button
+            variant="outlined"
+            color="error"
+            startIcon={<DeleteForeverIcon />}
+            onClick={() => {
+              setDeleteConfirmText('');
+              setDeleteError(null);
+              setDeleteDialogOpen(true);
+            }}
+          >
+            Eliminar apartamento
+          </Button>
+        </Paper>
+      )}
+
+      <Dialog
+        open={deleteDialogOpen}
+        onClose={() => !deletingApartment && setDeleteDialogOpen(false)}
+        maxWidth="sm"
+        fullWidth
+      >
+        <DialogTitle sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+          <DeleteForeverIcon color="error" /> Eliminar {apartment?.name}
+        </DialogTitle>
+        <DialogContent>
+          <Alert severity="error" sx={{ mb: 2 }}>
+            Esta acción no se puede deshacer. La guía pública dejará de funcionar y el QR impreso
+            del apartamento quedará muerto.
+          </Alert>
+          <Typography variant="body2" sx={{ mb: 2 }}>
+            Escribe <strong>{DELETE_CONFIRMATION}</strong> para confirmar.
+          </Typography>
+          <TextField
+            autoFocus
+            fullWidth
+            size="small"
+            value={deleteConfirmText}
+            onChange={(e) => setDeleteConfirmText(e.target.value)}
+            placeholder={DELETE_CONFIRMATION}
+            disabled={deletingApartment}
+          />
+          {deleteError && <Alert severity="error" sx={{ mt: 2 }}>{deleteError}</Alert>}
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setDeleteDialogOpen(false)} disabled={deletingApartment}>
+            Cancelar
+          </Button>
+          <Button
+            variant="contained"
+            color="error"
+            onClick={handleDeleteApartment}
+            disabled={
+              deletingApartment ||
+              deleteConfirmText.trim().toLowerCase() !== DELETE_CONFIRMATION
+            }
+            startIcon={deletingApartment ? <CircularProgress size={18} color="inherit" /> : <DeleteForeverIcon />}
+          >
+            {deletingApartment ? 'Eliminando...' : 'Eliminar definitivamente'}
+          </Button>
+        </DialogActions>
+      </Dialog>
     </Box>
   );
 

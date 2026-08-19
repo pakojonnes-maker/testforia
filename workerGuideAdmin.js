@@ -11,6 +11,7 @@
 //   GET    /guide/admin/apartments?agency_id=X      — List apartments
 //   POST   /guide/admin/apartments                  — Create apartment
 //   PUT    /guide/admin/apartments/:id              — Update apartment
+//   DELETE /guide/admin/apartments/:id              — Delete apartment + owned data (superadmin only, body {confirm})
 //   GET    /guide/admin/apartments/:id/info         — Get apartment info items
 //   POST   /guide/admin/apartments/:id/info         — Upsert apartment info
 //   GET    /guide/admin/apartments/:id/info/coverage — Per-language translation coverage
@@ -48,6 +49,7 @@
 import { verifyJWT } from './workerAuthentication.js';
 import { touchGuideVersion, touchZoneGuideVersions, touchAllGuideVersions, touchZoneCatalogVersion } from './workerGuideCache.js';
 import { isSafeExternalUrl } from './workerGuideApartmentLink.js';
+import { logSecurityEvent } from './workerAudit.js';
 
 function jsonResponse(data, status = 200) {
     return new Response(JSON.stringify(data), {
@@ -151,6 +153,13 @@ export async function handleGuideAdminRequests(request, env) {
         if (path.match(/^apartments\/[^/]+$/) && method === 'PUT') {
             const id = path.split('/')[1];
             return await updateApartment(env, id, await request.json(), isSuperAdmin, userAgencyIds);
+        }
+        // Borrado duro: superadmin y sólo superadmin. Un staff de la agencia
+        // dueña puede editarlo todo, pero NO puede hacer desaparecer la propiedad.
+        if (path.match(/^apartments\/[^/]+$/) && method === 'DELETE') {
+            if (!isSuperAdmin) return errorResponse('Solo un superadmin puede eliminar un apartamento', 403);
+            const id = path.split('/')[1];
+            return await deleteApartment(env, request, id, userData);
         }
         if (path.match(/^apartments\/[^/]+\/info\/coverage$/) && method === 'GET') {
             const aptId = path.split('/')[1];
@@ -669,6 +678,213 @@ async function updateApartment(env, id, data, isSuperAdmin, userAgencyIds) {
     if (slug) await touchGuideVersion(env, slug);
     
     return jsonResponse({ success: true });
+}
+
+// ============================================
+// APARTMENT DELETION (superadmin only)
+// ============================================
+// Borrado DURO de un apartamento. Es destructivo e irreversible, así que va
+// detrás de dos puertas: superadmin (no basta con ser staff de la agencia
+// dueña) y una frase de confirmación exacta en el body.
+//
+// La regla que gobierna QUÉ se borra: se va todo lo que sólo existe por este
+// apartamento; NO se toca nada compartido con otros apartamentos, la zona o la
+// plataforma. En concreto:
+//
+//   SE BORRA
+//     guide_apartment_info + guide_apartment_media + guide_info_steps
+//       (+ guide_info_step_media) ... las guías/normas del piso y sus fotos
+//     translations de esos bloques ('apartment_info') y pasos ('guide_step')
+//     guide_apartment_phones ......... el checklist de teléfonos del piso
+//     guide_welcome_modals + sus translations ('welcome_modal')
+//     guide_store_items del piso (owner_type='host') + translations ('store_item')
+//     guide_store_orders + guide_store_order_items ... pedidos de ESTE piso
+//     guide_tv_devices + guide_tv_events ............. pantallas emparejadas
+//     guide_sessions / guide_section_views / guide_affiliate_intents .. analítica
+//     guide_apartment_pois ........... SÓLO la fila de enlace piso<->POI
+//     R2: todo lo que cuelga de guide/apartments/{id}/ (prefijo exclusivo)
+//     KV: se bumpea ver:apt:{slug} para que la guía pública deje de servir caché
+//
+//   NO SE TOCA (compartido — borrarlo rompería otros apartamentos)
+//     guide_pois y guide_poi_media ... el POI vive en la ZONA y lo comparten
+//       todos los pisos de esa zona. Sólo se desasigna (guide_apartment_pois).
+//     restaurants / guide_zone_restaurants ... idéntico razonamiento.
+//     guide_zones, guide_agencies, guide_agency_staff, users
+//     guide_info_categories / guide_phone_categories ... catálogos globales
+//     guide_store_items con owner_type='platform' (llevan apartment_id NULL)
+//     translations de 'poi' / 'zone' / 'restaurant' / 'info_category' /
+//       'phone_category' ... todas de entidades compartidas
+//     guide_commission_ledger ... son comisiones ya devengadas de la AGENCIA
+//       (dinero). Se conservan; sólo se desengancha intent_id (que sí se borra)
+//       para no dejar una FK colgando.
+//     sessions.referral_apartment_id ... vive en la analítica del RESTAURANTE.
+//       Se deja como estaba: es su historial de atribución, no del piso.
+const DELETE_APARTMENT_CONFIRMATION = 'borrar apartamento';
+
+// Tolerante con mayúsculas, acentos y espacios de más; estricto con las palabras.
+function normalizeConfirmation(value) {
+    return String(value ?? '')
+        .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+        .toLowerCase().trim().replace(/\s+/g, ' ');
+}
+
+async function deleteApartment(env, request, id, userData) {
+    const apt = await env.DB.prepare(
+        'SELECT id, slug, name, agency_id FROM guide_apartments WHERE id = ?'
+    ).bind(id).first();
+    if (!apt) return errorResponse('Apartment not found', 404);
+
+    let body = {};
+    try { body = await request.json(); } catch { /* body vacío -> falla la confirmación */ }
+    if (normalizeConfirmation(body?.confirm) !== DELETE_APARTMENT_CONFIRMATION) {
+        return errorResponse(`Confirmación incorrecta: escribe "${DELETE_APARTMENT_CONFIRMATION}"`, 400);
+    }
+
+    // Conteo previo para poder decir en la respuesta QUÉ se ha llevado por
+    // delante. Subconsultas escalares en un solo SELECT: SQLite en D1 revienta
+    // con UNION ALL de 8+ términos (ver CLAUDE.md §3).
+    const counts = await env.DB.prepare(`
+        SELECT
+            (SELECT COUNT(*) FROM guide_apartment_info    WHERE apartment_id = ?1) AS info_blocks,
+            (SELECT COUNT(*) FROM guide_apartment_phones  WHERE apartment_id = ?1) AS phones,
+            (SELECT COUNT(*) FROM guide_apartment_pois    WHERE apartment_id = ?1) AS poi_links,
+            (SELECT COUNT(*) FROM guide_store_items       WHERE apartment_id = ?1) AS store_items,
+            (SELECT COUNT(*) FROM guide_store_orders      WHERE apartment_id = ?1) AS store_orders,
+            (SELECT COUNT(*) FROM guide_tv_devices        WHERE apartment_id = ?1) AS tv_devices,
+            (SELECT COUNT(*) FROM guide_sessions          WHERE apartment_id = ?1) AS sessions
+    `).bind(id).first();
+
+    // r2_key de las fotos/vídeos que tienen fila en BD. Todas cuelgan de
+    // guide/apartments/{id}/, igual que las portadas que sube
+    // uploadApartmentMedia, así que el barrido por prefijo de más abajo ya las
+    // cubre; se listan igual por si alguna fila antigua tuviera otra ruta.
+    const mediaRows = await env.DB.prepare(`
+        SELECT m.r2_key FROM guide_apartment_media m
+        JOIN guide_apartment_info i ON m.apartment_info_id = i.id
+        WHERE i.apartment_id = ?1
+        UNION
+        SELECT sm.r2_key FROM guide_info_step_media sm
+        JOIN guide_info_steps s ON sm.step_id = s.id
+        JOIN guide_apartment_info i2 ON s.apartment_info_id = i2.id
+        WHERE i2.apartment_id = ?1
+    `).bind(id).all();
+
+    // Un único batch = una transacción en D1. El orden importa: las claves
+    // ajenas se comprueban al momento, así que los hijos van antes que los
+    // padres. No se delega en ON DELETE CASCADE a propósito: así el alcance del
+    // borrado es explícito y auditable leyendo esta lista, y no depende de que
+    // el PRAGMA de foreign keys esté activo.
+    const p = (sql) => env.DB.prepare(sql).bind(id);
+    await env.DB.batch([
+        // 1. translations (tabla EAV sin FK: nadie la limpia por nosotros)
+        p(`DELETE FROM translations WHERE entity_type = 'apartment_info'
+             AND entity_id IN (SELECT id FROM guide_apartment_info WHERE apartment_id = ?1)`),
+        p(`DELETE FROM translations WHERE entity_type = 'guide_step'
+             AND entity_id IN (SELECT s.id FROM guide_info_steps s
+                               JOIN guide_apartment_info i ON s.apartment_info_id = i.id
+                               WHERE i.apartment_id = ?1)`),
+        p(`DELETE FROM translations WHERE entity_type = 'welcome_modal'
+             AND entity_id IN (SELECT id FROM guide_welcome_modals WHERE apartment_id = ?1)`),
+        p(`DELETE FROM translations WHERE entity_type = 'store_item'
+             AND entity_id IN (SELECT id FROM guide_store_items WHERE apartment_id = ?1)`),
+
+        // 2. contenido de la guía (bloques -> pasos -> media)
+        p(`DELETE FROM guide_info_step_media
+             WHERE step_id IN (SELECT s.id FROM guide_info_steps s
+                               JOIN guide_apartment_info i ON s.apartment_info_id = i.id
+                               WHERE i.apartment_id = ?1)`),
+        p(`DELETE FROM guide_info_steps
+             WHERE apartment_info_id IN (SELECT id FROM guide_apartment_info WHERE apartment_id = ?1)`),
+        p(`DELETE FROM guide_apartment_media
+             WHERE apartment_info_id IN (SELECT id FROM guide_apartment_info WHERE apartment_id = ?1)`),
+        p(`DELETE FROM guide_apartment_info WHERE apartment_id = ?1`),
+
+        // 3. resto de contenido propio del piso
+        p(`DELETE FROM guide_apartment_phones WHERE apartment_id = ?1`),
+        p(`DELETE FROM guide_welcome_modals WHERE apartment_id = ?1`),
+        // Sólo el enlace: el POI, que es de la zona y lo comparten los demás
+        // apartamentos, se queda intacto.
+        p(`DELETE FROM guide_apartment_pois WHERE apartment_id = ?1`),
+
+        // 4. tienda del host (los del catálogo platform llevan apartment_id NULL)
+        p(`DELETE FROM guide_store_order_items
+             WHERE order_id IN (SELECT id FROM guide_store_orders WHERE apartment_id = ?1)`),
+        p(`DELETE FROM guide_store_orders WHERE apartment_id = ?1`),
+        p(`DELETE FROM guide_store_items WHERE apartment_id = ?1`),
+
+        // 5. pantallas TV emparejadas
+        p(`DELETE FROM guide_tv_events WHERE apartment_id = ?1`),
+        p(`DELETE FROM guide_tv_devices WHERE apartment_id = ?1`),
+
+        // 6. analítica. El ledger de comisiones NO se borra (es dinero de la
+        // agencia): sólo se le quita la referencia al intent que sí desaparece.
+        p(`UPDATE guide_commission_ledger SET intent_id = NULL
+             WHERE intent_id IN (SELECT id FROM guide_affiliate_intents
+                                 WHERE apartment_id = ?1
+                                    OR session_id IN (SELECT id FROM guide_sessions WHERE apartment_id = ?1))`),
+        p(`DELETE FROM guide_affiliate_intents
+             WHERE apartment_id = ?1
+                OR session_id IN (SELECT id FROM guide_sessions WHERE apartment_id = ?1)`),
+        p(`DELETE FROM guide_section_views
+             WHERE apartment_id = ?1
+                OR session_id IN (SELECT id FROM guide_sessions WHERE apartment_id = ?1)`),
+        p(`DELETE FROM guide_sessions WHERE apartment_id = ?1`),
+
+        // 7. el apartamento
+        p(`DELETE FROM guide_apartments WHERE id = ?1`),
+    ]);
+
+    // A partir de aquí la BD ya está limpia; lo que falle es best-effort y se
+    // reporta, pero no revierte el borrado (ni R2 ni KV son transaccionales).
+    let mediaDeleted = 0;
+    let mediaWarning = null;
+    if (env.R2_BUCKET) {
+        try {
+            const keys = new Set((mediaRows.results || []).map(r => r.r2_key).filter(Boolean));
+            // Prefijo exclusivo de este apartamento: portadas, galería del
+            // importador, imagen del modal de bienvenida y media de los bloques.
+            let cursor;
+            do {
+                const listed = await env.R2_BUCKET.list({ prefix: `guide/apartments/${id}/`, cursor });
+                for (const obj of listed.objects) keys.add(obj.key);
+                cursor = listed.truncated ? listed.cursor : undefined;
+            } while (cursor);
+
+            const all = [...keys];
+            for (let i = 0; i < all.length; i += 900) {   // R2 admite 1000 claves por delete()
+                await env.R2_BUCKET.delete(all.slice(i, i + 900));
+            }
+            mediaDeleted = all.length;
+        } catch (err) {
+            mediaWarning = `Ficheros en R2 no borrados: ${err.message}`;
+            console.error('[deleteApartment] R2 cleanup failed:', err.message);
+        }
+    }
+
+    // Bumpear (no borrar) la versión: si se borrase la clave, getGuideVersion
+    // volvería a '0' y una entrada vieja guide:{slug}:{lang}:v0 podría volver a
+    // servirse como HIT. Ver CLAUDE.md §3.
+    if (apt.slug) await touchGuideVersion(env, apt.slug);
+
+    await logSecurityEvent(env, {
+        type: 'guide_apartment_deleted',
+        userId: userData?.userId || null,
+        request,
+        detail: {
+            apartment_id: id,
+            slug: apt.slug,
+            name: apt.name,
+            agency_id: apt.agency_id,
+            deleted: counts,
+            media_deleted: mediaDeleted,
+        },
+    });
+
+    return jsonResponse({
+        success: true,
+        deleted: { apartment: apt.name, slug: apt.slug, ...counts, media_files: mediaDeleted },
+        ...(mediaWarning ? { warning: mediaWarning } : {}),
+    });
 }
 
 // ============================================
