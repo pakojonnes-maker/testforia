@@ -129,6 +129,32 @@ console.log('\n--- parseModelJson: respuestas reales de modelos instruct ---');
     assert('Entrada no-string → null', parseModelJson(undefined) === null);
 }
 
+console.log('\n--- translateGroup: acepta el formato chat-completions (choices[].message.content) ---');
+{
+    // Bug real en producción (2026-08-02 a 2026-08-19): gemma-4-26b-a4b-it es
+    // un modelo de razonamiento y devuelve el formato chat-completions de
+    // OpenAI, NO el {response: "texto"} clásico de Workers AI.
+    // response.response era `undefined` en TODAS las llamadas reales desde
+    // que existe este módulo — parseModelJson nunca tuvo nada que parsear, así
+    // que las 3 importaciones hechas hasta este fix guardaron 0 de 12 idiomas
+    // pese a gastar neuronas (`usage` sí vive en la raíz en ambos formatos).
+    const rows = [
+        { entity_id: 'poi_11', entity_type: 'poi', language_code: 'es', field: 'description', value: 'Hola' },
+    ];
+    const env = makeEnv(rows, () => ({
+        // Sin campo `response` — así es la respuesta real de este modelo.
+        choices: [{ message: { content: '{"en":{"description":"Hi"}}', reasoning_content: 'blah blah blah' } }],
+        usage: { prompt_tokens: 300, completion_tokens: 500 },
+    }));
+
+    const result = await translateEntity(env, 'poi_11', 'poi', {
+        fields: ['description'], targetLangs: ['en'], force: false,
+    });
+
+    assert('Se extrae el texto de choices[0].message.content', env.written.some(w => w.language_code === 'en' && w.value === 'Hi'));
+    assert('Estado "translated"', result.status === 'translated', result.status);
+}
+
 console.log('\n--- translateEntity: no pisar lo que ya existe ---');
 {
     // POI con descripción en 'es' y ya traducida a 'en' a mano.

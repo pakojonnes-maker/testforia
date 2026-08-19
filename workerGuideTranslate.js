@@ -320,7 +320,18 @@ async function translateGroup(env, sourceFields, targetLangs) {
     const neurons = neuronsForUsage(response?.usage);
     await addSpentNeurons(env, neurons);
 
-    const parsed = parseModelJson(response?.response);
+    // gemma-4-26b-a4b-it es un modelo de razonamiento: NO devuelve el
+    // {response: "texto"} clásico de Workers AI, sino el formato
+    // chat-completions de OpenAI, con el texto en choices[0].message.content
+    // (el razonamiento previo va aparte en .reasoning_content). Confirmado
+    // con logs reales de producción (2026-08-19): response.response era
+    // `undefined` en TODAS las llamadas desde que existe este módulo, así que
+    // parseModelJson nunca tuvo nada que parsear — 0 traducciones guardadas
+    // en las 3 importaciones hechas hasta este fix, pese a que las neuronas
+    // sí se gastaban (`usage` vive en la raíz en ambos formatos, por eso el
+    // contador de gasto siempre fue correcto y el bug no se notó ahí).
+    const rawText = response?.response ?? response?.choices?.[0]?.message?.content;
+    const parsed = parseModelJson(rawText);
     if (!parsed) {
         console.warn('[GuideTranslate] Respuesta no parseable del modelo');
         return { ok: false, error: 'invalid_model_output', neurons };
