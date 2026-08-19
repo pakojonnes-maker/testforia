@@ -229,7 +229,7 @@ console.log('\n--- translateEntity: un fallo del modelo no tira el resto ---');
     const rows = [
         { entity_id: 'poi_4', entity_type: 'poi', language_code: 'es', field: 'description', value: 'Hola' },
     ];
-    // 12 idiomas en grupos de 4 = 3 llamadas; la segunda devuelve basura.
+    // 12 idiomas en grupos de 2 = 6 llamadas; la segunda devuelve basura.
     const env = makeEnv(rows, (callNumber) => {
         if (callNumber === 2) return 'lo siento, no puedo ayudarte con eso';
         return JSON.stringify(Object.fromEntries(ALL_TARGETS.map(l => [l, { description: `desc-${l}` }])));
@@ -239,10 +239,34 @@ console.log('\n--- translateEntity: un fallo del modelo no tira el resto ---');
         fields: ['description'], targetLangs: ALL_TARGETS, force: false,
     });
 
-    assert('Se hacen 3 llamadas (12 idiomas en grupos de 4)', env.aiCalls.length === 3, `fueron ${env.aiCalls.length}`);
-    assert('Estado "partial" cuando falla un grupo', result.status === 'partial', result.status);
+    assert('Se hacen 6 llamadas (12 idiomas en grupos de 2)', env.aiCalls.length === 6, `fueron ${env.aiCalls.length}`);
+    assert('Estado "partial" cuando falla un grupo pero otros sí traducen', result.status === 'partial', result.status);
     assert('Los grupos que sí funcionaron se guardan', env.written.length > 0);
-    assert('Se informa de qué idiomas fallaron', (result.failed_langs || []).length === 4, JSON.stringify(result.failed_langs));
+    assert('Se informa de qué idiomas fallaron', (result.failed_langs || []).length === 2, JSON.stringify(result.failed_langs));
+}
+
+console.log('\n--- translateEntity: si fallan TODOS los grupos, es "failed" (no "partial") ---');
+{
+    // Bug real en producción (2026-08-19): con LANG_GROUP_SIZE=4 y
+    // max_tokens=1400, los 3 POIs importados hasta entonces gastaron
+    // neuronas en llamadas que devolvían 200 con el JSON cortado por el tope
+    // de tokens — 0 idiomas escritos. El estado salía "partial" porque
+    // failedLangs.length > 0 se comprobaba ANTES que doneLangs.length === 0,
+    // así que el frontend lo contaba como traducción correcta. Este test fija
+    // que un fallo total es "failed", no "partial".
+    const rows = [
+        { entity_id: 'poi_10', entity_type: 'poi', language_code: 'es', field: 'description', value: 'Hola' },
+    ];
+    const env = makeEnv(rows, () => 'lo siento, no puedo ayudarte con eso');
+
+    const result = await translateEntity(env, 'poi_10', 'poi', {
+        fields: ['description'], targetLangs: ALL_TARGETS, force: false,
+    });
+
+    assert('0 idiomas traducidos → estado "failed"', result.status === 'failed', result.status);
+    assert('Estado "failed" ≠ "partial"', result.status !== 'partial');
+    assert('No se escribe nada', env.written.length === 0);
+    assert('Pero las neuronas sí se contabilizan (se llamó al modelo)', result.neurons > 0, String(result.neurons));
 }
 
 console.log('\n--- neuronsForUsage: gasto real, no estimado ---');
@@ -278,8 +302,8 @@ console.log('\n--- Contabilidad: lo que no se traduce no se cobra ---');
     const result = await translateEntity(env, 'poi_6', 'poi', {
         fields: ['description'], targetLangs: ALL_TARGETS, force: false,
     });
-    // 3 llamadas × 16,36 ≈ 49
-    assert('Un POI completo cuesta ~49 neuronas (3 llamadas)', Math.abs(result.neurons - 49.09) < 0.5, String(result.neurons));
+    // 6 llamadas × 16,36 ≈ 98
+    assert('Un POI completo cuesta ~98 neuronas (6 llamadas)', Math.abs(result.neurons - 98.18) < 0.5, String(result.neurons));
 }
 {
     // Una respuesta ilegible consume igual: si no se contara, una racha de

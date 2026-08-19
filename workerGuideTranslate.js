@@ -42,10 +42,14 @@
 //   - Los textos de entrada se truncan (MAX_FIELD_CHARS) y max_tokens está
 //     acotado: una descripción kilométrica no puede disparar el gasto.
 //
-// Cuentas con el modelo elegido (~17 neuronas por llamada, 3 llamadas por
-// entidad): ~50 neuronas por POI → ~120 POIs/día dentro del presupuesto. La
-// respuesta del endpoint devuelve el gasto exacto en `usage`, así que ese
-// número se puede contrastar con la realidad en vez de creérselo.
+// El coste real depende de cuánto texto tenga cada campo, así que varía
+// entidad a entidad — y grupos más pequeños (LANG_GROUP_SIZE) cuestan algo
+// más EN TOTAL por entidad que grupos grandes, porque el system prompt se
+// repite en cada llamada. Es el precio de no truncar el JSON de salida (ver
+// el porqué junto a LANG_GROUP_SIZE). El presupuesto de 6.000 sigue dando
+// para decenas de POIs al día; la respuesta del endpoint devuelve el gasto
+// exacto en `usage`, así que ese número se puede contrastar con la realidad
+// en vez de creérselo.
 // =====================================================
 
 import { verifyJWT, hitRateLimit } from './workerAuthentication.js';
@@ -91,10 +95,17 @@ const MAX_ENTITIES_PER_REQUEST = 25;
 // Acota el peor caso de tokens de salida: el modelo no puede devolver más de
 // lo que se le da, y lo que se le da está capado.
 const MAX_FIELD_CHARS = 1200;
-// Los idiomas se piden en grupos: un JSON con los 12 de golpe es ~1.400 tokens
-// de salida y un fallo de formato se llevaría por delante los 12. En grupos de
-// 4, un grupo que salga mal solo pierde esos 4 y se puede reintentar aparte.
-const LANG_GROUP_SIZE = 4;
+// Los idiomas se piden en grupos: un JSON con los 12 de golpe se llevaría por
+// delante los 12 si el formato falla. Grupos de 4 tampoco bastaban de
+// verdad: en producción (2026-08-19) un POI con un solo campo pobló el tope
+// de max_tokens en las 2 llamadas de 4 idiomas que sí respondieron — el JSON
+// salía cortado a mitad, parseModelJson no podía parsearlo, y las 3
+// importaciones que se habían hecho hasta entonces se quedaron con 0 de 12
+// idiomas escritos (gastando las neuronas igual) sin que la UI lo avisara.
+// Grupos de 2 con más margen de tokens (ver max_tokens en translateGroup) es
+// lo que de verdad le cabe al modelo con los 3 campos (description/
+// short_tip/cta_label) a la vez sin arriesgarse a cortar el JSON.
+const LANG_GROUP_SIZE = 2;
 
 // Campos que se traducen por defecto. `name` se queda FUERA a propósito: los
 // nombres de POI son nombres propios ("El Pimpi", "Cueva de Nerja") y un
@@ -280,10 +291,13 @@ async function translateGroup(env, sourceFields, targetLangs) {
             TRANSLATE_MODEL,
             {
                 messages: buildPrompt(sourceFields, targetLangs),
-                // Acotado a propósito: 4 idiomas × 3 campos cortos caben de
-                // sobra, y el techo impide que una respuesta desbocada dispare
-                // el consumo de neuronas.
-                max_tokens: 1400,
+                // 1.400 no bastaba ni para 4 idiomas × 1 campo (ver el porqué
+                // junto a LANG_GROUP_SIZE): el modelo llegaba al tope y el
+                // JSON salía cortado. Con grupos de 2 este techo sigue
+                // acotando el peor caso — una respuesta desbocada no puede
+                // disparar el consumo de neuronas — pero con margen real
+                // para los 3 campos.
+                max_tokens: 3000,
                 // Traducir no es escribir: se quiere reproducibilidad, no
                 // creatividad.
                 temperature: 0.2,
@@ -446,10 +460,17 @@ export async function translateEntity(env, entityId, entityType, { fields, targe
 
     return {
         id: entityId,
+        // OJO al orden: si NADA se tradujo (doneLangs vacío) es 'failed' pase
+        // lo que pase con failedLangs. Antes el chequeo de failedLangs iba
+        // primero, así que un fallo TOTAL (todos los grupos sin traducir)
+        // también salía como 'partial' — y el frontend cuenta 'partial' como
+        // traducción correcta (GuidePoisImportDialog.tsx). Bug real en
+        // producción el 2026-08-19: los 3 POIs importados hasta entonces
+        // tenían 0 de 12 idiomas escritos y los 3 se reportaron como éxito.
         status: budgetHit ? 'budget_exhausted'
+            : doneLangs.length === 0 ? 'failed'
             : failedLangs.length > 0 ? 'partial'
-            : doneLangs.length > 0 ? 'translated'
-            : 'failed',
+            : 'translated',
         written,
         neurons,
         langs: doneLangs,
