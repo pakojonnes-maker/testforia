@@ -25,7 +25,8 @@
     "test:apartment-link": "node tests/apartment-link.test.mjs",
     "test:translate": "node tests/translate.test.mjs",
     "test:apartment-delete": "node tests/apartment-delete.test.mjs",
-    "test": "npm run test:authz && npm run test:auth && npm run test:security && npm run test:import && npm run test:apartment-link && npm run test:translate && npm run test:apartment-delete"
+    "test:poi-delete": "node tests/poi-delete.test.mjs",
+    "test": "npm run test:authz && npm run test:auth && npm run test:security && npm run test:import && npm run test:apartment-link && npm run test:translate && npm run test:apartment-delete && npm run test:poi-delete"
   },
   "dependencies": {
     "framer-motion": "^12.23.9",

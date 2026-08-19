@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useAuth } from '../../contexts/AuthContext';
 import { apiClient } from '../../lib/apiClient';
 import GuidePoisImportDialog from './GuidePoisImportDialog';
+import GuidePoiDeleteDialog from '../../components/guide/GuidePoiDeleteDialog';
 import {
   Box, Typography, Paper, Alert, Button, CircularProgress,
   Dialog, DialogTitle, DialogContent, DialogActions,
@@ -83,6 +84,9 @@ export default function GuidePoisPage() {
   const [saving, setSaving] = useState(false);
   const [translating, setTranslating] = useState(false);
   const [translateInfo, setTranslateInfo] = useState<string | null>(null);
+  // Borrado real (antes esto era un window.confirm que acababa desactivando
+  // el POI en vez de borrarlo — ver GuidePoiDeleteDialog).
+  const [deletingPoi, setDeletingPoi] = useState<POI | null>(null);
 
   useEffect(() => {
     if (!user?.is_superadmin) return;
@@ -258,17 +262,14 @@ export default function GuidePoisPage() {
     }
   };
 
-  const handleDelete = async (poiId: string) => {
-    if (!window.confirm('¿Seguro que deseas eliminar este POI?')) return;
-    try {
-      // Trying DELETE, if it fails fallback to PUT is_active=false depending on API
-      await apiClient.request(`/guide/admin/pois/${poiId}`, { method: 'DELETE' }).catch(() => 
-        apiClient.request(`/guide/admin/pois/${poiId}`, { method: 'PUT', body: JSON.stringify({ is_active: false }) })
-      );
-      setPois(pois.filter(p => p.id !== poiId));
-    } catch (err: any) {
-      setError(err.message || 'Error al eliminar POI');
-    }
+  // El borrado de verdad vive en GuidePoiDeleteDialog: necesita enseñar a qué
+  // apartamentos afecta antes de dejar confirmar, así que no cabe en un confirm().
+  const handleDeleted = (poiId: string) => {
+    setPois(prev => prev.filter(p => p.id !== poiId));
+  };
+
+  const handleArchived = (poiId: string) => {
+    setPois(prev => prev.map(p => (p.id === poiId ? { ...p, is_active: false } : p)));
   };
 
   const handleImageUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -370,7 +371,7 @@ export default function GuidePoisPage() {
                   <IconButton size="small" sx={{ bgcolor: 'rgba(255,255,255,0.9)', '&:hover': { bgcolor: 'white' } }} onClick={() => handleOpenDialog(poi)}>
                     <EditIcon fontSize="small" />
                   </IconButton>
-                  <IconButton size="small" sx={{ bgcolor: 'rgba(255,255,255,0.9)', '&:hover': { bgcolor: 'white' } }} color="error" onClick={() => handleDelete(poi.id)}>
+                  <IconButton size="small" sx={{ bgcolor: 'rgba(255,255,255,0.9)', '&:hover': { bgcolor: 'white' } }} color="error" onClick={() => setDeletingPoi(poi)}>
                     <DeleteIcon fontSize="small" />
                   </IconButton>
                 </Box>
@@ -594,6 +595,16 @@ export default function GuidePoisPage() {
         zones={zones}
         defaultZoneId={selectedZone}
         onImported={() => reloadPois(selectedZone)}
+      />
+
+      <GuidePoiDeleteDialog
+        open={deletingPoi !== null}
+        poiId={deletingPoi?.id ?? null}
+        poiName={deletingPoi?.name_es || 'este POI'}
+        kind="poi"
+        onClose={() => setDeletingPoi(null)}
+        onDeleted={handleDeleted}
+        onArchived={handleArchived}
       />
     </Box>
   );

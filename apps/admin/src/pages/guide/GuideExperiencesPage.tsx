@@ -14,7 +14,9 @@ import {
   Upload as UploadIcon,
   LocalActivity as LocalActivityIcon,
   Star as StarIcon,
+  DeleteForever as DeleteForeverIcon,
 } from '@mui/icons-material';
+import GuidePoiDeleteDialog from '../../components/guide/GuidePoiDeleteDialog';
 
 interface Zone {
   id: string;
@@ -76,6 +78,9 @@ export default function GuideExperiencesPage() {
   const [zones, setZones] = useState<Zone[]>([]);
   const [selectedZone, setSelectedZone] = useState<string>('');
   const [experiences, setExperiences] = useState<Experience[]>([]);
+  // Hasta ahora una experiencia sólo se podía desactivar, nunca borrar: sus
+  // fotos, traducciones y enlaces a apartamentos se quedaban para siempre.
+  const [deletingExp, setDeletingExp] = useState<Experience | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   const [openDialog, setOpenDialog] = useState(false);
@@ -397,6 +402,9 @@ export default function GuideExperiencesPage() {
                     <IconButton size="small" onClick={() => handleOpenDialog(exp)}>
                       <EditIcon fontSize="small" />
                     </IconButton>
+                    <IconButton size="small" color="error" onClick={() => setDeletingExp(exp)}>
+                      <DeleteForeverIcon fontSize="small" />
+                    </IconButton>
                   </TableCell>
                 </TableRow>
               ))}
@@ -563,6 +571,15 @@ export default function GuideExperiencesPage() {
           </Button>
         </DialogActions>
       </Dialog>
+      <GuidePoiDeleteDialog
+        open={deletingExp !== null}
+        poiId={deletingExp?.id ?? null}
+        poiName={deletingExp?.name_es || 'esta experiencia'}
+        kind="experiencia"
+        onClose={() => setDeletingExp(null)}
+        onDeleted={(id) => setExperiences(prev => prev.filter(e => e.id !== id))}
+        onArchived={(id) => setExperiences(prev => prev.map(e => (e.id === id ? { ...e, is_active: false } : e)))}
+      />
     </Box>
   );
 }

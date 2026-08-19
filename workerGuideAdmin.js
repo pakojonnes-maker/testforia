@@ -37,6 +37,8 @@
 //   GET    /guide/admin/pois?zone_id=X              — List POIs
 //   POST   /guide/admin/pois                        — Create POI (superadmin)
 //   PUT    /guide/admin/pois/:id                    — Update POI (superadmin)
+//   GET    /guide/admin/pois/:id/usage             — What a POI drags along (apartments using it, media, clicks)
+//   DELETE /guide/admin/pois/:id                   — Delete POI + owned data (superadmin only, body {confirm})
 //   GET    /guide/admin/experiences?zone_id=X       — List experiences
 //   POST   /guide/admin/experiences                 — Create experience (superadmin)
 //   PUT    /guide/admin/experiences/:id             — Update experience (superadmin)
@@ -390,6 +392,20 @@ export async function handleGuideAdminRequests(request, env) {
             const parts = path.split('/');
             return await deletePoiMedia(env, parts[1], parts[3]);
         }
+        // Qué arrastra este POI (apartamentos que lo usan, fotos, clics...).
+        // El admin lo pinta en el diálogo antes de dejar confirmar.
+        if (path.match(/^pois\/[^/]+\/usage$/) && method === 'GET') {
+            if (!isSuperAdmin) return errorResponse('Only superadmin can manage POIs', 403);
+            const id = path.split('/')[1];
+            return await getPoiUsage(env, id);
+        }
+        // Borrado duro. Un POI es de la ZONA: desaparece del mapa de todos los
+        // apartamentos que lo tuvieran asignado, de ahí el /usage de arriba.
+        if (path.match(/^pois\/[^/]+$/) && method === 'DELETE') {
+            if (!isSuperAdmin) return errorResponse('Only superadmin can manage POIs', 403);
+            const id = path.split('/')[1];
+            return await deletePoi(env, request, id, userData);
+        }
 
         // ============ EXPERIENCES ============
         if (path === 'experiences' && method === 'GET') {
@@ -405,10 +421,19 @@ export async function handleGuideAdminRequests(request, env) {
             const id = path.split('/')[1];
             return await updateExperience(env, id, await request.json());
         }
+        // Misma tabla que los POIs desde que se unificaron, así que mismo
+        // borrado y misma confirmación. Antes esto sólo ponía is_active=FALSE y
+        // dejaba atrás fotos, traducciones y enlaces; un cliente antiguo que
+        // llame sin `confirm` ahora recibe un 400, no un borrado por sorpresa.
+        if (path.match(/^experiences\/[^/]+\/usage$/) && method === 'GET') {
+            if (!isSuperAdmin) return errorResponse('Only superadmin can manage experiences', 403);
+            const id = path.split('/')[1];
+            return await getPoiUsage(env, id);
+        }
         if (path.match(/^experiences\/[^/]+$/) && method === 'DELETE') {
             if (!isSuperAdmin) return errorResponse('Only superadmin can manage experiences', 403);
             const id = path.split('/')[1];
-            return await deleteExperience(env, id);
+            return await deletePoi(env, request, id, userData);
         }
 
         // ============ ZONE-RESTAURANTS (superadmin only) ============
@@ -2007,6 +2032,204 @@ async function updatePOI(env, id, data) {
 }
 
 // ============================================
+// POI / EXPERIENCE DELETION (superadmin only)
+// ============================================
+// Un POI no es propiedad de nadie: vive en la ZONA y lo comparten todos los
+// apartamentos de esa zona. Borrarlo lo quita del mapa de todos a la vez, así
+// que antes de confirmar hay que poder VER a cuántos afecta — de ahí el
+// endpoint /usage de aquí abajo.
+//
+// Hasta ahora "eliminar POI" en el admin no borraba nada: el DELETE no existía,
+// el front caía al fallback PUT { is_active: false } y el POI se quedaba
+// inactivo con sus fotos en R2, sus 20 traducciones y sus filas de enlace
+// intactas. Esto lo borra de verdad, y sólo lo suyo:
+//
+//   SE BORRA
+//     guide_poi_media + los objetos R2 bajo guide/pois/{id}/ (prefijo exclusivo)
+//     translations con entity_type = 'poi' (13 idiomas x 4 campos)
+//     guide_coupons de esa experiencia (por poi_id y por el experience_id
+//       heredado de cuando guide_experiences era una tabla aparte)
+//     guide_apartment_pois ... las asignaciones a apartamentos. No es daño
+//       colateral: el POI deja de existir, no puede seguir en el mapa de nadie.
+//     guide_affiliate_intents con target_type='experience' y guide_tv_events de
+//       tipo 'poi_select' que apuntan a él. No tienen FK: si se dejan, quedan
+//       apuntando a un id inexistente y la analítica los pinta como un id crudo.
+//     guide_pois
+//
+//   NO SE TOCA
+//     guide_zones / guide_apartments / restaurants / guide_zone_restaurants
+//     los demás POIs y sus guide_apartment_pois
+//     guide_affiliate_intents con target_type 'restaurant' o 'product' — son
+//       clics a un restaurante o a un ítem de tienda, no a este POI
+//     translations de cualquier otro entity_type
+//     R2 fuera de guide/pois/{id}/
+//
+//   BLOQUEA EN VEZ DE BORRAR
+//     Si hay comisiones en guide_commission_ledger ligadas a este POI, el
+//     borrado se rechaza con 409. Son dinero devengado de una agencia y
+//     borrarlas (o dejarlas apuntando al vacío) sería reescribir su
+//     contabilidad sin avisar. Para esos casos está archivar el POI:
+//     PUT /guide/admin/pois/:id { is_active: false }, que ya existe.
+
+// Se acepta cualquiera de las dos porque el mismo endpoint sirve a la pantalla
+// de POIs y a la de Experiencias (una sola tabla, guide_pois, desde que se
+// unificaron).
+const DELETE_POI_CONFIRMATIONS = ['borrar poi', 'borrar experiencia'];
+
+// Qué arrastra este POI. Alimenta el diálogo de confirmación del admin: sin
+// esto, borrar un POI asignado a 30 apartamentos se hace a ciegas.
+async function getPoiUsage(env, id) {
+    const poi = await env.DB.prepare(
+        'SELECT id, zone_id, category, poi_type FROM guide_pois WHERE id = ?'
+    ).bind(id).first();
+    if (!poi) return errorResponse('POI not found', 404);
+
+    const usage = await env.DB.prepare(`
+        SELECT
+            (SELECT COUNT(*) FROM guide_apartment_pois WHERE poi_id = ?1) AS apartments,
+            (SELECT COUNT(*) FROM guide_poi_media      WHERE poi_id = ?1) AS media,
+            (SELECT COUNT(*) FROM translations WHERE entity_type = 'poi' AND entity_id = ?1) AS translations,
+            (SELECT COUNT(*) FROM guide_coupons WHERE poi_id = ?1 OR experience_id = ?1) AS coupons,
+            (SELECT COUNT(*) FROM guide_affiliate_intents
+                WHERE target_type = 'experience' AND target_id = ?1) AS clicks,
+            (SELECT COUNT(*) FROM guide_tv_events
+                WHERE event_type = 'poi_select' AND target_id = ?1) AS tv_events,
+            (SELECT COUNT(*) FROM guide_commission_ledger
+                WHERE source_id = ?1
+                   OR intent_id IN (SELECT id FROM guide_affiliate_intents
+                                    WHERE target_type = 'experience' AND target_id = ?1)) AS commissions
+    `).bind(id).first();
+
+    // Los nombres de los apartamentos afectados: un número no dice nada, saber
+    // que es "Piso Carabeo" y "Ático Burriana" sí.
+    const apartments = await env.DB.prepare(`
+        SELECT a.id, a.name FROM guide_apartment_pois gap
+        JOIN guide_apartments a ON gap.apartment_id = a.id
+        WHERE gap.poi_id = ?
+        ORDER BY a.name ASC LIMIT 50
+    `).bind(id).all();
+
+    return jsonResponse({
+        success: true,
+        usage: {
+            ...usage,
+            apartment_names: (apartments.results || []).map(a => a.name),
+            // El front usa esto para ofrecer archivar en vez de borrar.
+            deletable: usage.commissions === 0,
+        },
+    });
+}
+
+async function deletePoi(env, request, id, userData) {
+    const poi = await env.DB.prepare(
+        'SELECT id, zone_id, category, poi_type FROM guide_pois WHERE id = ?'
+    ).bind(id).first();
+    if (!poi) return errorResponse('POI not found', 404);
+
+    let body = {};
+    try { body = await request.json(); } catch { /* body vacío -> falla la confirmación */ }
+    if (!DELETE_POI_CONFIRMATIONS.includes(normalizeConfirmation(body?.confirm))) {
+        return errorResponse(`Confirmación incorrecta: escribe "${DELETE_POI_CONFIRMATIONS[0]}"`, 400);
+    }
+
+    const counts = await env.DB.prepare(`
+        SELECT
+            (SELECT COUNT(*) FROM guide_apartment_pois WHERE poi_id = ?1) AS apartments,
+            (SELECT COUNT(*) FROM guide_poi_media      WHERE poi_id = ?1) AS media,
+            (SELECT COUNT(*) FROM translations WHERE entity_type = 'poi' AND entity_id = ?1) AS translations,
+            (SELECT COUNT(*) FROM guide_coupons WHERE poi_id = ?1 OR experience_id = ?1) AS coupons,
+            (SELECT COUNT(*) FROM guide_affiliate_intents
+                WHERE target_type = 'experience' AND target_id = ?1) AS clicks,
+            (SELECT COUNT(*) FROM guide_tv_events
+                WHERE event_type = 'poi_select' AND target_id = ?1) AS tv_events,
+            (SELECT COUNT(*) FROM guide_commission_ledger
+                WHERE source_id = ?1
+                   OR intent_id IN (SELECT id FROM guide_affiliate_intents
+                                    WHERE target_type = 'experience' AND target_id = ?1)) AS commissions
+    `).bind(id).first();
+
+    // Dinero de por medio: no se borra ni se deja apuntando al vacío. Se archiva.
+    if (counts.commissions > 0) {
+        return jsonResponse({
+            success: false,
+            error: `Este POI tiene ${counts.commissions} comisión(es) registradas. ` +
+                   `Archívalo (desactivar) en vez de borrarlo para no alterar la contabilidad de la agencia.`,
+            commissions: counts.commissions,
+        }, 409);
+    }
+
+    const mediaRows = await env.DB.prepare(
+        'SELECT r2_key FROM guide_poi_media WHERE poi_id = ?'
+    ).bind(id).all();
+
+    // Un único batch = una transacción. Hijos antes que padres, igual que en
+    // deleteApartment: las FK de D1 se comprueban al momento.
+    const p = (sql) => env.DB.prepare(sql).bind(id);
+    await env.DB.batch([
+        // Sin FK: si no se limpian a mano, quedan apuntando a un id que ya no existe.
+        p(`DELETE FROM translations WHERE entity_type = 'poi' AND entity_id = ?1`),
+        p(`DELETE FROM guide_affiliate_intents WHERE target_type = 'experience' AND target_id = ?1`),
+        p(`DELETE FROM guide_tv_events WHERE event_type = 'poi_select' AND target_id = ?1`),
+        // experience_id es la FK heredada de cuando las experiencias vivían en su
+        // propia tabla; hay cupones antiguos que sólo la tienen rellena.
+        p(`DELETE FROM guide_coupons WHERE poi_id = ?1 OR experience_id = ?1`),
+        // Sólo las filas de enlace de ESTE POI: los demás POIs del apartamento
+        // siguen en su sitio.
+        p(`DELETE FROM guide_apartment_pois WHERE poi_id = ?1`),
+        p(`DELETE FROM guide_poi_media WHERE poi_id = ?1`),
+        p(`DELETE FROM guide_pois WHERE id = ?1`),
+    ]);
+
+    let mediaDeleted = 0;
+    let mediaWarning = null;
+    if (env.R2_BUCKET) {
+        try {
+            const keys = new Set((mediaRows.results || []).map(r => r.r2_key).filter(Boolean));
+            let cursor;
+            do {
+                const listed = await env.R2_BUCKET.list({ prefix: `guide/pois/${id}/`, cursor });
+                for (const obj of listed.objects) keys.add(obj.key);
+                cursor = listed.truncated ? listed.cursor : undefined;
+            } while (cursor);
+
+            const all = [...keys];
+            for (let i = 0; i < all.length; i += 900) {
+                await env.R2_BUCKET.delete(all.slice(i, i + 900));
+            }
+            mediaDeleted = all.length;
+        } catch (err) {
+            mediaWarning = `Ficheros en R2 no borrados: ${err.message}`;
+            console.error('[deletePoi] R2 cleanup failed:', err.message);
+        }
+    }
+
+    // Un POI es contenido de ZONA: hay que bumpear la versión de todos los
+    // apartamentos de esa zona, no la de uno solo.
+    await touchZoneGuideVersions(env, poi.zone_id);
+
+    await logSecurityEvent(env, {
+        type: 'guide_poi_deleted',
+        userId: userData?.userId || null,
+        request,
+        detail: {
+            poi_id: id,
+            zone_id: poi.zone_id,
+            category: poi.category,
+            poi_type: poi.poi_type,
+            deleted: counts,
+            media_deleted: mediaDeleted,
+        },
+    });
+
+    return jsonResponse({
+        success: true,
+        deleted: { ...counts, media_files: mediaDeleted },
+        ...(mediaWarning ? { warning: mediaWarning } : {}),
+    });
+}
+
+
+// ============================================
 // EXPERIENCES (superadmin only)
 // ============================================
 async function listExperiences(env, zoneId, isSuperAdmin) {
@@ -2111,13 +2334,6 @@ async function updateExperience(env, id, data) {
     }
     // zone_id is immutable via POI_WRITABLE_FIELDS, so a post-update lookup is fine.
     const exp = await env.DB.prepare('SELECT zone_id FROM guide_pois WHERE id = ?').bind(id).first();
-    await touchZoneGuideVersions(env, exp?.zone_id);
-    return jsonResponse({ success: true });
-}
-
-async function deleteExperience(env, id) {
-    const exp = await env.DB.prepare('SELECT zone_id FROM guide_pois WHERE id = ?').bind(id).first();
-    await env.DB.prepare('UPDATE guide_pois SET is_active = FALSE WHERE id = ?').bind(id).run();
     await touchZoneGuideVersions(env, exp?.zone_id);
     return jsonResponse({ success: true });
 }
