@@ -2,11 +2,11 @@
 -- BDschemaFinal.sql — ESQUEMA REAL DE PRODUCCION
 -- =====================================================
 -- Base de datos D1: restaurant-menu-saas (7e8d1efe-2a54-4849-9a06-4c47152392bd)
--- Exportado el 2026-08-18 desde la BD en produccion, tras aplicar la
--- migracion 0087 (guide_apartments: columnas de listing para el importador
--- de apartamentos desde URL — capacity, bedrooms, bathrooms, size_m2,
--- checkin_time, checkout_time, property_type, description, amenities,
--- gallery_urls, source_url, source_payload, imported_at; todas NULLABLE).
+-- Exportado el 2026-08-19 desde la BD en produccion, tras aplicar la
+-- migracion 0089 (guide_coupons: FK reapuntada de guide_experiences(id),
+-- que ya no existe, a guide_pois(id); columna experience_id eliminada,
+-- poi_id pasa a ser la referencia real — tabla recreada por completo,
+-- SQLite no permite ALTER de una foreign key).
 -- 85 tablas.
 --
 -- NO editar a mano. Para regenerar:
@@ -888,7 +888,7 @@ CREATE TABLE guide_apartments (
   qr_code_url TEXT,
   is_active BOOLEAN DEFAULT TRUE,
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-  modified_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, wifi_ssid TEXT, wifi_password TEXT, wifi_security TEXT DEFAULT 'WPA', contact_whatsapp TEXT, capacity INTEGER, bedrooms INTEGER, bathrooms REAL, size_m2 INTEGER, checkin_time TEXT, checkout_time TEXT, property_type TEXT, description TEXT, amenities TEXT, gallery_urls TEXT, source_url TEXT, source_payload TEXT, imported_at TIMESTAMP,
+  modified_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, wifi_ssid TEXT, wifi_password TEXT, wifi_security TEXT DEFAULT 'WPA', contact_whatsapp TEXT, capacity INTEGER, bedrooms INTEGER, bathrooms REAL, size_m2 INTEGER, checkin_time TEXT, checkout_time TEXT, property_type TEXT, description TEXT, amenities TEXT, gallery_urls TEXT, source_url TEXT, source_payload TEXT, imported_at TIMESTAMP, beds INTEGER, rating_value REAL, rating_count INTEGER, external_identifier TEXT,
   FOREIGN KEY (agency_id) REFERENCES guide_agencies(id),
   FOREIGN KEY (zone_id) REFERENCES guide_zones(id)
 );
@@ -1036,20 +1036,6 @@ CREATE TABLE guide_info_step_media (
   order_index INTEGER DEFAULT 0,
   created_at  TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   FOREIGN KEY (step_id) REFERENCES guide_info_steps(id) ON DELETE CASCADE
-);
-CREATE TABLE guide_coupons (
-  id              TEXT PRIMARY KEY,
-  experience_id   TEXT NOT NULL,
-  code            TEXT NOT NULL UNIQUE,
-  discount_type   TEXT CHECK(discount_type IN ('percentage', 'fixed')),
-  discount_value  REAL NOT NULL,
-  max_uses        INTEGER,
-  current_uses    INTEGER DEFAULT 0,
-  valid_from      TIMESTAMP,
-  valid_until     TIMESTAMP,
-  is_active       BOOLEAN DEFAULT TRUE,
-  created_at      TIMESTAMP DEFAULT CURRENT_TIMESTAMP, poi_id TEXT,
-  FOREIGN KEY (experience_id) REFERENCES guide_experiences(id)
 );
 CREATE TABLE guide_welcome_modals (
   id              TEXT PRIMARY KEY,
@@ -1230,6 +1216,20 @@ CREATE TABLE guide_apartment_phones (
   FOREIGN KEY (apartment_id) REFERENCES guide_apartments(id) ON DELETE CASCADE,
   FOREIGN KEY (category_key) REFERENCES guide_phone_categories(key)
 );
+CREATE TABLE IF NOT EXISTS "guide_coupons" (
+  id              TEXT PRIMARY KEY,
+  poi_id          TEXT NOT NULL,
+  code            TEXT NOT NULL UNIQUE,
+  discount_type   TEXT CHECK(discount_type IN ('percentage', 'fixed')),
+  discount_value  REAL NOT NULL,
+  max_uses        INTEGER,
+  current_uses    INTEGER DEFAULT 0,
+  valid_from      TIMESTAMP,
+  valid_until     TIMESTAMP,
+  is_active       BOOLEAN DEFAULT TRUE,
+  created_at      TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (poi_id) REFERENCES guide_pois(id)
+);
 CREATE INDEX idx_dishes_restaurant ON dishes(restaurant_id);
 CREATE INDEX idx_sections_restaurant ON sections(restaurant_id);
 CREATE INDEX idx_translations_entity ON translations(entity_id, entity_type);
@@ -1296,7 +1296,6 @@ CREATE INDEX idx_guide_section_views_session ON guide_section_views(session_id);
 CREATE INDEX idx_guide_apt_pois_apt ON guide_apartment_pois(apartment_id, is_hidden, order_override);
 CREATE INDEX idx_guide_info_steps ON guide_info_steps(apartment_info_id, step_number);
 CREATE INDEX idx_guide_step_media ON guide_info_step_media(step_id, order_index);
-CREATE INDEX idx_guide_coupons_exp ON guide_coupons(experience_id, is_active);
 CREATE INDEX idx_guide_pois_zone_active ON guide_pois(zone_id, is_active, order_index);
 CREATE INDEX idx_guide_welcome_modals_apartment ON guide_welcome_modals(apartment_id, is_active);
 CREATE INDEX idx_guide_tv_devices_apartment ON guide_tv_devices(apartment_id);
@@ -1336,3 +1335,4 @@ CREATE UNIQUE INDEX idx_guide_pois_google_place_id
 CREATE INDEX idx_guide_info_categories_group ON guide_info_categories(group_key, order_index);
 CREATE INDEX idx_guide_apartment_info_category ON guide_apartment_info(category_key);
 CREATE INDEX idx_guide_apartment_phones_apartment ON guide_apartment_phones(apartment_id, order_index);
+CREATE INDEX idx_guide_coupons_poi ON guide_coupons(poi_id, is_active);
