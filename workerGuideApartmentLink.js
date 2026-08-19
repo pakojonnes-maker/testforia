@@ -92,6 +92,7 @@ const MESSAGES = {
     budget_exhausted: 'Se agotó el presupuesto de consultas a Google de este mes. Inténtalo más tarde o rellena los datos a mano.',
     place_not_resolved: 'No se ha podido identificar ningún lugar de Google Maps a partir de esa URL.',
     no_data_found: 'No se encontraron datos de apartamento en esa página (ni ficha schema.org ni metadatos). Prueba con la web oficial del alojamiento o rellena los datos a mano.',
+    bot_wall: 'Esa web bloquea el acceso automatizado con una protección anti-bot (desafío JavaScript/captcha) — comprobado con Booking.com. No se puede leer sin comportarse como un navegador real, y VisualTaste no intenta saltarse eso bajo ningún concepto. Prueba con la web oficial del alojamiento, con otro portal que sí publique los datos (Airbnb, por ejemplo, si el mismo piso está ahí), o rellena los datos a mano.',
     blocked_host: 'Esa dirección no se puede consultar por motivos de seguridad.',
     invalid_url: 'La URL no es válida.',
     fetch_failed: 'No se pudo descargar esa página.',
@@ -186,9 +187,38 @@ async function fetchHtmlSafely(startUrl) {
         }
 
         const html = await readBodyCapped(res, MAX_HTML_BYTES);
+        // Ver looksLikeBotWall: si esto es un desafío anti-bot (Booking.com
+        // confirmado, AWS WAF), no se intenta nada más — ni parsearlo como si
+        // fuera la ficha, ni ningún tipo de evasión. Se avisa con un motivo
+        // propio en vez del genérico "no_data_found", para que el mensaje al
+        // admin explique lo que de verdad pasó.
+        if (looksLikeBotWall(html)) {
+            return { ok: false, reason: 'bot_wall', finalUrl: current };
+        }
         return { ok: true, html, finalUrl: current };
     }
     return { ok: false, reason: 'too_many_redirects' };
+}
+
+// Firmas de desafíos anti-bot conocidos. Comprobado en vivo (2026-08-19):
+// Booking.com devuelve un 202 con exactamente estos dos marcadores (AWS WAF)
+// en vez de la ficha — nada de JSON-LD ni OpenGraph, solo un puzzle en JS que
+// hay que resolver como un navegador real. Deliberadamente NO se intenta
+// resolver: sería evadir una protección anti-bot, algo que este módulo no
+// hace bajo ningún concepto, sea cual sea el portal.
+// Deliberadamente NO incluye marcadores genéricos como "g-recaptcha": una
+// página real puede tener un recaptcha en un formulario de contacto sin que
+// el resto del contenido (JSON-LD incluido) deje de ser legítimo — eso sería
+// un falso positivo que tira una ficha buena. Los de abajo son específicos
+// de la interstitial ENTERA, no de un widget suelto.
+const BOT_WALL_MARKERS = [
+    'awsWafCookieDomainList',   // Booking.com (AWS WAF challenge)
+    'challenge-container',      // id genérico usado por varios challenges de AWS WAF
+    'cf-browser-verification',  // Cloudflare "Checking your browser..."
+    'Just a moment...',         // título de la interstitial de Cloudflare
+];
+function looksLikeBotWall(html) {
+    return BOT_WALL_MARKERS.some(marker => html.includes(marker));
 }
 
 async function readBodyCapped(res, maxBytes) {

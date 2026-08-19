@@ -180,6 +180,34 @@ console.log('\n--- resolveApartmentDraft: vía 1, JSON-LD mínimo de Airbnb + pi
     assert('JSON-LD completo gana: no se pisa con las pistas del título', draft.ok === true && draft.fields.bedrooms.value === 5 && draft.fields.bathrooms.value === 3, JSON.stringify(draft.fields));
 }
 
+console.log('\n--- resolveApartmentDraft: muro de bots (Booking.com, AWS WAF) ---');
+{
+    // Caso real (2026-08-19): Booking.com devuelve un 202 con exactamente
+    // este marcador en vez de la ficha — un desafío JS de AWS WAF, sin
+    // JSON-LD ni OpenGraph. No se intenta resolver el desafío (sería evadir
+    // una protección anti-bot); se detecta y se explica, en vez de fallar
+    // con el "no_data_found" genérico que confundiría al admin.
+    const html = `<!doctype html><html><head><title></title>
+        <script>window.awsWafCookieDomainList = ['booking.com'];</script>
+    </head><body><div id="challenge-container"></div></body></html>`;
+    mockFetch(async () => new Response(html, { status: 202, headers: { 'content-type': 'text/html' } }));
+    const draft = await resolveApartmentDraft({}, 'https://www.booking.com/hotel/es/ejemplo.html');
+    restoreFetch();
+    assert('bot_wall en vez de no_data_found', draft.ok === false && draft.reason === 'bot_wall');
+}
+{
+    // Guardarraíl anti-falso-positivo: una ficha real con un recaptcha suelto
+    // (formulario de contacto) NO debe tratarse como muro de bots completo —
+    // g-recaptcha se dejó fuera de BOT_WALL_MARKERS a propósito.
+    const html = `<!doctype html><html><head>
+        <meta property="og:title" content="Piso con formulario de contacto">
+    </head><body><div class="g-recaptcha" data-sitekey="x"></div></body></html>`;
+    mockFetch(async () => htmlResponse(html));
+    const draft = await resolveApartmentDraft({}, 'https://web-con-recaptcha.example.com/piso');
+    restoreFetch();
+    assert('Un recaptcha suelto no bloquea la extracción de una ficha real', draft.ok === true && draft.fields.name.value === 'Piso con formulario de contacto');
+}
+
 console.log('\n--- resolveApartmentDraft: vía 1, solo OpenGraph (sin JSON-LD) ---');
 {
     const html = `<!doctype html><html><head>
