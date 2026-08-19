@@ -471,6 +471,40 @@ function extractListingNode(node) {
     };
 }
 
+// Airbnb (comprobado con un listing real, 2026-08-19) publica un JSON-LD
+// VacationRental genuino pero MÍNIMO: name, description, image, occupancy,
+// lat/lng — sin numberOfBedrooms/numberOfBathroomsTotal/additionalType. Esos
+// datos SÍ están, pero solo en el og:title, con un patrón consistente de SEO
+// ("Tipo · Ciudad · ★rating · N dormitorios · N camas · N baños"). No es un
+// estándar — es una pista de refuerzo (fuente 'opengraph'), por eso solo se
+// usa para RELLENAR huecos que el JSON-LD dejó vacíos, nunca para pisar un
+// valor que ya viniera de ahí.
+function parseOpenGraphTitleHints(ogTitle) {
+    if (!ogTitle) return {};
+    const parts = ogTitle.split('·').map(s => s.trim()).filter(Boolean);
+    const hints = {};
+
+    const bedroomsPart = parts.find(p => /dormitorio|bedroom|habitaci[oó]n/i.test(p));
+    if (bedroomsPart) {
+        const n = parseInt(bedroomsPart, 10);
+        if (Number.isFinite(n)) hints.bedrooms = n;
+    }
+    const bathroomsPart = parts.find(p => /ba[ñn]o|bathroom/i.test(p));
+    if (bathroomsPart) {
+        const n = parseFloat(bathroomsPart.replace(',', '.'));
+        if (Number.isFinite(n)) hints.bathrooms = n;
+    }
+    // El primer segmento suele ser el tipo de alojamiento ("Apartamento",
+    // "Casa", "Habitación privada"...) — se descarta si tiene dígitos (sería
+    // el rating o un contador colado en primera posición) o es sospechosamente
+    // largo (probablemente el propio título del piso, no un tipo).
+    const first = parts[0];
+    if (first && !/\d/.test(first) && first.length < 40) {
+        hints.property_type = first;
+    }
+    return hints;
+}
+
 function extractOpenGraph(html) {
     const get = (prop) => {
         let m = html.match(new RegExp(`<meta[^>]+property=["']og:${prop}["'][^>]+content=["']([^"']*)["']`, 'i'));
@@ -514,6 +548,20 @@ function extractFromHtml(html, finalUrl) {
     setField('bathrooms', listing?.bathrooms, null);
     setField('size_m2', listing?.size_m2, null);
     setField('amenities', listing?.amenities, null);
+
+    // Relleno de huecos con las pistas del og:title (ver
+    // parseOpenGraphTitleHints) — solo entra donde el JSON-LD no dio nada,
+    // nunca pisa un valor que ya viniera de ahí.
+    const ogHints = parseOpenGraphTitleHints(og.name);
+    if (fields.bedrooms.value == null && ogHints.bedrooms != null) {
+        fields.bedrooms = { value: ogHints.bedrooms, source: 'opengraph' };
+    }
+    if (fields.bathrooms.value == null && ogHints.bathrooms != null) {
+        fields.bathrooms = { value: ogHints.bathrooms, source: 'opengraph' };
+    }
+    if (fields.property_type.value == null && ogHints.property_type) {
+        fields.property_type = { value: ogHints.property_type, source: 'opengraph' };
+    }
 
     const images = (listing?.images?.length ? listing.images : og.images) || [];
 

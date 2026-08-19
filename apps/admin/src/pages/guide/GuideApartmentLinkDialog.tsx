@@ -200,16 +200,27 @@ export default function GuideApartmentLinkDialog({ open, onClose, agencyId, zone
 
       // Portada: solo se descarga a R2 si el usuario confirma que tiene
       // derechos sobre la foto (fotos de una web ajena tienen copyright de
-      // terceros — ver GuideApartmentLinkDialog en el plan). Si falla, el
-      // apartamento ya está creado igualmente; no se bloquea por esto.
+      // terceros — ver GuideApartmentLinkDialog en el plan). Subir el
+      // fichero a R2 NO fija cover_image_url por sí solo — igual que en
+      // GuideApartmentDetail.tsx, el upload solo devuelve la URL final; hay
+      // que guardarla aparte con un PUT. Si algo falla, el apartamento ya
+      // está creado igualmente; no se bloquea por esto.
       const coverUrl = response?.images?.[0];
       if (ownsPhotos && coverUrl) {
-        await apiClient.request(`/guide/admin/apartments/${aptId}/media`, {
-          method: 'POST',
-          body: JSON.stringify({ source_url: coverUrl }),
-        }).catch((err: any) => {
-          console.warn('No se pudo descargar la portada a R2:', err.message);
-        });
+        try {
+          const uploaded = await apiClient.request(`/guide/admin/apartments/${aptId}/media`, {
+            method: 'POST',
+            body: JSON.stringify({ source_url: coverUrl }),
+          });
+          if (uploaded?.url) {
+            await apiClient.request(`/guide/admin/apartments/${aptId}`, {
+              method: 'PUT',
+              body: JSON.stringify({ cover_image_url: uploaded.url }),
+            });
+          }
+        } catch (err: any) {
+          console.warn('No se pudo fijar la portada:', err.message);
+        }
       }
 
       onCreated(aptId);

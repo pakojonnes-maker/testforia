@@ -123,6 +123,63 @@ console.log('\n--- resolveApartmentDraft: vía 1, JSON-LD VacationRental complet
     assert('source_payload incluye el nodo JSON-LD crudo', Array.isArray(draft.source_payload.jsonld) && draft.source_payload.jsonld.length === 1);
 }
 
+console.log('\n--- resolveApartmentDraft: vía 1, JSON-LD mínimo de Airbnb + pistas del og:title (caso real) ---');
+{
+    // Caso real (2026-08-19): Airbnb SÍ publica VacationRental genuino, pero
+    // mínimo — sin numberOfBedrooms/numberOfBathroomsTotal/additionalType.
+    // Esos datos están, pero solo en el og:title ("Tipo · Ciudad · ★rating ·
+    // N dormitorios · N camas · N baños"). Verificado contra un listing real
+    // antes de escribir el parser de pistas.
+    const html = `<!doctype html><html><head>
+        <script type="application/ld+json">
+        {
+            "@context": "https://schema.org",
+            "@type": "VacationRental",
+            "name": "Lujoso Atico duplex en el centro de Benalmadena.",
+            "description": "Lujoso apartamento tipo Atico Duplex de 162 metros ubicado en el centro de Benalmadena, con parking privado.",
+            "image": ["https://a0.muscache.com/im/pictures/1.jpeg"],
+            "containsPlace": { "@type": "Accommodation", "occupancy": { "@type": "QuantitativeValue", "value": 4 } },
+            "latitude": 36.60088,
+            "longitude": -4.53177,
+            "address": { "addressLocality": "Benalmádena" }
+        }
+        </script>
+        <meta property="og:title" content="Apartamento · Benalmádena · ★4,78 · 3 dormitorios · 4 camas · 2,5 baños">
+    </head><body></body></html>`;
+    mockFetch(async () => htmlResponse(html));
+    const draft = await resolveApartmentDraft({}, 'https://www.airbnb.es/rooms/548271982662608579');
+    restoreFetch();
+
+    assert('Resuelve OK', draft.ok === true, JSON.stringify(draft));
+    if (draft.ok) {
+        assert('Nombre y capacidad siguen viniendo del JSON-LD (no se pisan)', draft.fields.name.source === 'jsonld' && draft.fields.capacity.value === 4 && draft.fields.capacity.source === 'jsonld');
+        assert('Dormitorios rellenados desde el og:title', draft.fields.bedrooms.value === 3 && draft.fields.bedrooms.source === 'opengraph');
+        assert('Baños con decimal (coma→punto) desde el og:title', draft.fields.bathrooms.value === 2.5 && draft.fields.bathrooms.source === 'opengraph');
+        assert('Tipo de propiedad (primer segmento) desde el og:title', draft.fields.property_type.value === 'Apartamento' && draft.fields.property_type.source === 'opengraph');
+        assert('m² y check-in/out siguen vacíos: Airbnb no los publica en ningún metadato', draft.fields.size_m2.value === null && draft.fields.checkin_time.value === null);
+    }
+}
+{
+    // Un JSON-LD que SÍ trae dormitorios/baños no debe pisarse con las
+    // pistas del og:title, aunque el título también las mencione distintas.
+    const html = `<!doctype html><html><head>
+        <script type="application/ld+json">
+        {
+            "@context": "https://schema.org",
+            "@type": "VacationRental",
+            "name": "Piso con datos completos",
+            "numberOfBedrooms": 5,
+            "numberOfBathroomsTotal": 3
+        }
+        </script>
+        <meta property="og:title" content="Apartamento · Ciudad · ★4,9 · 2 dormitorios · 3 camas · 1 baño">
+    </head><body></body></html>`;
+    mockFetch(async () => htmlResponse(html));
+    const draft = await resolveApartmentDraft({}, 'https://otra-web.example.com/piso-completo');
+    restoreFetch();
+    assert('JSON-LD completo gana: no se pisa con las pistas del título', draft.ok === true && draft.fields.bedrooms.value === 5 && draft.fields.bathrooms.value === 3, JSON.stringify(draft.fields));
+}
+
 console.log('\n--- resolveApartmentDraft: vía 1, solo OpenGraph (sin JSON-LD) ---');
 {
     const html = `<!doctype html><html><head>
