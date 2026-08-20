@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { getTranslation, getCategoryLabel, getSubcategoryLabel } from '../lib/i18n';
 import { submitStoreOrder } from '../lib/api';
 import CTAButton from './CTAButton';
@@ -57,6 +57,14 @@ export default function ServicesSection({ experiences, storeItems, zoneName, apa
   const [cart, setCart] = useState<Record<string, number>>({});
   const [submitting, setSubmitting] = useState(false);
   const [orderResult, setOrderResult] = useState<{ status: 'success' | 'no_contact' | 'error' } | null>(null);
+  // La barra del carrito arranca colapsada (contador + total + botón de pedir) y
+  // se despliega en un resumen con las líneas: el huésped tiene que poder ver
+  // QUÉ va a pedir antes de saltar a WhatsApp, sin volver a recorrer la lista.
+  const [orderOpen, setOrderOpen] = useState(false);
+  // Un pedido puede repartirse entre varios vendedores (anfitrión y plataforma),
+  // pero el navegador solo deja pasar el primer window.open de la tanda: el
+  // resto se abre a petición explícita desde el aviso.
+  const [pendingOrders, setPendingOrders] = useState<string[]>([]);
 
   const hostItems = storeItems.filter(i => i.owner_type === 'host');
   const platformItems = storeItems.filter(i => i.owner_type === 'platform');
@@ -66,13 +74,23 @@ export default function ServicesSection({ experiences, storeItems, zoneName, apa
     return sum + (item?.price_amount ? item.price_amount * qty : 0);
   }, 0);
 
+  // El aviso del pedido se descarta solo, salvo que queden vendedores por abrir
+  // (ahí el huésped tiene que poder pulsar el botón cuando le venga bien).
+  useEffect(() => {
+    if (!orderResult || pendingOrders.length > 0) return;
+    const t = setTimeout(() => setOrderResult(null), 6000);
+    return () => clearTimeout(t);
+  }, [orderResult, pendingOrders.length]);
+
   const addToCart = (item: StoreItem) => {
     const wasEmpty = !cart[item.id];
+    setOrderResult(null);
     setCart(prev => ({ ...prev, [item.id]: (prev[item.id] || 0) + 1 }));
     if (wasEmpty) onIntent('product', item.id, 'add_to_order');
   };
 
   const removeFromCart = (itemId: string) => {
+    setOrderResult(null);
     setCart(prev => {
       const next = { ...prev };
       const qty = (next[itemId] || 0) - 1;
@@ -98,11 +116,13 @@ export default function ServicesSection({ experiences, storeItems, zoneName, apa
       return;
     }
 
-    const opened = result.orders.filter(o => o.whatsappUrl);
-    for (const order of opened) {
-      window.open(order.whatsappUrl!, '_blank');
-    }
-    setOrderResult({ status: opened.length > 0 ? 'success' : 'no_contact' });
+    const urls = result.orders.map(o => o.whatsappUrl).filter((u): u is string => !!u);
+    // Solo el primero en caliente: abrir varios seguidos hace que el navegador
+    // bloquee todos menos uno y el pedido se pierda sin que nadie se entere.
+    if (urls.length > 0) window.open(urls[0], '_blank', 'noopener,noreferrer');
+    setPendingOrders(urls.slice(1));
+    setOrderResult({ status: urls.length > 0 ? 'success' : 'no_contact' });
+    setOrderOpen(false);
     setCart({});
   };
 
@@ -273,32 +293,97 @@ export default function ServicesSection({ experiences, storeItems, zoneName, apa
         </section>
       )}
 
-      {cartCount > 0 && (
-        <div className="fixed bottom-20 md:bottom-6 left-0 right-0 z-40 px-4 flex justify-center">
-          <div className="bg-on-primary-fixed text-crisp-white border border-on-background/10 px-5 py-4 flex items-center gap-4 max-w-md w-full">
-            <div className="flex-1">
-              <p className="font-label-caps text-label-caps uppercase">{getTranslation('your_order', lang)} · {cartCount}</p>
-              {cartTotal > 0 && <p className="font-mono-badge text-mono-badge mt-1">{cartTotal.toFixed(2)} €</p>}
+      {/* Barra de pedido. Va en un wrapper pointer-events-none (mismo truco que
+          ConsentBanner y la top bar del mapa) para no bloquear el tap en toda la
+          franja de ancho completo, y por encima del BottomNavBar (z-50) en vez
+          de por debajo. El bottom sale del alto real del nav + el safe area, no
+          de un bottom-20 atado a mano al h-16 del nav. */}
+      {cartCount > 0 && !orderResult && (
+        <div className="fixed inset-x-0 bottom-[calc(4rem+env(safe-area-inset-bottom,0px))] md:bottom-6 z-50 px-4 flex justify-center pointer-events-none">
+          <div className="pointer-events-auto w-full max-w-md bg-on-primary-fixed text-crisp-white border border-on-background/10 shadow-2xl animate-[slideUp_0.25s_ease]">
+            {orderOpen && (
+              <div className="max-h-[40vh] overflow-y-auto border-b border-crisp-white/15" style={{ scrollbarWidth: 'thin' }}>
+                {Object.entries(cart).map(([itemId, qty]) => {
+                  const item = storeItems.find(i => i.id === itemId);
+                  if (!item) return null;
+                  return (
+                    <div key={itemId} className="flex items-center gap-3 px-4 py-3 border-b border-crisp-white/10 last:border-b-0">
+                      <div className="flex-1 min-w-0">
+                        <p className="font-body-md text-[14px] truncate">{item.name}</p>
+                        {item.price_display && (
+                          <p className="font-mono-badge text-mono-badge text-crisp-white/70 mt-0.5">{item.price_display}</p>
+                        )}
+                      </div>
+                      <div className="flex items-center gap-2 shrink-0">
+                        <button
+                          onClick={() => removeFromCart(itemId)}
+                          aria-label="-"
+                          className="w-8 h-8 flex items-center justify-center border border-crisp-white/30 font-mono-badge text-lg leading-none"
+                        >
+                          −
+                        </button>
+                        <span className="font-mono-badge text-mono-badge w-5 text-center">{qty}</span>
+                        <button
+                          onClick={() => addToCart(item)}
+                          aria-label="+"
+                          className="w-8 h-8 flex items-center justify-center border border-crisp-white/30 font-mono-badge text-lg leading-none"
+                        >
+                          +
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+
+            <div className="flex items-center gap-3 px-4 py-3">
+              <button
+                type="button"
+                onClick={() => setOrderOpen(v => !v)}
+                aria-expanded={orderOpen}
+                className="flex-1 min-w-0 flex items-center gap-2 text-start"
+              >
+                <span className="material-symbols-outlined text-[20px] shrink-0">{orderOpen ? 'expand_more' : 'expand_less'}</span>
+                <span className="min-w-0">
+                  <span className="block font-label-caps text-label-caps uppercase truncate">
+                    {getTranslation(orderOpen ? 'your_order' : 'view_order', lang)} · {cartCount}
+                  </span>
+                  {cartTotal > 0 && <span className="block font-mono-badge text-mono-badge mt-0.5">{cartTotal.toFixed(2)} €</span>}
+                </span>
+              </button>
+              <button
+                onClick={handleSubmitOrder}
+                disabled={submitting}
+                className="shrink-0 bg-primary text-on-primary px-4 py-3 font-label-caps text-label-caps uppercase whitespace-nowrap disabled:opacity-60 hover:bg-primary-container transition-colors"
+              >
+                {submitting ? getTranslation('order_sending', lang) : getTranslation('send_order_whatsapp', lang)}
+              </button>
             </div>
-            <button
-              onClick={handleSubmitOrder}
-              disabled={submitting}
-              className="bg-primary text-on-primary px-4 py-3 font-label-caps text-label-caps uppercase whitespace-nowrap disabled:opacity-60 hover:bg-primary-container transition-colors"
-            >
-              {submitting ? getTranslation('order_sending', lang) : getTranslation('send_order_whatsapp', lang)}
-            </button>
           </div>
         </div>
       )}
 
       {orderResult && (
-        <div className="fixed bottom-20 md:bottom-6 left-0 right-0 z-40 px-4 flex justify-center">
-          <div className={`border px-5 py-4 max-w-md w-full text-center font-body-md text-body-md ${
+        <div className="fixed inset-x-0 bottom-[calc(4rem+env(safe-area-inset-bottom,0px))] md:bottom-6 z-50 px-4 flex justify-center pointer-events-none">
+          <div className={`pointer-events-auto w-full max-w-md border px-5 py-4 text-center font-body-md text-body-md shadow-2xl animate-[slideUp_0.25s_ease] ${
             orderResult.status === 'error' ? 'bg-error-container text-on-error-container border-on-error-container/30' : 'bg-surface-container-lowest text-on-background border-on-background/10'
           }`}>
             {orderResult.status === 'success' && getTranslation('order_sent_success', lang)}
             {orderResult.status === 'no_contact' && getTranslation('order_no_contact', lang)}
             {orderResult.status === 'error' && getTranslation('order_error', lang)}
+            {pendingOrders.length > 0 && (
+              <button
+                onClick={() => {
+                  const [next, ...rest] = pendingOrders;
+                  window.open(next, '_blank', 'noopener,noreferrer');
+                  setPendingOrders(rest);
+                }}
+                className="mt-3 w-full bg-primary text-on-primary px-4 py-3 font-label-caps text-label-caps uppercase hover:bg-primary-container transition-colors"
+              >
+                {getTranslation('send_order_whatsapp', lang)} ({pendingOrders.length})
+              </button>
+            )}
           </div>
         </div>
       )}

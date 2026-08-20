@@ -430,11 +430,20 @@ button{font-family:inherit;cursor:pointer;border:none;background:none;outline:no
   from { opacity: 0; transform: translateX(-24px); }
   to { opacity: 1; transform: translateX(0); }
 }
+/* fill-mode: backwards, NUNCA both. `both` retiene el último keyframe
+   (transform: translateX(0)) al terminar, y un transform distinto de none
+   convierte al elemento en containing block de sus descendientes
+   position:fixed. Como GuidebookPage envuelve cada pestaña en un div con estas
+   clases, con `both` TODO lo fixed de dentro (barra del carrito, modales) se
+   anclaba al contenido de la pestaña en vez de al viewport: la barra de pedido
+   salía al final del scroll y los modales a mitad de página. `backwards` solo
+   aplica el primer keyframe ANTES de arrancar — que es lo que evita el
+   parpadeo de entrada — y suelta el transform al acabar. */
 .tab-slide-in-right {
-  animation: tab-slide-in-right 0.28s cubic-bezier(0.16, 1, 0.3, 1) both;
+  animation: tab-slide-in-right 0.28s cubic-bezier(0.16, 1, 0.3, 1) backwards;
 }
 .tab-slide-in-left {
-  animation: tab-slide-in-left 0.28s cubic-bezier(0.16, 1, 0.3, 1) both;
+  animation: tab-slide-in-left 0.28s cubic-bezier(0.16, 1, 0.3, 1) backwards;
 }
 
 /* Leaflet's own stylesheet (leaflet.css) gives its internal layers z-index

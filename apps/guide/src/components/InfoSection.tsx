@@ -3,36 +3,7 @@ import { getTranslation } from '../lib/i18n';
 import MediaPlaceholder, { isRealImage } from './MediaPlaceholder';
 import EntryCodeModal from './EntryCodeModal';
 import PhonesModal, { PhoneEntry } from './PhonesModal';
-
-interface InfoItem {
-  id: string;
-  key: string;
-  category?: string | null;
-  icon: string;
-  color?: string | null;
-  title: string;
-  // The category's generic translated name (e.g. "Lavadora"). Only shown as an
-  // eyebrow above the headline when it differs from `title` — i.e. the host
-  // wrote a custom title on top of the category. See workerGuide.js.
-  category_name?: string | null;
-  content: string;
-  media: any[];
-  category_image_url?: string | null;
-  // Punto de recogida opcional (migración 0084) — hoy solo lo rellena el admin
-  // para door_code, pero el campo es genérico a nivel de item.
-  pickup_instructions?: string | null;
-  latitude?: number | null;
-  longitude?: number | null;
-  is_sequential?: boolean;
-  steps?: Array<{
-    id: string;
-    step_number: number;
-    title: string;
-    content: string;
-    media: Array<{url: string}>;
-    checklist_items?: string[];
-  }>;
-}
+import GuideDetailModal, { type InfoItem } from './GuideDetailModal';
 
 interface InfoSectionProps {
   infoItems: InfoItem[];
@@ -255,71 +226,14 @@ export default function InfoSection({ infoItems, phones = [], lang }: InfoSectio
         </section>
       )}
 
-      {/* Modal Popup for Details */}
       {selectedItem && (
-        <div
-          className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-on-background/60 animate-[fadeIn_0.2s_ease]"
-          onClick={() => setSelectedItem(null)}
-        >
-          <div
-            className="bg-surface-container-lowest border border-on-background/10 w-full max-w-lg overflow-hidden animate-[slideUp_0.3s_ease]"
-            onClick={e => e.stopPropagation()}
-          >
-            <div className="relative h-64 md:h-80">
-              {isRealImage(imageFor(selectedItem)) ? (
-                <img
-                  src={imageFor(selectedItem)}
-                  className="w-full h-full object-cover"
-                  alt={selectedItem.title}
-                />
-              ) : (
-                <MediaPlaceholder label={selectedItem.title} />
-              )}
-              <button
-                className="absolute top-4 right-4 w-10 h-10 bg-on-background/50 text-crisp-white flex items-center justify-center hover:bg-on-background/70 transition-colors"
-                onClick={() => setSelectedItem(null)}
-              >
-                <span className="material-symbols-outlined">close</span>
-              </button>
-              <div className="absolute inset-0 bg-gradient-to-t from-on-background/80 via-transparent to-transparent pointer-events-none" />
-              <h3 className="absolute bottom-6 left-6 right-6 font-headline-md text-headline-md text-crisp-white">
-                {selectedItem.title}
-              </h3>
-            </div>
-            <div className="p-6 max-h-[50vh] overflow-y-auto" style={{ scrollbarWidth: 'thin' }}>
-              {selectedItem.is_sequential && selectedItem.steps && selectedItem.steps.length > 0 ? (
-                <div>
-                  {selectedItem.steps.map(step => (
-                    <div key={step.id} className="flex gap-4 mb-6">
-                      <div className="flex-shrink-0 w-8 h-8 bg-primary text-on-primary flex items-center justify-center font-mono-badge text-mono-badge">
-                        {step.step_number}
-                      </div>
-                      <div className="flex-1">
-                        <h4 className="font-label-caps text-label-caps uppercase text-on-background mb-1">{step.title}</h4>
-                        <p className="font-body-md text-body-md text-on-surface-variant">{step.content}</p>
-                        {step.media?.[0] && <img src={step.media[0].url} className="mt-3 w-full object-cover max-h-48 border border-on-background/10" alt={step.title} />}
-                        {step.checklist_items && step.checklist_items.length > 0 && (
-                          <ul className="mt-2 space-y-1">
-                            {step.checklist_items.map((item, i) => (
-                              <li key={i} className="flex items-center gap-2 font-body-md text-body-md text-on-surface-variant">
-                                <span className="material-symbols-outlined text-primary text-[18px]">check_circle</span>
-                                {item}
-                              </li>
-                            ))}
-                          </ul>
-                        )}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              ) : (
-                <div className="font-body-md text-body-md text-on-surface-variant whitespace-pre-wrap leading-relaxed">
-                  {selectedItem.content}
-                </div>
-              )}
-            </div>
-          </div>
-        </div>
+        <GuideDetailModal
+          item={selectedItem}
+          image={imageFor(selectedItem)}
+          eyebrow={eyebrowFor(selectedItem)}
+          lang={lang}
+          onClose={() => setSelectedItem(null)}
+        />
       )}
     </div>
   );

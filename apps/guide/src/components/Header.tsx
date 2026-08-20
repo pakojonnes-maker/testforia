@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { getTranslation } from '../lib/i18n';
 
 // 13 active languages (see CLAUDE.md §5).
@@ -32,20 +32,37 @@ function flagUrl(langCode: string): string {
 // not square. Forcing them into a square box with object-cover crops a
 // visible chunk off every non-square flag; a 3:2 box crops nothing for the
 // vast majority and only trims a sliver on the few that aren't exactly 3:2.
-function FlagIcon({ lang, size = 18 }: { lang: string; size?: number }) {
+// La bandera se dibuja a sangre, sin caja de color detrás: antes vivía centrada
+// dentro de un botón blanco (#ffffff sobre el fondo hueso de la página), así que
+// ocupaba ~15% de su propio control y lo que se veía era el parche blanco.
+// `fill` la hace llenar el contenedor — es lo que convierte el botón flotante
+// del mapa en un disco-bandera en vez de un disco blanco con una pegatina.
+function FlagIcon({ lang, width = 24, height = 16, fill = false, className = '' }: {
+  lang: string;
+  width?: number;
+  height?: number;
+  fill?: boolean;
+  className?: string;
+}) {
   const [errored, setErrored] = useState(false);
-  const height = Math.round((size * 2) / 3);
+
   if (errored) {
-    return <span style={{ fontSize: size, lineHeight: 1 }}>{FLAG_EMOJI[lang] || '🌐'}</span>;
+    return (
+      <span
+        className={`flex items-center justify-center shrink-0 ${fill ? 'w-full h-full bg-surface-variant' : ''} ${className}`}
+        style={fill ? { fontSize: 22, lineHeight: 1 } : { fontSize: Math.round(height * 1.1), lineHeight: 1, width, height, minWidth: width }}
+      >
+        {FLAG_EMOJI[lang] || '🌐'}
+      </span>
+    );
   }
+
   return (
     <img
       src={flagUrl(lang)}
       alt=""
-      width={size}
-      height={height}
-      className="object-cover shrink-0 rounded-[2px]"
-      style={{ width: size, height, minWidth: size }}
+      className={`object-cover shrink-0 ${fill ? 'w-full h-full' : ''} ${className}`}
+      style={fill ? undefined : { width, height, minWidth: width }}
       onError={() => setErrored(true)}
     />
   );
@@ -54,15 +71,34 @@ function FlagIcon({ lang, size = 18 }: { lang: string; size?: number }) {
 interface LanguageSwitcherProps {
   lang: string;
   onLanguageChange?: (lang: string) => void;
-  /** `bar`: the app header's own control (bordered, uppercase code on md+). `floating`: standalone over the map (Explore tab has no header — see GuidebookPage.tsx). */
+  /** `bar`: the app header's own control (uppercase code on md+). `floating`: standalone over the map (Explore tab has no header — see GuidebookPage.tsx). */
   variant?: 'bar' | 'floating';
 }
 
 export function LanguageSwitcher({ lang, onLanguageChange, variant = 'bar' }: LanguageSwitcherProps) {
   const [showLangMenu, setShowLangMenu] = useState(false);
+  const rootRef = useRef<HTMLDivElement>(null);
+
+  // Un desplegable que solo se cerraba eligiendo idioma dejaba al huésped
+  // atrapado si lo abría sin querer (13 entradas tapando media pantalla).
+  useEffect(() => {
+    if (!showLangMenu) return;
+    const onPointerDown = (e: PointerEvent) => {
+      if (!rootRef.current?.contains(e.target as Node)) setShowLangMenu(false);
+    };
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setShowLangMenu(false);
+    };
+    document.addEventListener('pointerdown', onPointerDown);
+    window.addEventListener('keydown', onKey);
+    return () => {
+      document.removeEventListener('pointerdown', onPointerDown);
+      window.removeEventListener('keydown', onKey);
+    };
+  }, [showLangMenu]);
 
   return (
-    <div className="relative shrink-0">
+    <div ref={rootRef} className="relative shrink-0">
       <button
         onClick={() => setShowLangMenu(!showLangMenu)}
         aria-label="Language"
@@ -70,13 +106,18 @@ export function LanguageSwitcher({ lang, onLanguageChange, variant = 'bar' }: La
         aria-expanded={showLangMenu}
         className={
           variant === 'floating'
-            ? 'flex items-center justify-center w-11 h-11 rounded-full border border-on-background/10 bg-surface-container-lowest text-on-background'
-            : 'flex items-center justify-center w-9 h-9 border border-on-background/10 bg-surface-container-lowest text-on-background hover:border-primary transition-colors md:w-auto md:h-auto md:justify-start md:gap-2 md:px-4 md:py-2 font-label-caps text-label-caps uppercase'
+            // Sobre el mapa el disco ES la bandera. El anillo blanco fino la
+            // separa del mapa (mismo recurso que los avatares de Google Maps)
+            // sin volver a meter un fondo blanco debajo.
+            ? 'block w-11 h-11 rounded-full overflow-hidden ring-2 ring-crisp-white/80 shadow-md'
+            : 'flex items-center justify-center h-9 w-9 md:w-auto md:h-auto md:gap-2 md:px-2 md:py-1 text-on-background hover:opacity-70 transition-opacity font-label-caps text-label-caps uppercase'
         }
       >
-        <FlagIcon lang={lang} size={18} />
-        {variant === 'bar' && (
+        {variant === 'floating' ? (
+          <FlagIcon lang={lang} fill />
+        ) : (
           <>
+            <FlagIcon lang={lang} className="ring-1 ring-on-background/15" />
             <span className="hidden md:inline">{lang.toUpperCase()}</span>
             <span className="material-symbols-outlined text-[16px] hidden md:inline">expand_more</span>
           </>
@@ -84,19 +125,20 @@ export function LanguageSwitcher({ lang, onLanguageChange, variant = 'bar' }: La
       </button>
 
       {showLangMenu && (
-        <div className="absolute top-full right-0 mt-2 bg-surface-container-lowest border border-on-background/10 z-50 min-w-[160px] max-w-[calc(100vw-2rem)] overflow-hidden">
+        <div className="absolute top-full end-0 mt-2 bg-surface-container-lowest border border-on-background/10 z-50 min-w-[180px] max-w-[calc(100vw-2rem)] max-h-[60vh] overflow-y-auto shadow-lg">
           {Object.keys(LANG_NAMES).map((code) => (
-            <div
+            <button
               key={code}
+              type="button"
               onClick={() => {
                 if (onLanguageChange) onLanguageChange(code);
                 setShowLangMenu(false);
               }}
-              className="flex items-center gap-2.5 px-4 py-2 font-body-md text-body-md hover:bg-warm-sand cursor-pointer"
+              className={`w-full flex items-center gap-3 px-4 py-2.5 font-body-md text-body-md text-start hover:bg-warm-sand transition-colors ${code === lang ? 'text-primary' : 'text-on-background'}`}
             >
-              <FlagIcon lang={code} size={18} />
-              {LANG_NAMES[code]}
-            </div>
+              <FlagIcon lang={code} className="ring-1 ring-on-background/15" />
+              <span className="min-w-0 truncate">{LANG_NAMES[code]}</span>
+            </button>
           ))}
         </div>
       )}

@@ -1,7 +1,8 @@
-import React, { useEffect } from 'react';
+import React from 'react';
 import { getTranslation, getCategoryLabel } from '../lib/i18n';
 import MediaPlaceholder, { isRealImage } from './MediaPlaceholder';
 import AccessBadge, { BookableBadge } from './AccessBadge';
+import useDismissableLayer from '../hooks/useDismissableLayer';
 
 export interface PoiDetailItem {
   id: string;
@@ -29,10 +30,7 @@ interface PoiDetailModalProps {
 }
 
 export default function PoiDetailModal({ item, lang, onClose, onOpenMap }: PoiDetailModalProps) {
-  useEffect(() => {
-    document.body.style.overflow = 'hidden';
-    return () => { document.body.style.overflow = ''; };
-  }, []);
+  useDismissableLayer(true, onClose);
 
   return (
     <div

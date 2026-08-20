@@ -1,6 +1,7 @@
-import React, { useEffect } from 'react';
+import React from 'react';
 import { getTranslation } from '../../lib/i18n';
 import type { CitySummary, GuidePoi } from '../../lib/types';
+import useDismissableLayer from '../../hooks/useDismissableLayer';
 
 interface ExploreSearchPanelProps {
   lang: string;
@@ -23,10 +24,7 @@ export default function ExploreSearchPanel({
   lang, query, onQueryChange, cityResults, poiResults,
   activeZoneSlug, activeZoneName, onSelectCity, onSelectPoi, onClose,
 }: ExploreSearchPanelProps) {
-  useEffect(() => {
-    document.body.style.overflow = 'hidden';
-    return () => { document.body.style.overflow = ''; };
-  }, []);
+  useDismissableLayer(true, onClose);
 
   return (
     <div data-no-tab-swipe className="fixed inset-0 z-[70] flex flex-col bg-surface-container-lowest">

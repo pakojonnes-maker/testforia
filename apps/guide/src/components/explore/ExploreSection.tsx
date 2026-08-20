@@ -2,6 +2,7 @@ import React, { useLayoutEffect, useRef, useState } from 'react';
 import { getTranslation } from '../../lib/i18n';
 import { useExploreState } from '../../hooks/useExploreState';
 import { useMediaQuery } from '../../hooks/useMediaQuery';
+import { useBackClosable } from '../../hooks/useDismissableLayer';
 import { haversineKm, formatDistanceKm } from '../../lib/poiCategories';
 import ExploreMap from './ExploreMap';
 import BottomSheet from './BottomSheet';
@@ -22,10 +23,11 @@ interface ExploreSectionProps {
 }
 
 // BottomSheet's own drag-handle chrome around whatever `header` it's given:
-// pt-2 (8) + the drag bar itself (h-1 = 4) + pb-1 (4) = 16px, fixed regardless
-// of header content. Kept in sync with BottomSheet.tsx by hand since it's
-// simple, unchanging markup, not worth threading a measured value back up for.
-const SHEET_HANDLE_CHROME_PX = 16;
+// the handle button is min-h-11, i.e. the 44px minimum touch target, fixed
+// regardless of header content. Kept in sync with BottomSheet.tsx by hand since
+// it's simple, unchanging markup, not worth threading a measured value back up
+// for.
+const SHEET_HANDLE_CHROME_PX = 44;
 
 function toDetailItem(poi: GuidePoi, travelLabel: string | null): PoiDetailItem {
   return {
@@ -65,6 +67,10 @@ export default function ExploreSection({ apartmentSlug, lang, onLanguageChange, 
   // Tailwind-only trick because the branch changes which components mount
   // (BottomSheet vs a plain <aside>), not just their styling.
   const isDesktop = useMediaQuery('(min-width: 768px)');
+
+  // Con la hoja cubriendo el mapa entero, el botón atrás del móvil tiene que
+  // devolver el mapa antes de plantearse sacar al huésped de la guía.
+  useBackClosable(!isDesktop && snap === 'full', () => setSnap('half'));
 
   // Category chips stay hidden until the guest asks for them (tune icon) —
   // the floating chrome over the map should default to just search + the
@@ -257,6 +263,7 @@ export default function ExploreSection({ apartmentSlug, lang, onLanguageChange, 
         snap={snap}
         onSnapChange={setSnap}
         peekHeight={peekHeight}
+        toggleLabel={getTranslation('explore_drag_hint', lang)}
         header={
           <div ref={headerContentRef}>
             {selectedPoi ? (

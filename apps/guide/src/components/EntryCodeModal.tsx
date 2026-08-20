@@ -1,6 +1,7 @@
-import React, { useEffect, useState } from 'react';
+import React, { useState } from 'react';
 import { getTranslation } from '../lib/i18n';
 import { isRealImage } from './MediaPlaceholder';
+import useDismissableLayer from '../hooks/useDismissableLayer';
 
 interface EntryCodeModalProps {
   code: string;
@@ -19,10 +20,7 @@ interface EntryCodeModalProps {
 export default function EntryCodeModal({ code, pickupInstructions, latitude, longitude, image, lang, onClose }: EntryCodeModalProps) {
   const [copied, setCopied] = useState(false);
 
-  useEffect(() => {
-    document.body.style.overflow = 'hidden';
-    return () => { document.body.style.overflow = ''; };
-  }, []);
+  useDismissableLayer(true, onClose);
 
   const copyCode = () => {
     navigator.clipboard.writeText(code)

@@ -27,11 +27,18 @@
       "port": 5176
     },
     {
-      "_comment": "Segunda instancia del guide para sesiones paralelas, igual que worker-verify. OJO: el 5185 no está en ALLOWED_ORIGINS (workerCors.js), así que las llamadas al worker se bloquean — sirve para pantallas sin API, como /legal.",
+      "_comment": "Segunda instancia del guide para sesiones paralelas, igual que worker-verify. El 5185 SÍ está en ALLOWED_ORIGINS (workerCors.js), así que habla con el worker con normalidad.",
       "name": "guide-verify",
       "runtimeExecutable": "npm",
       "runtimeArgs": ["--prefix", "apps/guide", "run", "dev", "--", "--port", "5185"],
       "port": 5185
+    },
+    {
+      "_comment": "Tercera instancia del guide, para cuando el 5185 ya lo ocupa otra sesión. Reutiliza el puerto de tv (también en ALLOWED_ORIGINS): úsala solo si tv no está levantado.",
+      "name": "guide-verify2",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["--prefix", "apps/guide", "run", "dev", "--", "--port", "5176"],
+      "port": 5176
     },
     {
       "name": "worker",

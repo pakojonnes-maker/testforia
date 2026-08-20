@@ -1,6 +1,6 @@
 // src/pages/GuidebookPage.tsx — Guest-facing guidebook
-import { useState, useEffect, useRef } from 'react';
-import { useParams } from 'react-router-dom';
+import { useState, useEffect, useRef, useCallback } from 'react';
+import { useParams, useSearchParams } from 'react-router-dom';
 import { fetchGuidebook, trackSessionStart, trackSessionEnd, trackIntent, trackSectionView, buildMenuUrl, setReferralCookie } from '../lib/api';
 
 const MENU_URL = import.meta.env.VITE_MENU_URL || 'https://menu.visualtastes.com';
@@ -96,7 +96,21 @@ export default function GuidebookPage() {
     const browserLang = navigator.language?.split('-')[0] || 'es';
     return ACTIVE_LANGUAGES.includes(browserLang) ? browserLang : 'es';
   });
-  const [activeTab, setActiveTab] = useState<TabKey>('info');
+  // La pestaña vive en la URL (?t=), no en useState, por dos motivos: el botón
+  // atrás del móvil retrocede entre pestañas en vez de sacar al huésped de la
+  // guía de golpe, y recargar o compartir el enlace ya no devuelve siempre a
+  // Info. Info es el estado por defecto, así que no ensucia la URL.
+  const [searchParams, setSearchParams] = useSearchParams();
+  const tabParam = searchParams.get('t') as TabKey | null;
+  const activeTab: TabKey = tabParam && TAB_ORDER.includes(tabParam) ? tabParam : 'info';
+  const setActiveTab = useCallback((tab: TabKey) => {
+    setSearchParams(prev => {
+      const next = new URLSearchParams(prev);
+      if (tab === 'info') next.delete('t');
+      else next.set('t', tab);
+      return next;
+    });
+  }, [setSearchParams]);
   const [showWelcome, setShowWelcome] = useState(false);
 
   // Dirección de la transición al cambiar de pestaña — se deriva de la posición

@@ -1,6 +1,7 @@
 import { useEffect } from 'react';
 import { buildWhatsAppUrl } from '../lib/api';
 import { getTranslation } from '../lib/i18n';
+import useDismissableLayer from '../hooks/useDismissableLayer';
 
 export interface WelcomeModalData {
   image_url: string | null;
@@ -19,10 +20,7 @@ interface WelcomeModalProps {
 }
 
 export default function WelcomeModal({ welcome, onClose, lang }: WelcomeModalProps) {
-  useEffect(() => {
-    document.body.style.overflow = 'hidden';
-    return () => { document.body.style.overflow = ''; };
-  }, []);
+  useDismissableLayer(true, onClose);
 
   const actionHref = (() => {
     if (!welcome.action_enabled || !welcome.action_data) return null;
