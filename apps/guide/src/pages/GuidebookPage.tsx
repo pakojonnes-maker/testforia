@@ -7,6 +7,7 @@ const MENU_URL = import.meta.env.VITE_MENU_URL || 'https://menu.visualtastes.com
 
 import WelcomeHero from '../components/WelcomeHero';
 import FeaturedCarousel from '../components/FeaturedCarousel';
+import ProductBillboard from '../components/ProductBillboard';
 import Header from '../components/Header';
 import BottomNavBar from '../components/BottomNavBar';
 import InfoSection from '../components/InfoSection';
@@ -504,6 +505,12 @@ export default function GuidebookPage() {
             <FeaturedCarousel
               restaurants={restaurants}
               experiences={experiences}
+              storeItems={store_items || []}
+              lang={lang}
+              onNavigateTab={setActiveTab}
+              onIntent={(type, id, action) => logIntent(type, id, action)}
+            />
+            <ProductBillboard
               storeItems={store_items || []}
               lang={lang}
               onNavigateTab={setActiveTab}

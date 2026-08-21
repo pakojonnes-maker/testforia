@@ -210,14 +210,18 @@ export default function InfoSection({ infoItems, phones = [], lang }: InfoSectio
                   <MediaPlaceholder label={featuredItem.title} />
                 )}
               </div>
-              <div className="flex flex-col md:flex-row md:items-end justify-between gap-4">
+              {/* Centrado en móvil (a petición): en una columna estrecha, texto a la
+                  izquierda + botón también a la izquierda quedaba descompensado
+                  contra la imagen ancha de arriba. En escritorio se mantiene el
+                  reparto original (texto a la izquierda, botón al final). */}
+              <div className="flex flex-col items-center text-center gap-4 md:flex-row md:items-end md:justify-between md:text-left">
                 <div>
                   {eyebrowFor(featuredItem) && (
                     <span className="font-mono-badge text-mono-badge uppercase text-primary mb-2 block">{eyebrowFor(featuredItem)}</span>
                   )}
                   <h4 className="font-display-lg text-display-lg text-on-background">{featuredItem.title}</h4>
                 </div>
-                <button className="text-primary border border-primary px-4 py-2 font-label-caps text-label-caps uppercase hover:bg-primary hover:text-on-primary transition-colors w-fit shrink-0">
+                <button className="text-primary border border-primary px-6 py-2.5 font-label-caps text-label-caps uppercase hover:bg-primary hover:text-on-primary transition-colors w-fit shrink-0">
                   {getTranslation('show_more', lang)}
                 </button>
               </div>
