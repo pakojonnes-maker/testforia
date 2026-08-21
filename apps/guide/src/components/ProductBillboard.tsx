@@ -1,110 +1,78 @@
-import React, { useEffect, useMemo, useState } from 'react';
-import { getTranslation } from '../lib/i18n';
-import { isRealImage } from './MediaPlaceholder';
+import React, { useMemo } from 'react';
 
 type TabKey = 'info' | 'discover' | 'restaurants' | 'services' | 'chat';
 
 interface StoreItem {
   id: string;
   name: string;
-  category: string;
   price_display: string;
-  cover_image_url?: string | null;
   is_featured: boolean;
   in_stock: boolean;
 }
 
 interface ProductBillboardProps {
   storeItems: StoreItem[];
-  lang: string;
   onNavigateTab: (tab: TabKey) => void;
   onIntent: (type: 'product', id: string, action: string) => void;
 }
 
-// Cuánto se queda cada producto encendido, y cuánto dura el apagado antes del
-// siguiente — la duración del apagado tiene que coincidir con la transición
-// CSS de más abajo o el cambio de producto se ve a medio fundido.
-const HOLD_MS = 4500;
-const SWAP_MS = 320;
-
-// "Valla publicitaria" (Stitch): franja oscura y compacta que se apaga y
-// vuelve a encender con el siguiente producto — a diferencia de
-// FeaturedCarousel (fotos grandes en cross-fade continuo, mezclando
-// restaurantes/experiencias/productos), esta vive solo de la Tienda y replica
-// el gesto de un panel de anuncios rotando, no un carrusel que siempre está
-// "on". Un solo producto a la vez, sobre `on-background` (no `deep-sea`:
-// GuidebookPage.tsx sobrescribe --color-deep-sea con el secondary_color de la
-// agencia en runtime, que puede ser cualquier tono claro — on-background es
-// el único oscuro garantizado, así la valla se distingue del crema del resto
-// de la app pase lo que pase con la marca del anfitrión).
-export default function ProductBillboard({ storeItems, lang, onNavigateTab, onIntent }: ProductBillboardProps) {
-  const items = useMemo(() => {
-    const featured = storeItems.filter(i => i.is_featured && i.in_stock);
-    return featured.length > 0 ? featured : storeItems.filter(i => i.in_stock).slice(0, 4);
-  }, [storeItems]);
-
-  const [index, setIndex] = useState(0);
-  const [lit, setLit] = useState(true);
-
-  // Si cambia el catálogo (p.ej. cambio de idioma recarga los datos), vuelve
-  // a empezar por el primero en vez de arriesgarse a un índice fuera de rango.
-  useEffect(() => {
-    setIndex(0);
-    setLit(true);
-  }, [items.length]);
-
-  useEffect(() => {
-    if (items.length < 2) return;
-    const off = setTimeout(() => setLit(false), HOLD_MS);
-    return () => clearTimeout(off);
-  }, [index, items.length]);
-
-  useEffect(() => {
-    if (lit || items.length < 2) return;
-    const next = setTimeout(() => {
-      setIndex(i => (i + 1) % items.length);
-      setLit(true);
-    }, SWAP_MS);
-    return () => clearTimeout(next);
-  }, [lit, items.length]);
+// "Valla publicitaria" (Stitch): cinta gris a sangre con texto azul en
+// mayúsculas desplazándose en bucle continuo — el mismo mecanismo que el
+// ticker de la landing (.animate-marquee / @keyframes marquee-scroll,
+// index.css), reutilizado aquí con productos reales en vez del texto de
+// ciudad/región de la maqueta. Reemplaza el primer intento (tarjeta oscura
+// que se apagaba/encendía con un solo producto): visualmente no se parecía
+// en nada a la referencia — Stitch es una cinta continua, no un aviso que
+// aparece y desaparece.
+//
+// -mx-[20px] md:-mx-[64px] rompe el margen del <main> a propósito: en el
+// diseño es la única franja que llega de canto a canto, no una tarjeta más
+// dentro del margen de página (esos 20px/64px son --spacing-margin-mobile/
+// desktop en index.css, el mismo padding horizontal que usa <main>).
+export default function ProductBillboard({ storeItems, onNavigateTab, onIntent }: ProductBillboardProps) {
+  const items = useMemo(
+    () => {
+      const featured = storeItems.filter(i => i.is_featured && i.in_stock);
+      return featured.length > 0 ? featured : storeItems.filter(i => i.in_stock);
+    },
+    [storeItems],
+  );
 
   if (items.length === 0) return null;
-  const item = items[index];
 
-  const handleTap = () => {
+  const handleTap = (item: StoreItem) => {
     onIntent('product', item.id, 'click_billboard');
     onNavigateTab('services');
   };
 
+  // Nombre · precio como un único token pulsable, con un "•" fijo (no
+  // pulsable) detrás de cada uno — incluido el último, para que el punto de
+  // unión entre las dos copias del track (necesario para el bucle sin
+  // costuras de translateX(-50%)) mantenga el mismo ritmo que el resto.
+  const track = (
+    <div className="flex shrink-0 items-center">
+      {items.map(item => (
+        <React.Fragment key={item.id}>
+          <button
+            type="button"
+            onClick={() => handleTap(item)}
+            className="shrink-0 font-label-caps text-label-caps uppercase tracking-[0.15em] text-primary whitespace-nowrap"
+          >
+            {item.name}
+            {item.price_display && <span className="text-primary/60"> · {item.price_display}</span>}
+          </button>
+          <span className="shrink-0 px-3 text-primary/40" aria-hidden="true">•</span>
+        </React.Fragment>
+      ))}
+    </div>
+  );
+
   return (
-    <button
-      type="button"
-      onClick={handleTap}
-      aria-label={`${item.name} — ${getTranslation('tab_services', lang)}`}
-      className="w-full bg-on-background text-crisp-white flex items-center gap-4 px-5 py-4 text-left overflow-hidden"
-      style={{
-        opacity: lit ? 1 : 0,
-        transform: lit ? 'translateY(0)' : 'translateY(6px)',
-        transition: `opacity ${SWAP_MS}ms ease, transform ${SWAP_MS}ms ease`,
-      }}
-    >
-      <div className="w-12 h-12 shrink-0 flex items-center justify-center overflow-hidden border border-crisp-white/20 bg-crisp-white/10">
-        {isRealImage(item.cover_image_url) ? (
-          <img src={item.cover_image_url!} className="w-full h-full object-cover" alt="" />
-        ) : (
-          <span className="material-symbols-outlined text-crisp-white/50 text-[22px]" aria-hidden="true">shopping_bag</span>
-        )}
+    <div className="-mx-[20px] md:-mx-[64px] overflow-hidden border-y border-on-background/10 bg-surface-dim py-3">
+      <div className="flex w-max animate-marquee">
+        {track}
+        {track}
       </div>
-      <div className="flex-1 min-w-0">
-        <span className="block font-label-caps text-label-caps uppercase text-accent-gold tracking-widest">
-          {getTranslation('tab_services', lang)}
-        </span>
-        <span className="block font-headline-md text-[16px] truncate">{item.name}</span>
-      </div>
-      {item.price_display && (
-        <span className="shrink-0 font-mono-badge text-mono-badge text-accent-gold">{item.price_display}</span>
-      )}
-      <span className="material-symbols-outlined text-crisp-white/70 shrink-0" aria-hidden="true">chevron_right</span>
-    </button>
+    </div>
   );
 }

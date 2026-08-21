@@ -512,7 +512,6 @@ export default function GuidebookPage() {
             />
             <ProductBillboard
               storeItems={store_items || []}
-              lang={lang}
               onNavigateTab={setActiveTab}
               onIntent={(type, id, action) => logIntent(type, id, action)}
             />
