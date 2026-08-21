@@ -583,7 +583,12 @@ export default function GuidebookPage() {
         <footer style={{
           textAlign: 'center',
           padding: '32px 16px',
-          marginTop: 'var(--sp-2xl)',
+          /* Sin marginTop propio: <main> ya cierra con py-8 (32px) y este
+             padding añade otros 32px — un var(--sp-2xl) (48px) extra aquí
+             apilaba tres espacios seguidos (112px en total) antes de que
+             apareciera cualquier texto. Con una pestaña que termina en un
+             elemento a sangre como ProductBillboard el hueco se notaba
+             todavía más, por el borde duro de la cinta justo encima. */
           marginBottom: '80px', /* space for bottom nav */
           fontSize: '0.75rem',
           color: 'var(--gris-medio)'
