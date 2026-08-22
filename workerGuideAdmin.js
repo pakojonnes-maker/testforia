@@ -620,12 +620,69 @@ async function getApartment(env, id, isSuperAdmin, userAgencyIds) {
     return jsonResponse({ success: true, apartment: apt });
 }
 
+// Sufijo aleatorio del slug: 4 bytes en hexadecimal (~4.300 millones de valores).
+//
+// El slug es la URL pública de la guía (guide.visualtastes.com/{slug}) y hasta
+// ahora se derivaba solo del nombre del piso: "Ático Balcón Europa" daba
+// `atico-balcon-europa`. Ese nombre está publicado en Airbnb o Booking, así que
+// cualquiera podía reconstruir la URL y abrir la guía entera — incluida la clave
+// del WiFi y el bloque `door_code` con el código de la puerta, porque
+// GET /guide/:slug es público a propósito y no lo va a dejar de ser.
+//
+// El sufijo mata la adivinación sin perder legibilidad: el enlace sigue diciendo
+// de qué piso es, que es justo lo que un UUID puro no da y lo que se agradece
+// cuando un anfitrión te pasa una URL preguntando algo.
+//
+// Lo que esto NO resuelve: quien ya tiene el enlace lo conserva para siempre —un
+// huésped de la semana pasada, un WhatsApp reenviado—. Cerrar eso exigiría
+// caducidad ligada a la estancia, y el sistema no conoce las fechas de la reserva.
+// Esta función cierra la vía masiva, que es la que se automatiza.
+function randomSlugSuffix() {
+    const bytes = crypto.getRandomValues(new Uint8Array(4));
+    return Array.from(bytes, b => b.toString(16).padStart(2, '0')).join('');
+}
+
+// Parte legible del slug. El `normalize('NFD')` + quitar diacríticos va ANTES de
+// filtrar caracteres: sin eso `[^a-z0-9]+` se comía la vocal acentuada entera y
+// "Precioso Ático Cronos Golf" acababa convertido en `precioso-tico-cronos-golf`
+// (que es, literalmente, uno de los slugs que hay hoy en producción).
+function slugBase(name) {
+    return String(name || '')
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '')
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, '-')
+        .replace(/^-+|-+$/g, '')
+        .slice(0, 32)
+        .replace(/-+$/, '');
+}
+
+// El sufijo se añade SIEMPRE, incluso cuando el cliente manda un `slug` explícito:
+// respetarlo tal cual dejaría abierta la misma puerta por otra vía.
+//
+// El reintento tampoco es paranoia: `guide_apartments.slug` es UNIQUE y nadie
+// comprobaba la colisión, así que dos agencias dando de alta un "Apartamento
+// Centro" hacían fallar el INSERT con un 500 sin explicación posible para quien
+// lo sufría.
+async function generateApartmentSlug(env, data) {
+    const base = slugBase(data.slug || data.name) || 'guia';
+    for (let intento = 0; intento < 5; intento++) {
+        const candidato = `${base}-${randomSlugSuffix()}`;
+        const existe = await env.DB.prepare(
+            'SELECT 1 FROM guide_apartments WHERE slug = ?'
+        ).bind(candidato).first();
+        if (!existe) return candidato;
+    }
+    return null;
+}
+
 async function createApartment(env, data) {
     if (!data.agency_id || !data.zone_id || !data.name) {
         return errorResponse('agency_id, zone_id, and name are required');
     }
     const id = generateId('apt');
-    const slug = data.slug || data.name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+    const slug = await generateApartmentSlug(env, data);
+    if (!slug) return errorResponse('No se pudo generar un slug único, reintenta', 500);
 
     // Campos de listing (migración 0087, importador desde URL en
     // workerGuideApartmentLink.js): todos opcionales y NULL explícito si no

@@ -1,0 +1,66 @@
+-- 0089_unguessable_apartment_slugs.sql
+-- ============================================================================
+-- POR QUÉ EXISTE
+--
+-- El slug de un apartamento es su URL pública: guide.visualtastes.com/{slug}.
+-- Hasta ahora se derivaba solo del nombre del piso (workerGuideAdmin.js,
+-- createApartment), así que "Ático Balcón Europa" daba `atico-balcon-europa`.
+-- Ese nombre está publicado en Airbnb y Booking, de modo que la URL de la guía
+-- era deducible por cualquiera, y GET /guide/:slug es público a propósito: no
+-- pide autenticación y devuelve la guía entera, incluida la clave del WiFi
+-- (guide_apartments.wifi_password) y el bloque `door_code` de
+-- guide_apartment_info, que es donde el anfitrión escribe el código de la
+-- puerta. El propio workerGuide.js ya lo reconocía por escrito: "scoping, not
+-- a security boundary".
+--
+-- Los 5 slugs que había en producción cuando se escribió esto eran todos
+-- deducibles: atico-balcon-europa, paloma-park-benalmadena,
+-- piso-playa-burriana-2b, precioso-tico-cronos-golf y
+-- lujoso-atico-duplex-en-el-centro-de-benalmadena.
+--
+-- QUÉ HACE
+--
+-- Añade a cada slug un sufijo aleatorio de 8 caracteres hexadecimales (4 bytes,
+-- ~4.300 millones de combinaciones), truncando antes la parte legible a 32
+-- caracteres para que coincida con lo que genera generateApartmentSlug() en
+-- workerGuideAdmin.js de aquí en adelante. Se conserva la parte legible a
+-- propósito: el enlace sigue diciendo de qué piso es, cosa que un UUID puro no
+-- da y que se agradece en soporte.
+--
+-- LO QUE NO ARREGLA
+--
+-- Quien ya tiene un enlace lo conserva para siempre (un huésped de la semana
+-- pasada, un WhatsApp reenviado). Cerrar eso exigiría caducidad ligada a la
+-- estancia, y hoy el sistema no conoce las fechas de la reserva. Esto cierra la
+-- adivinación, que es la vía que se automatiza.
+--
+-- ⚠️ ROMPE LOS ENLACES Y QR ANTIGUOS, A PROPÓSITO. No se deja alias de
+-- compatibilidad: mientras el slug viejo siguiera resolviendo, seguiría siendo
+-- adivinable, y un redirect al nuevo revelaría el nuevo. Un alias permanente
+-- anularía el sentido de esta migración. Tras aplicarla hay que reemitir los QR
+-- de los 5 pisos desde el admin (Apartamento → QR) y avisar a los anfitriones.
+--
+-- Los slugs resultantes NO se escriben aquí a propósito: son lo que protege el
+-- contenido de cada guía, y este fichero está versionado en git. Se consultan
+-- después con:
+--   npx wrangler d1 execute restaurant-menu-saas --remote \
+--     --command="SELECT name, slug FROM guide_apartments ORDER BY name"
+--
+-- IDEMPOTENTE: el WHERE excluye los slugs que ya llevan sufijo, comprobando que
+-- el noveno carácter contando desde el final sea el guión que lo separa. La
+-- versión obvia —GLOB '*-[0-9a-f]' repetido ocho veces— la rechaza SQLite con
+-- "LIKE or GLOB pattern too complex", así que se comprueba la posición del
+-- guión y no que los 8 caracteres sean hexadecimales. Basta para lo que
+-- importa: que re-ejecutar esto por error no encadene sufijos. Verificado
+-- contra los 5 slugs reales, ninguno tiene un guión en esa posición.
+--
+-- CACHÉ KV: no hace falta bumpear nada. La clave de caché incluye el slug
+-- (guide:{slug}:{lang}:v{version}), así que un slug nuevo es una clave nueva y
+-- falla en frío. Las claves del slug viejo quedan huérfanas y caducan solas.
+-- ============================================================================
+
+UPDATE guide_apartments
+SET slug = rtrim(substr(slug, 1, 32), '-') || '-' || lower(hex(randomblob(4))),
+    modified_at = CURRENT_TIMESTAMP
+WHERE length(slug) < 10
+   OR substr(slug, length(slug) - 8, 1) <> '-';
