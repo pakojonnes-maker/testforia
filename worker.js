@@ -322,5 +322,62 @@ export default {
                 message: "Error en el servidor: " + error.message
             }, 500);
         }
+    },
+
+    // ========================================================================
+    // CRON — purga de analítica del guidebook (art. 5.1.e RGPD)
+    // ========================================================================
+    // La política de privacidad publicada (apps/guide/src/pages/LegalPage.tsx)
+    // promete conservar la analítica "12 meses desde tu última visita". Hasta
+    // que existió esto, nada borraba nunca esas filas: los únicos DELETE sobre
+    // estas tablas eran la cascada al eliminar un apartamento. Prometer un
+    // plazo y no aplicarlo es peor que no prometerlo — deja de ser un descuido
+    // técnico y pasa a ser información inexacta al interesado.
+    //
+    // Se borra por antigüedad de la FILA, no "desde la última visita del
+    // visitante", que sería lo que dice la letra de la política. Es
+    // deliberado: borrar por fila es MÁS estricto (un huésped recurrente no
+    // mantiene vivas sus filas de hace dos años) y no necesita agrupar por
+    // visitor_id. Cumple de sobra lo prometido.
+    //
+    // NO se tocan guide_store_orders ni sus líneas: son datos de una
+    // transacción comercial, sujetos a plazos mercantiles y fiscales, no a
+    // este plazo de analítica.
+    async scheduled(event, env, ctx) {
+        const corte = new Date(Date.now() - 365 * 86400000).toISOString();
+        try {
+            // Los hijos van primero: guide_affiliate_intents y
+            // guide_section_views tienen FK a guide_sessions(id). Se filtran
+            // por su propia fecha Y por la sesión a la que cuelgan, porque un
+            // hijo cuya sesión se borra en esta misma pasada dejaría una FK
+            // huérfana aunque él todavía no hubiera cumplido el año.
+            const resultados = await env.DB.batch([
+                env.DB.prepare(`
+                    DELETE FROM guide_affiliate_intents
+                    WHERE created_at < ?1
+                       OR session_id IN (SELECT id FROM guide_sessions WHERE started_at < ?1)
+                `).bind(corte),
+                env.DB.prepare(`
+                    DELETE FROM guide_section_views
+                    WHERE created_at < ?1
+                       OR session_id IN (SELECT id FROM guide_sessions WHERE started_at < ?1)
+                `).bind(corte),
+                env.DB.prepare('DELETE FROM guide_tv_events WHERE created_at < ?1').bind(corte),
+                env.DB.prepare('DELETE FROM guide_sessions WHERE started_at < ?1').bind(corte),
+            ]);
+
+            const borradas = resultados.map(r => r.meta?.changes ?? 0);
+            console.log(
+                `[Purga] corte=${corte} intents=${borradas[0]} section_views=${borradas[1]} ` +
+                `tv_events=${borradas[2]} sessions=${borradas[3]}`
+            );
+        } catch (error) {
+            // Un fallo aquí no puede tumbar nada del lado público, pero tiene
+            // que ser ruidoso en `wrangler tail`: una purga que falla en
+            // silencio durante meses reproduce exactamente el problema que
+            // este cron vino a resolver.
+            console.error('[Purga] FALLO al purgar analítica del guidebook:', error);
+            throw error;
+        }
     }
 };

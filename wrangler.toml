@@ -2,6 +2,14 @@ name = "visualtasteworker"
 main = "worker.js"
 compatibility_date = "2023-10-30"
 
+# Purga de analítica del guidebook (ver scheduled() en worker.js). La política de
+# privacidad publicada promete conservar la analítica 12 meses desde la última
+# visita; sin esto era solo una promesa, porque nada borraba nunca esas filas.
+# 04:17 UTC y no en punto: a las horas redondas se concentran los crons de toda
+# la plataforma y las colas de D1 son peores.
+[triggers]
+crons = ["17 4 * * *"]
+
 [vars]
 # WhatsApp que recibe los pedidos de productos owner_type='platform' en la
 # Tienda del guidebook (aceite, queso...).
