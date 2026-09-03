@@ -1,75 +1,53 @@
 /**
- * Escena mediterránea veraniega hecha 100% con CSS (sin imágenes externas):
- * cielo cálido al atardecer → mar turquesa → profundo, con sol, reflejo y
- * brillo del agua. Todo animado con transform/opacity para no cargar la GPU
- * de las TVs baratas.
+ * Lienzo ambiente. Antes era una escena mediterránea completa (sol, olas,
+ * reflejo) y ese era justo el problema: con tarjetas de cristal encima, cada
+ * una tenía un contraste distinto según lo que le tocara detrás, y el ojo iba
+ * al fondo en vez de al contenido.
+ *
+ * Ahora es un degradado sordo teñido con el color de la marca del anfitrión,
+ * más un halo muy tenue. Mantiene la identidad sin competir con nada.
  */
 export function MediterraneanBackground() {
   return (
-    <div className="absolute inset-0 overflow-hidden">
-      {/* Cielo + mar */}
+    <div className="absolute inset-0 overflow-hidden" aria-hidden="true">
       <div
         className="absolute inset-0"
         style={{
           background:
-            'linear-gradient(180deg,' +
-            '#fbe7c6 0%,' +   /* horizonte cálido */
-            '#f6cfa0 12%,' +  /* melocotón */
-            '#bfe3df 30%,' +  /* cielo foam */
-            '#5bc4cc 48%,' +  /* mar claro */
-            '#1f96ad 66%,' +  /* mar */
-            '#0a5a72 84%,' +  /* mar hondo */
-            '#06415c 100%)',  /* fondo */
+            'linear-gradient(165deg, var(--tv-canvas, #0a2431) 0%, var(--tv-canvas-deep, #06202c) 62%, #04161f 100%)',
         }}
       />
 
-      {/* Sol */}
+      {/* Halo de marca en la esquina superior: da profundidad y sitúa la
+          cabecera sin robar atención al mosaico. */}
       <div
         className="absolute rounded-full"
         style={{
-          width: '18vw', height: '18vw',
-          left: '50%', top: '16%', transform: 'translateX(-50%)',
-          background: 'radial-gradient(circle, #fff4dd 0%, #ffd98a 42%, rgba(246,178,76,0) 72%)',
-          animation: 'sun-pulse 6s ease-in-out infinite',
+          width: '70vw',
+          height: '70vw',
+          top: '-32vw',
+          right: '-18vw',
+          background: 'radial-gradient(circle, var(--tv-accent-soft, rgba(52,194,201,0.16)) 0%, transparent 68%)',
+          animation: 'ambient-drift 26s ease-in-out infinite alternate',
         }}
       />
 
-      {/* Reflejo del sol sobre el agua */}
+      {/* Segundo halo, frío, abajo a la izquierda: rompe la simetría sin ruido. */}
       <div
-        className="absolute"
+        className="absolute rounded-full"
         style={{
-          width: '10vw', height: '46vh',
-          left: '50%', top: '46%', transform: 'translateX(-50%)',
-          background: 'linear-gradient(180deg, rgba(255,240,200,0.55), rgba(255,240,200,0) 80%)',
-          filter: 'blur(8px)',
+          width: '46vw',
+          height: '46vw',
+          bottom: '-22vw',
+          left: '-12vw',
+          background: 'radial-gradient(circle, rgba(255,255,255,0.05) 0%, transparent 70%)',
         }}
       />
 
-      {/* Brillo/olas del mar */}
-      <div
-        className="absolute inset-x-0"
-        style={{
-          top: '46%', bottom: 0,
-          background:
-            'repeating-linear-gradient(180deg, rgba(255,255,255,0.08) 0px, rgba(255,255,255,0) 3px, rgba(255,255,255,0) 22px)',
-          animation: 'shimmer 7s ease-in-out infinite',
-        }}
-      />
-
-      {/* Neblina de horizonte */}
-      <div
-        className="absolute inset-x-0"
-        style={{
-          top: '42%', height: '8vh',
-          background: 'linear-gradient(180deg, rgba(255,255,255,0.5), rgba(255,255,255,0))',
-          filter: 'blur(6px)',
-        }}
-      />
-
-      {/* Viñeta suave para dar profundidad y foco al centro */}
+      {/* Viñeta: empuja la mirada al centro, que es donde vive el contenido. */}
       <div
         className="absolute inset-0"
-        style={{ background: 'radial-gradient(120% 90% at 50% 42%, rgba(0,0,0,0) 55%, rgba(4,30,45,0.35) 100%)' }}
+        style={{ background: 'radial-gradient(125% 95% at 50% 45%, transparent 52%, rgba(0,0,0,0.42) 100%)' }}
       />
     </div>
   )

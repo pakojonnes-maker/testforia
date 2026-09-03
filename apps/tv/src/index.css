@@ -1,32 +1,27 @@
 @import "tailwindcss";
 
 /* ============================================================
-   VisualTaste TV — paleta VERANIEGA MEDITERRÁNEA
-   Mar egeo, cal blanca, terracota, arena, oliva y buganvilla.
+   VisualTaste TV — sistema de pantalla de 10 pies
+   ------------------------------------------------------------
+   Regla de fondo: el CONTENIDO manda. Superficies sólidas, alto
+   contraste y un solo acento (el de la marca del anfitrión, ver
+   lib/theme.ts). El cristal esmerilado sobre una escena de fondo
+   se lee mal a 3 m y hace que cada tarjeta tenga un contraste
+   distinto según lo que tenga detrás.
    ============================================================ */
 @theme {
-  /* Mar / cielo */
+  /* Paleta mediterránea de referencia. Los valores VIVOS los inyecta
+     lib/theme.ts como --tv-* según la marca del alojamiento; estos son el
+     fallback y lo que usan las utilidades de Tailwind. */
   --color-sea-deep: #06415c;
   --color-sea: #128099;
-  --color-sea-bright: #22a7c3;
   --color-turquoise: #34c2c9;
   --color-lagoon: #7ad7d1;
-  --color-foam: #dff4f2;
-  --color-sky: #bfe6e6;
-
-  /* Cal / arena */
   --color-whitewash: #fbf8f2;
   --color-sand: #f0e4cf;
-  --color-sand-deep: #e2caa2;
-
-  /* Tierra / acentos */
   --color-terracotta: #e07a5f;
-  --color-clay: #c9613f;
   --color-olive: #7c8a56;
-  --color-bougainvillea: #d24c8e;
   --color-sun: #f6b24c;
-
-  /* Tinta */
   --color-ink: #0c2a37;
   --color-ink-soft: #33505c;
 
@@ -41,47 +36,112 @@ html, body, #root {
 
 body {
   font-family: var(--font-body);
-  color: var(--color-ink);
-  background: var(--color-sea-deep);
+  color: var(--tv-text, #f8f5ef);
+  background: var(--tv-canvas-deep, #0a2431);
   overflow: hidden; /* 10-foot UI: sin scroll libre */
   -webkit-font-smoothing: antialiased;
 }
 
-/* Área segura de TV (overscan ~5%): todo el contenido vive dentro */
+/* Área segura de TV (overscan ~4%): nada de contenido fuera de aquí. */
 .tv-safe {
   position: absolute;
-  inset: 3.5% 4%;
+  inset: 3.2% 3.6%;
 }
 
 .font-display { font-family: var(--font-display); }
 
-/* ---------- Animaciones (baratas para GPU: transform / opacity) ---------- */
-@keyframes sun-pulse {
-  0%, 100% { opacity: 0.85; transform: scale(1); }
-  50%      { opacity: 1;    transform: scale(1.04); }
+/* Ojo tipográfico de TV: los títulos grandes necesitan tracking negativo
+   para no parecer separados, y las etiquetas pequeñas lo contrario. */
+.t-display {
+  font-family: var(--font-display);
+  letter-spacing: -0.02em;
+  line-height: 1.02;
 }
-@keyframes shimmer {
-  0%   { transform: translateX(-4%); opacity: 0.35; }
-  50%  { opacity: 0.6; }
-  100% { transform: translateX(4%);  opacity: 0.35; }
-}
-@keyframes drift {
-  0%   { transform: translate3d(0,0,0); }
-  100% { transform: translate3d(0,-14px,0); }
-}
-@keyframes focus-breathe {
-  0%, 100% { box-shadow: 0 0 0 3px rgba(255,255,255,0.9), 0 0 34px 6px rgba(52,194,201,0.55); }
-  50%      { box-shadow: 0 0 0 3px rgba(255,255,255,1),   0 0 46px 10px rgba(52,194,201,0.8); }
+.t-label {
+  font-size: 0.8rem;
+  letter-spacing: 0.24em;
+  text-transform: uppercase;
+  font-weight: 600;
 }
 
-/* Estado de FOCO por mando: el corazón del "wow" en TV.
-   Cualquier elemento seleccionado escala y respira con halo turquesa. */
+/* Recorte de texto a N líneas: en una tesela el texto NUNCA debe empujar la
+   caja ni salirse; el desbordamiento silencioso es el bug clásico de la TV. */
+.clamp-2, .clamp-3, .clamp-4, .clamp-6 {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.clamp-2 { -webkit-line-clamp: 2; }
+.clamp-3 { -webkit-line-clamp: 3; }
+.clamp-4 { -webkit-line-clamp: 4; }
+.clamp-6 { -webkit-line-clamp: 6; }
+
+/* Carruseles: sin barra de scroll visible, el foco arrastra la fila. */
+.rail {
+  overflow-x: auto;
+  overflow-y: visible;
+  scrollbar-width: none;
+}
+.rail::-webkit-scrollbar { display: none; }
+
+.col-scroll {
+  overflow-y: auto;
+  scrollbar-width: none;
+}
+.col-scroll::-webkit-scrollbar { display: none; }
+
+/* ---------- FOCO POR MANDO ----------
+   Es el elemento de UI más importante de toda la app: si el huésped no ve
+   dónde está, la pantalla no sirve. Anillo sólido del color de marca + elevación.
+   Sin animación en bucle: a 3 m un halo que late lee como "cargando" y compite
+   con el contenido en lugar de señalarlo. */
 .focusable {
-  transition: transform 220ms cubic-bezier(.2,.8,.2,1), box-shadow 220ms ease;
+  transition: transform 170ms cubic-bezier(.2,.8,.2,1), box-shadow 170ms ease;
   will-change: transform;
+  border-radius: 1.25rem;
 }
 .focusable[data-focused="true"] {
-  transform: scale(1.06);
-  animation: focus-breathe 2.4s ease-in-out infinite;
+  transform: scale(1.035);
+  box-shadow:
+    0 0 0 4px var(--tv-accent, #34c2c9),
+    0 0 0 8px rgba(0, 0, 0, 0.35),
+    0 24px 48px rgba(0, 0, 0, 0.45);
   z-index: 5;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .focusable { transition: box-shadow 120ms ease; }
+  .focusable[data-focused="true"] { transform: none; }
+  *, *::before, *::after { animation-duration: 0.001ms !important; animation-iteration-count: 1 !important; }
+}
+
+/* Deriva lentísima del fondo ambiente. Es lo único que se mueve solo. */
+@keyframes ambient-drift {
+  0%   { transform: translate3d(0, 0, 0) scale(1); }
+  100% { transform: translate3d(0, -1.5%, 0) scale(1.04); }
+}
+
+/* Entrada de pantalla: se anima la POSICIÓN, nunca la opacidad.
+
+   Un fundido desde opacidad 0 puede dejar la pantalla en NEGRO de forma
+   permanente si el reloj de animaciones no avanza — WebView en segundo plano,
+   documento oculto, TV que compone sin pintar. Está comprobado en el navegador:
+   con el documento oculto la animación se queda en estado "running" pero con
+   currentTime 0, y una animación parada en su primer fotograma sigue aplicando
+   ese fotograma (quitar el fill-mode no lo evita). Animando solo un
+   desplazamiento, el peor caso es contenido 12 px más abajo: nadie lo nota.
+   En una pantalla de bienvenida que nadie va a tocar, el fallo tiene que dejar
+   el contenido a la vista.
+
+   Se quitó también framer-motion de las pantallas: aquí sólo hace falta esto, y
+   una animación CSS no gasta JS por fotograma —que en TVs baratas se nota. */
+@keyframes screen-in {
+  from { transform: translate3d(0, 12px, 0); }
+  to   { transform: none; }
+}
+.screen-in {
+  animation: screen-in 260ms cubic-bezier(.2,.8,.2,1);
+}
+@media (prefers-reduced-motion: reduce) {
+  .screen-in { animation: none; }
 }

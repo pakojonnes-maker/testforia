@@ -1,22 +1,28 @@
 import { useEffect } from 'react'
-import { motion } from 'framer-motion'
 import { BrandedQr } from '../components/BrandedQr'
-import { WifiIcon } from '../components/icons'
 import { wifiQrPayload } from '../lib/mockData'
-import type { GuidebookData } from '../lib/api'
 import { track } from '../lib/tracking'
+import type { GuidebookData } from '../lib/api'
 
-const fade = (delay: number) => ({
-  initial: { opacity: 0, y: 24 },
-  animate: { opacity: 1, y: 0 },
-  transition: { duration: 0.6, delay, ease: [0.2, 0.8, 0.2, 1] as const },
-})
+/**
+ * WiFi a pantalla completa. El QR del inicio resuelve el caso normal; esta
+ * pantalla es para quien no puede escanear y tiene que teclear la contraseña
+ * desde el sofá — por eso aquí las credenciales van ENORMES y la explicación
+ * es la secundaria, al revés que en la tesela.
+ */
 
-function Field({ label, value }: { label: string; value: string }) {
+function Credential({ label, value }: { label: string; value: string }) {
   return (
     <div>
-      <div className="text-xs uppercase tracking-[0.22em] text-whitewash/70">{label}</div>
-      <div className="mt-1 font-display text-4xl font-semibold text-whitewash">{value}</div>
+      <div className="t-label" style={{ color: 'var(--tv-text-faint)' }}>{label}</div>
+      {/* break-all: una contraseña larga no se puede recortar con puntos
+          suspensivos; si no se lee entera, la pantalla no sirve para nada. */}
+      <div
+        className="t-display mt-2 break-all text-5xl font-bold"
+        style={{ color: 'var(--tv-text)' }}
+      >
+        {value}
+      </div>
     </div>
   )
 }
@@ -26,47 +32,44 @@ export function WifiScreen({ data }: { data: GuidebookData }) {
   useEffect(() => { track('wifi_reveal', { screen: 'wifi' }) }, [])
 
   return (
-    <div className="flex h-full items-center justify-center">
-      <motion.div
-        {...fade(0.05)}
-        className="flex w-[70%] max-w-[1040px] items-center gap-12 rounded-[2rem] p-12 backdrop-blur-xl"
-        style={{ background: 'rgba(251,248,242,0.14)', border: '1px solid rgba(255,255,255,0.25)', boxShadow: '0 30px 80px rgba(4,30,45,0.45)' }}
-      >
-        {/* Izquierda: credenciales */}
-        <div className="flex-1">
-          <div className="mb-6 flex items-center gap-3 text-whitewash">
-            <div className="grid h-14 w-14 place-items-center rounded-2xl"
-              style={{ background: 'linear-gradient(135deg,#34c2c9,#128099)' }}>
-              <WifiIcon size={30} />
-            </div>
-            <div>
-              <div className="text-sm uppercase tracking-[0.3em] text-whitewash/75">Conéctate</div>
-              <div className="font-display text-3xl font-bold text-whitewash">WiFi de la casa</div>
-            </div>
+    <div className="screen-in flex h-full items-center">
+      <div className="grid w-full items-center gap-16" style={{ gridTemplateColumns: '1fr auto' }}>
+        <div className="min-w-0">
+          <div className="t-label" style={{ color: 'var(--tv-accent)' }}>Conéctate</div>
+          <h2 className="t-display mt-3 text-6xl font-bold" style={{ color: 'var(--tv-text)' }}>
+            WiFi de la casa
+          </h2>
+
+          <div className="mt-10 flex flex-col gap-8">
+            <Credential label="Red" value={wifi.ssid || '—'} />
+            <Credential label="Contraseña" value={wifi.password || '—'} />
           </div>
 
-          <div className="space-y-6">
-            <Field label="Red" value={wifi.ssid || '—'} />
-            <Field label="Contraseña" value={wifi.password || '—'} />
-          </div>
-
-          <p className="mt-8 max-w-[380px] text-base leading-relaxed text-whitewash/80">
-            Escanea el código con la cámara de tu móvil y te conectarás
+          <p className="mt-10 max-w-[48ch] text-xl leading-relaxed" style={{ color: 'var(--tv-text-dim)' }}>
+            Apunta la cámara de tu móvil al código de la derecha y te conectarás
             automáticamente, sin escribir nada.
           </p>
         </div>
 
-        {/* Derecha: QR branded */}
-        <motion.div {...fade(0.2)} className="grid place-items-center">
-          <div className="rounded-3xl bg-whitewash p-6 shadow-2xl">
-            <BrandedQr data={wifiQrPayload({ ssid: wifi.ssid || '', password: wifi.password || '', security: wifi.security })} size={300} />
+        <div className="flex shrink-0 flex-col items-center">
+          <div className="rounded-3xl bg-white p-6 shadow-2xl">
+            <BrandedQr
+              size={320}
+              data={wifiQrPayload({
+                ssid: wifi.ssid || '',
+                password: wifi.password || '',
+                security: wifi.security,
+              })}
+            />
           </div>
-          <div className="mt-4 rounded-full px-5 py-2 text-sm font-semibold text-ink"
-            style={{ background: 'rgba(251,248,242,0.92)' }}>
+          <div
+            className="mt-5 rounded-full px-6 py-3 text-base font-bold"
+            style={{ background: 'var(--tv-accent)', color: 'var(--tv-accent-ink)' }}
+          >
             Escanea para conectarte
           </div>
-        </motion.div>
-      </motion.div>
+        </div>
+      </div>
     </div>
   )
 }

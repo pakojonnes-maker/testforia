@@ -1,41 +1,67 @@
-import { motion } from 'framer-motion'
 import { Focusable } from '../lib/spatialNav'
 import { infoIcon, isDoorCode } from '../lib/infoIcon'
 import type { GuidebookData } from '../lib/api'
 
 type InfoItem = GuidebookData['apartment']['info'][number]
 
-// El contenido llega como texto con saltos de línea reales (p.ej. una lista de
-// normas separadas por \n, cada una con su propio emoji/✓ delante). Un <p> normal
-// colapsa esos \n en espacios y todo se lee como una sola frase corrida — por eso
-// en la tele se veía como un bloque de texto ilegible. Aquí cada línea es su
-// propia fila, que es como se pensó el contenido al escribirlo.
-function ContentLines({ content }: { content: string }) {
+/**
+ * Información de la casa: rejilla, no carrusel.
+ *
+ * Un alojamiento tiene diez o quince apartados (basura, aire, parking, normas…)
+ * y en una fila horizontal el huésped no sabe cuántos hay ni encuentra el que
+ * busca. En rejilla los ve todos y va directo con el mando.
+ */
+
+/**
+ * El contenido llega con saltos de línea reales (una norma por línea). Un <p>
+ * los colapsa en espacios y todo se lee como una frase corrida — que es como se
+ * veía antes en la tele: un ladrillo de texto ilegible.
+ */
+function ContentLines({ content, max = 5 }: { content: string; max?: number }) {
   const lines = content.split('\n').map(l => l.trim()).filter(Boolean)
+  const shown = lines.slice(0, max)
+  const hidden = lines.length - shown.length
+
   return (
-    <div className="flex flex-col gap-2">
-      {lines.map((line, i) => (
-        <p key={i} className="text-lg leading-snug text-ink-soft">{line}</p>
+    <div className="flex flex-col gap-1.5">
+      {shown.map((line, i) => (
+        <p key={i} className="clamp-3 text-base leading-snug" style={{ color: 'var(--tv-text-dim)' }}>
+          {line}
+        </p>
       ))}
+      {hidden > 0 && (
+        <p className="text-sm font-semibold" style={{ color: 'var(--tv-accent)' }}>
+          +{hidden} {hidden === 1 ? 'punto más' : 'puntos más'}
+        </p>
+      )}
     </div>
   )
 }
 
-// The category catalog (migration 0083) gives every info item a color; older
-// rows without a category_key fall back to the same teal this tile always used.
 function InfoCard({ item, autoFocus }: { item: InfoItem; autoFocus?: boolean }) {
-  const tileBackground = item.color
-    ? `linear-gradient(140deg, ${item.color}, ${item.color}cc)`
-    : 'linear-gradient(140deg,#7ad7d1,#128099)'
+  // El catálogo de categorías (migración 0083) da color a cada apartado; las
+  // filas antiguas sin category_key caen al acento de la marca.
+  const iconBackground = item.color
+    ? `linear-gradient(140deg, ${item.color}, ${item.color}bb)`
+    : 'var(--tv-accent)'
+
   return (
     <Focusable id={`info-${item.id}`} autoFocus={autoFocus}>
-      <div className="flex h-full w-[340px] shrink-0 flex-col gap-4 rounded-3xl p-7 text-left shadow-xl"
-        style={{ background: 'rgba(251,248,242,0.96)' }}>
-        <div className="grid h-16 w-16 shrink-0 place-items-center rounded-2xl text-4xl"
-          style={{ background: tileBackground }}>
-          {infoIcon(item.icon, item.key)}
+      <div
+        className="flex h-full flex-col gap-4 p-6"
+        style={{ borderRadius: '1.25rem', background: 'var(--tv-surface)', border: '1px solid var(--tv-line)' }}
+      >
+        <div className="flex items-center gap-4">
+          <div
+            className="grid h-14 w-14 shrink-0 place-items-center rounded-2xl text-3xl"
+            style={{ background: iconBackground }}
+          >
+            {infoIcon(item.icon, item.key)}
+          </div>
+          <h3 className="t-display clamp-2 text-2xl font-bold leading-tight" style={{ color: 'var(--tv-text)' }}>
+            {item.title}
+          </h3>
         </div>
-        <div className="font-display text-2xl font-bold text-ink">{item.title}</div>
         <ContentLines content={item.content} />
       </div>
     </Focusable>
@@ -48,32 +74,39 @@ export function InfoScreen({ data }: { data: GuidebookData }) {
   const rest = items.filter(i => i !== door)
 
   return (
-    <div className="flex h-full flex-col justify-center">
-      <motion.div
-        initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.5 }}
-        className="mb-6 px-2"
-      >
-        <div className="text-sm uppercase tracking-[0.3em] text-whitewash/75">{data.apartment.name}</div>
-        <h1 className="font-display text-5xl font-bold text-whitewash drop-shadow">Información de la casa</h1>
-      </motion.div>
+    <div className="screen-in flex h-full flex-col">
+      <div className="shrink-0 pb-6">
+        <div className="t-label" style={{ color: 'var(--tv-accent)' }}>{data.apartment.name}</div>
+        <h2 className="t-display mt-3 text-6xl font-bold" style={{ color: 'var(--tv-text)' }}>
+          Información de la casa
+        </h2>
+        <p className="mt-3 max-w-[68ch] text-lg leading-relaxed" style={{ color: 'var(--tv-text-dim)' }}>
+          Todo lo práctico de tu estancia, en un sitio. Muévete con las flechas del mando.
+        </p>
+      </div>
 
-      <div className="flex items-stretch gap-6 px-2">
-        {/* Código de entrada destacado */}
-        {door && (
-          <Focusable id={`info-${door.id}`} autoFocus>
-            <div className="flex w-[320px] shrink-0 flex-col justify-between rounded-3xl p-7 shadow-xl"
-              style={{ background: 'linear-gradient(150deg,#e07a5f,#c9613f)' }}>
-              <div className="flex items-center gap-3 text-whitewash">
-                <span className="text-4xl">🔑</span>
-                <span className="text-sm font-semibold uppercase tracking-[0.2em]">{door.title}</span>
+      <div className="col-scroll min-h-0 flex-1 pr-1">
+        <div className="grid grid-cols-4 gap-4 pb-2 pt-1">
+          {door && (
+            <Focusable id={`info-${door.id}`} autoFocus>
+              <div
+                className="flex h-full flex-col justify-between p-6"
+                style={{
+                  borderRadius: '1.25rem',
+                  background: 'linear-gradient(150deg, var(--color-terracotta), var(--color-ink))',
+                }}
+              >
+                <div className="t-label" style={{ color: 'rgba(255,255,255,0.85)' }}>{door.title}</div>
+                <div
+                  className="t-display text-5xl font-bold tabular-nums"
+                  style={{ color: '#fff', letterSpacing: '0.12em' }}
+                >
+                  {door.content}
+                </div>
               </div>
-              <div className="font-display text-7xl font-bold tracking-[0.15em] text-whitewash">{door.content}</div>
-            </div>
-          </Focusable>
-        )}
+            </Focusable>
+          )}
 
-        {/* Resto de items en carrusel */}
-        <div className="flex gap-6 overflow-x-auto pb-4" style={{ scrollbarWidth: 'none' }}>
           {rest.map((item, i) => (
             <InfoCard key={item.id} item={item} autoFocus={!door && i === 0} />
           ))}
