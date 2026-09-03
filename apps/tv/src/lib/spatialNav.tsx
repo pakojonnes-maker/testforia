@@ -33,23 +33,59 @@ export function useFocus() {
   return ctx
 }
 
-function centre(r: DOMRect) { return { x: r.left + r.width / 2, y: r.top + r.height / 2 } }
+/** Holgura para que el escalado del elemento enfocado no lo saque de su banda. */
+const EDGE_TOLERANCE = 10
 
+/**
+ * Vecino en una dirección, puntuando por BORDES Y SOLAPAMIENTO, no por centros.
+ *
+ * Con centros, en un mosaico de teselas desiguales la flecha derecha saltaba a
+ * una tesela DIAGONAL (más pequeña y con el centro más cerca) en lugar de a la
+ * que está literalmente al lado: para el huésped el mando parecía roto.
+ *
+ * Aquí un candidato que se solapa con la banda del elemento actual en el eje
+ * perpendicular no paga penalización ninguna, así que siempre gana al diagonal
+ * aunque su centro esté más lejos. Es como se comporta cualquier interfaz de TV.
+ */
 function nextInDirection(current: HTMLElement, items: Item[], dir: Dir): string | null {
-  const c = centre(current.getBoundingClientRect())
+  const cr = current.getBoundingClientRect()
   let best: string | null = null
   let bestScore = Infinity
+
   for (const it of items) {
     if (it.el === current) continue
-    const r = centre(it.el.getBoundingClientRect())
-    const dx = r.x - c.x
-    const dy = r.y - c.y
-    let primary: number, cross: number
-    if (dir === 'left')  { if (dx > -8) continue; primary = -dx; cross = Math.abs(dy) }
-    else if (dir === 'right') { if (dx < 8) continue; primary = dx; cross = Math.abs(dy) }
-    else if (dir === 'up')    { if (dy > -8) continue; primary = -dy; cross = Math.abs(dx) }
-    else { if (dy < 8) continue; primary = dy; cross = Math.abs(dx) }
-    const score = primary + cross * 2
+    const r = it.el.getBoundingClientRect()
+
+    // `primary` = hueco entre los bordes enfrentados; `band`/`self` = extensión
+    // de cada uno en el eje perpendicular al movimiento.
+    let primary: number
+    let selfStart: number, selfEnd: number, bandStart: number, bandEnd: number
+
+    if (dir === 'right') {
+      if (r.left < cr.right - EDGE_TOLERANCE) continue
+      primary = r.left - cr.right
+      selfStart = cr.top; selfEnd = cr.bottom; bandStart = r.top; bandEnd = r.bottom
+    } else if (dir === 'left') {
+      if (r.right > cr.left + EDGE_TOLERANCE) continue
+      primary = cr.left - r.right
+      selfStart = cr.top; selfEnd = cr.bottom; bandStart = r.top; bandEnd = r.bottom
+    } else if (dir === 'down') {
+      if (r.top < cr.bottom - EDGE_TOLERANCE) continue
+      primary = r.top - cr.bottom
+      selfStart = cr.left; selfEnd = cr.right; bandStart = r.left; bandEnd = r.right
+    } else {
+      if (r.bottom > cr.top + EDGE_TOLERANCE) continue
+      primary = cr.top - r.bottom
+      selfStart = cr.left; selfEnd = cr.right; bandStart = r.left; bandEnd = r.right
+    }
+
+    const overlap = Math.min(selfEnd, bandEnd) - Math.max(selfStart, bandStart)
+    // Sin solapamiento se penaliza fuerte: es lo que descarta los diagonales.
+    const misalignment = overlap > 0 ? 0 : Math.max(selfStart - bandEnd, bandStart - selfEnd)
+    // Desempate suave entre varios candidatos alineados: gana el más centrado.
+    const centreGap = Math.abs((bandStart + bandEnd) / 2 - (selfStart + selfEnd) / 2)
+
+    const score = Math.max(primary, 0) + misalignment * 4 + centreGap * 0.15
     if (score < bestScore) { bestScore = score; best = it.id }
   }
   return best
@@ -74,11 +110,30 @@ export function FocusProvider({ children }: { children: ReactNode }) {
     const onKey = (e: KeyboardEvent) => {
       const cur = focusedRef.current
       const all = [...items.current.values()]
-      if (e.key === 'Enter' || e.key === ' ') {
-        const item = cur ? items.current.get(cur) : null
-        if (item?.onSelect) { e.preventDefault(); item.onSelect() }
+      if (!all.length) return
+
+      const current = cur ? items.current.get(cur) : null
+
+      /**
+       * Al cambiar de pantalla, los elementos de la anterior se dan de baja
+       * pero `focusedId` sigue apuntando a uno de ellos. Sin este reenganche
+       * el mando se queda MUERTO: no hay elemento actual desde el que medir
+       * distancias, así que ninguna flecha encuentra vecino. Se recupera el
+       * foco en la primera pulsación, que además es cuando el huésped lo nota.
+       */
+      if (!current) {
+        const first = all[0]
+        focusedRef.current = first.id
+        setFocusedId(first.id)
+        e.preventDefault()
         return
       }
+
+      if (e.key === 'Enter' || e.key === ' ') {
+        if (current.onSelect) { e.preventDefault(); current.onSelect() }
+        return
+      }
+
       const dir: Dir | null =
         e.key === 'ArrowUp' ? 'up' :
         e.key === 'ArrowDown' ? 'down' :
@@ -86,9 +141,7 @@ export function FocusProvider({ children }: { children: ReactNode }) {
         e.key === 'ArrowRight' ? 'right' : null
       if (!dir) return
       e.preventDefault()
-      const curEl = cur ? items.current.get(cur)?.el : all[0]?.el
-      if (!curEl) return
-      const next = nextInDirection(curEl, all, dir)
+      const next = nextInDirection(current.el, all, dir)
       if (next) setFocusedId(next)
     }
     window.addEventListener('keydown', onKey)
