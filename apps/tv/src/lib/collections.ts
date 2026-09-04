@@ -32,13 +32,32 @@ export interface Entry {
   subtitle: string
   description: string
   image?: string
+  /** Fotos adicionales para la galería del detalle, además de `image`. Real
+   *  siempre: viene de guide_poi_media o de la portada, nunca inventada. */
+  gallery: string[]
   /** Distintivo sobre la foto (Premium / Destacado). */
   badge?: string
+  /** true = alimenta la fila "Destacados" de la colección en vez de su
+   *  categoría. Restaurantes no tienen este concepto (siempre false): "Premium"
+   *  ya es su distintivo, ver buildEat. */
+  featured: boolean
   /** Chips de datos junto al título en el detalle. */
   facts: Array<{ icon: string; label: string }>
   qr?: EntryQr
   category?: string
   subcategory?: string | null
+  /** Ficha de contacto del detalle — sólo restaurantes y guía (POI/experiencia)
+   *  la rellenan; ninguno la tiene siempre completa, el detalle omite lo que
+   *  falte en vez de mostrar un hueco. */
+  address?: string | null
+  phone?: string | null
+  website?: string | null
+  openingHours?: string | null
+  /** Distancia/tiempo desde el alojamiento — sólo guía (POI/experiencia): un
+   *  restaurante no tiene esto precalculado, ver workerGuide.js. */
+  distanceText?: string | null
+  travelTimeText?: string | null
+  travelMode?: 'walk' | 'drive' | 'bike' | null
 }
 
 export interface Collection {
@@ -48,7 +67,8 @@ export interface Collection {
   title: string
   eyebrow: string
   intro: string
-  /** Título de la fila de tarjetas: es lo que VISTO llama "Host Suggestions". */
+  /** Etiqueta de la fila cuando no hay categorías que agrupar (p.ej. "eat",
+   *  donde todo es 'restaurant') — ver buildSections en CollectionScreen. */
   railLabel: string
   entries: Entry[]
 }
@@ -59,14 +79,31 @@ function whatsappUrl(phone: string, message?: string): string {
   return `https://wa.me/${digits}${text}`
 }
 
+/**
+ * Une portada + galería en una sola lista sin huecos ni duplicados: la
+ * portada (cover_image_url) y la galería (guide_poi_media) son dos campos
+ * independientes en el backend y a veces se pisan (la portada es también la
+ * primera foto subida). "Siempre mostrar las fotos que tenemos" significa
+ * esto: ninguna foto real se descarta, pero tampoco se repite la misma.
+ */
+function photoSet(cover: string | null | undefined, media?: Array<{ url: string }>): { image?: string; gallery: string[] } {
+  const urls = [cover, ...(media || []).map(m => m.url)].filter((u): u is string => Boolean(u))
+  const unique = Array.from(new Set(urls))
+  return { image: unique[0], gallery: unique.slice(1) }
+}
+
 function buildEat(data: GuidebookData): Entry[] {
   return data.restaurants.map((r): Entry => ({
     id: r.id,
     kind: 'eat',
     name: r.name,
     subtitle: r.cuisine_type || 'Restaurante',
-    description: '',
+    description: r.description || '',
     image: r.cover_image || undefined,
+    // Un restaurante delega su fotografía a la carta Gravy (QR abajo): ese es
+    // el catálogo visual real, no un mosaico de fotos sueltas en la TV.
+    gallery: [],
+    featured: false,
     badge: r.tier === 'premium' ? 'Premium' : undefined,
     category: 'restaurant',
     // Sin tipo de cocina el antetítulo ya dice 'Restaurante'; repetirlo como
@@ -75,6 +112,9 @@ function buildEat(data: GuidebookData): Entry[] {
       ...(r.cuisine_type ? [{ icon: '🍽️', label: r.cuisine_type }] : []),
       ...(r.tier === 'premium' ? [{ icon: '⭐', label: 'Selección del anfitrión' }] : []),
     ],
+    address: [r.address, r.city].filter(Boolean).join(', ') || null,
+    phone: r.phone || null,
+    website: r.website || null,
     // La atribución va incrustada en el QR: sin `ref`/`apt` no se puede saber
     // que esa visita a la carta salió de esta TV, y el ROI de la pantalla
     // vuelve a ser inmedible.
@@ -90,23 +130,36 @@ function buildEat(data: GuidebookData): Entry[] {
 
 function buildDo(data: GuidebookData): Entry[] {
   return data.experiences.map((e): Entry => {
-    const phone = e.action_type === 'whatsapp' ? e.action_data : null
+    const whatsappNumber = e.action_type === 'whatsapp' ? e.action_data : null
+    const { image, gallery } = photoSet(e.cover_image_url, e.media)
     return {
       id: e.id,
       kind: 'do',
       name: e.name,
       subtitle: e.price_display || e.category || 'Experiencia',
       description: e.description || '',
-      image: e.cover_image_url || undefined,
+      image,
+      gallery,
+      featured: e.is_featured,
       badge: e.is_featured ? 'Destacado' : undefined,
       category: e.category,
       subcategory: e.service_subcategory,
+      address: e.address || null,
+      phone: e.phone || null,
+      website: e.website_url || null,
+      openingHours: e.opening_hours || null,
+      distanceText: e.distance_text || null,
+      travelTimeText: e.travel_time_text || null,
+      travelMode: e.travel_mode || null,
       // El precio ya es el antetítulo de la ficha (y el pie de la tarjeta), así
       // que no se repite como chip: en el detalle salía dos veces seguidas.
-      facts: e.category ? [{ icon: '🎟️', label: e.category }] : [],
-      qr: phone
+      facts: [
+        ...(e.category ? [{ icon: '🎟️', label: e.category }] : []),
+        ...(e.duration_text ? [{ icon: '⏱️', label: e.duration_text }] : []),
+      ],
+      qr: whatsappNumber
         ? {
-            data: whatsappUrl(phone, e.prefilled_message),
+            data: whatsappUrl(whatsappNumber, e.prefilled_message),
             caption: e.cta_label || 'Escanea para reservar por WhatsApp',
             event: 'booking_qr_shown',
           }
@@ -116,26 +169,39 @@ function buildDo(data: GuidebookData): Entry[] {
 }
 
 function buildNearby(data: GuidebookData): Entry[] {
-  return data.pois.map((p): Entry => ({
-    id: p.id,
-    kind: 'nearby',
-    name: p.name,
-    subtitle: p.category || 'Lugar de interés',
-    description: p.description || '',
-    image: p.media?.[0]?.url,
-    category: p.category,
-    facts: p.category ? [{ icon: '📍', label: p.category }] : [],
-    qr: p.google_maps_url
-      ? {
-          data: p.google_maps_url,
-          caption: 'Escanea para abrir la ruta en tu móvil',
-          // Abrir direcciones es intención de visita, igual que una reserva:
-          // se cuenta con el mismo KPI para no inventar un tipo de evento que
-          // el backend (workerTvScreen.js) no acepta.
-          event: 'booking_qr_shown',
-        }
-      : undefined,
-  }))
+  return data.pois.map((p): Entry => {
+    const { image, gallery } = photoSet(p.cover_image_url, p.media)
+    return {
+      id: p.id,
+      kind: 'nearby',
+      name: p.name,
+      subtitle: p.category || 'Lugar de interés',
+      description: p.description || '',
+      image,
+      gallery,
+      featured: p.is_featured === true,
+      badge: p.is_featured ? 'Destacado' : undefined,
+      category: p.category,
+      address: p.address || null,
+      phone: p.phone || null,
+      website: p.website_url || null,
+      openingHours: p.opening_hours || null,
+      distanceText: p.distance_text || null,
+      travelTimeText: p.travel_time_text || null,
+      travelMode: p.travel_mode || null,
+      facts: p.category ? [{ icon: '📍', label: p.category }] : [],
+      qr: p.google_maps_url
+        ? {
+            data: p.google_maps_url,
+            caption: 'Escanea para abrir la ruta en tu móvil',
+            // Abrir direcciones es intención de visita, igual que una reserva:
+            // se cuenta con el mismo KPI para no inventar un tipo de evento que
+            // el backend (workerTvScreen.js) no acepta.
+            event: 'booking_qr_shown',
+          }
+        : undefined,
+    }
+  })
 }
 
 export function buildCollections(data: GuidebookData): Collection[] {
@@ -153,8 +219,8 @@ export function buildCollections(data: GuidebookData): Collection[] {
     {
       kind: 'do',
       tile: 'Qué hacer',
-      title: 'Qué hacer',
-      eyebrow: 'Experiencias',
+      title: 'Experiencias',
+      eyebrow: 'Qué hacer',
       intro: data.zone?.description || `Planes y experiencias reservables cerca de ${zone}.`,
       railLabel: 'Reservable desde tu móvil',
       entries: buildDo(data),

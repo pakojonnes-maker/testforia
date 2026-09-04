@@ -36,7 +36,7 @@ export function WifiScreen({ data }: { data: GuidebookData }) {
       <div className="grid w-full items-center gap-16" style={{ gridTemplateColumns: '1fr auto' }}>
         <div className="min-w-0">
           <div className="t-label" style={{ color: 'var(--tv-accent)' }}>Conéctate</div>
-          <h2 className="t-display mt-3 text-6xl font-bold" style={{ color: 'var(--tv-text)' }}>
+          <h2 className="t-display mt-3 tv-hero font-bold" style={{ color: 'var(--tv-text)' }}>
             WiFi de la casa
           </h2>
 
@@ -45,7 +45,7 @@ export function WifiScreen({ data }: { data: GuidebookData }) {
             <Credential label="Contraseña" value={wifi.password || '—'} />
           </div>
 
-          <p className="mt-10 max-w-[48ch] text-xl leading-relaxed" style={{ color: 'var(--tv-text-dim)' }}>
+          <p className="mt-10 max-w-[40ch] tv-body" style={{ color: 'var(--tv-text-dim)' }}>
             Apunta la cámara de tu móvil al código de la derecha y te conectarás
             automáticamente, sin escribir nada.
           </p>
@@ -63,7 +63,7 @@ export function WifiScreen({ data }: { data: GuidebookData }) {
             />
           </div>
           <div
-            className="mt-5 rounded-full px-6 py-3 text-base font-bold"
+            className="mt-5 rounded-full px-7 py-3.5 tv-body font-bold"
             style={{ background: 'var(--tv-accent)', color: 'var(--tv-accent-ink)' }}
           >
             Escanea para conectarte

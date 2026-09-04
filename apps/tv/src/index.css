@@ -50,16 +50,37 @@ body {
 
 .font-display { font-family: var(--font-display); }
 
-/* Ojo tipográfico de TV: los títulos grandes necesitan tracking negativo
-   para no parecer separados, y las etiquetas pequeñas lo contrario. */
 .t-display {
   font-family: var(--font-display);
   letter-spacing: -0.02em;
   line-height: 1.02;
 }
+
+/* ---------- ESCALA TIPOGRÁFICA DE 10 PIES ----------
+
+   Los tamaños están en px del lienzo de diseño (1920×1080), que en una TV
+   1080p son px reales en pantalla.
+
+   La referencia es la guía de Android TV: a 1080p la pantalla mide 960 dp, o
+   sea 1 sp = 2 px. Un cuerpo de texto de 14 sp son 28 px REALES y una leyenda
+   de 12 sp son 24 px. La escala por defecto de Tailwind (16 px de cuerpo, 14
+   de texto pequeño) es LA MITAD de ese mínimo: está pensada para un monitor a
+   60 cm, no para un sofá a 3 m, que es la única distancia a la que se usa esta
+   pantalla. Medido antes de introducir esta escala: la contraseña del WiFi se
+   servía a 14 px y los rótulos de las teselas a 16.
+
+   Usa siempre estas clases en lugar de `text-*` de Tailwind: son el contrato
+   de legibilidad de la app y el sitio donde ajustarlo si hace falta. */
+.tv-hero   { font-size: 4.5rem;   line-height: 1.02; letter-spacing: -0.025em; }
+.tv-title  { font-size: 3rem;     line-height: 1.05; letter-spacing: -0.02em; }
+.tv-lead   { font-size: 1.875rem; line-height: 1.35; }
+.tv-card   { font-size: 1.75rem;  line-height: 1.15; }
+.tv-body   { font-size: 1.625rem; line-height: 1.4; }
+.tv-meta   { font-size: 1.375rem; line-height: 1.3; }
 .t-label {
-  font-size: 0.8rem;
-  letter-spacing: 0.24em;
+  font-size: 1.25rem;
+  line-height: 1.2;
+  letter-spacing: 0.18em;
   text-transform: uppercase;
   font-weight: 600;
 }

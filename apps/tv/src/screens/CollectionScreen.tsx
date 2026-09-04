@@ -1,6 +1,6 @@
-import { useEffect } from 'react'
+import { useEffect, useMemo } from 'react'
 import { Focusable, useFocus } from '../lib/spatialNav'
-import { categoryVisual } from '../lib/categoryVisual'
+import { categoryVisual, categoryLabel } from '../lib/categoryVisual'
 import { track } from '../lib/tracking'
 import type { Collection, Entry } from '../lib/collections'
 
@@ -16,7 +16,7 @@ import type { Collection, Entry } from '../lib/collections'
 /** Línea de metadatos con separadores: da sensación de catálogo curado. */
 function MetaLine({ parts }: { parts: string[] }) {
   return (
-    <div className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-1 text-lg" style={{ color: 'var(--tv-text-dim)' }}>
+    <div className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-1 tv-meta" style={{ color: 'var(--tv-text-dim)' }}>
       {parts.map((part, i) => (
         <span key={part} className="flex items-center gap-3">
           {i > 0 && <span style={{ color: 'var(--tv-text-faint)' }}>|</span>}
@@ -56,7 +56,7 @@ function EntryCard({ entry, autoFocus, onSelect }: { entry: Entry; autoFocus?: b
 
         {entry.badge && (
           <span
-            className="absolute left-4 top-4 rounded-full px-3 py-1.5 text-xs font-bold uppercase tracking-[0.12em]"
+            className="absolute left-4 top-4 rounded-full px-3 py-1.5 text-[17px] font-bold uppercase tracking-[0.1em]"
             style={{ background: 'var(--tv-accent)', color: 'var(--tv-accent-ink)' }}
           >
             {entry.badge}
@@ -64,11 +64,11 @@ function EntryCard({ entry, autoFocus, onSelect }: { entry: Entry; autoFocus?: b
         )}
 
         <div className="absolute inset-x-0 bottom-0 p-5">
-          <div className="t-display clamp-2 text-2xl font-bold leading-tight" style={{ color: '#fff' }}>
+          <div className="t-display clamp-2 tv-card font-bold leading-tight" style={{ color: '#fff' }}>
             {entry.name}
           </div>
           {entry.subtitle && (
-            <div className="mt-1.5 truncate text-sm font-semibold" style={{ color: 'rgba(255,255,255,0.74)' }}>
+            <div className="mt-2 truncate tv-meta font-semibold" style={{ color: 'rgba(255,255,255,0.74)' }}>
               {entry.subtitle}
             </div>
           )}
@@ -76,6 +76,42 @@ function EntryCard({ entry, autoFocus, onSelect }: { entry: Entry; autoFocus?: b
       </div>
     </Focusable>
   )
+}
+
+interface Section {
+  label: string
+  entries: Entry[]
+}
+
+/**
+ * "Destacados" (is_featured) primero, luego una fila por categoría — como
+ * VISTO agrupa "Host Suggestions" y debajo el resto por temática (ver foto de
+ * referencia). Sin destacados y con una sola categoría (p.ej. "eat", donde
+ * todo es 'restaurant') colapsa a una fila con `railLabel`: el mismo aspecto
+ * que tenía la pantalla antes de que existieran las secciones.
+ */
+function buildSections(entries: Entry[], railLabel: string): Section[] {
+  const featured = entries.filter(e => e.featured)
+  const rest = entries.filter(e => !e.featured)
+
+  const grouped = new Map<string, Entry[]>()
+  for (const entry of rest) {
+    const key = entry.category || '_'
+    const group = grouped.get(key)
+    if (group) group.push(entry)
+    else grouped.set(key, [entry])
+  }
+
+  if (featured.length === 0 && grouped.size <= 1) {
+    return [{ label: railLabel, entries: rest }]
+  }
+
+  const sections: Section[] = []
+  if (featured.length > 0) sections.push({ label: 'Destacados', entries: featured })
+  for (const [key, group] of grouped) {
+    sections.push({ label: key === '_' ? railLabel : categoryLabel(key), entries: group })
+  }
+  return sections
 }
 
 interface CollectionScreenProps {
@@ -87,6 +123,10 @@ interface CollectionScreenProps {
 export function CollectionScreen({ collection, zoneName, onOpen }: CollectionScreenProps) {
   const { focusedId } = useFocus()
   const { entries } = collection
+  const sections = useMemo(
+    () => buildSections(entries, collection.railLabel),
+    [entries, collection.railLabel]
+  )
 
   /**
    * `poi_select` sigue midiendo qué lugar mira el huésped: en alrededores el
@@ -105,7 +145,7 @@ export function CollectionScreen({ collection, zoneName, onOpen }: CollectionScr
       {/* Portada editorial */}
       <div className="shrink-0 pb-2">
         <div className="t-label" style={{ color: 'var(--tv-accent)' }}>{collection.eyebrow}</div>
-        <h2 className="t-display mt-3 text-6xl font-bold" style={{ color: 'var(--tv-text)' }}>
+        <h2 className="t-display mt-3 tv-hero font-bold" style={{ color: 'var(--tv-text)' }}>
           {collection.title}
         </h2>
         <MetaLine
@@ -115,39 +155,44 @@ export function CollectionScreen({ collection, zoneName, onOpen }: CollectionScr
             String(new Date().getFullYear()),
           ]}
         />
-        <p className="clamp-2 mt-4 max-w-[68ch] text-lg leading-relaxed" style={{ color: 'var(--tv-text-dim)' }}>
+        <p className="clamp-2 mt-4 max-w-[54ch] tv-body" style={{ color: 'var(--tv-text-dim)' }}>
           {collection.intro}
         </p>
       </div>
 
-      {/* Fila de tarjetas */}
-      <div className="mt-6 flex min-h-0 flex-1 flex-col">
-        <div className="t-label shrink-0 pb-4" style={{ color: 'var(--tv-text-faint)' }}>
-          {collection.railLabel}
+      {/* Secciones: Destacados arriba y, debajo, una fila por categoría — todas
+          apiladas con scroll vertical en vez de una fila horizontal única, para
+          que quepan todas las recomendaciones y no sólo las primeras. */}
+      {entries.length === 0 ? (
+        <div
+          className="mt-6 grid flex-1 place-items-center rounded-3xl tv-body"
+          style={{ background: 'var(--tv-surface)', color: 'var(--tv-text-dim)' }}
+        >
+          Tu anfitrión aún no ha añadido recomendaciones en esta sección.
         </div>
-
-        {entries.length === 0 ? (
-          <div
-            className="grid flex-1 place-items-center rounded-3xl text-lg"
-            style={{ background: 'var(--tv-surface)', color: 'var(--tv-text-dim)' }}
-          >
-            Tu anfitrión aún no ha añadido recomendaciones en esta sección.
-          </div>
-        ) : (
-          // pt/pb dan aire al anillo de foco: sin ellos se recorta contra los
-          // bordes del carrusel al escalar la tarjeta.
-          <div className="rail flex flex-1 items-center gap-5 px-1 pb-4 pt-2">
-            {entries.map((entry, i) => (
-              <EntryCard
-                key={entry.id}
-                entry={entry}
-                autoFocus={i === 0}
-                onSelect={() => onOpen(entry)}
-              />
-            ))}
-          </div>
-        )}
-      </div>
+      ) : (
+        <div className="col-scroll mt-6 min-h-0 flex-1 pr-1">
+          {sections.map((section, si) => (
+            <div key={section.label} className="pb-6">
+              <div className="t-label shrink-0 pb-4" style={{ color: 'var(--tv-text-faint)' }}>
+                {section.label}
+              </div>
+              {/* pt/pb dan aire al anillo de foco: sin ellos se recorta contra
+                  los bordes del carrusel al escalar la tarjeta. */}
+              <div className="rail flex items-center gap-5 px-1 pb-4 pt-2">
+                {section.entries.map((entry, i) => (
+                  <EntryCard
+                    key={entry.id}
+                    entry={entry}
+                    autoFocus={si === 0 && i === 0}
+                    onSelect={() => onOpen(entry)}
+                  />
+                ))}
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   )
 }

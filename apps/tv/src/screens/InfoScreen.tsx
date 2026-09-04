@@ -25,12 +25,12 @@ function ContentLines({ content, max = 5 }: { content: string; max?: number }) {
   return (
     <div className="flex flex-col gap-1.5">
       {shown.map((line, i) => (
-        <p key={i} className="clamp-3 text-base leading-snug" style={{ color: 'var(--tv-text-dim)' }}>
+        <p key={i} className="clamp-3 tv-meta" style={{ color: 'var(--tv-text-dim)' }}>
           {line}
         </p>
       ))}
       {hidden > 0 && (
-        <p className="text-sm font-semibold" style={{ color: 'var(--tv-accent)' }}>
+        <p className="tv-meta font-semibold" style={{ color: 'var(--tv-accent)' }}>
           +{hidden} {hidden === 1 ? 'punto más' : 'puntos más'}
         </p>
       )}
@@ -39,8 +39,12 @@ function ContentLines({ content, max = 5 }: { content: string; max?: number }) {
 }
 
 function InfoCard({ item, autoFocus }: { item: InfoItem; autoFocus?: boolean }) {
-  // El catálogo de categorías (migración 0083) da color a cada apartado; las
-  // filas antiguas sin category_key caen al acento de la marca.
+  // Foto propia del apartado (subida por el anfitrión) o, si no hay, la foto
+  // de stock de su categoría (migración 0083) — en ese orden, porque la propia
+  // es más específica. Sólo cuando NINGUNA de las dos existe cae al icono +
+  // color de siempre: la mayoría de categorías aún no tienen foto de stock al
+  // lanzamiento, y la tarjeta no puede quedarse sin cabecera.
+  const photo = item.media?.[0]?.url || item.category_image_url || null
   const iconBackground = item.color
     ? `linear-gradient(140deg, ${item.color}, ${item.color}bb)`
     : 'var(--tv-accent)'
@@ -48,21 +52,37 @@ function InfoCard({ item, autoFocus }: { item: InfoItem; autoFocus?: boolean }) 
   return (
     <Focusable id={`info-${item.id}`} autoFocus={autoFocus}>
       <div
-        className="flex h-full flex-col gap-4 p-6"
+        className="flex h-full flex-col overflow-hidden"
         style={{ borderRadius: '1.25rem', background: 'var(--tv-surface)', border: '1px solid var(--tv-line)' }}
       >
-        <div className="flex items-center gap-4">
-          <div
-            className="grid h-14 w-14 shrink-0 place-items-center rounded-2xl text-3xl"
-            style={{ background: iconBackground }}
-          >
-            {infoIcon(item.icon, item.key)}
+        {photo ? (
+          <div className="relative h-[136px] shrink-0">
+            <img src={photo} alt="" className="absolute inset-0 h-full w-full object-cover" />
+            <div
+              className="absolute inset-0"
+              style={{ background: 'linear-gradient(0deg, rgba(4,16,22,0.92) 0%, rgba(4,16,22,0.18) 66%, rgba(4,16,22,0) 100%)' }}
+            />
+            <h3 className="t-display clamp-2 tv-card absolute inset-x-5 bottom-3 font-bold leading-tight" style={{ color: '#fff' }}>
+              {item.title}
+            </h3>
           </div>
-          <h3 className="t-display clamp-2 text-2xl font-bold leading-tight" style={{ color: 'var(--tv-text)' }}>
-            {item.title}
-          </h3>
+        ) : (
+          <div className="flex items-center gap-4 px-6 pt-6">
+            <div
+              className="grid h-16 w-16 shrink-0 place-items-center rounded-2xl text-4xl"
+              style={{ background: iconBackground }}
+            >
+              {infoIcon(item.icon, item.key)}
+            </div>
+            <h3 className="t-display clamp-2 tv-card font-bold leading-tight" style={{ color: 'var(--tv-text)' }}>
+              {item.title}
+            </h3>
+          </div>
+        )}
+
+        <div className="flex flex-1 flex-col gap-4 p-6">
+          <ContentLines content={item.content} />
         </div>
-        <ContentLines content={item.content} />
       </div>
     </Focusable>
   )
@@ -77,10 +97,10 @@ export function InfoScreen({ data }: { data: GuidebookData }) {
     <div className="screen-in flex h-full flex-col">
       <div className="shrink-0 pb-6">
         <div className="t-label" style={{ color: 'var(--tv-accent)' }}>{data.apartment.name}</div>
-        <h2 className="t-display mt-3 text-6xl font-bold" style={{ color: 'var(--tv-text)' }}>
+        <h2 className="t-display mt-3 tv-hero font-bold" style={{ color: 'var(--tv-text)' }}>
           Información de la casa
         </h2>
-        <p className="mt-3 max-w-[68ch] text-lg leading-relaxed" style={{ color: 'var(--tv-text-dim)' }}>
+        <p className="mt-3 max-w-[54ch] tv-body" style={{ color: 'var(--tv-text-dim)' }}>
           Todo lo práctico de tu estancia, en un sitio. Muévete con las flechas del mando.
         </p>
       </div>

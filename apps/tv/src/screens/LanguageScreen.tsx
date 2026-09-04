@@ -23,10 +23,10 @@ export function LanguageScreen({
     <div className="screen-in flex h-full flex-col">
       <div className="shrink-0 pb-8">
         <div className="t-label" style={{ color: 'var(--tv-accent)' }}>Idioma</div>
-        <h2 className="t-display mt-3 text-6xl font-bold" style={{ color: 'var(--tv-text)' }}>
+        <h2 className="t-display mt-3 tv-hero font-bold" style={{ color: 'var(--tv-text)' }}>
           Elige tu idioma
         </h2>
-        <p className="mt-3 max-w-[60ch] text-lg" style={{ color: 'var(--tv-text-dim)' }}>
+        <p className="mt-3 max-w-[52ch] tv-body" style={{ color: 'var(--tv-text-dim)' }}>
           Toda la pantalla, incluidas las recomendaciones y las normas de la casa.
         </p>
       </div>
@@ -56,7 +56,7 @@ export function LanguageScreen({
                     <span className="text-4xl leading-none">{language.flag}</span>
                   ) : (
                     <span
-                      className="grid h-11 w-11 shrink-0 place-items-center rounded-xl text-sm font-bold"
+                      className="grid h-14 w-14 shrink-0 place-items-center rounded-xl text-xl font-bold"
                       style={{
                         background: 'rgba(0,0,0,0.28)',
                         color: isCurrent ? 'var(--tv-accent-ink)' : 'var(--tv-text)',
@@ -67,7 +67,7 @@ export function LanguageScreen({
                   )}
 
                   <span
-                    className="t-display truncate text-2xl font-bold"
+                    className="t-display truncate tv-card font-bold"
                     style={{ color: isCurrent ? 'var(--tv-accent-ink)' : 'var(--tv-text)' }}
                     dir={language.rtl ? 'rtl' : undefined}
                   >

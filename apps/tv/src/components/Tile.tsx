@@ -72,9 +72,9 @@ export function PhotoTile({
         {overline && (
           <div className="t-label mb-2" style={{ color: 'var(--tv-accent)' }}>{overline}</div>
         )}
-        <div className="t-display text-4xl font-bold" style={{ color: '#fff' }}>{label}</div>
+        <div className="t-display tv-title font-bold" style={{ color: '#fff' }}>{label}</div>
         {typeof count === 'number' && count > 0 && (
-          <div className="mt-1.5 text-base font-medium" style={{ color: 'rgba(255,255,255,0.72)' }}>
+          <div className="mt-2 tv-meta font-medium" style={{ color: 'rgba(255,255,255,0.72)' }}>
             {count} {count === 1 ? 'recomendación' : 'recomendaciones'}
           </div>
         )}
@@ -100,20 +100,20 @@ export function PlainTile({
         border: accent ? '1px solid transparent' : '1px solid var(--tv-line)',
       }}>
       <div className="flex h-full flex-col justify-between p-6">
-        <div className="text-3xl leading-none" style={{ color: accent ? 'var(--tv-accent-ink)' : 'var(--tv-accent)' }}>
+        <div className="text-5xl leading-none" style={{ color: accent ? 'var(--tv-accent-ink)' : 'var(--tv-accent)' }}>
           {icon}
         </div>
         <div className="min-w-0">
           {value && (
             <div
-              className="t-display truncate text-3xl font-bold"
+              className="t-display truncate tv-lead font-bold"
               style={{ color: accent ? 'var(--tv-accent-ink)' : 'var(--tv-text)' }}
             >
               {value}
             </div>
           )}
           <div
-            className="clamp-2 text-base font-semibold leading-tight"
+            className={`clamp-2 font-semibold leading-tight ${value ? 'tv-meta' : 'tv-card'}`}
             style={{
               // Sin valor encima, la etiqueta ES el titulo de la tesela y va a plena
               // tinta; con valor pasa a ser su pie y baja de jerarquia.
@@ -164,7 +164,7 @@ export function WifiTile({
       <div className="flex h-full flex-col items-center justify-between p-6 text-center">
         <div className="w-full">
           <div className="t-label" style={{ color: 'var(--tv-accent)' }}>Conéctate</div>
-          <div className="t-display mt-1.5 text-2xl font-bold" style={{ color: 'var(--tv-text)' }}>
+          <div className="t-display mt-1.5 tv-card font-bold" style={{ color: 'var(--tv-text)' }}>
             WiFi de la casa
           </div>
         </div>
@@ -172,7 +172,7 @@ export function WifiTile({
         <div className="rounded-2xl bg-white p-3 shadow-lg">{qr}</div>
 
         <div className="w-full">
-          <p className="text-sm leading-snug" style={{ color: 'var(--tv-text-dim)' }}>
+          <p className="tv-meta leading-snug" style={{ color: 'var(--tv-text-dim)' }}>
             Apunta la cámara del móvil: se conecta solo.
           </p>
           <div
@@ -191,12 +191,12 @@ export function WifiTile({
 function Credential({ label, value }: { label: string; value: string }) {
   return (
     <div className="flex items-baseline gap-3">
-      <span className="shrink-0 text-[11px] font-bold uppercase tracking-[0.18em]" style={{ color: 'var(--tv-text-faint)' }}>
+      <span className="shrink-0 text-[17px] font-bold uppercase tracking-[0.14em]" style={{ color: 'var(--tv-text-faint)' }}>
         {label}
       </span>
       {/* La contraseña puede ser larga y no se puede recortar: quien no pueda
           escanear tiene que poder teclearla, así que se parte en varias líneas. */}
-      <span className="min-w-0 break-all text-sm font-semibold" style={{ color: 'var(--tv-text)' }}>
+      <span className="min-w-0 break-all tv-meta font-semibold" style={{ color: 'var(--tv-text)' }}>
         {value}
       </span>
     </div>

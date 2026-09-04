@@ -49,3 +49,23 @@ export function categoryVisual(category?: string, subcategory?: string | null) {
 }
 
 export function cuisineEmoji(): string { return '🍴' }
+
+// Etiqueta legible para la cabecera de cada fila de categoría (pantalla de
+// colección). El resto de la app TV no traduce su propio texto de UI a los 13
+// idiomas (sólo el CONTENIDO viene traducido del backend, ver App.tsx/
+// collections.ts) — aquí se sigue la misma convención: español fijo, con
+// mayúscula inicial como fallback razonable para una categoría sin mapear.
+const LABEL: Record<string, string> = {
+  cultura: 'Cultura', naturaleza: 'Naturaleza', compras: 'Compras', playas: 'Playas',
+  actividades: 'Actividades', transporte: 'Transporte', bienestar: 'Bienestar',
+  relax: 'Bienestar', gastronomia: 'Gastronomía', restaurantes: 'Restaurantes', otro: 'Otros',
+  beach: 'Playas', landmark: 'Cultura', nature: 'Naturaleza', food: 'Gastronomía',
+  boat: 'Náutica', kayak: 'Náutica', shopping: 'Compras',
+}
+
+export function categoryLabel(category?: string | null): string {
+  const key = (category || '').trim().toLowerCase()
+  if (!key) return 'Más recomendaciones'
+  if (LABEL[key]) return LABEL[key]
+  return key.charAt(0).toUpperCase() + key.slice(1).replace(/_/g, ' ')
+}

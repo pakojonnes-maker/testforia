@@ -12,6 +12,7 @@ import { useGuidebook } from './lib/useGuidebook'
 import { buildCollections, findCollection, type CollectionKind, type Entry } from './lib/collections'
 import { buildTheme } from './lib/theme'
 import { DEFAULT_LANG, isRtl } from './lib/languages'
+import { densityFor, resolveScreenSize } from './lib/display'
 import { setTrackingContext, track } from './lib/tracking'
 
 export type Route =
@@ -54,20 +55,25 @@ const STAGE_H = 1080
  * las coordenadas ya transformadas, así que las distancias que mide spatialNav
  * siguen siendo las que ve el huésped.
  */
-function Stage({ children }: { children: ReactNode }) {
+function Stage({ density, children }: { density: number; children: ReactNode }) {
+  // Declarar el lienzo más PEQUEÑO hace que el mismo contenido ocupe más
+  // pantalla. Es el mando de "tamaño físico de la tele" de lib/display.ts:
+  // el escenario ya resolvía la resolución, esto resuelve las pulgadas.
+  const stageW = Math.round(STAGE_W / density)
+  const stageH = Math.round(STAGE_H / density)
   const [box, setBox] = useState({ scale: 1, x: 0, y: 0 })
 
   useEffect(() => {
     const update = () => {
       const vw = window.innerWidth
       const vh = window.innerHeight
-      const scale = Math.min(vw / STAGE_W, vh / STAGE_H)
-      setBox({ scale, x: (vw - STAGE_W * scale) / 2, y: (vh - STAGE_H * scale) / 2 })
+      const scale = Math.min(vw / stageW, vh / stageH)
+      setBox({ scale, x: (vw - stageW * scale) / 2, y: (vh - stageH * scale) / 2 })
     }
     update()
     window.addEventListener('resize', update)
     return () => window.removeEventListener('resize', update)
-  }, [])
+  }, [stageW, stageH])
 
   /**
    * El centrado va en la propia transformación, no delegado al layout: un
@@ -81,8 +87,8 @@ function Stage({ children }: { children: ReactNode }) {
       <div
         className="absolute left-0 top-0"
         style={{
-          width: STAGE_W,
-          height: STAGE_H,
+          width: stageW,
+          height: stageH,
           transform: `translate(${box.x}px, ${box.y}px) scale(${box.scale})`,
           transformOrigin: 'top left',
         }}
@@ -128,6 +134,8 @@ export function App() {
   }, [back])
 
   const theme = useMemo(() => buildTheme(guide?.agency), [guide?.agency])
+  // Tamaño físico de la tele: lo fija la instalación, no se puede detectar.
+  const screenSize = useMemo(() => resolveScreenSize(guide?.device?.screen_size), [guide?.device?.screen_size])
   const collections = useMemo(() => (guide ? buildCollections(guide) : []), [guide])
 
   const activeEntry: Entry | undefined = useMemo(() => {
@@ -150,7 +158,7 @@ export function App() {
       >
         <MediterraneanBackground />
 
-        <Stage>
+        <Stage density={densityFor(screenSize)}>
         <div className="tv-safe flex flex-col">
           <div className="shrink-0 pb-6">
             <Header
@@ -202,7 +210,7 @@ export function App() {
             <div className="shrink-0 pt-5">
               <Focusable id="app-back" onSelect={back}>
                 <div
-                  className="inline-flex items-center gap-3 rounded-full px-7 py-3.5 text-base font-bold"
+                  className="inline-flex items-center gap-3 rounded-full px-8 py-4 tv-body font-bold"
                   style={{ background: 'var(--tv-surface-raised)', color: 'var(--tv-text)' }}
                 >
                   <span aria-hidden="true">←</span> Volver al inicio

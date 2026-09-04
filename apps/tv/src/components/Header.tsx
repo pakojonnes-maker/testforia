@@ -97,7 +97,7 @@ export function Header({ brand, property, logoUrl, lang, demoMode }: HeaderProps
       </div>
 
       <div className="shrink-0 text-right leading-none">
-        <div className="text-sm font-medium" style={{ color: 'var(--tv-text-dim)' }}>
+        <div className="tv-meta font-medium" style={{ color: 'var(--tv-text-dim)' }}>
           {date}
         </div>
         <div

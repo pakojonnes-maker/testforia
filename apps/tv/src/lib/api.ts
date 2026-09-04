@@ -18,10 +18,36 @@ export interface GuidebookData {
   }
   zone: { id: string; name: string; slug: string; region: string; description: string; cover_image_url: string }
   agency: { id: string; name: string; logo_url: string; primary_color: string | null; secondary_color: string | null; accent_color: string | null }
-  pois: Array<{ id: string; name: string; description: string; category: string; google_maps_url: string; media: any[] }>
-  restaurants: Array<{ id: string; name: string; slug: string; cuisine_type: string; tier: string; cover_image: string }>
-  experiences: Array<{ id: string; name: string; description: string; category: string; service_subcategory: string | null; action_type: string; action_data: string; prefilled_message: string; price_display: string; is_featured: boolean; cta_label: string; cover_image_url?: string }>
+  pois: Array<{
+    id: string; name: string; description: string; category: string; google_maps_url: string; media: any[]
+    address?: string | null; phone?: string | null; website_url?: string | null; opening_hours?: string | null
+    rating?: number | null; travel_time_text?: string | null; travel_mode?: 'walk' | 'drive' | 'bike' | null; distance_text?: string | null
+    is_featured?: boolean; cover_image_url?: string | null
+  }>
+  restaurants: Array<{
+    id: string; name: string; slug: string; cuisine_type: string; tier: string; cover_image: string
+    address?: string | null; city?: string | null; country?: string | null
+    phone?: string | null; website?: string | null; description?: string
+  }>
+  experiences: Array<{
+    id: string; name: string; description: string; category: string; service_subcategory: string | null
+    action_type: string; action_data: string; prefilled_message: string; price_display: string
+    is_featured: boolean; cta_label: string; cover_image_url?: string; media?: any[]
+    address?: string | null; phone?: string | null; website_url?: string | null; opening_hours?: string | null
+    rating?: number | null; travel_time_text?: string | null; travel_mode?: 'walk' | 'drive' | 'bike' | null
+    distance_text?: string | null; duration_text?: string | null
+  }>
   meta: { lang: string; available_langs: string[] }
+  /**
+   * Ajustes del DISPOSITIVO emparejado. Solo puede llegar por
+   * `/guide/tv/config/:code`, nunca por `/guide/:slug` (ahí no hay dispositivo).
+   * Opcional a propósito: el backend todavía no lo devuelve y la pantalla tiene
+   * que funcionar igual sin él.
+   */
+  device?: {
+    /** 'small' | 'normal' | 'large' — pulgadas de la tele, ver lib/display.ts */
+    screen_size?: string | null
+  }
 }
 
 // GET /guide/tv/config/:pairingCode — resuelve la TV emparejada, hace heartbeat
