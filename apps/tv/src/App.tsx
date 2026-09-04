@@ -6,6 +6,7 @@ import { HomeScreen } from './screens/HomeScreen'
 import { CollectionScreen } from './screens/CollectionScreen'
 import { DetailScreen } from './screens/DetailScreen'
 import { InfoScreen } from './screens/InfoScreen'
+import { InfoDetailScreen } from './screens/InfoDetailScreen'
 import { WifiScreen } from './screens/WifiScreen'
 import { LanguageScreen } from './screens/LanguageScreen'
 import { useGuidebook } from './lib/useGuidebook'
@@ -20,6 +21,7 @@ export type Route =
   | { name: 'collection'; kind: CollectionKind }
   | { name: 'detail'; kind: CollectionKind; id: string }
   | { name: 'info' }
+  | { name: 'info-detail'; id: string }
   | { name: 'wifi' }
   | { name: 'language' }
 
@@ -143,6 +145,11 @@ export function App() {
     return findCollection(collections, route.kind)?.entries.find(e => e.id === route.id)
   }, [route, collections])
 
+  const activeInfoItem = useMemo(() => {
+    if (route.name !== 'info-detail') return undefined
+    return guide?.apartment.info.find(i => i.id === route.id)
+  }, [route, guide])
+
   const handleLanguage = useCallback((code: string) => {
     setLang(code)
     setStack([{ name: 'home' }])
@@ -192,7 +199,11 @@ export function App() {
                 ? <DetailScreen entry={activeEntry} onBack={back} />
                 : <Loading label="Ficha no disponible" />
             ) : route.name === 'info' ? (
-              <InfoScreen data={guide} />
+              <InfoScreen data={guide} onOpen={item => navigate({ name: 'info-detail', id: item.id })} />
+            ) : route.name === 'info-detail' ? (
+              activeInfoItem
+                ? <InfoDetailScreen item={activeInfoItem} onBack={back} />
+                : <Loading label="Apartado no disponible" />
             ) : route.name === 'wifi' ? (
               <WifiScreen data={guide} />
             ) : (
@@ -204,9 +215,10 @@ export function App() {
             )}
           </main>
 
-          {/* "Atrás" alcanzable con el mando. El detalle trae el suyo propio
-              dentro del contenido, así que aquí sólo se pinta para el resto. */}
-          {route.name !== 'home' && route.name !== 'detail' && (
+          {/* "Atrás" alcanzable con el mando. Los detalles (recomendación o
+              apartado de la casa) traen el suyo propio dentro del contenido,
+              así que aquí sólo se pinta para el resto. */}
+          {route.name !== 'home' && route.name !== 'detail' && route.name !== 'info-detail' && (
             <div className="shrink-0 pt-5">
               <Focusable id="app-back" onSelect={back}>
                 <div

@@ -5,90 +5,56 @@ import type { GuidebookData } from '../lib/api'
 type InfoItem = GuidebookData['apartment']['info'][number]
 
 /**
- * Información de la casa: rejilla, no carrusel.
+ * Información de la casa: rejilla de FOTOS, no de fichas de texto.
  *
  * Un alojamiento tiene diez o quince apartados (basura, aire, parking, normas…)
  * y en una fila horizontal el huésped no sabe cuántos hay ni encuentra el que
- * busca. En rejilla los ve todos y va directo con el mando.
+ * busca. En rejilla los ve todos y va directo con el mando. Cada tesela es sólo
+ * foto + categoría — el texto completo vive en la ficha (InfoDetailScreen), no
+ * aquí: apretado en la tesela era ilegible, y repetir el patrón de "portada +
+ * detalle" que ya usan las recomendaciones (DetailScreen) es más consistente
+ * que inventar un tercer tratamiento.
  */
 
-/**
- * El contenido llega con saltos de línea reales (una norma por línea). Un <p>
- * los colapsa en espacios y todo se lee como una frase corrida — que es como se
- * veía antes en la tele: un ladrillo de texto ilegible.
- */
-function ContentLines({ content, max = 5 }: { content: string; max?: number }) {
-  const lines = content.split('\n').map(l => l.trim()).filter(Boolean)
-  const shown = lines.slice(0, max)
-  const hidden = lines.length - shown.length
-
-  return (
-    <div className="flex flex-col gap-1.5">
-      {shown.map((line, i) => (
-        <p key={i} className="clamp-3 tv-meta" style={{ color: 'var(--tv-text-dim)' }}>
-          {line}
-        </p>
-      ))}
-      {hidden > 0 && (
-        <p className="tv-meta font-semibold" style={{ color: 'var(--tv-accent)' }}>
-          +{hidden} {hidden === 1 ? 'punto más' : 'puntos más'}
-        </p>
-      )}
-    </div>
-  )
-}
-
-function InfoCard({ item, autoFocus }: { item: InfoItem; autoFocus?: boolean }) {
+function InfoCard({ item, autoFocus, onSelect }: { item: InfoItem; autoFocus?: boolean; onSelect: () => void }) {
   // Foto propia del apartado (subida por el anfitrión) o, si no hay, la foto
   // de stock de su categoría (migración 0083) — en ese orden, porque la propia
   // es más específica. Sólo cuando NINGUNA de las dos existe cae al icono +
   // color de siempre: la mayoría de categorías aún no tienen foto de stock al
-  // lanzamiento, y la tarjeta no puede quedarse sin cabecera.
+  // lanzamiento, y la tesela no puede quedarse sin imagen.
   const photo = item.media?.[0]?.url || item.category_image_url || null
   const iconBackground = item.color
-    ? `linear-gradient(140deg, ${item.color}, ${item.color}bb)`
-    : 'var(--tv-accent)'
+    ? `linear-gradient(150deg, ${item.color}, ${item.color}bb)`
+    : 'linear-gradient(150deg, var(--tv-accent), var(--tv-secondary))'
 
   return (
-    <Focusable id={`info-${item.id}`} autoFocus={autoFocus}>
+    <Focusable id={`info-${item.id}`} autoFocus={autoFocus} onSelect={onSelect}>
       <div
-        className="flex h-full flex-col overflow-hidden"
+        className="relative h-full overflow-hidden"
         style={{ borderRadius: '1.25rem', background: 'var(--tv-surface)', border: '1px solid var(--tv-line)' }}
       >
         {photo ? (
-          <div className="relative h-[136px] shrink-0">
-            <img src={photo} alt="" className="absolute inset-0 h-full w-full object-cover" />
-            <div
-              className="absolute inset-0"
-              style={{ background: 'linear-gradient(0deg, rgba(4,16,22,0.92) 0%, rgba(4,16,22,0.18) 66%, rgba(4,16,22,0) 100%)' }}
-            />
-            <h3 className="t-display clamp-2 tv-card absolute inset-x-5 bottom-3 font-bold leading-tight" style={{ color: '#fff' }}>
-              {item.title}
-            </h3>
-          </div>
+          <img src={photo} alt="" className="absolute inset-0 h-full w-full object-cover" />
         ) : (
-          <div className="flex items-center gap-4 px-6 pt-6">
-            <div
-              className="grid h-16 w-16 shrink-0 place-items-center rounded-2xl text-4xl"
-              style={{ background: iconBackground }}
-            >
-              {infoIcon(item.icon, item.key)}
-            </div>
-            <h3 className="t-display clamp-2 tv-card font-bold leading-tight" style={{ color: 'var(--tv-text)' }}>
-              {item.title}
-            </h3>
+          <div className="absolute inset-0 grid place-items-center" style={{ background: iconBackground }}>
+            <span className="text-6xl">{infoIcon(item.icon, item.key)}</span>
           </div>
         )}
 
-        <div className="flex flex-1 flex-col gap-4 p-6">
-          <ContentLines content={item.content} />
-        </div>
+        <div
+          className="absolute inset-0"
+          style={{ background: 'linear-gradient(0deg, rgba(4,16,22,0.92) 0%, rgba(4,16,22,0.28) 55%, rgba(4,16,22,0) 80%)' }}
+        />
+
+        <h3 className="t-display clamp-2 tv-card absolute inset-x-5 bottom-4 font-bold leading-tight" style={{ color: '#fff' }}>
+          {item.title}
+        </h3>
       </div>
     </Focusable>
   )
 }
 
-export function InfoScreen({ data }: { data: GuidebookData }) {
+export function InfoScreen({ data, onOpen }: { data: GuidebookData; onOpen: (item: InfoItem) => void }) {
   const items = data.apartment.info.filter(i => i.key.toLowerCase() !== 'wifi')
   const door = items.find(i => isDoorCode(i.key))
   const rest = items.filter(i => i !== door)
@@ -106,7 +72,10 @@ export function InfoScreen({ data }: { data: GuidebookData }) {
       </div>
 
       <div className="col-scroll min-h-0 flex-1 pr-1">
-        <div className="grid grid-cols-4 gap-4 pb-2 pt-1">
+        {/* Fila de altura fija: sin texto de contenido dentro de la tesela, el
+            alto ya no lo marca el apartado con más líneas — todas miden igual,
+            como una rejilla de fotos de verdad. */}
+        <div className="grid grid-cols-4 gap-4 pb-2 pt-1" style={{ gridAutoRows: '210px' }}>
           {door && (
             <Focusable id={`info-${door.id}`} autoFocus>
               <div
@@ -128,7 +97,7 @@ export function InfoScreen({ data }: { data: GuidebookData }) {
           )}
 
           {rest.map((item, i) => (
-            <InfoCard key={item.id} item={item} autoFocus={!door && i === 0} />
+            <InfoCard key={item.id} item={item} autoFocus={!door && i === 0} onSelect={() => onOpen(item)} />
           ))}
         </div>
       </div>
