@@ -237,6 +237,8 @@ export async function handleGetGuidebook(env, slug, lang, origin) {
                 p.id, p.category, p.latitude, p.longitude, p.google_maps_url,
                 p.rating, p.travel_time_text, p.travel_mode, p.distance_text,
                 p.poi_type, p.access_type, p.price_display, p.duration_text, p.is_bookable,
+                p.address, p.phone, p.website_url, p.opening_hours,
+                p.is_featured, p.cover_image_url,
                 COALESCE(t_name.value, t_name_es.value) AS name,
                 COALESCE(t_desc.value, t_desc_es.value) AS description
             FROM guide_apartment_pois gap
@@ -265,6 +267,8 @@ export async function handleGetGuidebook(env, slug, lang, origin) {
                 p.id, p.category, p.latitude, p.longitude, p.google_maps_url,
                 p.rating, p.travel_time_text, p.travel_mode, p.distance_text,
                 p.poi_type, p.access_type, p.price_display, p.duration_text, p.is_bookable,
+                p.address, p.phone, p.website_url, p.opening_hours,
+                p.is_featured, p.cover_image_url,
                 COALESCE(t_name.value, t_name_es.value) AS name,
                 COALESCE(t_desc.value, t_desc_es.value) AS description
             FROM guide_pois p
@@ -296,6 +300,8 @@ export async function handleGetGuidebook(env, slug, lang, origin) {
                 e.id, e.category, e.subcategory AS service_subcategory, e.action_type, e.action_data, e.action_prefilled_message,
                 e.price_display, e.cover_image_url, e.is_featured,
                 e.discount_display, e.original_price_display, e.badge_type,
+                e.address, e.phone, e.website_url, e.opening_hours,
+                e.rating, e.travel_time_text, e.travel_mode, e.distance_text, e.duration_text,
                 COALESCE(t_name.value, t_name_es.value) AS name,
                 COALESCE(t_desc.value, t_desc_es.value) AS description,
                 COALESCE(t_cta.value, t_cta_es.value) AS cta_label
@@ -335,6 +341,7 @@ export async function handleGetGuidebook(env, slug, lang, origin) {
         env.DB.prepare(`
             SELECT
                 r.id, r.name, r.slug, r.address, r.city, r.country,
+                r.phone, r.website, r.description,
                 zr.tier, zr.cuisine_type_override AS cuisine_type,
                 (SELECT dm.r2_key FROM dish_media dm
                  JOIN dishes d ON dm.dish_id = d.id
@@ -449,9 +456,14 @@ export async function handleGetGuidebook(env, slug, lang, origin) {
 
     const mediaOrigin = origin || DEFAULT_MEDIA_ORIGIN;
 
-    // 3. Load POI media
+    // 3. Load POI + experience media. Bookable rows are the same guide_pois
+    // table (migration 0059 unified it), so a experience can have a
+    // guide_poi_media gallery exactly like a place — the admin upload endpoint
+    // never distinguished between the two. cover_image_url stays a separate
+    // single-image fallback for experiences that only ever set that field.
     const poiIds = (pois.results || []).map(p => p.id);
-    const poiMedia = await loadPoiMedia(env, poiIds, mediaOrigin);
+    const experienceIds = (experiences.results || []).map(e => e.id);
+    const poiMedia = await loadPoiMedia(env, [...poiIds, ...experienceIds], mediaOrigin);
 
     // 4. Load apartment media
     const infoIds = (apartmentInfo.results || []).map(i => i.id);
@@ -512,7 +524,19 @@ export async function handleGetGuidebook(env, slug, lang, origin) {
             badge_type: exp.badge_type,
             cover_image_url: exp.cover_image_url,
             is_featured: exp.is_featured === 1,
-            cta_label: exp.cta_label || (exp.action_type === 'WHATSAPP' ? 'WhatsApp' : 'Reservar')
+            cta_label: exp.cta_label || (exp.action_type === 'WHATSAPP' ? 'WhatsApp' : 'Reservar'),
+            // Mismos campos de contacto/distancia que un POI normal: un bookable
+            // sigue siendo un sitio real (guide_pois unificó ambos, migración 0059).
+            address: exp.address || null,
+            phone: exp.phone || null,
+            website_url: exp.website_url || null,
+            opening_hours: exp.opening_hours || null,
+            rating: exp.rating ?? null,
+            travel_time_text: exp.travel_time_text || null,
+            travel_mode: exp.travel_mode || null,
+            distance_text: exp.distance_text || null,
+            duration_text: exp.duration_text || null,
+            media: poiMedia[exp.id] || []
         };
     });
 
@@ -639,7 +663,16 @@ export async function handleGetGuidebook(env, slug, lang, origin) {
             price_display: poi.price_display || '',
             duration_text: poi.duration_text || '',
             is_bookable: poi.is_bookable === 1,
-            media: poiMedia[poi.id] || []
+            // Contacto directo (migración 0059 ya traía las columnas; nunca se
+            // habían expuesto fuera del admin). null cuando el host no lo rellenó,
+            // el frontend simplemente omite esa fila.
+            address: poi.address || null,
+            phone: poi.phone || null,
+            website_url: poi.website_url || null,
+            opening_hours: poi.opening_hours || null,
+            is_featured: poi.is_featured === 1,
+            media: poiMedia[poi.id] || [],
+            cover_image_url: poi.cover_image_url || null
         })),
         restaurants: (zoneRestaurants.results || []).map(r => ({
             id: r.id,
@@ -652,7 +685,10 @@ export async function handleGetGuidebook(env, slug, lang, origin) {
             // el botón "Cómo llegar" arma el destino de Google Maps con este texto.
             address: r.address || null,
             city: r.city || null,
-            country: r.country || null
+            country: r.country || null,
+            phone: r.phone || null,
+            website: r.website || null,
+            description: r.description || ''
         })),
         experiences: processedExperiences,
         store_items: (storeItems.results || []).map(item => ({

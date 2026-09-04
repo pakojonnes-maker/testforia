@@ -41,10 +41,24 @@
       "port": 5176
     },
     {
+      "_comment": "Segunda instancia de tv para sesiones paralelas, igual que guide-verify. El 5186 SÍ está en ALLOWED_ORIGINS (workerCors.js). apps/tv/.env.local le dice a esta instancia que hable con worker-remote (8799) en vez del worker de producción.",
+      "name": "tv-verify",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["--prefix", "apps/tv", "run", "dev", "--", "--port", "5186"],
+      "port": 5186
+    },
+    {
       "name": "worker",
       "runtimeExecutable": "npx",
       "runtimeArgs": ["wrangler", "dev"],
       "port": 8787
+    },
+    {
+      "_comment": "wrangler dev contra D1/R2 REMOTOS (no --local): permite ver datos reales (p.ej. apt_demo_paloma) sin desplegar. Sólo lee/escribe lo mismo que ya toca producción; no crea datos nuevos por sí solo.",
+      "name": "worker-remote",
+      "runtimeExecutable": "npx",
+      "runtimeArgs": ["wrangler", "dev", "--remote", "--port", "8799"],
+      "port": 8799
     },
     {
       "name": "worker-verify",
