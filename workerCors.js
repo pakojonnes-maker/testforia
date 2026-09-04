@@ -11,6 +11,11 @@ export const ALLOWED_ORIGINS = [
     'https://visualtastes.com',
     'https://guide.visualtastes.com',
     'https://tv.visualtastes.com',
+    // tv.visualtastes.com sigue pendiente de añadir a mano desde el dashboard
+    // (CLAUDE.md §2) — hasta entonces éste es el dominio real del canal de
+    // demo/testing de la TV, y sin él aquí cualquier fetch desde ahí falla por
+    // CORS y la app cae en silencio a datos mock.
+    'https://visualtaste-tv.pages.dev',
     'http://localhost:5173',   // dev cliente
     'http://localhost:5174',   // dev admin
     'http://localhost:5175',   // dev guide
