@@ -224,7 +224,11 @@ export default function GuideAgencyDashboard() {
         from.setDate(to.getDate() - parseInt(dateRange, 10));
 
         const [dashboardRes, clicksRes] = await Promise.all([
-          apiClient.request(`/guide/admin/stats/dashboard?agency_id=${currentAgency.id}&from=${from.toISOString().split('T')[0]}&to=${to.toISOString().split('T')[0]}`),
+          // tz_offset: minutos respecto a UTC del navegador que mira el panel (+120 en
+          // Madrid en verano). Sin esto el backend usaba date('now'), que es UTC, y
+          // "Personas en el Apartamento (Hoy)" se vaciaba entre las 00:00 y las 02:00
+          // locales porque para SQLite todavía era ayer.
+          apiClient.request(`/guide/admin/stats/dashboard?agency_id=${currentAgency.id}&from=${from.toISOString().split('T')[0]}&to=${to.toISOString().split('T')[0]}&tz_offset=${-new Date().getTimezoneOffset()}`),
           // getAgencyStats: existía en el backend desde hace tiempo (top_restaurants
           // por clics) pero ningún panel lo llamaba — ver KNOWLEDGE del guidebook.
           apiClient.request(`/guide/admin/stats?agency_id=${currentAgency.id}&from=${from.toISOString().split('T')[0]}&to=${to.toISOString().split('T')[0]}`).catch(() => null),

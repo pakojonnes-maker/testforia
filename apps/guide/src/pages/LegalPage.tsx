@@ -24,12 +24,12 @@ const T = {
     pending:
       'Este documento todavía no está listo para publicarse: faltan la razón social, el NIF y el domicilio del responsable (art. 10 LSSI y art. 13 RGPD). Complétalos en apps/guide/src/lib/legalIdentity.ts.',
     back: 'Volver',
-    consentTitle: 'Tus preferencias',
-    consentGranted: 'Ahora mismo aceptas la analítica de uso.',
-    consentDenied: 'Ahora mismo rechazas la analítica de uso. No estamos recogiendo datos.',
-    consentUnset: 'Todavía no has elegido. Mientras tanto no recogemos ningún dato.',
-    revoke: 'Retirar el consentimiento',
-    grant: 'Aceptar la analítica',
+    consentTitle: 'Recordarte entre visitas',
+    consentGranted: 'Está activado: guardamos un identificador aleatorio en tu dispositivo. Puedes desactivarlo cuando quieras.',
+    consentDenied: 'Está desactivado. No hay nada guardado en tu dispositivo.',
+    consentUnset: 'Está desactivado. No guardamos nada en tu dispositivo salvo que lo actives aquí.',
+    revoke: 'Desactivar y borrar',
+    grant: 'Activar',
     sections: [
       {
         h: '1. Quién es responsable de tus datos',
@@ -51,10 +51,16 @@ const T = {
               'Mientras dura la visita.',
             ],
             [
-              'Analítica de uso',
-              'Identificador aleatorio de visitante, secciones visitadas, tiempo de uso, tipo de dispositivo, sistema operativo, navegador, idioma, país y ciudad aproximados, y qué recomendaciones abres.',
-              'Tu consentimiento (art. 6.1.a). Sin él no se crea ninguna sesión.',
-              '12 meses desde tu última visita.',
+              'Medición de audiencia',
+              'Secciones visitadas, tiempo de uso, tipo de dispositivo, sistema operativo, navegador, idioma, país y ciudad aproximados, y qué recomendaciones abres. Para no repetirte al contar, tu visita se identifica con un código calculado en nuestro servidor a partir de tu IP y tu navegador mezclados con un valor aleatorio que cambia cada día y se destruye: al día siguiente ese código ya no se puede relacionar con el de hoy, ni siquiera por nosotros.',
+              'Interés legítimo (art. 6.1.f): estadísticas agregadas del propio servicio, sin identificarte y sin guardar nada en tu dispositivo.',
+              '12 meses en forma agregada.',
+            ],
+            [
+              'Recordarte entre visitas (opcional)',
+              'Un identificador aleatorio guardado en tu dispositivo, para saber si vuelves otro día y para atribuir a este alojamiento una visita posterior a la carta de un restaurante.',
+              'Tu consentimiento (art. 6.1.a). Está desactivado salvo que lo actives tú aquí abajo.',
+              '12 meses la identificación, 30 días la atribución.',
             ],
             [
               'Asistente de IA',
@@ -75,17 +81,18 @@ const T = {
         h: '3. Qué guardamos en tu dispositivo',
         p: [
           'La ley exige tu permiso para guardar información en tu dispositivo, y eso incluye el almacenamiento local del navegador, no solo las cookies (art. 22.2 LSSI).',
+          'Por defecto no guardamos NADA en tu dispositivo, y por eso esta guía no te recibe con un aviso de cookies: las estadísticas de uso se calculan en nuestro servidor sin dejarte nada puesto. Lo de abajo solo existe si tú lo activas.',
         ],
         table: {
           head: ['Nombre', 'Para qué', 'Duración'],
           rows: [
-            ['vt_guide_consent', 'Recordar tu decisión sobre la analítica. Necesaria.', '12 meses'],
+            ['vt_guide_consent', 'Recordar que activaste (o no) el recuerdo entre visitas. Solo se escribe si tocas los botones de abajo.', '12 meses'],
             ['vt_guide_visitor_id', 'Identificador aleatorio de visitante. Requiere tu consentimiento.', '12 meses'],
             ['vt_guide_ref', 'Saber que llegaste a la carta de un restaurante desde esta guía. Requiere tu consentimiento.', '30 días'],
           ],
         },
         after: [
-          'Si rechazas, no se escribe nada de lo que requiere consentimiento y borramos lo que hubiera. No usamos cookies de terceros, ni publicidad, ni redes sociales.',
+          'Si no lo activas, no se escribe nada; si lo desactivas, borramos lo que hubiera. Puedes cambiar de idea aquí en cualquier momento, y llegar a esta página desde el icono de privacidad de la cabecera. No usamos cookies de terceros, ni publicidad, ni redes sociales.',
         ],
       },
       {
@@ -133,12 +140,12 @@ const T = {
     pending:
       'This document is not ready to publish yet: the legal name, tax ID and registered address are missing (art. 10 LSSI and art. 13 GDPR). Fill them in at apps/guide/src/lib/legalIdentity.ts.',
     back: 'Back',
-    consentTitle: 'Your preferences',
-    consentGranted: 'You currently accept usage analytics.',
-    consentDenied: 'You currently decline usage analytics. We are not collecting any data.',
-    consentUnset: 'You have not chosen yet. In the meantime we collect nothing.',
-    revoke: 'Withdraw consent',
-    grant: 'Accept analytics',
+    consentTitle: 'Remembering you between visits',
+    consentGranted: 'Switched on: we keep a random identifier on your device. You can switch it off whenever you like.',
+    consentDenied: 'Switched off. Nothing is stored on your device.',
+    consentUnset: 'Switched off. We store nothing on your device unless you switch it on here.',
+    revoke: 'Switch off and delete',
+    grant: 'Switch on',
     sections: [
       {
         h: '1. Who is responsible for your data',
@@ -184,6 +191,7 @@ const T = {
         h: '3. What we store on your device',
         p: [
           'The law requires your permission to store information on your device, and that includes browser local storage, not just cookies (art. 22.2 LSSI, art. 5.3 ePrivacy Directive).',
+          'By default we store NOTHING on your device, which is why this guide does not greet you with a cookie notice: usage statistics are computed on our server without leaving anything behind. What follows only exists if you switch it on.',
         ],
         table: {
           head: ['Name', 'Purpose', 'Duration'],
@@ -194,7 +202,7 @@ const T = {
           ],
         },
         after: [
-          'If you decline, nothing requiring consent is written and anything already stored is removed. We use no third-party cookies, no advertising and no social network trackers.',
+          'If you never switch it on, nothing is written; if you switch it off, we delete whatever was there. You can change your mind here at any time, and reach this page from the privacy icon in the header. We use no third-party cookies, no advertising and no social network trackers.',
         ],
       },
       {

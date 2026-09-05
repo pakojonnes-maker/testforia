@@ -6,6 +6,8 @@
 //   POST /guide/track/intent         — Log affiliate intent
 // ============================================
 
+import { computeVisitorDayHash } from './workerVisitorHash.js';
+
 function jsonResponse(data, status = 200) {
     return new Response(JSON.stringify(data), {
         status,
@@ -88,27 +90,41 @@ async function handleSessionStart(request, env) {
     const now = new Date().toISOString();
     const today = now.slice(0, 10);
 
-    // Identidad del visitante. Hasta ahora la única señal era `device_fingerprint`,
-    // un hash de 32 bits de UA+idioma+pantalla+zona horaria: en producción 66
-    // sesiones colapsaban en 9 identidades, porque dos iPhone del mismo modelo con
-    // el mismo idioma y zona horaria — el caso normal en un edificio de apartamentos
-    // turísticos — producen el mismo hash. Ahora la identidad es un UUID que la app
-    // persiste en localStorage, y el fingerprint queda solo como fallback.
-    const visitorId = data.visitorId || generateUUID();
+    // Identidad del visitante. Hay DOS modos, y el anónimo es el normal.
+    //
+    //  1. Anónimo (por defecto, sin pedir permiso): el hash del día que deriva
+    //     workerVisitorHash.js en el servidor. No se escribe nada en el móvil
+    //     del huésped, así que el art. 22.2 LSSI no entra y no hace falta
+    //     banner. Es lo que devolvió la analítica a la vida: con el banner
+    //     anterior había 1 sesión en 30 días para toda la agencia.
+    //
+    //  2. Consentido: si el huésped activó el recuerdo entre visitas, la app
+    //     manda un visitor_id persistente de 12 meses. Solo ese modo puede
+    //     responder "¿ha vuelto otro día?", porque el salt del hash rota y el
+    //     vínculo entre días desaparece a propósito.
+    //
+    // Antes esto era `data.visitorId || generateUUID()`: sin consentimiento
+    // generaba un UUID NUEVO por sesión, y como el dashboard cuenta
+    // COALESCE(visitor_id, ...) cada recarga habría sido un visitante distinto.
+    const consentedVisitorId = typeof data.visitorId === 'string' && data.visitorId ? data.visitorId : null;
+    const visitorDayHash = await computeVisitorDayHash(request, env);
 
     // Recurrencia por DÍAS distintos, no por sesiones: recargar o cambiar de idioma
-    // no debe convertir a un huésped en "recurrente".
+    // no debe convertir a un huésped en "recurrente". Solo se puede calcular con
+    // un id que sobreviva a la medianoche, es decir, en el modo consentido.
     let visitCount = 1;
-    const prior = await env.DB.prepare(`
-        SELECT COUNT(DISTINCT DATE(started_at)) AS prior_days
-        FROM guide_sessions
-        WHERE visitor_id = ? AND apartment_id = ? AND DATE(started_at) <> ?
-    `).bind(visitorId, apartment.id, today).first();
-    visitCount = (prior?.prior_days || 0) + 1;
+    if (consentedVisitorId) {
+        const prior = await env.DB.prepare(`
+            SELECT COUNT(DISTINCT DATE(started_at)) AS prior_days
+            FROM guide_sessions
+            WHERE visitor_id = ? AND apartment_id = ? AND DATE(started_at) <> ?
+        `).bind(consentedVisitorId, apartment.id, today).first();
+        visitCount = (prior?.prior_days || 0) + 1;
+    }
 
     await env.DB.prepare(`
-        INSERT INTO guide_sessions (id, apartment_id, zone_id, device_type, os_name, browser, country, city, language_code, device_fingerprint, visitor_id, visit_count, started_at)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        INSERT INTO guide_sessions (id, apartment_id, zone_id, device_type, os_name, browser, country, city, language_code, device_fingerprint, visitor_id, visitor_day_hash, visit_count, started_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `).bind(
         sessionId,
         apartment.id,
@@ -119,8 +135,12 @@ async function handleSessionStart(request, env) {
         country,
         city,
         data.language || 'es',
-        data.deviceFingerprint || null,
-        visitorId,
+        // device_fingerprint deja de escribirse: era la señal legalmente más
+        // problemática (el fingerprinting no tiene excepción posible) y además
+        // la que peor funcionaba. La columna se conserva por el histórico.
+        null,
+        consentedVisitorId,
+        visitorDayHash,
         visitCount,
         now
     ).run();
@@ -128,7 +148,8 @@ async function handleSessionStart(request, env) {
     return jsonResponse({
         success: true,
         sessionId,
-        visitorId,
+        // null en modo anónimo: la app no debe persistir lo que no ha pedido.
+        visitorId: consentedVisitorId,
         visitCount,
         apartmentId: apartment.id,
         zoneId: apartment.zone_id
@@ -171,7 +192,10 @@ async function handleSessionEnd(request, env) {
         'UPDATE guide_sessions SET ended_at = ?, duration_seconds = MAX(COALESCE(duration_seconds, 0), ?) WHERE id = ?'
     ).bind(endedAt, duration || 0, sessionId).run();
 
-    if (result.changes === 0) {
+    // D1 devuelve el contador en result.meta.changes; `result.changes` es
+    // undefined, así que esta rama de 404 nunca se disparaba y session/end
+    // respondía success:true sobre sesiones inexistentes.
+    if (result.meta?.changes === 0) {
         return errorResponse('Session not found', 404);
     }
 

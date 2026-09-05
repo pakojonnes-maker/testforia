@@ -1,10 +1,28 @@
 // Consentimiento del guidebook (art. 22.2 LSSI / art. 6.1.a RGPD).
 //
-// Hasta ahora el guidebook no pedía NADA y sin embargo escribía en el dispositivo
-// del huésped un UUID de 12 meses (vt_guide_visitor_id), una cookie de atribución
-// de 30 días en .visualtastes.com (vt_guide_ref) y calculaba una huella de
-// dispositivo. Ninguna de las tres es necesaria para mostrar la guía.
+// QUÉ CUBRE HOY — y qué ya NO.
 //
+// Esto NO gobierna la analítica. Entre el 6 de agosto y el 5 de septiembre de
+// 2026 sí lo hizo, y el resultado medido en producción fue 1 sesión y 1
+// visitante único en 30 días para toda una agencia: sin un "sí" explícito no se
+// abría sesión, y de ahí colgaba todo el dashboard. Encima "Rechazar" era
+// definitivo e invisible — el banner no volvía a salir nunca en ese dispositivo.
+//
+// Ahora las visitas se cuentan con una identidad que deriva el SERVIDOR a partir
+// de un salt que rota cada día (workerVisitorHash.js). No se escribe nada en el
+// terminal del huésped, así que el art. 22.2 no entra y no hay permiso que pedir.
+//
+// Lo que sigue detrás de esta puerta es solo el RECUERDO ENTRE VISITAS, que sí
+// necesita escribir en el dispositivo y no es necesario para mostrar la guía:
+//   · vt_guide_visitor_id — UUID de 12 meses. Permite responder "¿ha vuelto otro
+//     día?", que el hash diario no puede por diseño.
+//   · vt_guide_ref — cookie de 30 días en .visualtastes.com. Atribuye a este
+//     apartamento una cena de dentro de tres días en la que el huésped escanea
+//     el QR físico de la mesa. El clic directo desde la guía y el QR del mismo
+//     día NO la necesitan: van por la URL y por el join de servidor.
+//
+// Por defecto está desactivado y no se pregunta en ninguna parte: se activa
+// desde /legal, accesible desde el icono de la cabecera en todas las pestañas.
 // La puerta vive aquí y la aplica lib/api.ts en el origen: así ningún punto de
 // llamada nuevo puede saltársela sin darse cuenta.
 

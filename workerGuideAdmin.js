@@ -2505,7 +2505,7 @@ async function getAgencyStats(env, agencyId, params) {
         // "150 escaneos" cuando eran ~40 huéspedes). Son aperturas de la guía.
         env.DB.prepare(`
             SELECT COUNT(*) as total_sessions,
-                   COUNT(DISTINCT COALESCE(visitor_id, device_fingerprint, id)) as unique_visitors,
+                   COUNT(DISTINCT COALESCE(visitor_id, visitor_day_hash, device_fingerprint, id)) as unique_visitors,
                    AVG(COALESCE(duration_seconds, 0)) as avg_duration
             FROM guide_sessions
             WHERE apartment_id IN (${placeholders}) AND started_at BETWEEN ? AND ?
@@ -2610,7 +2610,7 @@ async function getApartmentStats(env, aptId, params, isSuperAdmin, userAgencyIds
         // Visitantes únicos por visitor_id (UUID estable). device_fingerprint solo
         // como respaldo para las sesiones antiguas que no lo tienen.
         env.DB.prepare(`
-            SELECT COUNT(DISTINCT COALESCE(visitor_id, device_fingerprint, id)) as unique_devices
+            SELECT COUNT(DISTINCT COALESCE(visitor_id, visitor_day_hash, device_fingerprint, id)) as unique_devices
             FROM guide_sessions WHERE apartment_id = ? AND started_at >= ?
         `).bind(aptId, fromTs).first(),
 
@@ -2849,23 +2849,43 @@ async function getStatsDashboard(env, agencyId, params) {
     const fromTs = params.get('from') ? params.get('from') + 'T00:00:00' : new Date(Date.now() - 30 * 86400000).toISOString();
     const toTs = params.get('to') ? params.get('to') + 'T23:59:59' : new Date().toISOString();
 
-    const apartments = await env.DB.prepare('SELECT id, name FROM guide_apartments WHERE agency_id = ? AND is_active = TRUE').bind(agencyId).all();
+    // "Hoy" tiene que ser el día del que MIRA el panel, no el día UTC. Con
+    // date('now') en España (UTC+2 en verano) todo lo ocurrido entre las 00:00 y
+    // las 02:00 locales contaba como ayer, y la tarjeta "Personas en el
+    // Apartamento (Hoy)" amanecía vacía dos horas de más cada noche. El admin
+    // manda su offset en minutos respecto a UTC (+120 en Madrid en verano),
+    // misma convención que ya usa workerTracking.js para timezone_offset.
+    const tzOffsetMin = Number.parseInt(params.get('tz_offset') || '0', 10) || 0;
+    const localDay = new Date(Date.now() + tzOffsetMin * 60000).toISOString().slice(0, 10);
+    const todayStartUtc = new Date(Date.parse(`${localDay}T00:00:00Z`) - tzOffsetMin * 60000).toISOString();
+
+    // Sin filtrar por is_active: desactivar un apartamento no debe borrar su
+    // histórico del panel. La lista de actividad de abajo sí se queda con los
+    // activos, que es donde puede haber alguien ahora mismo.
+    const apartments = await env.DB.prepare('SELECT id, name, is_active FROM guide_apartments WHERE agency_id = ?').bind(agencyId).all();
     const aptIds = (apartments.results || []).map(a => a.id);
     if (aptIds.length === 0) return jsonResponse({ success: true, dashboard: {} });
 
     const placeholders = aptIds.map(() => '?').join(',');
 
     const [sessions, devices, intents, languages, exps, aptActivity] = await Promise.all([
-        env.DB.prepare(`SELECT COUNT(*) as c, AVG(duration_seconds) as d, DATE(started_at) as date FROM guide_sessions WHERE apartment_id IN (${placeholders}) AND started_at BETWEEN ? AND ? GROUP BY DATE(started_at)`).bind(...aptIds, fromTs, toTs).all(),
-        env.DB.prepare(`SELECT COUNT(DISTINCT COALESCE(visitor_id, device_fingerprint, id)) as c FROM guide_sessions WHERE apartment_id IN (${placeholders}) AND started_at BETWEEN ? AND ?`).bind(...aptIds, fromTs, toTs).first(),
+        env.DB.prepare(`SELECT COUNT(*) as c, SUM(duration_seconds) as dur_total, SUM(CASE WHEN duration_seconds IS NOT NULL THEN 1 ELSE 0 END) as dur_n, DATE(started_at) as date FROM guide_sessions WHERE apartment_id IN (${placeholders}) AND started_at BETWEEN ? AND ? GROUP BY DATE(started_at)`).bind(...aptIds, fromTs, toTs).all(),
+        env.DB.prepare(`SELECT COUNT(DISTINCT COALESCE(visitor_id, visitor_day_hash, device_fingerprint, id)) as c FROM guide_sessions WHERE apartment_id IN (${placeholders}) AND started_at BETWEEN ? AND ?`).bind(...aptIds, fromTs, toTs).first(),
         env.DB.prepare(`SELECT COUNT(*) as c FROM guide_affiliate_intents WHERE agency_id = ? AND created_at BETWEEN ? AND ?`).bind(agencyId, fromTs, toTs).first(),
         env.DB.prepare(`SELECT language_code as code, COUNT(*) as count FROM guide_sessions WHERE apartment_id IN (${placeholders}) AND started_at BETWEEN ? AND ? GROUP BY language_code`).bind(...aptIds, fromTs, toTs).all(),
         env.DB.prepare(`SELECT e.id, COALESCE(t.value, e.category) AS name, COUNT(i.id) as clicks FROM guide_pois e LEFT JOIN translations t ON e.id = t.entity_id AND t.entity_type = 'poi' AND t.field = 'name' AND t.language_code = 'es' JOIN guide_affiliate_intents i ON e.id = i.target_id WHERE i.target_type = 'experience' AND i.agency_id = ? AND i.created_at BETWEEN ? AND ? GROUP BY e.id ORDER BY clicks DESC LIMIT 5`).bind(agencyId, fromTs, toTs).all(),
-        env.DB.prepare(`SELECT apartment_id, COUNT(DISTINCT COALESCE(visitor_id, device_fingerprint, id)) as unique_devices_today, MAX(started_at) as last_session_at FROM guide_sessions WHERE apartment_id IN (${placeholders}) AND started_at >= date('now') GROUP BY apartment_id`).bind(...aptIds).all()
+        env.DB.prepare(`SELECT apartment_id, COUNT(DISTINCT COALESCE(visitor_id, visitor_day_hash, device_fingerprint, id)) as unique_devices_today, MAX(started_at) as last_session_at FROM guide_sessions WHERE apartment_id IN (${placeholders}) AND started_at >= ? GROUP BY apartment_id`).bind(...aptIds, todayStartUtc).all()
     ]);
 
     const totalSessions = (sessions.results || []).reduce((sum, r) => sum + r.c, 0);
-    const avgDuration = (sessions.results || []).reduce((sum, r) => sum + r.d, 0) / (sessions.results?.length || 1);
+    // Media ponderada real: segundos totales entre sesiones que llegaron a
+    // cerrarse. Antes se promediaban las medias DIARIAS, así que un día con 1
+    // sesión pesaba lo mismo que uno con 50. Las sesiones sin duration_seconds
+    // (el beacon de cierre no llegó) quedan fuera del divisor en vez de contar
+    // como 0 segundos y hundir la media.
+    const durTotal = (sessions.results || []).reduce((sum, r) => sum + (r.dur_total || 0), 0);
+    const durCount = (sessions.results || []).reduce((sum, r) => sum + (r.dur_n || 0), 0);
+    const avgDuration = durCount > 0 ? durTotal / durCount : 0;
     const totalIntents = intents?.c || 0;
 
     return jsonResponse({
@@ -2879,7 +2899,7 @@ async function getStatsDashboard(env, agencyId, params) {
             sessions_by_day: (sessions.results || []).map(r => ({ date: r.date, count: r.c })),
             languages: languages.results || [],
             top_experiences: exps.results || [],
-            apartments_activity: (apartments.results || []).map(a => {
+            apartments_activity: (apartments.results || []).filter(a => a.is_active).map(a => {
                 const act = (aptActivity.results || []).find(ac => ac.apartment_id === a.id);
                 return { id: a.id, name: a.name, unique_devices_today: act?.unique_devices_today || 0, last_session_at: act?.last_session_at || null };
             })
@@ -2897,7 +2917,7 @@ async function getStatsDevices(env, aptId, params, isSuperAdmin, userAgencyIds) 
     // (la columna real es `country`), así que este endpoint devolvía 500 siempre.
     // Y filtraba por device_fingerprint IS NOT NULL, descartando sesiones válidas.
     const sessions = await env.DB.prepare(`
-        SELECT COALESCE(visitor_id, device_fingerprint, id) AS visitor_key,
+        SELECT COALESCE(visitor_id, visitor_day_hash, device_fingerprint, id) AS visitor_key,
                started_at, language_code as language, country
         FROM guide_sessions
         WHERE apartment_id = ? AND DATE(started_at) = ?

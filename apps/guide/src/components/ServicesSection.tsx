@@ -294,7 +294,7 @@ export default function ServicesSection({ experiences, storeItems, zoneName, apa
       )}
 
       {/* Barra de pedido. Va en un wrapper pointer-events-none (mismo truco que
-          ConsentBanner y la top bar del mapa) para no bloquear el tap en toda la
+          la top bar del mapa) para no bloquear el tap en toda la
           franja de ancho completo, y por encima del BottomNavBar (z-50) en vez
           de por debajo. El bottom sale del alto real del nav + el safe area, no
           de un bottom-20 atado a mano al h-16 del nav. */}

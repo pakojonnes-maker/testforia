@@ -16,8 +16,6 @@ import RestaurantsSection from '../components/RestaurantsSection';
 import ServicesSection from '../components/ServicesSection';
 import ChatIASection from '../components/ChatIASection';
 import WelcomeModal, { WelcomeModalData } from '../components/WelcomeModal';
-import ConsentBanner from '../components/ConsentBanner';
-import { getConsent, subscribeToConsent, type ConsentState } from '../lib/consent';
 import { getTranslation, ACTIVE_LANGUAGES, isRtl } from '../lib/i18n';
 import type { GuidePoi, CitySummary, ZoneSummary } from '../lib/types';
 
@@ -179,11 +177,10 @@ export default function GuidebookPage() {
   langRef.current = lang;
   const welcomeShownRef = useRef(false);
 
-  // Estado del consentimiento. Se lee al montar y se mantiene al día porque el
-  // banner y la página legal emiten un evento al cambiarlo: así aceptar abre la
-  // sesión en caliente y revocar la corta, sin recargar la página.
-  const [consent, setConsentState] = useState<ConsentState>(() => getConsent());
-  useEffect(() => subscribeToConsent(setConsentState), []);
+  // Ya no se sigue aquí el estado del consentimiento: la analítica es anónima y
+  // no depende de él, y la única pieza que sí lo necesita (la cookie de
+  // atribución de 30 días) lo comprueba por su cuenta en setReferralCookie().
+  // Se gestiona en /legal, accesible desde la cabecera.
 
   // Fetch guidebook data
   useEffect(() => {
@@ -348,14 +345,14 @@ export default function GuidebookPage() {
   //  2. El listener de `visibilitychange` era una función anónima que el cleanup
   //     nunca eliminaba, así que se acumulaba uno por cada re-ejecución del
   //     efecto y disparaba N llamadas a session/end por cada ocultación.
-  //  3. Ahora depende también del consentimiento: las funciones de tracking están
-  //     capadas en lib/api.ts, así que sin permiso este efecto no manda nada. Al
-  //     aceptar en el banner, `consent` cambia y el efecto se vuelve a ejecutar
-  //     para abrir la sesión sin obligar al huésped a recargar.
+  //  3. Ya NO depende del consentimiento. Entre agosto y septiembre de 2026 sí
+  //     dependía, y el resultado fue 1 sesión en 30 días para toda la agencia:
+  //     sin un "sí" explícito no se abría sesión y de ahí colgaba todo lo demás.
+  //     Ahora la identidad la deriva el servidor con un hash que rota a diario y
+  //     no se escribe nada en el móvil, así que no hay permiso que pedir.
   useEffect(() => {
     const apartmentId = data?.apartment?.id;
     if (!apartmentId) return;
-    if (consent !== 'granted') return;
 
     let cancelled = false;
     const startedAt = Date.now();
@@ -364,10 +361,6 @@ export default function GuidebookPage() {
     trackSessionStart(apartmentId, langRef.current).then(res => {
       if (!cancelled && res?.sessionId) {
         sessionIdRef.current = res.sessionId;
-        // Deja una referencia de 30 días para que, si el huésped acaba cenando
-        // en un restaurante de la zona días después, esa sesión de menú pueda
-        // atribuirse a esta guía aunque llegue sin ningún ?ref= en la URL.
-        setReferralCookie(apartmentId, res.sessionId);
       }
     });
 
@@ -389,7 +382,7 @@ export default function GuidebookPage() {
       document.removeEventListener('visibilitychange', handleVisibility);
       endSession();
     };
-  }, [data?.apartment?.id, consent]);
+  }, [data?.apartment?.id]);
 
   // Track section view when tab changes
   useEffect(() => {
@@ -403,6 +396,23 @@ export default function GuidebookPage() {
   // Track intent
   const logIntent = (targetType: 'restaurant' | 'experience' | 'product', targetId: string, action: string) => {
     if (!data?.apartment?.id) return;
+
+    // La cookie de atribución se escribe AQUÍ, no al entrar en la guía.
+    //
+    // Antes se dejaba en cuanto se abría el guidebook, así que todo el que
+    // asomaba la nariz se llevaba una cookie de 30 días en .visualtastes.com
+    // sin haber hecho nada. Ahora solo la recibe quien de verdad va a una carta,
+    // y solo si ha activado el recuerdo entre visitas (setReferralCookie
+    // comprueba el consentimiento por su cuenta).
+    //
+    // Ojo: no cubrir este caso NO deja la atribución a ciegas. El clic desde la
+    // guía viaja en la URL (?ref=guide&apt=&gsid=) y el QR físico de la mesa del
+    // mismo día lo resuelve el join de servidor en workerTracking.js. La cookie
+    // solo añade el caso de días después.
+    if (targetType === 'restaurant' && action === 'click_menu') {
+      setReferralCookie(data.apartment.id, sessionIdRef.current);
+    }
+
     trackIntent({
       sessionId: sessionIdRef.current || undefined,
       apartmentId: data.apartment.id,
@@ -604,7 +614,6 @@ export default function GuidebookPage() {
         </footer>
       )}
 
-      <ConsentBanner lang={lang} legalHref={`/legal?lang=${lang}`} />
     </div>
   );
 }

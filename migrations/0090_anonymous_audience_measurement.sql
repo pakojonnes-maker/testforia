@@ -1,0 +1,55 @@
+-- 0090_anonymous_audience_measurement.sql
+-- ============================================================================
+-- POR QUÉ EXISTE
+--
+-- Desde el 6 de agosto de 2026 el guidebook no registraba NADA salvo que el
+-- huésped pulsara "Aceptar" en el banner de consentimiento (commit f8d15b3).
+-- Resultado real en producción: 1 sesión y 1 visitante único en 30 días para
+-- toda la agencia, con el dashboard entero a cero — incluida la tarjeta
+-- "Personas en el Apartamento (Hoy)". El tracking no estaba roto: estaba
+-- apagado, y además "Rechazar" era permanente e invisible (una vez pulsado, el
+-- banner no vuelve a salir nunca en ese dispositivo).
+--
+-- La salida no es un banner con trampa —eso es justo lo que sanciona la AEPD, y
+-- la multa recaería sobre la agencia, que es la responsable del tratamiento—
+-- sino dejar de necesitar permiso: si no escribimos nada en el terminal del
+-- huésped, el art. 22.2 LSSI no entra. La identidad pasa a derivarse en el
+-- servidor con un salt aleatorio que rota a diario (ver workerVisitorHash.js).
+--
+-- QUÉ AÑADE
+--
+-- `visitor_day_hash`: SHA-256(salt_del_día || IP || User-Agent), truncado a 128
+-- bits. Sirve para dos cosas:
+--   1. Contar visitantes únicos del día sin identificador en el dispositivo.
+--   2. Atribuir al restaurante correcto la sesión de menú de un huésped que vio
+--      el sitio en la guía y escaneó el QR físico de la mesa MÁS TARDE EL MISMO
+--      DÍA, sin ningún ?ref= en la URL (el join vive en workerTracking.js).
+--
+-- LO QUE NO ARREGLA, A PROPÓSITO
+--
+-- No permite reconocer al mismo huésped en días distintos: el salt es aleatorio
+-- y caduca, así que ni nosotros podemos enlazar el hash de hoy con el de ayer.
+-- Ese enlace cruzado sigue existiendo solo para quien acepte explícitamente
+-- (visitor_id de 12 meses + cookie vt_guide_ref de 30 días), y ahora se pide en
+-- contexto en vez de a bocajarro al entrar.
+--
+-- `device_fingerprint` deja de escribirse desde este momento (era la señal más
+-- problemática y la que peor funcionaba: 66 sesiones colapsaban en 9 identidades).
+-- La columna y los datos históricos se conservan: purgarlos es una decisión de
+-- retención aparte, no de esta migración.
+--
+-- IDEMPOTENTE: no. ALTER TABLE ADD COLUMN falla si la columna ya existe; D1 no
+-- soporta "ADD COLUMN IF NOT EXISTS". Comprueba antes con:
+--   npx wrangler d1 execute restaurant-menu-saas --remote \
+--     --command="SELECT sql FROM sqlite_master WHERE name='guide_sessions'"
+--
+-- CACHÉ KV: no hace falta bumpear ninguna versión. Esto no cambia la forma del
+-- JSON que devuelve GET /guide/:slug, solo lo que se escribe al trackear.
+-- ============================================================================
+
+ALTER TABLE guide_sessions ADD COLUMN visitor_day_hash TEXT;
+
+-- El join del mismo día busca por (hash, día): es la consulta caliente que hace
+-- workerTracking.js en CADA apertura de carta que llega sin atribución en la URL.
+CREATE INDEX IF NOT EXISTS idx_guide_sessions_day_hash
+  ON guide_sessions(visitor_day_hash, started_at);

@@ -102,6 +102,18 @@ const GUIDE_REFERRAL_COOKIE_MAX_AGE_DAYS = 30;
  * el QR físico de la mesa sin ningún ?ref= en la URL, no dejaba ningún rastro
  * de venir de la guía. 30 días cubre la duración típica de una estancia.
  *
+ * ALCANCE REAL, para no sobrevalorarla: de los tres caminos de atribución, esta
+ * cookie solo cubre el tercero.
+ *   1. Toca el restaurante DENTRO de la guía → va en la URL (?ref=guide&apt=…),
+ *      sin tocar el dispositivo. Es el camino mayoritario.
+ *   2. Escanea el QR de la mesa el MISMO día → lo resuelve en el servidor el
+ *      join por hash diario de workerTracking.js. Tampoco toca el dispositivo.
+ *   3. Escanea el QR de la mesa OTRO día → solo esto necesita la cookie, y por
+ *      tanto el consentimiento.
+ *
+ * Se escribe al tocar un restaurante (GuidebookPage.logIntent), no al abrir la
+ * guía: antes se la llevaba todo el que asomaba la nariz sin haber hecho nada.
+ *
  * El atributo Domain solo se fija cuando el guidebook corre de verdad en un
  * subdominio de visualtastes.com — en local/dev el navegador rechazaría un
  * Domain que no coincide con el host actual, así que ahí se usa una cookie de
@@ -125,10 +137,29 @@ export function setReferralCookie(apartmentId: string, sessionId: string | null)
   }
 }
 
+/**
+ * Id persistente SOLO si el huésped ha activado el recuerdo entre visitas.
+ *
+ * Devuelve null en el caso normal, y eso es lo correcto: sin él, el backend
+ * identifica la sesión con un hash del día derivado en el servidor, que no
+ * escribe nada en el dispositivo. Ojo con usar getVisitorId() aquí — ese
+ * devuelve un id EFÍMERO cuando no hay consentimiento, y mandarlo haría que
+ * cada recarga contase como un visitante único nuevo.
+ */
+function getConsentedVisitorId(): string | undefined {
+  return hasConsent() ? getVisitorId() : undefined;
+}
+
+/**
+ * Abre la sesión de guía. YA NO REQUIERE CONSENTIMIENTO.
+ *
+ * Nada de lo que se manda aquí se guarda en el móvil del huésped: la identidad
+ * la deriva el servidor con un salt que rota a diario (workerVisitorHash.js).
+ * Sin almacenamiento en el terminal no aplica el art. 22.2 LSSI, así que no hay
+ * permiso que pedir para contar visitas — que es lo que permitió quitar el
+ * banner de la portada. Ver consent.ts para lo que SÍ sigue pidiendo permiso.
+ */
 export async function trackSessionStart(apartmentId: string, language: string) {
-  // ⚖️ Analítica pura: sin consentimiento no se abre sesión, y por tanto no hay
-  // ni section-views ni intents que registrar (ambos cuelgan de sessionId).
-  if (!hasConsent()) return null;
   try {
     const res = await fetch(`${API_URL}/guide/track/session/start`, {
       method: 'POST',
@@ -139,9 +170,7 @@ export async function trackSessionStart(apartmentId: string, language: string) {
         deviceType: /Mobile|Android|iPhone/i.test(navigator.userAgent) ? 'mobile' : 'desktop',
         osName: getOS(),
         browser: getBrowser(),
-        visitorId: getVisitorId(),
-        // Se sigue enviando como respaldo para navegadores sin localStorage.
-        deviceFingerprint: getDeviceFingerprint(),
+        visitorId: getConsentedVisitorId(),
       }),
     });
     if (!res.ok) return null;
@@ -167,7 +196,6 @@ export function buildMenuUrl(menuBase: string, slug: string, apartmentId: string
 }
 
 export async function trackSessionEnd(sessionId: string, duration?: number) {
-  if (!hasConsent()) return;
   try {
     // La duración la calcula el cliente porque el servidor solo veía `started_at`
     // y, al llamarse esto en cada `visibilitychange`, la sesión quedaba cerrada
@@ -189,7 +217,6 @@ export async function trackIntent(data: {
   targetId: string;
   actionTaken: string;
 }) {
-  if (!hasConsent()) return;
   try {
     await fetch(`${API_URL}/guide/track/intent`, {
       method: 'POST',
@@ -247,7 +274,6 @@ export async function submitStoreOrder(params: {
 }
 
 export async function trackSectionView(apartmentId: string, sessionId: string | null, section: string) {
-  if (!hasConsent()) return;
   try {
     await fetch(`${API_URL}/guide/track/section-view`, {
       method: 'POST',
@@ -276,30 +302,13 @@ function getBrowser(): string {
   return 'unknown';
 }
 
-/**
- * ⚖️ Huella de dispositivo. Solo se llama desde trackSessionStart(), que ya está
- * detrás del consentimiento — NO la invoques desde ningún otro sitio sin
- * comprobar hasConsent() antes. El fingerprinting está expresamente cubierto por
- * el art. 5.3 de la Directiva ePrivacy (Directrices 2/2023 del CEPD) y es de los
- * tratamientos peor vistos por las autoridades cuando se hace sin permiso.
- */
-function getDeviceFingerprint(): string {
-  const parts = [
-    navigator.userAgent,
-    navigator.language,
-    window.screen.width + 'x' + window.screen.height,
-    window.screen.colorDepth,
-    new Date().getTimezoneOffset(),
-  ];
-  let hash = 0;
-  const str = parts.join('|');
-  for (let i = 0; i < str.length; i++) {
-    const char = str.charCodeAt(i);
-    hash = ((hash << 5) - hash) + char;
-    hash = hash & hash;
-  }
-  return Math.abs(hash).toString(36);
-}
+// getDeviceFingerprint() se ha eliminado. Era la señal legalmente más
+// expuesta (el fingerprinting está expresamente cubierto por el art. 5.3 de la
+// Directiva ePrivacy y las Directrices 2/2023 del CEPD, y no tiene excepción de
+// "medición anónima" posible) y encima la que peor funcionaba: 32 bits de
+// UA+idioma+pantalla+zona horaria colapsaban 66 sesiones en 9 identidades,
+// porque dos iPhone iguales en un mismo edificio dan el mismo valor. Su papel lo
+// hace ahora el hash del día del servidor, que ni toca el dispositivo ni colisiona.
 
 export interface ChatMessage {
   role: 'user' | 'assistant';

@@ -194,7 +194,23 @@ export default function Header({ activeTab, onTabChange, lang, onLanguageChange,
             ))}
           </nav>
 
-          <LanguageSwitcher lang={lang} onLanguageChange={onLanguageChange} variant="bar" />
+          <div className="flex items-center gap-1 shrink-0">
+            {/* Acceso permanente a privacidad y preferencias.
+                Antes solo vivía en el pie, que no se renderiza en las pestañas a
+                pantalla completa (Explorar y Chat): en esas dos no había forma
+                de llegar al aviso legal ni de cambiar de idea sobre el recuerdo
+                entre visitas. Aquí está en todas las pestañas con cabecera, y
+                cuesta un tap desde Explorar. */}
+            <a
+              href={`/legal?lang=${lang}`}
+              aria-label={getTranslation('legal_link', lang)}
+              title={getTranslation('legal_link', lang)}
+              className="w-9 h-9 flex items-center justify-center text-secondary hover:text-primary transition-colors"
+            >
+              <span className="material-symbols-outlined text-[20px]">privacy_tip</span>
+            </a>
+            <LanguageSwitcher lang={lang} onLanguageChange={onLanguageChange} variant="bar" />
+          </div>
         </div>
       </div>
     </header>

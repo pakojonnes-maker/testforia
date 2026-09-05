@@ -168,6 +168,39 @@ puede ser caché, no un fallo de la migración.
 
 ---
 
+### ⚠️ Analítica del guidebook: anónima por defecto y SIN banner
+
+Lección cara (ago–sep 2026): la analítica estuvo un mes detrás de un banner de
+consentimiento opt-in. Resultado real en producción: **1 sesión y 1 visitante
+único en 30 días** para una agencia entera, con el panel a cero. Y "Rechazar"
+era definitivo e invisible — el banner no volvía a salir en ese dispositivo.
+
+Modelo actual, **no lo vuelvas a atar al consentimiento**:
+
+- `workerVisitorHash.js` deriva la identidad EN EL SERVIDOR:
+  `SHA-256(salt_del_día || IP || User-Agent)`, truncado a 128 bits. El salt es
+  **aleatorio** y vive en KV (`analytics:salt:YYYY-MM-DD`, TTL 48 h). Es
+  deliberado que no se derive de un secreto estable: si fuera recalculable
+  podríamos reconstruir el hash de ayer y enlazar entre días, y entonces esto
+  dejaría de ser medición anónima. **No lo "optimices" a un salt fijo.**
+- Como no se escribe nada en el terminal, el art. 22.2 LSSI no entra y no hay
+  banner que mostrar. `guide_sessions.visitor_day_hash` guarda ese valor.
+- Todo recuento de único usa `COALESCE(visitor_id, visitor_day_hash,
+  device_fingerprint, id)`. Si añades un endpoint de stats, respétalo.
+- `device_fingerprint` ya **no se escribe** (columna conservada por histórico).
+
+**Atribución guide → menu**, tres caminos y solo uno necesita permiso:
+1. Clic dentro de la guía → `?ref=guide&apt=&gsid=` en la URL. Sin storage.
+2. QR físico de la mesa el **mismo día** → join en `workerTracking.js` por
+   `visitor_day_hash`; marca `referral_source = 'guide_sameday'` para poder
+   distinguir la inferencia de un clic declarado. Sin storage.
+3. QR de la mesa **otro día** → cookie `vt_guide_ref` (30 días), y eso sí exige
+   consentimiento. Se escribe al tocar un restaurante, no al abrir la guía.
+
+`apps/guide/src/lib/consent.ts` ya **solo** gobierna el punto 3 y el
+`visitor_id` de 12 meses. Se gestiona en `/legal`, accesible desde el icono de
+privacidad de la cabecera (el pie no se renderiza en Explorar ni en Chat).
+
 ## 4. Frontend — cuatro apps con reglas DISTINTAS
 
 ⚠️ **Regla crítica de separación por app.** El styling NO es intercambiable:

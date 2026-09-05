@@ -1,4 +1,6 @@
 
+import { computeVisitorDayHash } from './workerVisitorHash.js';
+
 function jsonResponse(data, status = 200) {
     return new Response(JSON.stringify(data), {
         status,
@@ -153,6 +155,49 @@ async function handleSessionStart(request, env) {
             // Un visitante marcado como interno lo sigue siendo en sesiones futuras.
             isInternal = prior?.was_internal ? 1 : 0;
         }
+        // Atribución guide → carta cuando la URL no trae nada.
+        //
+        // El camino normal (el huésped toca el restaurante DENTRO de la guía) ya
+        // llega resuelto en ?ref=guide&apt=...&gsid=..., sin tocar el dispositivo.
+        // Lo que no cubría era el caso real de después: vio el sitio en la guía a
+        // mediodía y por la noche escanea el QR físico de la mesa, sin ningún
+        // parámetro. Antes eso solo lo salvaba la cookie vt_guide_ref de 30 días,
+        // que necesita consentimiento.
+        //
+        // Aquí se resuelve en el servidor: el hash del día es el mismo valor para
+        // el mismo dispositivo en guide.visualtastes.com y en menu.visualtastes.com,
+        // así que basta buscar una sesión de guía de HOY con ese hash. Cero
+        // almacenamiento en el móvil, cero permiso que pedir.
+        //
+        // Se marca como 'guide_sameday' y no como 'guide' a propósito: es una
+        // inferencia, no un clic declarado, y quien mire el funnel de comisiones
+        // tiene derecho a distinguirlas.
+        let attributedSource = referralSource;
+        let attributedApartmentId = referralApartmentId;
+        let attributedSessionId = referralSessionId;
+        if (!attributedApartmentId) {
+            try {
+                const dayHash = await computeVisitorDayHash(request, env);
+                if (dayHash) {
+                    const guideSession = await env.DB.prepare(`
+                        SELECT id, apartment_id
+                        FROM guide_sessions
+                        WHERE visitor_day_hash = ? AND DATE(started_at) = ?
+                        ORDER BY started_at DESC
+                        LIMIT 1
+                    `).bind(dayHash, today).first();
+                    if (guideSession) {
+                        attributedSource = 'guide_sameday';
+                        attributedApartmentId = guideSession.apartment_id;
+                        attributedSessionId = guideSession.id;
+                    }
+                }
+            } catch (err) {
+                // La atribución es un extra: si falla, la sesión de menú se abre igual.
+                console.error('[Tracking] Join guide mismo día falló:', err.message);
+            }
+        }
+
         // ✅ FIX: el parámetro ?qr= se guardaba a ciegas en qr_code_id (FK a
         // qr_codes) y qr_scans no se escribía nunca, así que la atribución por QR
         // estaba permanentemente a 0. Ahora se valida contra qr_codes y, si el
@@ -181,7 +226,7 @@ async function handleSessionStart(request, env) {
             now, languages, normalizeTimezoneOffset(timezone), networktype,
             ispwa ? 1 : 0, consentAnalytics === false ? 0 : 1,
             validQrCodeId, visitorId, visitCount,
-            referralSource, referralApartmentId, referralSessionId, isInternal
+            attributedSource, attributedApartmentId, attributedSessionId, isInternal
         ).run();
         if (validQrCodeId) {
             await env.DB.prepare(
@@ -236,7 +281,9 @@ async function handleSessionEnd(request, env) {
         const result = await env.DB.prepare(
             'UPDATE sessions SET ended_at = ?, duration_seconds = ? WHERE id = ?'
         ).bind(endTime, durationSeconds, sessionId).run();
-        if (result.changes === 0) {
+        // D1 expone el contador en result.meta.changes; `result.changes` es
+        // undefined, así que este 404 nunca llegaba a dispararse.
+        if (result.meta?.changes === 0) {
             return errorResponse('Session not found', 404);
         }
         return jsonResponse({ success: true, sessionId, duration: durationSeconds });
