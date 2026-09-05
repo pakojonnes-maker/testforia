@@ -77,3 +77,6 @@ KNOWLEDGE_*.md
 
 # Archivos de propuesta generados
 apps/client/public/proposal.*
+
+# Notas de trabajo por sesión (no forman parte del producto)
+scratchpad/
