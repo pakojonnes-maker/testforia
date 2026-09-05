@@ -482,7 +482,6 @@ export default function GuidebookPage() {
           onTabChange={setActiveTab}
           lang={lang}
           onLanguageChange={handleLanguageChange}
-          apartmentName={apartment.name}
         />
       )}
 

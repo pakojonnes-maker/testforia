@@ -153,7 +153,6 @@ interface HeaderProps {
   onTabChange: (tab: TabKey) => void;
   lang: string;
   onLanguageChange?: (lang: string) => void;
-  apartmentName: string;
 }
 
 const TABS: Array<{ id: TabKey; key: string }> = [
@@ -164,19 +163,11 @@ const TABS: Array<{ id: TabKey; key: string }> = [
   { id: 'chat', key: 'tab_chat' },
 ];
 
-export default function Header({ activeTab, onTabChange, lang, onLanguageChange, apartmentName }: HeaderProps) {
+export default function Header({ activeTab, onTabChange, lang, onLanguageChange }: HeaderProps) {
   return (
     <header className="bg-background sticky top-0 z-40 border-b-2 border-primary">
       <div className="flex flex-col w-full px-margin-mobile md:px-margin-desktop max-w-container-max mx-auto">
         <div className="flex justify-between items-center w-full gap-4 py-4 md:py-6">
-          <div className="flex items-center gap-2 min-w-0">
-            <span className="material-symbols-outlined text-primary shrink-0" style={{ fontVariationSettings: "'FILL' 1" }}>cottage</span>
-            {/* Cabecera tipo masthead editorial (Stitch): logotipo pequeño en
-                serif, versalitas y tracking amplio — no un titular grande. El
-                peso tipográfico del sistema va en los títulos de sección. */}
-            <span className="font-display-lg text-[14px] md:text-[16px] text-primary uppercase tracking-[0.18em] line-clamp-1">{apartmentName}</span>
-          </div>
-
           {/* Web Navigation (Hidden on Mobile — BottomNavBar covers mobile tab switching) */}
           <nav className="hidden md:flex gap-8">
             {TABS.map(tab => (
@@ -194,7 +185,11 @@ export default function Header({ activeTab, onTabChange, lang, onLanguageChange,
             ))}
           </nav>
 
-          <div className="flex items-center gap-1 shrink-0">
+          {/* ms-auto: con el masthead (icono+nombre) quitado, este es el único
+              hijo flex visible en móvil (el <nav> de arriba está hidden) —
+              justify-between no tiene nada que enfrentarlo y lo deja pegado a
+              la izquierda. ms-auto lo fija a la derecha pase lo que pase. */}
+          <div className="flex items-center gap-1 shrink-0 ms-auto md:ms-0">
             {/* Acceso permanente a privacidad y preferencias.
                 Antes solo vivía en el pie, que no se renderiza en las pestañas a
                 pantalla completa (Explorar y Chat): en esas dos no había forma
