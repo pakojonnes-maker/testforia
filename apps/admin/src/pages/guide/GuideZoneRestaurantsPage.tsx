@@ -19,6 +19,8 @@ import {
   Delete as DeleteIcon,
   Restaurant as RestaurantIcon,
   Star as StarIcon,
+  ArrowUpward as ArrowUpIcon,
+  ArrowDownward as ArrowDownIcon,
 } from '@mui/icons-material';
 
 interface Zone {
@@ -58,6 +60,7 @@ export default function GuideZoneRestaurantsPage() {
   const [selectedRestaurant, setSelectedRestaurant] = useState<RestaurantOption | null>(null);
   const [tier, setTier] = useState<'basic' | 'featured'>('basic');
   const [saving, setSaving] = useState(false);
+  const [reordering, setReordering] = useState(false);
 
   useEffect(() => {
     if (!user?.is_superadmin) return;
@@ -153,6 +156,43 @@ export default function GuideZoneRestaurantsPage() {
     }
   };
 
+  /**
+   * Orden base de la zona. Hasta ahora `order_override` existía en la tabla pero
+   * no había forma de fijarlo desde ninguna parte, así que quedaba siempre a
+   * NULL y workerGuide.js caía en `ABS(RANDOM()) % 1000` — orden aleatorio, y
+   * encima congelado dentro de la caché KV hasta que caducara la entrada.
+   *
+   * Se reescribe la lista entera en cada movimiento (no sólo el par que se
+   * mueve) para que ningún restaurante se quede sin posición explícita y vuelva
+   * al fondo por el COALESCE.
+   */
+  const handleMove = async (index: number, direction: -1 | 1) => {
+    const target = index + direction;
+    if (target < 0 || target >= links.length) return;
+
+    const reordered = [...links];
+    [reordered[index], reordered[target]] = [reordered[target], reordered[index]];
+    setLinks(reordered.map((l, i) => ({ ...l, order_override: i }))); // optimista
+    setReordering(true);
+    try {
+      for (const [i, link] of reordered.entries()) {
+        await apiClient.request('/guide/admin/zone-restaurants', {
+          method: 'POST',
+          body: JSON.stringify({
+            zone_id: link.zone_id, restaurant_id: link.restaurant_id,
+            tier: link.tier, order_override: i,
+          }),
+        });
+      }
+      await loadLinks();
+    } catch (err: any) {
+      setError(err.message || 'Error al reordenar');
+      await loadLinks();
+    } finally {
+      setReordering(false);
+    }
+  };
+
   const handleUnlink = async (link: ZoneRestaurant) => {
     if (!window.confirm(`¿Quitar "${link.restaurant_name}" de esta zona? Dejará de verse en la guía.`)) return;
     try {
@@ -222,6 +262,18 @@ export default function GuideZoneRestaurantsPage() {
                       onClick={() => handleSetTier(link, link.tier === 'featured' ? 'basic' : 'featured')}
                       sx={{ cursor: 'pointer' }}
                     />
+                    <IconButton
+                      size="small" disabled={idx === 0 || reordering}
+                      onClick={() => handleMove(idx, -1)}
+                    >
+                      <ArrowUpIcon fontSize="small" />
+                    </IconButton>
+                    <IconButton
+                      size="small" disabled={idx === links.length - 1 || reordering}
+                      onClick={() => handleMove(idx, 1)}
+                    >
+                      <ArrowDownIcon fontSize="small" />
+                    </IconButton>
                     <IconButton size="small" color="error" onClick={() => handleUnlink(link)}>
                       <DeleteIcon fontSize="small" />
                     </IconButton>

@@ -55,10 +55,24 @@ export interface CatalogItem {
   discount_display?: string | null;
   badge_type?: string | null;
 
-  // Acción del huésped (solo experiencias)
+  // Acción del huésped (solo experiencias). Dos ranuras, migración 0091:
+  // la principal es por defecto el enlace de afiliado; si la secundaria está
+  // rellena MANDA y es la única que ve el huésped (botón en la guía, QR en la TV).
   action_type?: string | null;
   action_data?: string | null;
   action_prefilled_message?: string | null;
+  action_is_affiliate?: number | boolean | null;
+  affiliate_network?: string | null;
+  affiliate_code?: string | null;
+  secondary_action_type?: string | null;
+  secondary_action_data?: string | null;
+  secondary_action_prefilled_message?: string | null;
+
+  // Promoción DE PAGO — distinta de is_featured, que es criterio editorial.
+  // rank menor = más arriba; NULL = sin promoción. Fechas opcionales.
+  promotion_rank?: number | null;
+  promoted_from?: string | null;
+  promoted_until?: string | null;
 
   // Negocio (solo superadmin: el worker lo elimina para agencias)
   commission_type?: string | null;
@@ -91,6 +105,37 @@ export const ACTION_TYPES = [
   { value: 'WHATSAPP', label: 'WhatsApp' },
   { value: 'PHONE', label: 'Teléfono' },
   { value: 'COUPON', label: 'Cupón de descuento' },
+];
+
+/** El CTA secundario es el contacto directo del partner: no hay cupones aquí. */
+export const SECONDARY_ACTION_TYPES = [
+  { value: '', label: 'Sin CTA secundario' },
+  { value: 'URL', label: 'Su página web' },
+  { value: 'WHATSAPP', label: 'Su WhatsApp' },
+  { value: 'PHONE', label: 'Su teléfono' },
+];
+
+/** Redes de afiliación previstas. El campo es libre en BD; esto es la ayuda. */
+export const AFFILIATE_NETWORKS = [
+  { value: '', label: '—' },
+  { value: 'getyourguide', label: 'GetYourGuide' },
+  { value: 'civitatis', label: 'Civitatis' },
+  { value: 'viator', label: 'Viator / Tripadvisor' },
+  { value: 'booking', label: 'Booking.com' },
+  { value: 'amazon', label: 'Amazon' },
+  { value: 'custom', label: 'Acuerdo directo' },
+];
+
+/**
+ * Marcadores admitidos dentro de la URL de afiliado. El worker SÓLO sustituye
+ * lo que esté escrito aquí: nunca añade parámetros por su cuenta, porque
+ * muchas redes firman el enlace y un query param extra lo invalida.
+ */
+export const AFFILIATE_PLACEHOLDERS = [
+  { token: '{{sub_id}}', help: 'slug del apartamento + guide/tv — lo que verás en el panel del partner' },
+  { token: '{{affiliate_code}}', help: 'el código de partner de abajo' },
+  { token: '{{surface}}', help: 'guide o tv' },
+  { token: '{{apartment_id}}', help: 'id interno del alojamiento' },
 ];
 
 export const TRAVEL_MODES = [

@@ -21,6 +21,7 @@ import {
 import { apiClient } from '../../lib/apiClient';
 import {
   CatalogItem, CatalogKind, Zone, CATEGORIES, ACCESS_TYPES, ACTION_TYPES,
+  SECONDARY_ACTION_TYPES, AFFILIATE_NETWORKS, AFFILIATE_PLACEHOLDERS,
   TRAVEL_MODES, BADGE_TYPES, isExperience, isTrue,
 } from './catalogTypes';
 
@@ -89,6 +90,10 @@ export default function GuideCatalogFormDialog({
         poi_type: initialKind === 'experience' ? 'experience' : 'sight',
         travel_mode: initialKind === 'experience' ? '' : 'walk',
         action_type: initialKind === 'experience' ? 'URL' : '',
+        // Una experiencia nueva se da de alta como enlace de afiliado: es el
+        // caso por defecto del catálogo, y si no lo es se desmarca en un clic.
+        action_is_affiliate: initialKind === 'experience',
+        secondary_action_type: '',
         badge_type: 'none',
         commission_type: 'none',
         order_index: 0,
@@ -107,6 +112,12 @@ export default function GuideCatalogFormDialog({
     if (kind === 'experience') {
       if (!form.action_type) next.action_type = 'Una experiencia necesita una acción';
       if (!form.action_data?.trim()) next.action_data = 'Indica la URL, el teléfono o el cupón';
+      // Un secundario sin destino no desplazaría a nada — el worker lo
+      // ignoraría y el huésped seguiría viendo el afiliado. Mejor avisar aquí
+      // que dejar una configuración que no hace lo que parece.
+      if (form.secondary_action_type && !form.secondary_action_data?.trim()) {
+        next.secondary_action_data = 'El CTA secundario necesita un destino, o quítalo';
+      }
     }
     const hasLat = form.latitude !== undefined && form.latitude !== null && !Number.isNaN(form.latitude);
     const hasLng = form.longitude !== undefined && form.longitude !== null && !Number.isNaN(form.longitude);
@@ -132,6 +143,11 @@ export default function GuideCatalogFormDialog({
         is_featured: isTrue(form.is_featured) ? 1 : 0,
         is_active: isTrue(form.is_active) ? 1 : 0,
         order_index: form.order_index ?? 0,
+        // Promoción de pago (migración 0091). Cadena vacía = NULL en el worker
+        // (normalizePoiValue), que es lo que significa "sin promoción".
+        promotion_rank: form.promotion_rank ?? '',
+        promoted_from: form.promoted_from ?? '',
+        promoted_until: form.promoted_until ?? '',
 
         name_es: form.name_es, name_en: form.name_en,
         description_es: form.description_es, description_en: form.description_en,
@@ -166,6 +182,17 @@ export default function GuideCatalogFormDialog({
           action_type: form.action_type,
           action_data: form.action_data,
           action_prefilled_message: form.action_type === 'WHATSAPP' ? (form.action_prefilled_message ?? '') : '',
+          // Un enlace de afiliado solo tiene sentido sobre una URL: marcar como
+          // retribuido un teléfono o un cupón pondría el aviso de publicidad en
+          // una tarjeta que no lleva ningún enlace pagado.
+          action_is_affiliate: form.action_type === 'URL' && isTrue(form.action_is_affiliate) ? 1 : 0,
+          affiliate_network: form.action_type === 'URL' ? (form.affiliate_network ?? '') : '',
+          affiliate_code: form.action_type === 'URL' ? (form.affiliate_code ?? '') : '',
+          // CTA secundario: si va relleno, desplaza al principal en guía y TV.
+          secondary_action_type: form.secondary_action_type ?? '',
+          secondary_action_data: form.secondary_action_type ? (form.secondary_action_data ?? '') : '',
+          secondary_action_prefilled_message:
+            form.secondary_action_type === 'WHATSAPP' ? (form.secondary_action_prefilled_message ?? '') : '',
           booking_url: form.booking_url ?? '',
           commission_type: form.commission_type || 'none',
           commission_value: form.commission_type && form.commission_type !== 'none' ? (form.commission_value ?? 0) : 0,
@@ -173,6 +200,8 @@ export default function GuideCatalogFormDialog({
       } else if (originalKind === 'experience') {
         Object.assign(payload, {
           action_type: '', action_data: '', action_prefilled_message: '',
+          action_is_affiliate: 0, affiliate_network: '', affiliate_code: '',
+          secondary_action_type: '', secondary_action_data: '', secondary_action_prefilled_message: '',
           badge_type: 'none', original_price_display: '', discount_display: '',
           commission_type: 'none', commission_value: 0,
         });
@@ -339,6 +368,47 @@ export default function GuideCatalogFormDialog({
                 label="Destacado"
               />
             </Box>
+          </Grid>
+
+          {/* ---------- Promoción de pago ---------- */}
+          {/* Deliberadamente separado de "Destacado": ese es criterio editorial
+              ("lo recomiendo de verdad") y esto es un puesto vendido. Con un
+              solo campo era imposible justificar ante un cliente qué se le
+              vendió, ni distinguir publicidad de recomendación ante el huésped. */}
+          <SectionTitle>Promoción de pago</SectionTitle>
+          <Grid item xs={12} md={4}>
+            <TextField
+              fullWidth size="small" type="number" label="Puesto promocionado"
+              placeholder="Vacío = sin promoción"
+              value={form.promotion_rank ?? ''}
+              onChange={e => set({ promotion_rank: e.target.value === '' ? null : parseInt(e.target.value, 10) })}
+              helperText="1 = primero de todo. Va por encima de Destacado."
+            />
+          </Grid>
+          <Grid item xs={6} md={4}>
+            <TextField
+              fullWidth size="small" type="date" label="Desde"
+              InputLabelProps={{ shrink: true }}
+              value={(form.promoted_from || '').slice(0, 10)}
+              onChange={e => set({ promoted_from: e.target.value })}
+              disabled={form.promotion_rank == null}
+            />
+          </Grid>
+          <Grid item xs={6} md={4}>
+            <TextField
+              fullWidth size="small" type="date" label="Hasta"
+              InputLabelProps={{ shrink: true }}
+              value={(form.promoted_until || '').slice(0, 10)}
+              onChange={e => set({ promoted_until: e.target.value })}
+              disabled={form.promotion_rank == null}
+            />
+          </Grid>
+          <Grid item xs={12}>
+            <Typography variant="caption" color="text.secondary">
+              Fechas opcionales: sin ellas la promoción no caduca. Fuera de vigencia el
+              ítem vuelve solo a su orden normal, sin tener que acordarse de quitarla.
+              El huésped verá un aviso de publicidad en la ficha.
+            </Typography>
           </Grid>
 
           {/* ---------- Contenido ---------- */}
@@ -560,8 +630,15 @@ export default function GuideCatalogFormDialog({
                 </FormControl>
               </Grid>
 
-              {/* ---------- Acción del huésped ---------- */}
-              <SectionTitle>Acción del huésped</SectionTitle>
+              {/* ---------- CTA principal ---------- */}
+              <SectionTitle>Cómo reserva el huésped — CTA principal</SectionTitle>
+              <Grid item xs={12}>
+                <Alert severity="info" sx={{ py: 0.5 }}>
+                  Se muestra el principal <strong>salvo</strong> que rellenes el CTA secundario
+                  de abajo: en ese caso el secundario es el único que ve el huésped
+                  (botón en la guía, QR incrustado en la TV).
+                </Alert>
+              </Grid>
               <Grid item xs={12} md={4}>
                 <FormControl fullWidth size="small" error={!!errors.action_type}>
                   <InputLabel>Tipo de acción</InputLabel>
@@ -591,10 +668,115 @@ export default function GuideCatalogFormDialog({
                   />
                 </Grid>
               )}
+
+              {/* La afiliación solo aplica a una URL: un teléfono o un cupón no
+                  llevan enlace retribuido que rastrear. */}
+              {form.action_type === 'URL' && (
+                <>
+                  <Grid item xs={12}>
+                    <FormControlLabel
+                      control={
+                        <Switch
+                          checked={isTrue(form.action_is_affiliate)}
+                          onChange={e => set({ action_is_affiliate: e.target.checked })}
+                        />
+                      }
+                      label="Es un enlace de afiliado (retribuido)"
+                    />
+                  </Grid>
+                  {isTrue(form.action_is_affiliate) && (
+                    <>
+                      <Grid item xs={12} md={4}>
+                        <FormControl fullWidth size="small">
+                          <InputLabel>Red de afiliación</InputLabel>
+                          <Select
+                            value={form.affiliate_network || ''}
+                            label="Red de afiliación"
+                            onChange={e => set({ affiliate_network: e.target.value })}
+                          >
+                            {AFFILIATE_NETWORKS.map(n => <MenuItem key={n.value} value={n.value}>{n.label}</MenuItem>)}
+                          </Select>
+                        </FormControl>
+                      </Grid>
+                      <Grid item xs={12} md={8}>
+                        <TextField
+                          fullWidth size="small" label="Código de partner"
+                          value={form.affiliate_code || ''}
+                          onChange={e => set({ affiliate_code: e.target.value })}
+                        />
+                      </Grid>
+                      <Grid item xs={12}>
+                        <Alert severity="warning" sx={{ py: 0.5 }}>
+                          <Typography variant="caption" component="div">
+                            Para saber de qué piso y de qué pantalla vino cada venta, escribe uno
+                            de estos marcadores <strong>dentro de la URL</strong>. No se añade nada
+                            por nuestra cuenta: muchas redes firman el enlace y un parámetro
+                            de más lo invalidaría.
+                          </Typography>
+                          <Box component="ul" sx={{ m: 0, mt: 0.5, pl: 2 }}>
+                            {AFFILIATE_PLACEHOLDERS.map(p => (
+                              <li key={p.token}>
+                                <Typography variant="caption">
+                                  <code>{p.token}</code> — {p.help}
+                                </Typography>
+                              </li>
+                            ))}
+                          </Box>
+                          <Typography variant="caption" component="div" sx={{ mt: 0.5 }}>
+                            Ej. <code>https://partner.com/tour?aid={'{{affiliate_code}}'}&amp;sub={'{{sub_id}}'}</code>
+                          </Typography>
+                        </Alert>
+                      </Grid>
+                    </>
+                  )}
+                </>
+              )}
+
+              {/* ---------- CTA secundario ---------- */}
+              <SectionTitle>CTA secundario — si lo rellenas, manda</SectionTitle>
+              <Grid item xs={12} md={4}>
+                <FormControl fullWidth size="small">
+                  <InputLabel>Canal directo del partner</InputLabel>
+                  <Select
+                    value={form.secondary_action_type || ''}
+                    label="Canal directo del partner"
+                    onChange={e => set({ secondary_action_type: e.target.value })}
+                  >
+                    {SECONDARY_ACTION_TYPES.map(a => <MenuItem key={a.value} value={a.value}>{a.label}</MenuItem>)}
+                  </Select>
+                </FormControl>
+              </Grid>
+              <Grid item xs={12} md={8}>
+                <TextField
+                  fullWidth size="small" label="Destino (URL o teléfono del partner)"
+                  value={form.secondary_action_data || ''}
+                  disabled={!form.secondary_action_type}
+                  error={!!errors.secondary_action_data} helperText={errors.secondary_action_data}
+                  onChange={e => set({ secondary_action_data: e.target.value })}
+                />
+              </Grid>
+              {form.secondary_action_type === 'WHATSAPP' && (
+                <Grid item xs={12}>
+                  <TextField
+                    fullWidth size="small" multiline rows={2} label="Mensaje predefinido de WhatsApp"
+                    value={form.secondary_action_prefilled_message || ''}
+                    onChange={e => set({ secondary_action_prefilled_message: e.target.value })}
+                  />
+                </Grid>
+              )}
+              <Grid item xs={12}>
+                <Typography variant="caption" color="text.secondary">
+                  {form.secondary_action_type
+                    ? 'Activo: el huésped verá este canal, no el enlace de afiliado. El principal queda de respaldo por si algún día lo quitas.'
+                    : 'Vacío: se muestra el CTA principal.'}
+                </Typography>
+              </Grid>
+
               <Grid item xs={12} md={6}>
                 <TextField
                   fullWidth size="small" label="Botón CTA (ES)"
                   placeholder="Ej. Reservar ahora"
+                  helperText="Se aplica al CTA que se muestre (principal o secundario)"
                   value={form.cta_label_es || ''}
                   onChange={e => set({ cta_label_es: e.target.value })}
                 />
@@ -608,7 +790,8 @@ export default function GuideCatalogFormDialog({
               </Grid>
               <Grid item xs={12} md={4}>
                 <TextField
-                  fullWidth size="small" label="URL de reserva (si difiere)"
+                  fullWidth size="small" label="URL de reserva (informativa)"
+                  helperText="Ficha del partner. No es un botón: para eso usa los CTA de arriba."
                   value={form.booking_url || ''}
                   onChange={e => set({ booking_url: e.target.value })}
                 />

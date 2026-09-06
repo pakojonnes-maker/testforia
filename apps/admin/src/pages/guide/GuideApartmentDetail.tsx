@@ -43,8 +43,10 @@ import {
   ShoppingBag as OrdersIcon,
   Search as SearchIcon,
   DeleteForever as DeleteForeverIcon,
+  SwapVert as SortIcon,
 } from '@mui/icons-material';
 import QRCodeGenerator, { QRCodeHandle } from '../../components/QRCodeGenerator';
+import ApartmentItemOrder from '../../components/guide/ApartmentItemOrder';
 
 interface ApartmentInfo {
   id: string;
@@ -1749,6 +1751,53 @@ export default function GuideApartmentDetail() {
     </Box>
   );
 
+  // ---------- Orden y visibilidad por apartamento ----------
+  // Las tres listas que el huésped ve pero el alojamiento NO posee: experiencias
+  // y restaurantes son de la zona, y los productos 'platform' son de VisualTaste.
+  // Hasta ahora se tragaba el orden global tal cual, sin poder subir aquello con
+  // lo que hay trato ni quitar lo que no se quiere ofrecer.
+  const renderOrderTab = () => (
+    <Box sx={{ maxWidth: 780 }}>
+      <Alert severity="info" sx={{ mb: 3, borderRadius: 2 }}>
+        Cada lista se muestra tal y como la verá el huésped en la guía y en la TV. Lo
+        que ordenes aquí sólo afecta a este alojamiento: el catálogo global no se toca.
+        Los puestos <strong>promocionados</strong> (de pago) van siempre delante y no se
+        pueden desplazar desde aquí.
+      </Alert>
+
+      <Typography variant="h6" fontWeight={600} sx={{ mb: 1 }}>Experiencias</Typography>
+      <ApartmentItemOrder
+        apartmentId={id!}
+        itemType="experience"
+        description="Las experiencias reservables de la zona, en el orden en que aparecen en la pestaña Tienda de la guía y en «Qué hacer» de la TV."
+        emptyLabel="No hay experiencias activas en la zona de este alojamiento."
+        onSaved={handleRefreshPreview}
+      />
+
+      <Divider sx={{ my: 4 }} />
+
+      <Typography variant="h6" fontWeight={600} sx={{ mb: 1 }}>Tienda</Typography>
+      <ApartmentItemOrder
+        apartmentId={id!}
+        itemType="store_item"
+        description="Tus productos y los del catálogo de VisualTaste, mezclados en el orden real de la tienda. Puedes ocultar un producto de plataforma que no quieras ofrecer."
+        emptyLabel="No hay productos activos para este alojamiento."
+        onSaved={handleRefreshPreview}
+      />
+
+      <Divider sx={{ my: 4 }} />
+
+      <Typography variant="h6" fontWeight={600} sx={{ mb: 1 }}>Restaurantes</Typography>
+      <ApartmentItemOrder
+        apartmentId={id!}
+        itemType="restaurant"
+        description="Los restaurantes de la zona. Hasta ahora salían en orden aleatorio congelado en la caché; ahora mandan la promoción, el destacado y este orden."
+        emptyLabel="No hay restaurantes enlazados a la zona de este alojamiento."
+        onSaved={handleRefreshPreview}
+      />
+    </Box>
+  );
+
   const renderStoreTab = () => (
     <Box sx={{ maxWidth: 780 }}>
       <Alert severity="info" sx={{ mb: 3, borderRadius: 2 }}>
@@ -1980,6 +2029,7 @@ export default function GuideApartmentDetail() {
           <Tab label="Localizaciones" icon={<LocationOnIcon fontSize="small" />} iconPosition="start" sx={{ fontWeight: 600 }} />
           <Tab label="Bienvenida" icon={<CelebrationIcon fontSize="small" />} iconPosition="start" sx={{ fontWeight: 600 }} />
           <Tab label="Tienda" icon={<StoreIcon fontSize="small" />} iconPosition="start" sx={{ fontWeight: 600 }} />
+          <Tab label="Orden" icon={<SortIcon fontSize="small" />} iconPosition="start" sx={{ fontWeight: 600 }} />
         </Tabs>
 
         {/* Tab Content */}
@@ -1989,6 +2039,7 @@ export default function GuideApartmentDetail() {
           {activeMainTab === 2 && renderPoisTab()}
           {activeMainTab === 3 && renderWelcomeTab()}
           {activeMainTab === 4 && renderStoreTab()}
+          {activeMainTab === 5 && renderOrderTab()}
         </Box>
       </Box>
 
