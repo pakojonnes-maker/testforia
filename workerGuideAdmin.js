@@ -17,6 +17,10 @@
 //   GET    /guide/admin/apartments/:id/info/coverage — Per-language translation coverage
 //   GET    /guide/admin/apartments/:id/info/:infoId/translations — All langs for one block
 //   PUT    /guide/admin/apartments/:id/info/reorder — Reorder info blocks
+//   GET    /guide/admin/apartments/:id/orderable?item_type=  — Catálogo que ve ese
+//          apartamento (experiencias | store_item | restaurant), en el orden EXACTO
+//          en que lo verá el huésped, con su override marcado.
+//   PUT    /guide/admin/apartments/:id/item-order — Guarda ese orden y qué se oculta.
 //   POST   /guide/admin/apartments/:id/info/bulk-translations — Import translations (JSON, all langs at once)
 //   POST   /guide/admin/apartments/:id/media                    — Upload a file, get back a URL (no DB row; for cover/welcome image_url fields). Accepts multipart (file) OR application/json ({source_url}) to fetch-and-store a remote image (importador desde URL)
 //   POST   /guide/admin/agencies/:id/media                      — Upload a file, get back a URL (no DB row; for agency logo)
@@ -219,6 +223,19 @@ export async function handleGuideAdminRequests(request, env) {
             return await upsertWelcomeModal(env, aptId, await request.json(), isSuperAdmin, userAgencyIds);
         }
 
+        // ============ ORDEN Y VISIBILIDAD POR APARTAMENTO (migración 0091) ============
+        // Un único par de rutas para experiencias, productos y restaurantes: los
+        // tres son catálogos globales (de zona o de plataforma) que cada
+        // apartamento puede recolocar u ocultar sin tocar el catálogo original.
+        if (path.match(/^apartments\/[^/]+\/orderable$/) && method === 'GET') {
+            const aptId = path.split('/')[1];
+            return await getApartmentOrderableItems(env, aptId, url.searchParams.get('item_type'), isSuperAdmin, userAgencyIds);
+        }
+        if (path.match(/^apartments\/[^/]+\/item-order$/) && method === 'PUT') {
+            const aptId = path.split('/')[1];
+            return await setApartmentItemOrder(env, aptId, await request.json(), isSuperAdmin, userAgencyIds);
+        }
+
         // ============ STORE ITEMS — host (per-apartment, agency-writable) ============
         if (path.match(/^apartments\/[^/]+\/store-items$/) && method === 'GET') {
             const aptId = path.split('/')[1];
@@ -228,10 +245,10 @@ export async function handleGuideAdminRequests(request, env) {
             const aptId = path.split('/')[1];
             return await createApartmentStoreItem(env, aptId, await request.json(), isSuperAdmin, userAgencyIds);
         }
-        if (path.match(/^apartments\/[^/]+\/store-items\/reorder$/) && method === 'PUT') {
-            const aptId = path.split('/')[1];
-            return await reorderApartmentStoreItems(env, aptId, await request.json(), isSuperAdmin, userAgencyIds);
-        }
+        // (Se retiró PUT store-items/reorder: escribía guide_store_items.order_index,
+        //  no lo llamaba nadie en el admin, y ahora el orden por apartamento vive
+        //  en item-order. Dos mecanismos de orden compitiendo sobre la misma lista
+        //  es justo lo que hay que evitar.)
         if (path.match(/^apartments\/[^/]+\/store-items\/[^/]+$/) && method === 'PUT') {
             const parts = path.split('/');
             return await updateApartmentStoreItem(env, parts[1], parts[3], await request.json(), isSuperAdmin, userAgencyIds);
@@ -486,8 +503,11 @@ export async function handleGuideAdminRequests(request, env) {
             return await getRestaurantConversions(env, url.searchParams);
         }
         if (path === 'stats/experiences' && method === 'GET') {
+            // Devuelve datos de comisión, que el resto del módulo ya oculta a las
+            // agencias (ver listExperiences). Antes esta ruta no comprobaba nada:
+            // cualquier usuario autenticado podía leer el negocio de una zona.
+            if (!isSuperAdmin) return errorResponse('Only superadmin can view experience stats', 403);
             const zoneId = url.searchParams.get('zone_id');
-            // Assuming this is superadmin or requires specific zone check. We'll leave it superadmin for simplicity unless agency is given.
             return await getStatsExperiences(env, zoneId, url.searchParams);
         }
         if (path === 'stats/sessions' && method === 'GET') {
@@ -1667,8 +1687,24 @@ async function upsertWelcomeModal(env, aptId, data, isSuperAdmin, userAgencyIds)
 
 const STORE_ITEM_WRITABLE_FIELDS = [
     'category', 'icon_name', 'price_amount', 'price_currency', 'price_display',
-    'cover_image_url', 'contact_whatsapp', 'order_index', 'stock_qty'
+    'cover_image_url', 'contact_whatsapp', 'order_index', 'stock_qty',
+    // Promoción de pago (migración 0091). En los ítems 'host' equivale en la
+    // práctica a subir el order_index dentro de la propia tienda; donde de
+    // verdad importa es en los 'platform', cuya ruta ya es superadmin-only.
+    'promotion_rank', 'promoted_from', 'promoted_until'
 ];
+
+// Mismo orden de tres niveles que sirve workerGuide.js al huésped, para que el
+// listado del admin no mienta sobre lo que se va a ver.
+const STORE_ORDER_SQL = `
+    CASE WHEN (promotion_rank IS NOT NULL
+               AND (promoted_from  IS NULL OR promoted_from  <= datetime('now'))
+               AND (promoted_until IS NULL OR promoted_until >= datetime('now')))
+         THEN 0 ELSE 1 END,
+    COALESCE(promotion_rank, 2147483647),
+    is_featured DESC,
+    COALESCE(order_index, 2147483647),
+    id`;
 
 // El listado usa SELECT * (sin traducciones) porque son varias filas por idioma;
 // se cargan aparte y se agrupan por item para no hacer un JOIN por idioma. Añade
@@ -1705,7 +1741,8 @@ async function listApartmentStoreItems(env, aptId, isSuperAdmin, userAgencyIds) 
     if (access.error) return access.error;
 
     const result = await env.DB.prepare(
-        'SELECT * FROM guide_store_items WHERE apartment_id = ? ORDER BY order_index ASC'
+        `SELECT * FROM guide_store_items WHERE apartment_id = ?
+         ORDER BY ${STORE_ORDER_SQL}`
     ).bind(aptId).all();
     const items = result.results || [];
     await attachStoreItemTranslations(env, items);
@@ -1779,17 +1816,160 @@ async function deleteApartmentStoreItem(env, aptId, itemId, isSuperAdmin, userAg
     return jsonResponse({ success: true });
 }
 
-async function reorderApartmentStoreItems(env, aptId, data, isSuperAdmin, userAgencyIds) {
+// ============================================
+// ORDEN Y VISIBILIDAD POR APARTAMENTO (migración 0091)
+// ============================================
+// Las tres listas que el huésped ve en la guía y en la TV vienen de catálogos
+// que el apartamento NO posee: las experiencias y los restaurantes son de la
+// zona, y los productos 'platform' son de VisualTaste. Antes eso significaba
+// tragar con el orden global y con el catálogo entero. Esta tabla es la capa de
+// override: recolocar u ocultar sin tocar el original.
+//
+// Deliberadamente NO se reutiliza guide_apartment_pois pese a tener ya un
+// order_override: workerGuide.js interpreta "existe alguna fila ahí" como "este
+// anfitrión ha curado sus POIs" y deja de servir la zona entera, así que meter
+// filas de experiencias vaciaría el mapa de quien no hubiera curado nada.
+const ORDERABLE_ITEM_TYPES = ['experience', 'store_item', 'restaurant'];
+
+// Tope defensivo: el cuerpo lo manda el navegador y esto se traduce en un batch
+// de D1 de un statement por ítem.
+const MAX_ORDERABLE_ITEMS = 500;
+
+// Fragmento de promoción vigente, idéntico al de workerGuide.js.
+const PROMOTED = (a) => `(${a}.promotion_rank IS NOT NULL
+    AND (${a}.promoted_from  IS NULL OR ${a}.promoted_from  <= datetime('now'))
+    AND (${a}.promoted_until IS NULL OR ${a}.promoted_until >= datetime('now')))`;
+
+/**
+ * Lista ordenable de un apartamento: devuelve el catálogo que ese apartamento
+ * enseña, YA en el orden exacto en que lo va a ver el huésped (misma cláusula
+ * que workerGuide.js) y con su override marcado.
+ *
+ * Es un endpoint propio, y no "que el admin se baje el catálogo global y lo
+ * ordene él", por dos motivos: el catálogo de plataforma es superadmin-only y
+ * el personal de agencia no puede leerlo, y ordenar a ciegas contra una lista
+ * ordenada de otra forma es exactamente cómo se colocan mal las cosas.
+ */
+async function getApartmentOrderableItems(env, aptId, itemType, isSuperAdmin, userAgencyIds) {
+    const access = await checkAptAccess(env, aptId, isSuperAdmin, userAgencyIds);
+    if (access.error) return access.error;
+    if (!ORDERABLE_ITEM_TYPES.includes(itemType)) {
+        return errorResponse(`item_type inválido (permitidos: ${ORDERABLE_ITEM_TYPES.join(', ')})`);
+    }
+
+    const apt = await env.DB.prepare('SELECT id, zone_id FROM guide_apartments WHERE id = ?').bind(aptId).first();
+    if (!apt) return errorResponse('Apartamento no encontrado', 404);
+
+    const joinOverride = (alias) => `
+        LEFT JOIN guide_apartment_item_order aio
+            ON aio.item_id = ${alias}.id AND aio.item_type = ? AND aio.apartment_id = ?`;
+
+    let query;
+    let params;
+
+    if (itemType === 'experience') {
+        query = `
+            SELECT e.id, COALESCE(t.value, e.category) AS name, e.category AS subtitle,
+                   e.cover_image_url, e.is_featured, ${PROMOTED('e')} AS is_promoted,
+                   aio.order_override, COALESCE(aio.is_hidden, 0) AS is_hidden
+            FROM guide_pois e
+            LEFT JOIN translations t ON t.entity_id = e.id AND t.entity_type = 'poi'
+                 AND t.field = 'name' AND t.language_code = 'es'
+            ${joinOverride('e')}
+            WHERE e.zone_id = ? AND e.is_active = TRUE AND e.is_bookable = TRUE
+            ORDER BY
+                CASE WHEN ${PROMOTED('e')} THEN 0 ELSE 1 END,
+                COALESCE(e.promotion_rank, 2147483647),
+                e.is_featured DESC,
+                COALESCE(aio.order_override, e.order_index, 2147483647),
+                e.id`;
+        params = [itemType, aptId, apt.zone_id];
+    } else if (itemType === 'store_item') {
+        query = `
+            SELECT si.id, COALESCE(t.value, si.category) AS name, si.owner_type AS subtitle,
+                   si.cover_image_url, si.is_featured, ${PROMOTED('si')} AS is_promoted,
+                   aio.order_override, COALESCE(aio.is_hidden, 0) AS is_hidden
+            FROM guide_store_items si
+            LEFT JOIN translations t ON t.entity_id = si.id AND t.entity_type = 'store_item'
+                 AND t.field = 'name' AND t.language_code = 'es'
+            ${joinOverride('si')}
+            WHERE si.is_active = TRUE AND (si.apartment_id = ? OR si.owner_type = 'platform')
+            ORDER BY
+                CASE WHEN ${PROMOTED('si')} THEN 0 ELSE 1 END,
+                COALESCE(si.promotion_rank, 2147483647),
+                si.is_featured DESC,
+                COALESCE(aio.order_override, si.order_index, 2147483647),
+                si.id`;
+        params = [itemType, aptId, aptId];
+    } else {
+        query = `
+            SELECT r.id, r.name, zr.cuisine_type_override AS subtitle,
+                   NULL AS cover_image_url,
+                   CASE WHEN zr.tier = 'featured' THEN 1 ELSE 0 END AS is_featured,
+                   ${PROMOTED('zr')} AS is_promoted,
+                   aio.order_override, COALESCE(aio.is_hidden, 0) AS is_hidden
+            FROM guide_zone_restaurants zr
+            JOIN restaurants r ON zr.restaurant_id = r.id AND r.is_active = TRUE
+            ${joinOverride('r')}
+            WHERE zr.zone_id = ? AND zr.is_active = TRUE
+            ORDER BY
+                CASE WHEN ${PROMOTED('zr')} THEN 0 ELSE 1 END,
+                COALESCE(zr.promotion_rank, 2147483647),
+                CASE WHEN zr.tier = 'featured' THEN 0 ELSE 1 END,
+                COALESCE(aio.order_override, zr.order_override, 2147483647),
+                r.name`;
+        params = [itemType, aptId, apt.zone_id];
+    }
+
+    const result = await env.DB.prepare(query).bind(...params).all();
+    return jsonResponse({ success: true, item_type: itemType, items: result.results || [] });
+}
+
+/**
+ * Body: { item_type, order: [id...], hidden: [id...] }
+ *
+ * `order` es la lista COMPLETA y ordenada de lo que este apartamento ha
+ * recolocado; el índice del array es el order_override. `hidden` puede traer
+ * ids que no estén en `order` (ocultar sin recolocar).
+ *
+ * Se borra y se reescribe el bloque entero de ese item_type en vez de hacer
+ * UPDATEs uno a uno: es estado de override puro, no hay nada que conservar, y
+ * así un ítem que sale de las dos listas vuelve solo al orden global.
+ */
+async function setApartmentItemOrder(env, aptId, data, isSuperAdmin, userAgencyIds) {
     const access = await checkAptAccess(env, aptId, isSuperAdmin, userAgencyIds);
     if (access.error) return access.error;
 
-    const order = Array.isArray(data.order) ? data.order : [];
-    const statements = order.map((itemId, idx) =>
-        env.DB.prepare('UPDATE guide_store_items SET order_index = ? WHERE id = ? AND apartment_id = ?').bind(idx, itemId, aptId)
-    );
-    if (statements.length > 0) await env.DB.batch(statements);
+    const itemType = data?.item_type;
+    if (!ORDERABLE_ITEM_TYPES.includes(itemType)) {
+        return errorResponse(`item_type inválido (permitidos: ${ORDERABLE_ITEM_TYPES.join(', ')})`);
+    }
+
+    const order = Array.isArray(data.order) ? data.order.filter(id => typeof id === 'string' && id) : [];
+    const hidden = Array.isArray(data.hidden) ? data.hidden.filter(id => typeof id === 'string' && id) : [];
+    const hiddenSet = new Set(hidden);
+    const ids = [...new Set([...order, ...hidden])];
+
+    if (ids.length > MAX_ORDERABLE_ITEMS) {
+        return errorResponse(`Demasiados ítems (máx. ${MAX_ORDERABLE_ITEMS})`);
+    }
+
+    const statements = [
+        env.DB.prepare('DELETE FROM guide_apartment_item_order WHERE apartment_id = ? AND item_type = ?')
+            .bind(aptId, itemType),
+    ];
+    for (const id of ids) {
+        const position = order.indexOf(id);
+        statements.push(env.DB.prepare(`
+            INSERT INTO guide_apartment_item_order
+                (apartment_id, item_type, item_id, order_override, is_hidden, modified_at)
+            VALUES (?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+        `).bind(aptId, itemType, id, position >= 0 ? position : null, hiddenSet.has(id) ? 1 : 0));
+    }
+
+    await env.DB.batch(statements);
     if (access.apt.slug) await touchGuideVersion(env, access.apt.slug);
-    return jsonResponse({ success: true });
+    return jsonResponse({ success: true, item_type: itemType, count: ids.length });
 }
 
 // ---- Catálogo platform (superadmin only, global) ----
@@ -1800,7 +1980,8 @@ async function reorderApartmentStoreItems(env, aptId, data, isSuperAdmin, userAg
 // nuevo se vea al instante en vez de depender del TTL de 24h.
 async function listPlatformStoreItems(env) {
     const result = await env.DB.prepare(
-        `SELECT * FROM guide_store_items WHERE owner_type = 'platform' ORDER BY order_index ASC`
+        `SELECT * FROM guide_store_items WHERE owner_type = 'platform'
+         ORDER BY ${STORE_ORDER_SQL}`
     ).all();
     const items = result.results || [];
     await attachStoreItemTranslations(env, items);
@@ -2030,7 +2211,20 @@ async function listPOIs(env, zoneId, options = {}) {
     if (kind === 'place') query += ' AND (p.is_bookable = 0 OR p.is_bookable IS NULL)';
     else if (kind === 'experience') query += ' AND p.is_bookable = 1';
     if (zoneId) { query += ' AND p.zone_id = ?'; params.push(zoneId); }
-    query += ' ORDER BY p.is_featured DESC, p.order_index ASC';
+    // Mismo orden que ve el huésped (workerGuide.js): promoción de pago vigente
+    // → destacado editorial → orden manual. Si el admin listara de otra forma,
+    // colocar a mano el order_index sería a ciegas. La expresión va inline y no
+    // importada de workerGuide.js porque ese módulo ya importa de este
+    // (ACTIVE_LANGUAGES) y no merece la pena crear un ciclo por una cadena.
+    query += ` ORDER BY
+        CASE WHEN (p.promotion_rank IS NOT NULL
+                   AND (p.promoted_from  IS NULL OR p.promoted_from  <= datetime('now'))
+                   AND (p.promoted_until IS NULL OR p.promoted_until >= datetime('now')))
+             THEN 0 ELSE 1 END,
+        COALESCE(p.promotion_rank, 2147483647),
+        p.is_featured DESC,
+        COALESCE(p.order_index, 2147483647),
+        p.id`;
     const result = await env.DB.prepare(query).bind(...params).all();
     return jsonResponse({ success: true, pois: result.results || [] });
 }
@@ -2045,7 +2239,13 @@ const POI_WRITABLE_FIELDS = [
     'travel_mode', 'travel_time_text', 'distance_text',
     'price_amount', 'price_currency', 'price_display', 'original_price_display', 'discount_display',
     'action_type', 'action_data', 'action_prefilled_message',
+    // CTA secundario (migración 0091): si está relleno, desplaza al principal.
+    'secondary_action_type', 'secondary_action_data', 'secondary_action_prefilled_message',
+    // Metadatos del enlace de afiliado del CTA principal.
+    'affiliate_network', 'affiliate_code',
     'commission_type', 'commission_value', 'badge_type',
+    // Promoción DE PAGO, distinta de is_featured (ver migración 0091).
+    'promotion_rank', 'promoted_from', 'promoted_until',
     'cover_image_url', 'source', 'external_id', 'order_index', 'google_synced_at'
 ];
 
@@ -2077,7 +2277,7 @@ async function createPOI(env, data) {
     for (const field of POI_WRITABLE_FIELDS) {
         if (data[field] !== undefined) { cols.push(field); vals.push(normalizePoiValue(data[field])); }
     }
-    for (const boolField of ['is_bookable', 'is_featured']) {
+    for (const boolField of ['is_bookable', 'is_featured', 'action_is_affiliate']) {
         if (data[boolField] !== undefined) { cols.push(boolField); vals.push(data[boolField] ? 1 : 0); }
     }
     const placeholders = cols.map(() => '?').join(', ');
@@ -2101,7 +2301,7 @@ async function updatePOI(env, id, data) {
     for (const field of POI_WRITABLE_FIELDS) {
         if (data[field] !== undefined) { sets.push(`${field} = ?`); vals.push(normalizePoiValue(data[field])); }
     }
-    for (const boolField of ['is_bookable', 'is_featured', 'is_active']) {
+    for (const boolField of ['is_bookable', 'is_featured', 'is_active', 'action_is_affiliate']) {
         if (data[boolField] !== undefined) { sets.push(`${boolField} = ?`); vals.push(data[boolField] ? 1 : 0); }
     }
     if (sets.length > 0) {
@@ -2345,14 +2545,29 @@ async function listExperiences(env, zoneId, isSuperAdmin) {
     // ever see the live, active catalog.
     if (!isSuperAdmin) query += ' AND e.is_active = TRUE';
     if (zoneId) { query += ' AND e.zone_id = ?'; params.push(zoneId); }
-    query += ' ORDER BY e.is_featured DESC, e.order_index ASC';
+    // Mismo orden de tres niveles que el huésped (workerGuide.js).
+    query += ` ORDER BY
+        CASE WHEN (e.promotion_rank IS NOT NULL
+                   AND (e.promoted_from  IS NULL OR e.promoted_from  <= datetime('now'))
+                   AND (e.promoted_until IS NULL OR e.promoted_until >= datetime('now')))
+             THEN 0 ELSE 1 END,
+        COALESCE(e.promotion_rank, 2147483647),
+        e.is_featured DESC,
+        COALESCE(e.order_index, 2147483647),
+        e.id`;
     const result = await env.DB.prepare(query).bind(...params).all();
     let experiences = result.results || [];
 
     // Commissions and internal action config are superadmin-only business data —
     // agency staff can see which promotions are active, not how they're wired or paid.
+    // El enlace de afiliado y su código entran en la misma categoría: son el
+    // acuerdo comercial de VisualTaste con el partner, no del anfitrión.
     if (!isSuperAdmin) {
-        experiences = experiences.map(({ commission_type, commission_value, action_data, action_prefilled_message, ...rest }) => rest);
+        experiences = experiences.map(({
+            commission_type, commission_value, action_data, action_prefilled_message,
+            affiliate_code, affiliate_network, secondary_action_data, secondary_action_prefilled_message,
+            ...rest
+        }) => rest);
     }
 
     return jsonResponse({ success: true, experiences });
@@ -2435,7 +2650,17 @@ async function listZoneRestaurants(env, zoneId) {
         FROM guide_zone_restaurants zr
         JOIN restaurants r ON zr.restaurant_id = r.id
         WHERE zr.zone_id = ? AND zr.is_active = TRUE
-        ORDER BY zr.tier DESC, r.name ASC
+        -- Mismo orden que sirve workerGuide.js al huésped, para poder colocar
+        -- order_override viendo la lista tal y como va a quedar.
+        ORDER BY
+            CASE WHEN (zr.promotion_rank IS NOT NULL
+                       AND (zr.promoted_from  IS NULL OR zr.promoted_from  <= datetime('now'))
+                       AND (zr.promoted_until IS NULL OR zr.promoted_until >= datetime('now')))
+                 THEN 0 ELSE 1 END,
+            COALESCE(zr.promotion_rank, 2147483647),
+            CASE WHEN zr.tier = 'featured' THEN 0 ELSE 1 END,
+            COALESCE(zr.order_override, 2147483647),
+            r.name
     `).bind(zoneId).all();
     return jsonResponse({ success: true, restaurants: result.results || [] });
 }
@@ -2447,7 +2672,27 @@ async function linkZoneRestaurant(env, data) {
         VALUES (?, ?, ?, ?)
         ON CONFLICT(zone_id, restaurant_id) DO UPDATE SET
             tier = excluded.tier, order_override = excluded.order_override, is_active = TRUE
-    `).bind(data.zone_id, data.restaurant_id, data.tier || 'basic', data.order_override || null).run();
+    `).bind(
+        data.zone_id, data.restaurant_id, data.tier || 'basic',
+        data.order_override === undefined || data.order_override === '' ? null : data.order_override
+    ).run();
+
+    // La promoción de pago (migración 0091) se escribe aparte y SÓLO si el
+    // cuerpo la trae: el conmutador de "Destacado" del admin manda tier y
+    // order_override pero no la promoción, y meterla en el upsert la borraría
+    // en cada clic.
+    const sets = [];
+    const vals = [];
+    for (const field of ['promotion_rank', 'promoted_from', 'promoted_until']) {
+        if (data[field] !== undefined) { sets.push(`${field} = ?`); vals.push(data[field] === '' ? null : data[field]); }
+    }
+    if (sets.length > 0) {
+        vals.push(data.zone_id, data.restaurant_id);
+        await env.DB.prepare(
+            `UPDATE guide_zone_restaurants SET ${sets.join(', ')} WHERE zone_id = ? AND restaurant_id = ?`
+        ).bind(...vals).run();
+    }
+
     await touchZoneGuideVersions(env, data.zone_id);
     return jsonResponse({ success: true });
 }
@@ -2939,8 +3184,18 @@ async function getStatsExperiences(env, zoneId, params) {
     const fromTs = params.get('from') ? params.get('from') + 'T00:00:00' : new Date(Date.now() - 30 * 86400000).toISOString();
     const toTs = params.get('to') ? params.get('to') + 'T23:59:59' : new Date().toISOString();
 
+    // `SUM(i.commission_value)` era un 500 garantizado: commission_value está en
+    // guide_pois, no en guide_affiliate_intents, y SQLite corta con "no such
+    // column" al calificarla con el alias de la tabla equivocada. Tampoco era lo
+    // que decía ser: commission_value es una TARIFA (porcentaje o fijo), no
+    // dinero devengado — eso vive en guide_commission_ledger. Aquí van los clics
+    // y la tarifa vigente; multiplicarlos sería inventarse ingresos por clic.
     const exps = await env.DB.prepare(`
-        SELECT e.id, COALESCE(t.value, e.category) AS name, e.action_type, COUNT(i.id) as clicks, SUM(i.commission_value) as commission_earned
+        SELECT e.id, COALESCE(t.value, e.category) AS name, e.action_type,
+               e.action_is_affiliate, e.affiliate_network,
+               e.secondary_action_type,
+               e.commission_type, e.commission_value,
+               COUNT(i.id) AS clicks
         FROM guide_pois e
         LEFT JOIN translations t ON e.id = t.entity_id AND t.entity_type = 'poi' AND t.field = 'name' AND t.language_code = 'es'
         LEFT JOIN guide_affiliate_intents i ON e.id = i.target_id AND i.target_type = 'experience' AND i.created_at BETWEEN ? AND ?

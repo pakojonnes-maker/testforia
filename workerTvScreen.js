@@ -126,7 +126,8 @@ async function assertApartmentAccess(env, apartmentId, auth) {
 // ============================================
 async function resolveDevice(env, pairingCode) {
     return env.DB.prepare(`
-        SELECT d.id, d.apartment_id, d.is_active, a.slug AS apartment_slug
+        SELECT d.id, d.apartment_id, d.is_active, a.slug AS apartment_slug,
+               a.zone_id, a.agency_id
         FROM guide_tv_devices d
         JOIN guide_apartments a ON a.id = d.apartment_id
         WHERE d.pairing_code = ?
@@ -147,8 +148,11 @@ async function handleTvConfig(env, pairingCode, lang, origin) {
     // app una sola vez por sesión de TV vía POST /guide/tv/track.
     await env.DB.prepare('UPDATE guide_tv_devices SET last_seen_at = ? WHERE id = ?').bind(now, device.id).run();
 
-    // Misma forma de datos que GET /guide/:slug (y misma caché KV) — sin duplicar la query.
-    return handleGetGuidebook(env, device.apartment_slug, lang, origin);
+    // Misma forma de datos que GET /guide/:slug — sin duplicar la query. La
+    // superficie 'tv' va explícita porque el JSON lleva las URLs de afiliado ya
+    // resueltas y su sub-id distingue TV de guía; también le da entrada de caché
+    // propia (ver handleGetGuidebook), o las ventas de una se atribuirían a la otra.
+    return handleGetGuidebook(env, device.apartment_slug, lang, origin, 'tv');
 }
 
 async function handleTvTrack(request, env) {
@@ -181,7 +185,52 @@ async function handleTvTrack(request, env) {
     // no servía para saber si la TV sigue viva. Ahora cualquier evento lo refresca.
     await env.DB.prepare('UPDATE guide_tv_devices SET last_seen_at = ? WHERE id = ?').bind(now, device.id).run();
 
+    await logTvAffiliateIntent(env, device, eventType, targetId, now);
+
     return jsonResponse({ success: true });
+}
+
+/**
+ * Enseñar el QR de reserva en la TV es la misma intención comercial que pulsar
+ * el botón en la guía, pero hasta ahora sólo caía en guide_tv_events: las
+ * conversiones de TV y las de guía vivían en tablas distintas y no se podían
+ * sumar. Aquí se replica el evento en guide_affiliate_intents, la tabla que
+ * alimenta el panel de conversiones.
+ *
+ * El TIPO de objetivo se deduce en el servidor, no se pide al cliente: el shell
+ * de la TV va empaquetado en el APK y puede ser una versión vieja que no mande
+ * campos nuevos. 'booking_qr_shown' lo emiten tanto las experiencias reservables
+ * como el QR de "cómo llegar" de un lugar cualquiera, así que sólo cuenta como
+ * intención de reserva si el POI es realmente is_bookable.
+ */
+async function logTvAffiliateIntent(env, device, eventType, targetId, now) {
+    if (!targetId || !device.zone_id) return;
+    if (eventType !== 'booking_qr_shown' && eventType !== 'menu_qr_shown') return;
+
+    let targetType = null;
+    if (eventType === 'menu_qr_shown') {
+        const restaurant = await env.DB.prepare('SELECT 1 FROM restaurants WHERE id = ?').bind(targetId).first();
+        if (restaurant) targetType = 'restaurant';
+    } else {
+        const poi = await env.DB.prepare('SELECT is_bookable FROM guide_pois WHERE id = ?').bind(targetId).first();
+        if (poi?.is_bookable === 1) targetType = 'experience';
+    }
+    if (!targetType) return;
+
+    try {
+        await env.DB.prepare(`
+            INSERT INTO guide_affiliate_intents
+                (id, session_id, apartment_id, agency_id, zone_id, target_type, target_id, action_taken, created_at)
+            VALUES (?, NULL, ?, ?, ?, ?, ?, 'tv_qr_shown', ?)
+        `).bind(
+            generateId('gi'), device.apartment_id, device.agency_id || null,
+            device.zone_id, targetType, targetId, now
+        ).run();
+    } catch (error) {
+        // La analítica no debe tumbar el evento de la TV: si esto falla, el
+        // guide_tv_events de arriba ya se ha guardado y la pantalla sigue.
+        console.error('[TvScreen] No se pudo registrar el intent de afiliación:', error);
+    }
 }
 
 // ============================================

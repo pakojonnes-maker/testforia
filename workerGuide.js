@@ -69,6 +69,111 @@ function parseWifiFromInfo(content) {
     return { ssid: values[0] || null, password: values[1] || null };
 }
 
+// ============================================
+// Orden de las listas (migración 0091)
+// ============================================
+// Tres niveles, en este orden: promoción DE PAGO vigente → destacado editorial
+// → orden manual. Se separan a propósito: is_featured es "esto lo recomiendo de
+// verdad" y promotion_rank es "esto me lo pagan"; mezclarlos hacía imposible
+// justificar qué se le vendió a un cliente y qué recomendación es publicidad.
+
+/** Un ítem está promocionado si tiene rank y hoy cae dentro de su vigencia. */
+const promotedExpr = (alias) => `(
+    ${alias}.promotion_rank IS NOT NULL
+    AND (${alias}.promoted_from  IS NULL OR ${alias}.promoted_from  <= datetime('now'))
+    AND (${alias}.promoted_until IS NULL OR ${alias}.promoted_until >= datetime('now'))
+)`;
+
+/** Sentinela para los NULL: sin rank/orden, al final. */
+const LAST = 2147483647;
+
+/**
+ * Cláusula ORDER BY completa. `overrideCol` es la columna de override por
+ * apartamento (guide_apartment_item_order) o null si esa lista no lo soporta.
+ *
+ * Termina SIEMPRE en una columna única: sin desempate final SQLite ordena los
+ * empates como quiere, y como la respuesta se cachea en KV ese capricho se
+ * congela dentro del JSON. Es el mismo fallo que tenía restaurantes, sólo que
+ * ahí era explícito (ABS(RANDOM())).
+ */
+const orderClause = (alias, overrideCol, featuredExpr = null, tiebreak = null) => `
+    CASE WHEN ${promotedExpr(alias)} THEN 0 ELSE 1 END,
+    COALESCE(${alias}.promotion_rank, ${LAST}),
+    ${featuredExpr || `${alias}.is_featured DESC`},
+    COALESCE(${overrideCol ? `${overrideCol}, ` : ''}${alias}.order_index, ${LAST}),
+    ${tiebreak || `${alias}.id`}
+`;
+
+// ============================================
+// CTA de una experiencia (migración 0091)
+// ============================================
+// Dos ranuras por ítem: principal (por defecto el enlace de afiliado) y
+// secundaria. Si la secundaria está rellena, MANDA — es la única que ve el
+// huésped, botón en la guía y QR incrustado en la TV.
+//
+// La resolución vive aquí, en el servidor, y el JSON sale ya resuelto en
+// action_type/action_data. Antes cada cliente decidía por su cuenta y divergían:
+// apps/tv/src/lib/collections.ts comparaba action_type === 'whatsapp' en
+// minúsculas contra el 'WHATSAPP' que escribe el admin, así que en la TV no
+// aparecía un QR de reserva jamás.
+
+const VALID_ACTION_TYPES = ['URL', 'WHATSAPP', 'PHONE', 'COUPON'];
+
+function normalizeActionType(value) {
+    if (!value) return null;
+    const upper = String(value).trim().toUpperCase();
+    return VALID_ACTION_TYPES.includes(upper) ? upper : null;
+}
+
+/**
+ * Sustituye marcadores dentro de una URL de afiliado. Sólo sustituye lo que el
+ * admin haya escrito: NO se concatenan parámetros a ciegas, porque muchas redes
+ * firman el enlace y un query param extra lo invalida.
+ */
+function applyUrlPlaceholders(url, ctx) {
+    if (!url) return url;
+    return String(url)
+        .replace(/\{\{affiliate_code\}\}/g, encodeURIComponent(ctx.affiliateCode || ''))
+        .replace(/\{\{sub_id\}\}/g, encodeURIComponent(ctx.subId))
+        .replace(/\{\{apartment_id\}\}/g, encodeURIComponent(ctx.apartmentId))
+        .replace(/\{\{apartment_name\}\}/g, encodeURIComponent(ctx.apartmentName))
+        .replace(/\{\{surface\}\}/g, encodeURIComponent(ctx.surface));
+}
+
+/** Mensaje prefijado de WhatsApp: sin URL-encode, lo hace el cliente al abrir wa.me. */
+function applyMessagePlaceholders(message, ctx) {
+    if (!message) return message;
+    return String(message).replace(/\{\{apartment_name\}\}/g, ctx.apartmentName);
+}
+
+function resolveExperienceCta(exp, ctx) {
+    const secondaryType = normalizeActionType(exp.secondary_action_type);
+    const secondaryData = String(exp.secondary_action_data || '').trim();
+
+    if (secondaryType && secondaryData) {
+        return {
+            action_type: secondaryType,
+            action_data: secondaryType === 'URL' ? applyUrlPlaceholders(secondaryData, ctx) : secondaryData,
+            prefilled_message: applyMessagePlaceholders(exp.secondary_action_prefilled_message, ctx),
+            // El secundario nunca es retribuido: es el contacto directo del
+            // partner. Por eso desplaza al afiliado en vez de convivir con él.
+            cta_source: 'direct',
+        };
+    }
+
+    const primaryType = normalizeActionType(exp.action_type);
+    const primaryData = String(exp.action_data || '').trim();
+    return {
+        action_type: primaryType,
+        action_data: primaryType === 'URL' ? applyUrlPlaceholders(primaryData, ctx) : primaryData,
+        prefilled_message: applyMessagePlaceholders(exp.action_prefilled_message, ctx),
+        // Alimenta el aviso de publicidad EN LA TARJETA (Directiva 2005/29/CE,
+        // anexo I.11), en vez del párrafo general que daba por afiliadas todas
+        // las experiencias.
+        cta_source: primaryType && exp.action_is_affiliate === 1 ? 'affiliate' : 'direct',
+    };
+}
+
 /**
  * Main handler for guide public routes
  */
@@ -114,15 +219,23 @@ export async function handleGuideRequests(request, env) {
  * Exported so other public entry points (e.g. workerTvScreen.js's TV pairing
  * config) can return the exact same shape/cache without duplicating the query.
  */
-export async function handleGetGuidebook(env, slug, lang, origin) {
+export async function handleGetGuidebook(env, slug, lang, origin, surface = 'guide') {
     // KV Cache check. The key embeds a version bumped by the admin panel on any
     // edit (see workerGuideCache.js), so a 24h TTL is safe here: content changes
     // land on a fresh key instantly instead of relying on the TTL to expire stale
     // data.
+    //
+    // `surface` entra en la clave porque el JSON lleva las URLs de afiliado ya
+    // resueltas, y su sub-id distingue guía de TV: compartir entrada haría que
+    // las ventas de la TV se atribuyeran a la guía o al revés. El caso 'guide'
+    // conserva la clave EXACTA de antes para no invalidar de golpe la caché
+    // entera en el despliegue.
     let cacheKey = null;
     if (env.GUIDE_CACHE) {
         const version = await getGuideVersion(env, slug);
-        cacheKey = `guide:${slug}:${lang}:v${version}`;
+        cacheKey = surface === 'guide'
+            ? `guide:${slug}:${lang}:v${version}`
+            : `guide:${slug}:${lang}:${surface}:v${version}`;
         const cached = await env.GUIDE_CACHE.get(cacheKey);
         if (cached) {
             return new Response(cached, {
@@ -237,8 +350,9 @@ export async function handleGetGuidebook(env, slug, lang, origin) {
                 p.id, p.category, p.latitude, p.longitude, p.google_maps_url,
                 p.rating, p.travel_time_text, p.travel_mode, p.distance_text,
                 p.poi_type, p.access_type, p.price_display, p.duration_text, p.is_bookable,
-                p.address, p.phone, p.website_url, p.opening_hours,
+                p.address, p.phone, p.website_url, p.booking_url, p.opening_hours,
                 p.is_featured, p.cover_image_url,
+                ${promotedExpr('p')} AS is_promoted,
                 COALESCE(t_name.value, t_name_es.value) AS name,
                 COALESCE(t_desc.value, t_desc_es.value) AS description
             FROM guide_apartment_pois gap
@@ -260,15 +374,16 @@ export async function handleGetGuidebook(env, slug, lang, origin) {
                 AND t_desc_es.field = 'description'
                 AND t_desc_es.language_code = ?
             WHERE gap.apartment_id = ? AND p.latitude IS NOT NULL
-            ORDER BY gap.order_override ASC
+            ORDER BY ${orderClause('p', 'gap.order_override')}
         `).bind(lang, FALLBACK_LANG, lang, FALLBACK_LANG, apartment.id).all()
         : env.DB.prepare(`
             SELECT
                 p.id, p.category, p.latitude, p.longitude, p.google_maps_url,
                 p.rating, p.travel_time_text, p.travel_mode, p.distance_text,
                 p.poi_type, p.access_type, p.price_display, p.duration_text, p.is_bookable,
-                p.address, p.phone, p.website_url, p.opening_hours,
+                p.address, p.phone, p.website_url, p.booking_url, p.opening_hours,
                 p.is_featured, p.cover_image_url,
+                ${promotedExpr('p')} AS is_promoted,
                 COALESCE(t_name.value, t_name_es.value) AS name,
                 COALESCE(t_desc.value, t_desc_es.value) AS description
             FROM guide_pois p
@@ -289,7 +404,7 @@ export async function handleGetGuidebook(env, slug, lang, origin) {
                 AND t_desc_es.field = 'description'
                 AND t_desc_es.language_code = ?
             WHERE p.zone_id = ? AND p.is_active = TRUE AND p.latitude IS NOT NULL
-            ORDER BY p.order_index ASC
+            ORDER BY ${orderClause('p', null)}
         `).bind(lang, FALLBACK_LANG, lang, FALLBACK_LANG, apartment.zone_id).all(),
 
         // Experiences = bookable items, now sourced from the unified guide_pois
@@ -300,8 +415,13 @@ export async function handleGetGuidebook(env, slug, lang, origin) {
                 e.id, e.category, e.subcategory AS service_subcategory, e.action_type, e.action_data, e.action_prefilled_message,
                 e.price_display, e.cover_image_url, e.is_featured,
                 e.discount_display, e.original_price_display, e.badge_type,
-                e.address, e.phone, e.website_url, e.opening_hours,
+                e.address, e.phone, e.website_url, e.booking_url, e.opening_hours,
                 e.rating, e.travel_time_text, e.travel_mode, e.distance_text, e.duration_text,
+                -- CTA doble + afiliación (migración 0091). Se resuelven en JS
+                -- (resolveExperienceCta) para que guía y TV no puedan divergir.
+                e.action_is_affiliate, e.affiliate_code,
+                e.secondary_action_type, e.secondary_action_data, e.secondary_action_prefilled_message,
+                ${promotedExpr('e')} AS is_promoted,
                 COALESCE(t_name.value, t_name_es.value) AS name,
                 COALESCE(t_desc.value, t_desc_es.value) AS description,
                 COALESCE(t_cta.value, t_cta_es.value) AS cta_label
@@ -330,9 +450,15 @@ export async function handleGetGuidebook(env, slug, lang, origin) {
                 AND t_cta_es.entity_type = 'poi'
                 AND t_cta_es.field = 'cta_label'
                 AND t_cta_es.language_code = ?
+            -- Override de orden/visibilidad de ESTE apartamento sobre el catálogo
+            -- de la zona (migración 0091). LEFT JOIN, no INNER: un apartamento que
+            -- no ha tocado nada sigue viendo la zona entera en su orden global.
+            LEFT JOIN guide_apartment_item_order aio
+                ON aio.item_id = e.id AND aio.item_type = 'experience' AND aio.apartment_id = ?
             WHERE e.zone_id = ? AND e.is_active = TRUE AND e.is_bookable = TRUE
-            ORDER BY e.is_featured DESC, e.order_index ASC
-        `).bind(lang, FALLBACK_LANG, lang, FALLBACK_LANG, lang, FALLBACK_LANG, apartment.zone_id).all(),
+              AND COALESCE(aio.is_hidden, 0) = 0
+            ORDER BY ${orderClause('e', 'aio.order_override')}
+        `).bind(lang, FALLBACK_LANG, lang, FALLBACK_LANG, lang, FALLBACK_LANG, apartment.id, apartment.zone_id).all(),
 
         // Zone restaurants (bridge to existing restaurants table). address/city/country
         // (no lat/long on this table — restaurants live outside guide_pois, ver
@@ -343,18 +469,30 @@ export async function handleGetGuidebook(env, slug, lang, origin) {
                 r.id, r.name, r.slug, r.address, r.city, r.country,
                 r.phone, r.website, r.description,
                 zr.tier, zr.cuisine_type_override AS cuisine_type,
+                ${promotedExpr('zr')} AS is_promoted,
                 (SELECT dm.r2_key FROM dish_media dm
                  JOIN dishes d ON dm.dish_id = d.id
                  WHERE d.restaurant_id = r.id AND dm.is_primary = 1
                  LIMIT 1) AS cover_image
             FROM guide_zone_restaurants zr
             JOIN restaurants r ON zr.restaurant_id = r.id AND r.is_active = TRUE
+            LEFT JOIN guide_apartment_item_order aio
+                ON aio.item_id = r.id AND aio.item_type = 'restaurant' AND aio.apartment_id = ?
             WHERE zr.zone_id = ? AND zr.is_active = TRUE
+              AND COALESCE(aio.is_hidden, 0) = 0
+            -- Antes: ABS(RANDOM()) % 1000 para todo lo que no tuviera
+            -- order_override, que no se podía fijar desde el admin — o sea,
+            -- para todo. Y como esta respuesta se cachea en KV, el "azar" se
+            -- congelaba dentro de la entrada: ni ordenado ni rotando.
+            -- Ahora: promoción de pago → tier destacado → orden manual →
+            -- alfabético como último desempate estable.
             ORDER BY
+                CASE WHEN ${promotedExpr('zr')} THEN 0 ELSE 1 END,
+                COALESCE(zr.promotion_rank, ${LAST}),
                 CASE WHEN zr.tier = 'featured' THEN 0 ELSE 1 END,
-                CASE WHEN zr.order_override IS NOT NULL THEN zr.order_override
-                     ELSE ABS(RANDOM()) % 1000 END
-        `).bind(apartment.zone_id).all(),
+                COALESCE(aio.order_override, zr.order_override, ${LAST}),
+                r.name
+        `).bind(apartment.id, apartment.zone_id).all(),
 
         // Welcome modal (with translations for the current language, falling back to Spanish)
         env.DB.prepare(`
@@ -382,6 +520,7 @@ export async function handleGetGuidebook(env, slug, lang, origin) {
                 si.id, si.owner_type, si.category, si.icon_name,
                 si.price_amount, si.price_currency, si.price_display,
                 si.cover_image_url, si.is_featured, si.stock_unlimited, si.stock_qty,
+                ${promotedExpr('si')} AS is_promoted,
                 COALESCE(t_name.value, t_name_es.value) AS name,
                 COALESCE(t_desc.value, t_desc_es.value) AS description,
                 COALESCE(t_cta.value, t_cta_es.value) AS cta_label
@@ -410,9 +549,16 @@ export async function handleGetGuidebook(env, slug, lang, origin) {
                 AND t_cta_es.entity_type = 'store_item'
                 AND t_cta_es.field = 'cta_label'
                 AND t_cta_es.language_code = ?
+            -- Los ítems 'host' ya son de este apartamento (su order_index basta).
+            -- El override existe sobre todo por los 'platform', que son globales:
+            -- sin esto un anfitrión no podía ni recolocar ni quitar de su guía un
+            -- producto del catálogo de VisualTaste.
+            LEFT JOIN guide_apartment_item_order aio
+                ON aio.item_id = si.id AND aio.item_type = 'store_item' AND aio.apartment_id = ?
             WHERE si.is_active = TRUE AND (si.apartment_id = ? OR si.owner_type = 'platform')
-            ORDER BY si.is_featured DESC, si.order_index ASC
-        `).bind(lang, FALLBACK_LANG, lang, FALLBACK_LANG, lang, FALLBACK_LANG, apartment.id).all(),
+              AND COALESCE(aio.is_hidden, 0) = 0
+            ORDER BY ${orderClause('si', 'aio.order_override')}
+        `).bind(lang, FALLBACK_LANG, lang, FALLBACK_LANG, lang, FALLBACK_LANG, apartment.id, apartment.id).all(),
 
         // Apartment phones (migración 0084) — la agencia va siempre primera por
         // order_index del catálogo (10), luego policía/bomberos/ambulancia/otro.
@@ -504,32 +650,51 @@ export async function handleGetGuidebook(env, slug, lang, origin) {
 
     // 6. Compose response  
     // Replace {{apartment_name}} in prefilled WhatsApp messages
+    // Contexto de sustitución de los CTA. `sub_id` es lo que verá Francisco en
+    // el panel del afiliado, así que va legible: "<slug del piso>-<guide|tv>".
+    const baseCtaContext = {
+        apartmentId: apartment.id,
+        apartmentName: apartment.name,
+        surface,
+        subId: `${apartment.slug}-${surface}`,
+    };
+
     const processedExperiences = (experiences.results || []).map(exp => {
-        let prefilled = exp.action_prefilled_message;
-        if (prefilled) {
-            prefilled = prefilled.replace(/\{\{apartment_name\}\}/g, apartment.name);
-        }
+        const cta = resolveExperienceCta(exp, { ...baseCtaContext, affiliateCode: exp.affiliate_code });
         return {
             id: exp.id,
             name: exp.name || exp.id,
             description: exp.description || '',
             category: exp.category,
             service_subcategory: exp.service_subcategory || null,
-            action_type: exp.action_type,
-            action_data: exp.action_data,
-            prefilled_message: prefilled,
+            // Ya resueltos: si hay CTA secundario, es este. Los clientes sólo
+            // pintan lo que llega — no vuelven a decidir.
+            action_type: cta.action_type,
+            action_data: cta.action_data,
+            prefilled_message: cta.prefilled_message,
+            // 'affiliate' | 'direct'. La guía y la TV avisan de publicidad sólo
+            // en las tarjetas cuyo enlace es retribuido.
+            cta_source: cta.cta_source,
+            is_promoted: exp.is_promoted === 1,
             price_display: exp.price_display,
             original_price_display: exp.original_price_display,
             discount_display: exp.discount_display,
             badge_type: exp.badge_type,
             cover_image_url: exp.cover_image_url,
             is_featured: exp.is_featured === 1,
-            cta_label: exp.cta_label || (exp.action_type === 'WHATSAPP' ? 'WhatsApp' : 'Reservar'),
+            // Una sola etiqueta por ítem: como sólo se muestra un CTA, describe
+            // siempre el que se muestre. El defecto se calcula sobre el tipo YA
+            // resuelto, no sobre el principal.
+            cta_label: exp.cta_label || (cta.action_type === 'WHATSAPP' ? 'WhatsApp' : 'Reservar'),
             // Mismos campos de contacto/distancia que un POI normal: un bookable
             // sigue siendo un sitio real (guide_pois unificó ambos, migración 0059).
             address: exp.address || null,
             phone: exp.phone || null,
             website_url: exp.website_url || null,
+            // Se guardaba desde el admin desde la migración 0059 y no se devolvía
+            // en ninguna respuesta: dato fantasma. Es la página de reservas propia
+            // del sitio (informativa), distinta del CTA resuelto de arriba.
+            booking_url: exp.booking_url || null,
             opening_hours: exp.opening_hours || null,
             rating: exp.rating ?? null,
             travel_time_text: exp.travel_time_text || null,
@@ -669,8 +834,10 @@ export async function handleGetGuidebook(env, slug, lang, origin) {
             address: poi.address || null,
             phone: poi.phone || null,
             website_url: poi.website_url || null,
+            booking_url: poi.booking_url || null,
             opening_hours: poi.opening_hours || null,
             is_featured: poi.is_featured === 1,
+            is_promoted: poi.is_promoted === 1,
             media: poiMedia[poi.id] || [],
             cover_image_url: poi.cover_image_url || null
         })),
@@ -680,6 +847,7 @@ export async function handleGetGuidebook(env, slug, lang, origin) {
             slug: r.slug,
             cuisine_type: r.cuisine_type,
             tier: r.tier,
+            is_promoted: r.is_promoted === 1,
             cover_image: r.cover_image ? `${mediaOrigin}/media/${r.cover_image}` : null,
             // Sin lat/long en esta tabla (restaurants vive fuera de guide_pois) —
             // el botón "Cómo llegar" arma el destino de Google Maps con este texto.
@@ -705,6 +873,7 @@ export async function handleGetGuidebook(env, slug, lang, origin) {
                 : ''),
             cover_image_url: item.cover_image_url,
             is_featured: item.is_featured === 1,
+            is_promoted: item.is_promoted === 1,
             in_stock: item.stock_unlimited === 1 || (item.stock_qty ?? 0) > 0,
             cta_label: item.cta_label || null
         })),
@@ -828,7 +997,7 @@ export async function handleGetExplore(env, apartmentSlug, zoneSlug, lang, origi
             LEFT JOIN translations t_desc_es ON p.id = t_desc_es.entity_id
                 AND t_desc_es.entity_type = 'poi' AND t_desc_es.field = 'description' AND t_desc_es.language_code = ?
             WHERE p.zone_id = ? AND p.is_active = TRUE AND p.latitude IS NOT NULL
-            ORDER BY p.order_index ASC
+            ORDER BY ${orderClause('p', null)}
         `).bind(lang, FALLBACK_LANG, lang, FALLBACK_LANG, zone.id).all(),
     ]);
 
