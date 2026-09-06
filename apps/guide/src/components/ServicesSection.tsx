@@ -4,6 +4,7 @@ import type { CtaActionType } from '../lib/types';
 import { submitStoreOrder } from '../lib/api';
 import CTAButton from './CTAButton';
 import MediaPlaceholder, { isRealImage } from './MediaPlaceholder';
+import { LanguageSwitcher } from './Header';
 
 interface Experience {
   id: string;
@@ -51,6 +52,7 @@ interface ServicesSectionProps {
   apartmentName: string;
   sessionId: string | null;
   lang: string;
+  onLanguageChange?: (lang: string) => void;
   onIntent: (type: 'experience' | 'product', id: string, action: string) => void;
 }
 
@@ -58,7 +60,7 @@ interface ServicesSectionProps {
 // doesn't read as identical stickers.
 const STAMP_CLASSES = ['stamped-badge-1', 'stamped-badge-2', 'stamped-badge-3'];
 
-export default function ServicesSection({ experiences, storeItems, zoneName, apartmentId, sessionId, lang, onIntent }: ServicesSectionProps) {
+export default function ServicesSection({ experiences, storeItems, zoneName, apartmentId, sessionId, lang, onLanguageChange, onIntent }: ServicesSectionProps) {
   // Carrito ligero en memoria: no se persiste entre visitas a propósito — es un
   // pedido de la estancia actual, no un carrito de e-commerce.
   const [cart, setCart] = useState<Record<string, number>>({});
@@ -197,9 +199,18 @@ export default function ServicesSection({ experiences, storeItems, zoneName, apa
   return (
     <div className="flex flex-col gap-stack-lg pb-24">
       <section className="flex flex-col gap-2 max-w-2xl mx-auto w-full">
-        <h2 className="font-display-xl text-display-lg md:text-display-xl text-primary uppercase tracking-wide">
-          {getTranslation('store_title', lang)}
-        </h2>
+        {/* Título arriba del todo, bandera integrada en su misma fila — mismo
+            tratamiento que RestaurantsSection (hyphens-auto incluido) y por el
+            mismo motivo: sin foto de portada debajo de la que "flotar" el
+            selector de idioma. */}
+        <div className="flex items-start gap-4">
+          <h2 className="flex-1 min-w-0 hyphens-auto break-words font-display-xl text-display-lg md:text-display-xl text-primary uppercase tracking-wide"
+            lang={lang}
+          >
+            {getTranslation('store_title', lang)}
+          </h2>
+          <LanguageSwitcher lang={lang} onLanguageChange={onLanguageChange} variant="floating" />
+        </div>
         <p className="font-body-lg text-body-lg text-on-surface-variant">{getTranslation('store_subtitle', lang)}</p>
       </section>
 

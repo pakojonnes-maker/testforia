@@ -462,17 +462,20 @@ export default function GuidebookPage() {
   // explore uses h-dvh (no bottom input bar fighting mobile browser chrome).
   const isExploreTab = activeTab === 'discover';
   const isFullBleed = isChatTab || isExploreTab;
-  // Ninguna pestaña conserva ya la cabecera completa — "services" la tenía hasta
-  // que se pidió expresamente quitarla también de ahí (2026-09-06), así que ahora
-  // es igual que Explorar (que nunca tuvo cabecera, por ser mapa a pantalla
-  // completa): todas dejan el selector de idioma flotando en la esquina en su
-  // lugar (ver más abajo). <main> reserva un hueco de sitio para que ese círculo
-  // no tape nada (el título de Restaurantes llega a ocupar 3 líneas en móvil y
-  // se metía debajo). Sin el <nav> de escritorio de Header (hidden md:flex) en
-  // ninguna pestaña, ya no hay forma de cambiar de pestaña en escritorio —
-  // BottomNavBar es md:hidden — pero nadie lo ha pedido, así que no se construye
-  // una alternativa sin que haga falta.
-  const showFloatingLangCorner = !isExploreTab;
+  // Ninguna pestaña conserva ya la cabecera completa (2026-09-06) — sin el <nav>
+  // de escritorio de Header (hidden md:flex), ya no hay forma de cambiar de
+  // pestaña en escritorio (BottomNavBar es md:hidden), pero nadie lo ha pedido,
+  // así que no se construye una alternativa sin que haga falta.
+  //
+  // El selector de idioma flotando EN LA ESQUINA (position: absolute sobre el
+  // shell, ver más abajo) se queda solo para info y chat: son las dos pestañas
+  // donde arriba del todo hay una foto/portada (el arco del piso, la portada
+  // del concierge) sobre la que tiene sentido "flotar" un círculo. Restaurantes
+  // y Servicios empiezan con un título de texto plano — reservarles ahí el
+  // mismo hueco dejaba una banda vacía enorme antes del título en vez de
+  // "arriba del todo" — así que en esas dos el selector va integrado en la
+  // misma fila que su título (ver RestaurantsSection/ServicesSection).
+  const showFloatingLangCorner = activeTab === 'info' || isChatTab;
 
   // min-h-screen deja crecer la página más allá del viewport, que es lo que
   // queremos en las pestañas normales (contenido largo, footer al final). En
@@ -490,12 +493,12 @@ export default function GuidebookPage() {
       )}
 
       {/* absolute (no fixed) sobre el shell de la app (el <div className="guide-app
-          ... relative ..."> raíz): en info/restaurantes/services, donde <main> no
-          tiene altura propia y es la página entera la que hace scroll, esto se
-          desplaza con el contenido y deja de tapar botones más abajo (pasaba con
-          el código de entrada de InfoSection). En chat, el shell raíz es h-screen
-          overflow-hidden y no hace scroll él mismo, así que el efecto ahí sigue
-          siendo "flotando en la esquina" todo el rato, igual que en Explorar. */}
+          ... relative ..."> raíz): en info, donde <main> no tiene altura propia
+          y es la página entera la que hace scroll, esto se desplaza con el
+          contenido en vez de quedarse flotando sobre lo que sea que haya
+          debajo. En chat, el shell raíz es h-screen overflow-hidden y no hace
+          scroll él mismo, así que el efecto ahí sigue siendo "flotando en la
+          esquina" todo el rato, igual que en Explorar. */}
       {showFloatingLangCorner && (
         <div className="absolute top-4 end-4 z-50">
           <LanguageSwitcher lang={lang} onLanguageChange={handleLanguageChange} variant="floating" />
@@ -506,13 +509,18 @@ export default function GuidebookPage() {
           (el chat con su input fijo cerca del nav inferior, explorar con el
           mapa + bottom sheet) — el resto de pestañas son contenido desplazable
           normal con su propio footer. pb-16 en móvil reserva el alto del
-          BottomNavBar fijo (h-16) para que no tape el input/sheet. */}
+          BottomNavBar fijo (h-16) para que no tape el input/sheet. pt-20 en
+          Info reserva el hueco del selector de idioma flotante sobre el arco;
+          Restaurantes/Servicios no lo necesitan — llevan el selector integrado
+          en su propio título, así que su <main> vuelve al py-8 normal. */}
       <main
         className={isChatTab
           ? "flex-1 min-h-0 flex flex-col w-full max-w-container-max mx-auto px-margin-mobile md:px-margin-desktop pt-16 pb-16 md:pb-6"
           : isExploreTab
           ? "relative flex-1 min-h-0 overflow-hidden pb-16 md:pb-0"
-          : "w-full max-w-container-max mx-auto px-margin-mobile md:px-margin-desktop pt-20 pb-8 flex flex-col gap-12"}
+          : activeTab === 'info'
+          ? "w-full max-w-container-max mx-auto px-margin-mobile md:px-margin-desktop pt-20 pb-8 flex flex-col gap-12"
+          : "w-full max-w-container-max mx-auto px-margin-mobile md:px-margin-desktop py-8 flex flex-col gap-12"}
         onTouchStart={handleTouchStart}
         onTouchMove={handleTouchMove}
         onTouchEnd={handleTouchEnd}
@@ -564,6 +572,7 @@ export default function GuidebookPage() {
               restaurants={restaurants}
               zoneName={zone.name}
               lang={lang}
+              onLanguageChange={handleLanguageChange}
               onIntent={(type, id, action) => logIntent(type, id, action)}
               buildRestaurantUrl={(restaurantSlug) =>
                 buildMenuUrl(MENU_URL, restaurantSlug, apartment.id, sessionIdRef.current)}
@@ -581,6 +590,7 @@ export default function GuidebookPage() {
               apartmentName={apartment.name}
               sessionId={sessionIdRef.current}
               lang={lang}
+              onLanguageChange={handleLanguageChange}
               onIntent={(type, id, action) => logIntent(type, id, action)}
             />
           </div>

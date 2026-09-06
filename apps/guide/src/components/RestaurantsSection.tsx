@@ -1,6 +1,7 @@
 import React from 'react';
 import { getTranslation } from '../lib/i18n';
 import MediaPlaceholder, { isRealImage } from './MediaPlaceholder';
+import { LanguageSwitcher } from './Header';
 
 interface Restaurant {
   id: string;
@@ -18,6 +19,7 @@ interface RestaurantsSectionProps {
   restaurants: Restaurant[];
   zoneName: string;
   lang: string;
+  onLanguageChange?: (lang: string) => void;
   onIntent: (type: 'restaurant', id: string, action: string) => void;
   /** Construye la URL del menú de un restaurante con la atribución del guidebook. */
   buildRestaurantUrl: (slug: string) => string;
@@ -28,7 +30,7 @@ interface RestaurantsSectionProps {
 // ancho completo a la carta en vídeo. Sustituye a las filas alternadas
 // izquierda/derecha: en móvil (donde está el 95% de los huéspedes) esa
 // alternancia no se percibía y el CTA quedaba como un botón suelto pequeño.
-export default function RestaurantsSection({ restaurants, zoneName, lang, onIntent, buildRestaurantUrl }: RestaurantsSectionProps) {
+export default function RestaurantsSection({ restaurants, zoneName, lang, onLanguageChange, onIntent, buildRestaurantUrl }: RestaurantsSectionProps) {
   if (!restaurants || restaurants.length === 0) {
     return (
       <div className="text-center py-12 text-on-surface-variant">
@@ -59,9 +61,28 @@ export default function RestaurantsSection({ restaurants, zoneName, lang, onInte
   return (
     <div className="flex flex-col gap-stack-lg">
       <section className="flex flex-col gap-2 max-w-2xl mx-auto w-full">
-        <h2 className="font-display-xl text-display-lg md:text-display-xl text-primary uppercase tracking-wide">
-          {getTranslation('restaurants_title', lang).replace('{zone}', zoneName || getTranslation('surroundings_fallback', lang))}
-        </h2>
+        {/* El título va arriba del todo (sin el hueco que antes reservaba el
+            selector de idioma flotante) y la bandera se integra en su misma
+            fila — a diferencia de Info/Chat, aquí no hay una foto de portada
+            debajo de la que "flotar". items-start la alinea con la primera
+            línea del título aunque este llegue a ocupar 3 en móvil.
+            hyphens-auto (+ min-w-0, imprescindible dentro de un flex item para
+            que el corte llegue a aplicarse) evita que una palabra suelta larga
+            ("BENALMÁDENA", "RESTAURANTES") desborde su propia caja y se pinte
+            por debajo del círculo — flexbox reserva el ancho para la bandera,
+            pero sin esto una palabra que no cabe entera sigue desbordando en
+            vez de partirse. Con guion en vez de break-words a secas: parte por
+            sílaba real (según el idioma del <html>, que ya fija GuidebookPage)
+            en lugar de a mitad de palabra sin más. break-words de respaldo
+            para idiomas sin diccionario de guionado (zh/ja/ko/ar). */}
+        <div className="flex items-start gap-4">
+          <h2 className="flex-1 min-w-0 hyphens-auto break-words font-display-xl text-display-lg md:text-display-xl text-primary uppercase tracking-wide"
+            lang={lang}
+          >
+            {getTranslation('restaurants_title', lang).replace('{zone}', zoneName || getTranslation('surroundings_fallback', lang))}
+          </h2>
+          <LanguageSwitcher lang={lang} onLanguageChange={onLanguageChange} variant="floating" />
+        </div>
         {/* Divulgación de la relación comercial. Una recomendación retribuida que
             no se identifica como tal es publicidad encubierta (Directiva
             2005/29/CE, art. 7.2 y anexo I.11; en España, TRLGDCU y Ley 3/1991).
