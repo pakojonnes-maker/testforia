@@ -2,12 +2,18 @@
 -- BDschemaFinal.sql — ESQUEMA REAL DE PRODUCCION
 -- =====================================================
 -- Base de datos D1: restaurant-menu-saas (7e8d1efe-2a54-4849-9a06-4c47152392bd)
--- Exportado el 2026-08-18 desde la BD en produccion, tras aplicar la
--- migracion 0087 (guide_apartments: columnas de listing para el importador
--- de apartamentos desde URL — capacity, bedrooms, bathrooms, size_m2,
--- checkin_time, checkout_time, property_type, description, amenities,
--- gallery_urls, source_url, source_payload, imported_at; todas NULLABLE).
--- 85 tablas.
+-- Exportado el 2026-09-06 desde la BD en produccion, tras aplicar la
+-- migracion 0091 (orden promocionable + afiliacion del guidebook):
+--   · guide_pois: promotion_rank, promoted_from, promoted_until,
+--     action_is_affiliate, affiliate_network, affiliate_code,
+--     secondary_action_type, secondary_action_data,
+--     secondary_action_prefilled_message.
+--   · guide_store_items y guide_zone_restaurants: promotion_rank,
+--     promoted_from, promoted_until.
+--   · Tabla nueva guide_apartment_item_order (override de orden y visibilidad
+--     por apartamento sobre catalogos que el alojamiento no posee).
+-- Todas las columnas NULLABLE.
+-- 86 tablas.
 --
 -- NO editar a mano. Para regenerar:
 --   npx wrangler d1 export restaurant-menu-saas --remote --no-data --output BDschemaFinal.sql
@@ -888,7 +894,7 @@ CREATE TABLE guide_apartments (
   qr_code_url TEXT,
   is_active BOOLEAN DEFAULT TRUE,
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-  modified_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, wifi_ssid TEXT, wifi_password TEXT, wifi_security TEXT DEFAULT 'WPA', contact_whatsapp TEXT, capacity INTEGER, bedrooms INTEGER, bathrooms REAL, size_m2 INTEGER, checkin_time TEXT, checkout_time TEXT, property_type TEXT, description TEXT, amenities TEXT, gallery_urls TEXT, source_url TEXT, source_payload TEXT, imported_at TIMESTAMP,
+  modified_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, wifi_ssid TEXT, wifi_password TEXT, wifi_security TEXT DEFAULT 'WPA', contact_whatsapp TEXT, capacity INTEGER, bedrooms INTEGER, bathrooms REAL, size_m2 INTEGER, checkin_time TEXT, checkout_time TEXT, property_type TEXT, description TEXT, amenities TEXT, gallery_urls TEXT, source_url TEXT, source_payload TEXT, imported_at TIMESTAMP, beds INTEGER, rating_value REAL, rating_count INTEGER, external_identifier TEXT,
   FOREIGN KEY (agency_id) REFERENCES guide_agencies(id),
   FOREIGN KEY (zone_id) REFERENCES guide_zones(id)
 );
@@ -922,7 +928,7 @@ CREATE TABLE guide_pois (
   order_index INTEGER DEFAULT 0,
   is_active BOOLEAN DEFAULT TRUE,
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-  modified_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, rating REAL, travel_time_text TEXT, travel_mode TEXT CHECK(travel_mode IN ('walk', 'drive', 'bike')), distance_text TEXT, poi_type    TEXT NOT NULL DEFAULT 'sight', subcategory TEXT, access_type TEXT NOT NULL DEFAULT 'free', address          TEXT, google_place_id  TEXT, what3words        TEXT, rating_count        INTEGER, google_rating       REAL, google_rating_count INTEGER, opening_hours TEXT, phone         TEXT, website_url   TEXT, booking_url   TEXT, duration_text TEXT, price_amount           REAL, price_currency         TEXT DEFAULT 'EUR', price_display          TEXT, original_price_display TEXT, discount_display       TEXT, is_bookable             BOOLEAN DEFAULT FALSE, action_type             TEXT, action_data             TEXT, action_prefilled_message TEXT, commission_type         TEXT, commission_value        REAL DEFAULT 0, badge_type              TEXT, cover_image_url TEXT, is_featured     BOOLEAN DEFAULT FALSE, source          TEXT, external_id     TEXT, google_synced_at TIMESTAMP,
+  modified_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, rating REAL, travel_time_text TEXT, travel_mode TEXT CHECK(travel_mode IN ('walk', 'drive', 'bike')), distance_text TEXT, poi_type    TEXT NOT NULL DEFAULT 'sight', subcategory TEXT, access_type TEXT NOT NULL DEFAULT 'free', address          TEXT, google_place_id  TEXT, what3words        TEXT, rating_count        INTEGER, google_rating       REAL, google_rating_count INTEGER, opening_hours TEXT, phone         TEXT, website_url   TEXT, booking_url   TEXT, duration_text TEXT, price_amount           REAL, price_currency         TEXT DEFAULT 'EUR', price_display          TEXT, original_price_display TEXT, discount_display       TEXT, is_bookable             BOOLEAN DEFAULT FALSE, action_type             TEXT, action_data             TEXT, action_prefilled_message TEXT, commission_type         TEXT, commission_value        REAL DEFAULT 0, badge_type              TEXT, cover_image_url TEXT, is_featured     BOOLEAN DEFAULT FALSE, source          TEXT, external_id     TEXT, google_synced_at TIMESTAMP, promotion_rank INTEGER, promoted_from  TIMESTAMP, promoted_until TIMESTAMP, action_is_affiliate BOOLEAN DEFAULT FALSE, affiliate_network TEXT, affiliate_code TEXT, secondary_action_type TEXT, secondary_action_data TEXT, secondary_action_prefilled_message TEXT,
   FOREIGN KEY (zone_id) REFERENCES guide_zones(id)
 );
 CREATE TABLE guide_poi_media (
@@ -945,7 +951,7 @@ CREATE TABLE guide_zone_restaurants (
   tier TEXT NOT NULL DEFAULT 'basic' CHECK(tier IN ('basic', 'featured')),
   order_override INTEGER,
   is_active BOOLEAN DEFAULT TRUE,
-  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, cuisine_type_override TEXT,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, cuisine_type_override TEXT, promotion_rank INTEGER, promoted_from  TIMESTAMP, promoted_until TIMESTAMP,
   PRIMARY KEY (zone_id, restaurant_id),
   FOREIGN KEY (zone_id) REFERENCES guide_zones(id),
   FOREIGN KEY (restaurant_id) REFERENCES restaurants(id) ON DELETE CASCADE
@@ -962,7 +968,7 @@ CREATE TABLE guide_sessions (
   language_code TEXT DEFAULT 'es',
   started_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   ended_at TIMESTAMP,
-  duration_seconds INTEGER, device_fingerprint TEXT, visitor_id TEXT, visit_count INTEGER DEFAULT 1,
+  duration_seconds INTEGER, device_fingerprint TEXT, visitor_id TEXT, visit_count INTEGER DEFAULT 1, visitor_day_hash TEXT,
   FOREIGN KEY (apartment_id) REFERENCES guide_apartments(id)
 );
 CREATE TABLE guide_affiliate_intents (
@@ -1036,20 +1042,6 @@ CREATE TABLE guide_info_step_media (
   order_index INTEGER DEFAULT 0,
   created_at  TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   FOREIGN KEY (step_id) REFERENCES guide_info_steps(id) ON DELETE CASCADE
-);
-CREATE TABLE guide_coupons (
-  id              TEXT PRIMARY KEY,
-  experience_id   TEXT NOT NULL,
-  code            TEXT NOT NULL UNIQUE,
-  discount_type   TEXT CHECK(discount_type IN ('percentage', 'fixed')),
-  discount_value  REAL NOT NULL,
-  max_uses        INTEGER,
-  current_uses    INTEGER DEFAULT 0,
-  valid_from      TIMESTAMP,
-  valid_until     TIMESTAMP,
-  is_active       BOOLEAN DEFAULT TRUE,
-  created_at      TIMESTAMP DEFAULT CURRENT_TIMESTAMP, poi_id TEXT,
-  FOREIGN KEY (experience_id) REFERENCES guide_experiences(id)
 );
 CREATE TABLE guide_welcome_modals (
   id              TEXT PRIMARY KEY,
@@ -1171,7 +1163,7 @@ CREATE TABLE guide_store_items (
   stock_unlimited   BOOLEAN DEFAULT TRUE,    -- productos físicos con stock finito (aceite, queso)
   stock_qty         INTEGER,
   created_at        TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-  modified_at       TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  modified_at       TIMESTAMP DEFAULT CURRENT_TIMESTAMP, promotion_rank INTEGER, promoted_from  TIMESTAMP, promoted_until TIMESTAMP,
   FOREIGN KEY (apartment_id) REFERENCES guide_apartments(id) ON DELETE CASCADE,
   FOREIGN KEY (agency_id)    REFERENCES guide_agencies(id)
 );
@@ -1229,6 +1221,31 @@ CREATE TABLE guide_apartment_phones (
   modified_at   TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   FOREIGN KEY (apartment_id) REFERENCES guide_apartments(id) ON DELETE CASCADE,
   FOREIGN KEY (category_key) REFERENCES guide_phone_categories(key)
+);
+CREATE TABLE IF NOT EXISTS "guide_coupons" (
+  id              TEXT PRIMARY KEY,
+  poi_id          TEXT NOT NULL,
+  code            TEXT NOT NULL UNIQUE,
+  discount_type   TEXT CHECK(discount_type IN ('percentage', 'fixed')),
+  discount_value  REAL NOT NULL,
+  max_uses        INTEGER,
+  current_uses    INTEGER DEFAULT 0,
+  valid_from      TIMESTAMP,
+  valid_until     TIMESTAMP,
+  is_active       BOOLEAN DEFAULT TRUE,
+  created_at      TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (poi_id) REFERENCES guide_pois(id)
+);
+CREATE TABLE guide_apartment_item_order (
+  apartment_id   TEXT NOT NULL,
+  item_type      TEXT NOT NULL,           -- 'experience' | 'store_item' | 'restaurant'
+  item_id        TEXT NOT NULL,           -- guide_pois.id | guide_store_items.id | restaurants.id
+  order_override INTEGER,                 -- NULL = hereda el order_index global
+  is_hidden      BOOLEAN DEFAULT FALSE,
+  created_at     TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  modified_at    TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (apartment_id, item_type, item_id),
+  FOREIGN KEY (apartment_id) REFERENCES guide_apartments(id) ON DELETE CASCADE
 );
 CREATE INDEX idx_dishes_restaurant ON dishes(restaurant_id);
 CREATE INDEX idx_sections_restaurant ON sections(restaurant_id);
@@ -1296,7 +1313,6 @@ CREATE INDEX idx_guide_section_views_session ON guide_section_views(session_id);
 CREATE INDEX idx_guide_apt_pois_apt ON guide_apartment_pois(apartment_id, is_hidden, order_override);
 CREATE INDEX idx_guide_info_steps ON guide_info_steps(apartment_info_id, step_number);
 CREATE INDEX idx_guide_step_media ON guide_info_step_media(step_id, order_index);
-CREATE INDEX idx_guide_coupons_exp ON guide_coupons(experience_id, is_active);
 CREATE INDEX idx_guide_pois_zone_active ON guide_pois(zone_id, is_active, order_index);
 CREATE INDEX idx_guide_welcome_modals_apartment ON guide_welcome_modals(apartment_id, is_active);
 CREATE INDEX idx_guide_tv_devices_apartment ON guide_tv_devices(apartment_id);
@@ -1336,3 +1352,12 @@ CREATE UNIQUE INDEX idx_guide_pois_google_place_id
 CREATE INDEX idx_guide_info_categories_group ON guide_info_categories(group_key, order_index);
 CREATE INDEX idx_guide_apartment_info_category ON guide_apartment_info(category_key);
 CREATE INDEX idx_guide_apartment_phones_apartment ON guide_apartment_phones(apartment_id, order_index);
+CREATE INDEX idx_guide_coupons_poi ON guide_coupons(poi_id, is_active);
+CREATE INDEX idx_guide_sessions_day_hash
+  ON guide_sessions(visitor_day_hash, started_at);
+CREATE INDEX idx_guide_pois_promoted
+  ON guide_pois(zone_id, is_bookable, promotion_rank);
+CREATE INDEX idx_guide_store_items_promoted
+  ON guide_store_items(is_active, promotion_rank);
+CREATE INDEX idx_guide_apt_item_order
+  ON guide_apartment_item_order(apartment_id, item_type, is_hidden);
