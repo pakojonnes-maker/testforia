@@ -59,22 +59,22 @@ export function Header({ brand, property, logoUrl, lang, demoMode }: HeaderProps
   const date = fmt({ day: 'numeric', month: 'long', year: 'numeric' })
 
   return (
-    <header className="grid items-center gap-6" style={{ gridTemplateColumns: '1fr auto 1fr' }}>
+    <header className="grid items-center gap-8" style={{ gridTemplateColumns: 'minmax(0,1.3fr) auto minmax(0,0.85fr)' }}>
       {/* Logo / marca */}
-      <div className="flex min-w-0 items-center gap-4">
+      <div className="flex min-w-0 items-center gap-5">
         {logoUrl ? (
           <img
             src={logoUrl}
             alt=""
-            className="h-14 w-14 shrink-0 rounded-2xl object-cover"
+            className="h-20 w-20 shrink-0 rounded-2xl object-cover"
             style={{ background: 'var(--tv-surface)' }}
           />
         ) : (
           <div
-            className="grid h-14 w-14 shrink-0 place-items-center rounded-2xl"
+            className="grid h-20 w-20 shrink-0 place-items-center rounded-2xl"
             style={{ background: 'var(--tv-accent)', color: 'var(--tv-accent-ink)' }}
           >
-            <svg width="28" height="28" viewBox="0 0 24 24" fill="none">
+            <svg width="38" height="38" viewBox="0 0 24 24" fill="none">
               <circle cx="12" cy="8" r="3.4" fill="currentColor" />
               <path d="M2 16c2.2 0 2.2 2 4.5 2s2.3-2 4.5-2 2.2 2 4.5 2 2.3-2 4.5-2"
                 stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" />
@@ -86,7 +86,7 @@ export function Header({ brand, property, logoUrl, lang, demoMode }: HeaderProps
 
         <div className="min-w-0 leading-tight">
           <div className="flex items-center gap-3">
-            <h1 className="t-display truncate tv-lead font-bold" style={{ color: 'var(--tv-text)' }}>
+            <h1 className="t-display truncate tv-title font-bold" style={{ color: 'var(--tv-text)' }}>
               {brand}
             </h1>
             {demoMode && (
@@ -98,7 +98,7 @@ export function Header({ brand, property, logoUrl, lang, demoMode }: HeaderProps
               </span>
             )}
           </div>
-          <p className="t-label mt-1 truncate" style={{ color: 'var(--tv-text-faint)' }}>
+          <p className="tv-meta mt-1 truncate font-medium uppercase tracking-[0.1em]" style={{ color: 'var(--tv-text-faint)' }}>
             {property}
           </p>
         </div>
@@ -106,7 +106,7 @@ export function Header({ brand, property, logoUrl, lang, demoMode }: HeaderProps
 
       {/* Fecha */}
       <div className="shrink-0 self-center text-center leading-none">
-        <div className="t-display tv-card font-semibold" style={{ color: 'var(--tv-text-dim)' }}>
+        <div className="t-display tv-lead font-bold whitespace-nowrap" style={{ color: 'var(--tv-text-dim)' }}>
           {date}
         </div>
       </div>
@@ -114,7 +114,7 @@ export function Header({ brand, property, logoUrl, lang, demoMode }: HeaderProps
       {/* Hora */}
       <div className="shrink-0 justify-self-end text-right leading-none">
         <div
-          className="t-display tv-title font-bold tabular-nums"
+          className="t-display tv-hero font-bold tabular-nums"
           style={{ color: 'var(--tv-accent)' }}
         >
           {time}

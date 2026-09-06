@@ -36,7 +36,7 @@ function InfoCard({ item, autoFocus, onSelect }: { item: InfoItem; autoFocus?: b
     : 'linear-gradient(150deg, var(--tv-accent), var(--tv-secondary))'
 
   return (
-    <Focusable id={`info-${item.id}`} autoFocus={autoFocus} onSelect={onSelect}>
+    <Focusable id={`info-${item.id}`} autoFocus={autoFocus} onSelect={onSelect} className="arch-mask">
       <div
         className="arch-mask relative aspect-[4/5] w-full overflow-hidden"
         style={{ background: 'var(--tv-surface)', border: '1px solid var(--tv-line)' }}
@@ -76,9 +76,9 @@ export function InfoScreen({ data, lang, onOpen }: { data: GuidebookData; lang: 
       </div>
 
       <div className="col-scroll min-h-0 flex-1 pr-1">
-        <div className="grid grid-cols-4 gap-4 pb-2 pt-1">
+        <div className="grid grid-cols-4 gap-8 pb-2 pt-3">
           {door && (
-            <Focusable id={`info-${door.id}`} autoFocus>
+            <Focusable id={`info-${door.id}`} autoFocus className="rounded-[1.25rem]">
               <div
                 className="flex h-full flex-col justify-between p-6"
                 style={{

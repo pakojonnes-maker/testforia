@@ -113,25 +113,43 @@ body {
 
 /* ---------- FOCO POR MANDO ----------
    Es el elemento de UI más importante de toda la app: si el huésped no ve
-   dónde está, la pantalla no sirve. Anillo sólido del color de marca + elevación.
+   dónde está, la pantalla no sirve. Iluminación suave del color de marca (línea
+   fina + halo difuminado) en vez del anillo sólido doble de antes — ese doble
+   anillo (4px + 8px, sin blur) es justo lo que lo hacía leerse como un
+   "recuadro" pegado encima de la tesela en vez de una luz sobre ella.
    Sin animación en bucle: a 3 m un halo que late lee como "cargando" y compite
-   con el contenido en lugar de señalarlo. */
+   con el contenido en lugar de señalarlo.
+
+   Sin radio propio a propósito: antes fijaba 1.25rem aquí, y como esta regla
+   NO está en el layer de Tailwind (@layer utilities), ganaba SIEMPRE a
+   cualquier `rounded-*`/`arch-mask` que le pasara un consumidor concreto —
+   los layers de Tailwind pierden contra CSS sin layer aunque vengan después en
+   el archivo. Resultado: el anillo de foco de una tesela en arco o un botón
+   `rounded-full` salía como rectángulo, sin importar qué clase le pasaras. Cada
+   sitio que usa <Focusable> ahora pasa su propio radio a juego (rounded-full,
+   rounded-[…], arch-mask) — ver spatialNav.tsx. */
+/* Solo `transform` transiciona — no `box-shadow`. Comprobado en vivo: un
+   box-shadow cuyas capas usan var() (el color de marca, dinámico por
+   agencia) puede quedarse ATASCADO en transparente/cero la primera vez que
+   el navegador intenta interpolarlo, y no se recupera solo — ni esperando,
+   ni volviendo a enfocar el mismo elemento. Sacarlo de `transition` lo
+   fuerza a aplicarse al vuelo en vez de interpolar, y como es la señal más
+   importante de toda la pantalla, mejor un cambio instantáneo y fiable que
+   uno suave que a veces no llega a pintarse. */
 .focusable {
-  transition: transform 170ms cubic-bezier(.2,.8,.2,1), box-shadow 170ms ease;
+  transition: transform 170ms cubic-bezier(.2,.8,.2,1);
   will-change: transform;
-  border-radius: 1.25rem;
 }
 .focusable[data-focused="true"] {
   transform: scale(1.035);
   box-shadow:
-    0 0 0 4px var(--tv-accent, #34c2c9),
-    0 0 0 8px rgba(0, 0, 0, 0.35),
-    0 24px 48px rgba(0, 0, 0, 0.45);
+    0 0 0 2px var(--tv-accent, #34c2c9),
+    0 0 48px 14px var(--tv-accent-soft, rgba(52,194,201,0.16)),
+    0 22px 44px rgba(0, 0, 0, 0.45);
   z-index: 5;
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .focusable { transition: box-shadow 120ms ease; }
   .focusable[data-focused="true"] { transform: none; }
   *, *::before, *::after { animation-duration: 0.001ms !important; animation-iteration-count: 1 !important; }
 }

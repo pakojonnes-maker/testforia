@@ -31,7 +31,7 @@ function EntryCard({ entry, autoFocus, onSelect }: { entry: Entry; autoFocus?: b
   const visual = categoryVisual(entry.category, entry.subcategory)
 
   return (
-    <Focusable id={`entry-${entry.id}`} autoFocus={autoFocus} onSelect={onSelect}>
+    <Focusable id={`entry-${entry.id}`} autoFocus={autoFocus} onSelect={onSelect} className="rounded-[1.25rem]">
       {/* Tarjeta VERTICAL: en una fila horizontal caben más y la foto manda,
           que es lo que hace que se escanee de un vistazo desde el sofá. */}
       <div

@@ -25,7 +25,7 @@ function Shell({
 }: BaseProps & { children: ReactNode; style?: React.CSSProperties }) {
   return (
     <div style={{ gridArea: area, minWidth: 0, minHeight: 0 }}>
-      <Focusable id={id} autoFocus={autoFocus} onSelect={onSelect} className="h-full">
+      <Focusable id={id} autoFocus={autoFocus} onSelect={onSelect} className="h-full rounded-[1.5rem]">
         <div
           className="relative h-full w-full overflow-hidden"
           style={{ borderRadius: RADIUS, border: '1px solid var(--tv-line)', ...style }}

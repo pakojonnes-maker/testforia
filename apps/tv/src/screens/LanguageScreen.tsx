@@ -41,6 +41,7 @@ export function LanguageScreen({
                 id={`lang-${language.code}`}
                 autoFocus={isCurrent || (i === 0 && !languages.some(l => l.code === current))}
                 onSelect={() => onSelect(language.code)}
+                className="rounded-[1.25rem]"
               >
                 <div
                   className="flex items-center gap-4 p-5"
