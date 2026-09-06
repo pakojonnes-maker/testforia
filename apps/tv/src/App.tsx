@@ -199,7 +199,7 @@ export function App() {
                 ? <DetailScreen entry={activeEntry} onBack={back} />
                 : <Loading label="Ficha no disponible" />
             ) : route.name === 'info' ? (
-              <InfoScreen data={guide} onOpen={item => navigate({ name: 'info-detail', id: item.id })} />
+              <InfoScreen data={guide} lang={lang} onOpen={item => navigate({ name: 'info-detail', id: item.id })} />
             ) : route.name === 'info-detail' ? (
               activeInfoItem
                 ? <InfoDetailScreen item={activeInfoItem} onBack={back} />

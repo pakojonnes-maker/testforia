@@ -136,6 +136,19 @@ body {
   *, *::before, *::after { animation-duration: 0.001ms !important; animation-iteration-count: 1 !important; }
 }
 
+/* Arch mask — mismo recorte que apps/guide (.arch-mask en src/index.css):
+   esquinas superiores a radio máximo, base recta. El radio 9999px se resuelve,
+   por spec de CSS, a min(ancho, alto) del contenedor: en uno RETRATO o
+   cuadrado da un arco de verdad; en uno bajo y ancho se come casi todo el
+   alto y queda un semicírculo pegado a la base. Úsala solo en contenedores
+   retrato/cuadrados (p.ej. aspect-[4/5]), nunca en banners apaisados. */
+.arch-mask {
+  border-top-left-radius: 9999px;
+  border-top-right-radius: 9999px;
+  border-bottom-left-radius: 0;
+  border-bottom-right-radius: 0;
+}
+
 /* Deriva lentísima del fondo ambiente. Es lo único que se mueve solo. */
 @keyframes ambient-drift {
   0%   { transform: translate3d(0, 0, 0) scale(1); }

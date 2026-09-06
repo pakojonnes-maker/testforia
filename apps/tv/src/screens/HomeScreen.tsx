@@ -5,6 +5,7 @@ import { BrandedQr } from '../components/BrandedQr'
 import { wifiQrPayload } from '../lib/mockData'
 import { isDoorCode } from '../lib/infoIcon'
 import { languageOption } from '../lib/languages'
+import { getTvString } from '../lib/i18n'
 import { track } from '../lib/tracking'
 import type { GuidebookData } from '../lib/api'
 import type { Collection, CollectionKind } from '../lib/collections'
@@ -96,7 +97,8 @@ export function HomeScreen({ data, collections, lang, onNavigate }: HomeScreenPr
           id="tile-info"
           area="info"
           icon="📋"
-          label="Normas e información de la casa"
+          value={getTvString('rules', lang)}
+          label={getTvString('quick_guides', lang)}
           onSelect={() => onNavigate({ name: 'info' })}
         />
 

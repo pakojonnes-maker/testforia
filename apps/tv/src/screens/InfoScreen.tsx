@@ -1,5 +1,6 @@
 import { Focusable } from '../lib/spatialNav'
 import { infoIcon, isDoorCode } from '../lib/infoIcon'
+import { getTvString } from '../lib/i18n'
 import type { GuidebookData } from '../lib/api'
 
 type InfoItem = GuidebookData['apartment']['info'][number]
@@ -14,6 +15,13 @@ type InfoItem = GuidebookData['apartment']['info'][number]
  * aquí: apretado en la tesela era ilegible, y repetir el patrón de "portada +
  * detalle" que ya usan las recomendaciones (DetailScreen) es más consistente
  * que inventar un tercer tratamiento.
+ *
+ * Tesela = mismo recorte en arco que `apps/guide` (InfoSection.tsx), no el
+ * rectángulo redondeado de antes: .arch-mask solo da un arco de verdad en un
+ * contenedor retrato, así que la tesela pasó de una fila de alto fijo (210px,
+ * apaisada) a aspect-[4/5] — más alta que ancha y "todo lo grande que se
+ * pueda" dentro de 4 columnas. El texto sigue sobreimpreso abajo con velo,
+ * como ya hacía esta pantalla — eso no lo toca el cambio de forma.
  */
 
 function InfoCard({ item, autoFocus, onSelect }: { item: InfoItem; autoFocus?: boolean; onSelect: () => void }) {
@@ -30,8 +38,8 @@ function InfoCard({ item, autoFocus, onSelect }: { item: InfoItem; autoFocus?: b
   return (
     <Focusable id={`info-${item.id}`} autoFocus={autoFocus} onSelect={onSelect}>
       <div
-        className="relative h-full overflow-hidden"
-        style={{ borderRadius: '1.25rem', background: 'var(--tv-surface)', border: '1px solid var(--tv-line)' }}
+        className="arch-mask relative aspect-[4/5] w-full overflow-hidden"
+        style={{ background: 'var(--tv-surface)', border: '1px solid var(--tv-line)' }}
       >
         {photo ? (
           <img src={photo} alt="" className="absolute inset-0 h-full w-full object-cover" />
@@ -54,7 +62,7 @@ function InfoCard({ item, autoFocus, onSelect }: { item: InfoItem; autoFocus?: b
   )
 }
 
-export function InfoScreen({ data, onOpen }: { data: GuidebookData; onOpen: (item: InfoItem) => void }) {
+export function InfoScreen({ data, lang, onOpen }: { data: GuidebookData; lang: string; onOpen: (item: InfoItem) => void }) {
   const items = data.apartment.info.filter(i => i.key.toLowerCase() !== 'wifi')
   const door = items.find(i => isDoorCode(i.key))
   const rest = items.filter(i => i !== door)
@@ -62,20 +70,13 @@ export function InfoScreen({ data, onOpen }: { data: GuidebookData; onOpen: (ite
   return (
     <div className="screen-in flex h-full flex-col">
       <div className="shrink-0 pb-6">
-        <div className="t-label" style={{ color: 'var(--tv-accent)' }}>{data.apartment.name}</div>
-        <h2 className="t-display mt-3 tv-hero font-bold" style={{ color: 'var(--tv-text)' }}>
-          Información de la casa
+        <h2 className="t-display tv-hero font-bold" style={{ color: 'var(--tv-text)' }}>
+          {getTvString('quick_guides', lang)}
         </h2>
-        <p className="mt-3 max-w-[54ch] tv-body" style={{ color: 'var(--tv-text-dim)' }}>
-          Todo lo práctico de tu estancia, en un sitio. Muévete con las flechas del mando.
-        </p>
       </div>
 
       <div className="col-scroll min-h-0 flex-1 pr-1">
-        {/* Fila de altura fija: sin texto de contenido dentro de la tesela, el
-            alto ya no lo marca el apartado con más líneas — todas miden igual,
-            como una rejilla de fotos de verdad. */}
-        <div className="grid grid-cols-4 gap-4 pb-2 pt-1" style={{ gridAutoRows: '210px' }}>
+        <div className="grid grid-cols-4 gap-4 pb-2 pt-1">
           {door && (
             <Focusable id={`info-${door.id}`} autoFocus>
               <div

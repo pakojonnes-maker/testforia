@@ -1,12 +1,20 @@
 import { useEffect, useState } from 'react'
 
 /**
- * Cabecera persistente: marca del alojamiento a la izquierda, día y hora en
- * grande a la derecha.
+ * Cabecera persistente: 3 secciones — marca del alojamiento, fecha y hora —
+ * repartidas en una rejilla de 3 columnas para que la fecha quede centrada de
+ * verdad (no "lo que sobre" entre marca y hora, que es lo que da un flex
+ * justify-between con anchos desiguales a cada lado).
+ *
+ * Sin tarjeta ni fondo propio a propósito: el texto vive directamente sobre
+ * MediterraneanBackground, como una sobreimpresión, no como un panel flotante
+ * encima de la escena.
  *
  * El reloj grande no es decoración: es lo que convierte la pantalla en un
  * "aparato" del alojamiento y no en una web abierta en la tele. Es también lo
- * primero que mira un huésped al encender.
+ * primero que mira un huésped al encender. Ya no lleva el día de la semana
+ * debajo — con fecha y hora como secciones propias, repetir el día ahí sólo
+ * añadía peso visual sin decir nada que la fecha no dijera ya.
  */
 
 function useClock() {
@@ -48,11 +56,11 @@ export function Header({ brand, property, logoUrl, lang, demoMode }: HeaderProps
   }
 
   const time = fmt({ hour: '2-digit', minute: '2-digit' })
-  const weekday = fmt({ weekday: 'long' })
   const date = fmt({ day: 'numeric', month: 'long', year: 'numeric' })
 
   return (
-    <header className="flex items-start justify-between gap-8">
+    <header className="grid items-center gap-6" style={{ gridTemplateColumns: '1fr auto 1fr' }}>
+      {/* Logo / marca */}
       <div className="flex min-w-0 items-center gap-4">
         {logoUrl ? (
           <img
@@ -78,7 +86,7 @@ export function Header({ brand, property, logoUrl, lang, demoMode }: HeaderProps
 
         <div className="min-w-0 leading-tight">
           <div className="flex items-center gap-3">
-            <h1 className="t-display truncate text-3xl font-bold" style={{ color: 'var(--tv-text)' }}>
+            <h1 className="t-display truncate tv-lead font-bold" style={{ color: 'var(--tv-text)' }}>
               {brand}
             </h1>
             {demoMode && (
@@ -96,18 +104,17 @@ export function Header({ brand, property, logoUrl, lang, demoMode }: HeaderProps
         </div>
       </div>
 
-      <div className="shrink-0 text-right leading-none">
-        <div className="tv-meta font-medium" style={{ color: 'var(--tv-text-dim)' }}>
+      {/* Fecha */}
+      <div className="shrink-0 self-center text-center leading-none">
+        <div className="t-display tv-card font-semibold" style={{ color: 'var(--tv-text-dim)' }}>
           {date}
         </div>
+      </div>
+
+      {/* Hora */}
+      <div className="shrink-0 justify-self-end text-right leading-none">
         <div
-          className="t-display mt-2 text-4xl font-bold capitalize"
-          style={{ color: 'var(--tv-text)' }}
-        >
-          {weekday}
-        </div>
-        <div
-          className="t-display mt-1 text-6xl font-bold tabular-nums"
+          className="t-display tv-title font-bold tabular-nums"
           style={{ color: 'var(--tv-accent)' }}
         >
           {time}
