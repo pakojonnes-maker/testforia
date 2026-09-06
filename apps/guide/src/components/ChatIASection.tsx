@@ -3,6 +3,7 @@ import { getTranslation } from '../lib/i18n';
 import { sendChatMessage, type ChatMessage } from '../lib/api';
 import type { CtaActionType } from '../lib/types';
 import CTAButton from './CTAButton';
+import { isRealImage } from './MediaPlaceholder';
 
 interface Message {
   id: string;
@@ -19,11 +20,16 @@ interface ExperienceRef {
   prefilled_message: string; cta_label?: string;
 }
 interface StoreItemRef { id: string; name: string; price_display: string; }
+// Solo lo que hace falta para localizar la foto de "Recepción" — mismo patrón
+// que InfoSection.tsx (item.key.toLowerCase() === 'reception', ver migración
+// 0083_guide_info_categories.sql).
+interface InfoItemRef { key: string; media?: Array<{ url?: string }>; }
 
 interface ChatIASectionProps {
   lang: string;
   apartmentId?: string;
   apartmentName?: string;
+  infoItems?: InfoItemRef[];
   restaurants?: RestaurantRef[];
   pois?: PoiRef[];
   experiences?: ExperienceRef[];
@@ -182,14 +188,16 @@ function getUpsellHint(lang: string, itemName: string): string {
 
 // Portada del concierge IA — arco a juego con el resto de la app. Antes este
 // hueco solo tenía un icono genérico ("spark") sobre un fondo de color, sin
-// ninguna foto real ("portada" a secas). onError cae de vuelta a ese mismo
-// icono (mismo patrón que FlagIcon en Header.tsx) si /ai-concierge-cover.jpg
-// no existe todavía en apps/guide/public/ — así nunca se ve un icono de
-// imagen rota mientras nadie ha subido la foto definitiva.
-function AiCoverImage() {
+// ninguna foto real ("portada" a secas). La foto sale de la propia guía: la
+// categoría "Recepción" del apartamento (info_category 'reception'), que el
+// anfitrión ya sube con imagen desde el admin — no un asset estático nuevo que
+// nadie tendría forma de subir. Sin esa categoría, o si la imagen falla al
+// cargar, cae de vuelta al icono de siempre (mismo patrón que FlagIcon en
+// Header.tsx) en vez de un icono de imagen rota.
+function AiCoverImage({ imageUrl }: { imageUrl?: string }) {
   const [errored, setErrored] = useState(false);
 
-  if (errored) {
+  if (!imageUrl || errored) {
     return (
       <div className="w-20 h-24 arch-mask bg-primary/10 border border-primary/20 flex items-center justify-center mx-auto mb-3">
         <span className="material-symbols-outlined text-primary text-3xl" style={{ fontVariationSettings: "'FILL' 1" }}>spark</span>
@@ -200,7 +208,7 @@ function AiCoverImage() {
   return (
     <div className="w-20 h-24 arch-mask overflow-hidden border border-primary/20 mx-auto mb-3 bg-surface-variant">
       <img
-        src="/ai-concierge-cover.jpg"
+        src={imageUrl}
         alt=""
         className="w-full h-full object-cover"
         onError={() => setErrored(true)}
@@ -210,10 +218,13 @@ function AiCoverImage() {
 }
 
 export default function ChatIASection({
-  lang, apartmentId, apartmentName,
+  lang, apartmentId, apartmentName, infoItems = [],
   restaurants = [], pois = [], experiences = [], storeItems = [],
   buildRestaurantUrl, onNavigateTab,
 }: ChatIASectionProps) {
+  const receptionImage = infoItems.find(item => item.key?.toLowerCase() === 'reception')?.media?.[0]?.url;
+  const coverImageUrl = isRealImage(receptionImage) ? receptionImage : undefined;
+
   // El destacado de la bienvenida: producto de Tienda destacado -> si no,
   // restaurante -> si no, nada. Prioriza lo que más vende para el anfitrión.
   // storeItems ya llega ordenado is_featured DESC (workerGuide.js), así que el
@@ -360,7 +371,7 @@ export default function ChatIASection({
           Antes usaba text-display-lg (36px serif) para un rótulo de una palabra: se
           rompía en 2 líneas y dominaba el panel entero. */}
       <div className="text-center mb-6 shrink-0">
-        <AiCoverImage />
+        <AiCoverImage imageUrl={coverImageUrl} />
         <h2 className="font-label-lg text-label-lg text-primary uppercase tracking-widest whitespace-nowrap">{getTranslation('chat_assistant_title', lang)}</h2>
       </div>
 

@@ -160,7 +160,7 @@ export default function InfoSection({ infoItems, phones = [], lang }: InfoSectio
       {/* House Manual grid — arch-masked images, eyebrow key + headline */}
       {remainingGrid.length > 0 && (
         <section>
-          <h3 className="font-display-lg text-headline-lg md:text-display-lg text-on-background uppercase tracking-wide mb-stack-md">
+          <h3 className="font-display-lg text-headline-lg md:text-display-lg text-primary uppercase tracking-wide mb-stack-md">
             {getTranslation('quick_guides', lang)}
           </h3>
           <div className="grid grid-cols-2 md:grid-cols-4 gap-x-gutter gap-y-stack-md">
