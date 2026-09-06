@@ -32,15 +32,19 @@ export const MOCK_GUIDE: GuidebookData = {
     { id: 'p5', name: 'Naveta des Tudons', description: 'Monumento funerario megalítico de más de 3.000 años, el mejor conservado de Menorca.', category: 'landmark', google_maps_url: 'https://maps.google.com/?q=Naveta+des+Tudons', media: [] },
   ],
   restaurants: [
-    { id: 'r1', name: 'Cafè Balear', slug: 'cafe-balear', cuisine_type: 'Marisco', tier: 'premium', cover_image: '' },
-    { id: 'r2', name: 'Es Tast de na Silvia', slug: 'es-tast', cuisine_type: 'Km 0', tier: 'premium', cover_image: '' },
-    { id: 'r3', name: 'Ulisses', slug: 'ulisses', cuisine_type: 'Mediterránea', tier: 'standard', cover_image: '' },
-    { id: 'r4', name: 'Smoix', slug: 'smoix', cuisine_type: 'Autor', tier: 'premium', cover_image: '' },
+    { id: 'r1', name: 'Cafè Balear', slug: 'cafe-balear', cuisine_type: 'Marisco', tier: 'featured', cover_image: '' },
+    { id: 'r2', name: 'Es Tast de na Silvia', slug: 'es-tast', cuisine_type: 'Km 0', tier: 'featured', cover_image: '' },
+    { id: 'r3', name: 'Ulisses', slug: 'ulisses', cuisine_type: 'Mediterránea', tier: 'basic', cover_image: '' },
+    { id: 'r4', name: 'Smoix', slug: 'smoix', cuisine_type: 'Autor', tier: 'featured', cover_image: '' },
   ],
   experiences: [
-    { id: 'e1', name: 'Paseo en velero al atardecer', description: 'Navega las calas del sur con copa de cava incluida.', category: 'boat', service_subcategory: null, action_type: 'whatsapp', action_data: '', prefilled_message: '', price_display: 'desde 65€', is_featured: true, cta_label: 'Reservar', cover_image_url: '' },
-    { id: 'e2', name: 'Ruta en kayak por cuevas', description: 'Explora cuevas marinas con guía local. 2 h.', category: 'kayak', service_subcategory: null, action_type: 'whatsapp', action_data: '', prefilled_message: '', price_display: '40€', is_featured: false, cta_label: 'Reservar', cover_image_url: '' },
-    { id: 'e3', name: 'Cata de quesos de Mahón', description: 'Degustación en una quesería artesanal con maridaje.', category: 'food', service_subcategory: null, action_type: 'whatsapp', action_data: '', prefilled_message: '', price_display: '30€', is_featured: false, cta_label: 'Reservar', cover_image_url: '' },
+    { id: 'e1', name: 'Paseo en velero al atardecer', description: 'Navega las calas del sur con copa de cava incluida.', category: 'boat', service_subcategory: null, action_type: 'WHATSAPP', action_data: '+34600111222', prefilled_message: '', price_display: 'desde 65€', is_featured: true, cta_label: 'Reservar', cover_image_url: '' },
+    { id: 'e2', name: 'Ruta en kayak por cuevas', description: 'Explora cuevas marinas con guía local. 2 h.', category: 'kayak', service_subcategory: null, action_type: 'WHATSAPP', action_data: '+34600111222', prefilled_message: '', price_display: '40€', is_featured: false, cta_label: 'Reservar', cover_image_url: '' },
+    // Un ítem de enlace afiliado a propósito: los datos simulados sólo tenían
+    // WhatsApp (y encima en minúsculas y sin número), así que el camino del QR
+    // web y el aviso de publicidad no se veían nunca en desarrollo — que es
+    // justo por lo que el fallo de mayúsculas sobrevivió tanto.
+    { id: 'e3', name: 'Cata de quesos de Mahón', description: 'Degustación en una quesería artesanal con maridaje.', category: 'food', service_subcategory: null, action_type: 'URL', action_data: 'https://ejemplo-partner.com/cata?sub=demo-tv', prefilled_message: '', cta_source: 'affiliate', price_display: '30€', is_featured: false, cta_label: 'Reservar', cover_image_url: '' },
   ],
   meta: { lang: 'es', available_langs: ['es', 'en', 'fr', 'de'] },
 }

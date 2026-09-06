@@ -138,6 +138,18 @@ export function DetailScreen({ entry, onBack }: DetailScreenProps) {
                 >
                   {entry.qr.caption}
                 </p>
+                {/* Identificar la recomendación retribuida es obligatorio
+                    (Directiva 2005/29/CE, anexo I.11). La guía ya lo hacía; la
+                    TV no avisaba en ningún sitio. Va junto al QR, que es lo que
+                    el huésped mira, no escondido al final de la ficha. */}
+                {entry.sponsored && (
+                  <p
+                    className="mt-2 max-w-[230px] text-center tv-meta leading-snug opacity-70"
+                    style={{ color: 'var(--tv-text-dim)' }}
+                  >
+                    Publicidad · tu anfitrión puede recibir una comisión
+                  </p>
+                )}
               </div>
             )}
           </div>

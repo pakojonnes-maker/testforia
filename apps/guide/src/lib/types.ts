@@ -7,6 +7,16 @@
 // zone, GET /guide/:slug/explore for any other city) that are deliberately kept
 // identical in shape (see workerGuide.js) — so from here on there's one canonical
 // type instead of four drifting ones.
+/**
+ * Canal del CTA de una experiencia, tal y como llega YA RESUELTO del worker
+ * (workerGuide.js: si el ítem tiene CTA secundario relleno, es ese).
+ *
+ * La unión no es cosmética: mientras esto era `string`, apps/tv comparaba con
+ * 'whatsapp' en minúsculas contra el 'WHATSAPP' que manda el backend y no
+ * enseñaba un QR de reserva jamás, sin que el compilador dijera nada.
+ */
+export type CtaActionType = 'URL' | 'WHATSAPP' | 'PHONE' | 'COUPON' | null;
+
 export interface GuidePoi {
   id: string;
   name: string;

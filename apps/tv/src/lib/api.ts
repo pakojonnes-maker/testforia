@@ -4,6 +4,19 @@
 
 const API_URL = import.meta.env.VITE_API_URL || 'https://visualtasteworker.franciscotortosaestudios.workers.dev'
 
+/**
+ * Tipos de acción del CTA de una experiencia. El backend los escribe SIEMPRE en
+ * mayúsculas (workerGuideAdmin.js) y ahora además los normaliza antes de
+ * responder. Esta unión existe porque el fallo estaba justo aquí: la TV
+ * comparaba con 'whatsapp' en minúsculas contra el 'WHATSAPP' que llegaba, así
+ * que no se generaba un QR de reserva jamás y nadie se dio cuenta — con `string`
+ * el compilador no tenía nada que decir.
+ */
+export type CtaActionType = 'URL' | 'WHATSAPP' | 'PHONE' | 'COUPON' | null
+
+/** guide_zone_restaurants.tier: el CHECK de la tabla sólo admite estos dos. */
+export type RestaurantTier = 'basic' | 'featured'
+
 // ---- Forma de datos del guidebook (espejo de GuidebookPage.tsx en apps/guide) ----
 export interface GuidebookData {
   apartment: {
@@ -22,17 +35,22 @@ export interface GuidebookData {
     id: string; name: string; description: string; category: string; google_maps_url: string; media: any[]
     address?: string | null; phone?: string | null; website_url?: string | null; opening_hours?: string | null
     rating?: number | null; travel_time_text?: string | null; travel_mode?: 'walk' | 'drive' | 'bike' | null; distance_text?: string | null
-    is_featured?: boolean; cover_image_url?: string | null
+    is_featured?: boolean; is_promoted?: boolean; cover_image_url?: string | null
   }>
   restaurants: Array<{
-    id: string; name: string; slug: string; cuisine_type: string; tier: string; cover_image: string
+    id: string; name: string; slug: string; cuisine_type: string; tier: RestaurantTier; cover_image: string
+    is_promoted?: boolean
     address?: string | null; city?: string | null; country?: string | null
     phone?: string | null; website?: string | null; description?: string
   }>
   experiences: Array<{
     id: string; name: string; description: string; category: string; service_subcategory: string | null
-    action_type: string; action_data: string; prefilled_message: string; price_display: string
-    is_featured: boolean; cta_label: string; cover_image_url?: string; media?: any[]
+    // Ya resueltos por el worker: si la experiencia tiene CTA secundario, esto ES
+    // el secundario. La TV no vuelve a decidir — antes lo hacía y se equivocaba.
+    action_type: CtaActionType; action_data: string; prefilled_message: string; price_display: string
+    /** 'affiliate' = el enlace es retribuido y hay que avisarlo en la ficha. */
+    cta_source?: 'affiliate' | 'direct'
+    is_featured: boolean; is_promoted?: boolean; cta_label: string; cover_image_url?: string; media?: any[]
     address?: string | null; phone?: string | null; website_url?: string | null; opening_hours?: string | null
     rating?: number | null; travel_time_text?: string | null; travel_mode?: 'walk' | 'drive' | 'bike' | null
     distance_text?: string | null; duration_text?: string | null

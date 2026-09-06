@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { getTranslation } from '../lib/i18n';
 import { sendChatMessage, type ChatMessage } from '../lib/api';
+import type { CtaActionType } from '../lib/types';
 import CTAButton from './CTAButton';
 
 interface Message {
@@ -14,7 +15,7 @@ interface Message {
 interface RestaurantRef { id: string; name: string; slug: string; }
 interface PoiRef { id: string; name: string; google_maps_url: string; }
 interface ExperienceRef {
-  id: string; name: string; action_type: string; action_data: string;
+  id: string; name: string; action_type: CtaActionType; action_data: string;
   prefilled_message: string; cta_label?: string;
 }
 interface StoreItemRef { id: string; name: string; price_display: string; }

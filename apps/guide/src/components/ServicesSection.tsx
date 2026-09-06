@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { getTranslation, getCategoryLabel, getSubcategoryLabel } from '../lib/i18n';
+import type { CtaActionType } from '../lib/types';
 import { submitStoreOrder } from '../lib/api';
 import CTAButton from './CTAButton';
 import MediaPlaceholder, { isRealImage } from './MediaPlaceholder';
@@ -10,11 +11,16 @@ interface Experience {
   description: string;
   category: string;
   service_subcategory: string | null;
-  action_type: string;
+  // Canal ya resuelto por el worker: si la experiencia tiene CTA secundario
+  // relleno, esto es el secundario y el enlace de afiliado no llega siquiera.
+  action_type: CtaActionType;
   action_data: string;
   prefilled_message: string;
+  /** 'affiliate' = el enlace de este botón es retribuido. */
+  cta_source?: 'affiliate' | 'direct';
   price_display: string;
   is_featured: boolean;
+  is_promoted?: boolean;
   cta_label: string;
   cover_image_url?: string;
   discount_display?: string;
@@ -33,6 +39,7 @@ export interface StoreItem {
   price_display: string;
   cover_image_url?: string | null;
   is_featured: boolean;
+  is_promoted?: boolean;
   in_stock: boolean;
 }
 
@@ -229,12 +236,11 @@ export default function ServicesSection({ experiences, storeItems, zoneName, apa
             <p className="font-body-md text-body-md text-on-surface-variant mt-1">
               {getTranslation('services_subtitle', lang).replace('{zone}', zoneName)}
             </p>
-            {/* Las experiencias son el caso más claro de recomendación retribuida:
-                el anfitrión cobra comisión si el huésped reserva. Identificarlo es
-                obligatorio (Directiva 2005/29/CE, anexo I.11). */}
-            <p className="font-body-sm text-[11px] leading-snug text-on-surface-variant/60 mt-1">
-              {getTranslation('affiliate_disclosure', lang)}
-            </p>
+            {/* El aviso de publicidad se movió a la TARJETA que lo necesita.
+                Aquí daba por retribuidas TODAS las experiencias, y desde que
+                una experiencia puede llevar el contacto directo del partner en
+                vez del enlace de afiliado (migración 0091) eso ya no es cierto:
+                avisar de más también desinforma. */}
           </div>
           <div className="grid grid-cols-1 md:grid-cols-12 gap-x-gutter gap-y-stack-lg">
             {experiences.map((exp, idx) => {
@@ -283,6 +289,13 @@ export default function ServicesSection({ experiences, storeItems, zoneName, apa
                       </div>
                       <div className={isFeatured ? 'w-auto' : 'flex-shrink-0'}>
                         <CTAButton experience={exp} lang={lang} onIntent={(action) => onIntent('experience', exp.id, action)} />
+                        {/* Sólo bajo el botón que de verdad lleva un enlace
+                            retribuido (Directiva 2005/29/CE, anexo I.11). */}
+                        {(exp.cta_source === 'affiliate' || exp.is_promoted) && (
+                          <p className="font-body-sm text-[11px] leading-snug text-on-surface-variant/60 mt-2">
+                            {getTranslation('affiliate_disclosure', lang)}
+                          </p>
+                        )}
                       </div>
                     </div>
                   </div>

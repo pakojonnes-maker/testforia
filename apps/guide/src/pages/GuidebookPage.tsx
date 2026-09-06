@@ -17,7 +17,7 @@ import ServicesSection from '../components/ServicesSection';
 import ChatIASection from '../components/ChatIASection';
 import WelcomeModal, { WelcomeModalData } from '../components/WelcomeModal';
 import { getTranslation, ACTIVE_LANGUAGES, isRtl } from '../lib/i18n';
-import type { GuidePoi, CitySummary, ZoneSummary } from '../lib/types';
+import type { GuidePoi, CitySummary, ZoneSummary, CtaActionType } from '../lib/types';
 
 // Types
 interface GuidebookData {
@@ -52,21 +52,26 @@ interface GuidebookData {
   pois: GuidePoi[];
   restaurants: Array<{
     id: string; name: string; slug: string; cuisine_type: string;
-    tier: string; cover_image: string;
+    tier: 'basic' | 'featured'; cover_image: string;
+    is_promoted?: boolean;
     address: string | null; city: string | null; country: string | null;
   }>;
   experiences: Array<{
     id: string; name: string; description: string; category: string;
     service_subcategory: string | null;
-    action_type: string; action_data: string; prefilled_message: string;
-    price_display: string; is_featured: boolean; cta_label: string;
+    // Resueltos en el worker: si la experiencia tiene CTA secundario, esto ES el
+    // secundario. El cliente ya no elige canal, sólo lo pinta.
+    action_type: CtaActionType; action_data: string; prefilled_message: string;
+    /** 'affiliate' = enlace retribuido; obliga a avisarlo en la tarjeta. */
+    cta_source?: 'affiliate' | 'direct';
+    price_display: string; is_featured: boolean; is_promoted?: boolean; cta_label: string;
     cover_image_url?: string;
   }>;
   store_items: Array<{
     id: string; owner_type: 'host' | 'platform'; category: string;
     name: string; description: string; price_amount: number | null;
     price_currency: string; price_display: string; cover_image_url?: string | null;
-    is_featured: boolean; in_stock: boolean;
+    is_featured: boolean; is_promoted?: boolean; in_stock: boolean;
   }>;
   meta: { lang: string; available_langs: string[]; active_devices_24h?: number };
   welcome_modal: WelcomeModalData | null;

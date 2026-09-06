@@ -35,8 +35,15 @@ export interface Entry {
   /** Fotos adicionales para la galería del detalle, además de `image`. Real
    *  siempre: viene de guide_poi_media o de la portada, nunca inventada. */
   gallery: string[]
-  /** Distintivo sobre la foto (Premium / Destacado). */
+  /** Distintivo sobre la foto (Destacado). */
   badge?: string
+  /**
+   * El enlace de esta ficha es retribuido (afiliación) o su puesto está
+   * pagado. Hay que decirlo donde el huésped lo vea: identificar la publicidad
+   * es obligatorio (Directiva 2005/29/CE, anexo I.11), y en la TV no había
+   * ningún aviso — sólo en la guía.
+   */
+  sponsored: boolean
   /** true = alimenta la fila "Destacados" de la colección en vez de su
    *  categoría. Restaurantes no tienen este concepto (siempre false): "Premium"
    *  ya es su distintivo, ver buildEat. */
@@ -80,6 +87,49 @@ function whatsappUrl(phone: string, message?: string): string {
 }
 
 /**
+ * QR de reserva de una experiencia, sea cual sea el canal.
+ *
+ * Antes esto sólo miraba `action_type === 'whatsapp'` en minúsculas — y el
+ * backend manda 'WHATSAPP' — así que NINGUNA experiencia enseñaba QR en la TV,
+ * ni las de WhatsApp ni las de enlace web. El tipo llega ya resuelto por el
+ * worker (si hay CTA secundario, es el secundario), así que aquí sólo hay que
+ * traducirlo a algo escaneable.
+ *
+ * El caption dice qué pasa al escanear, no repite la etiqueta del botón: en la
+ * TV no hay botón que etiquetar.
+ */
+function bookingQr(exp: GuidebookData['experiences'][number]): EntryQr | undefined {
+  const data = (exp.action_data || '').trim()
+  if (!data) return undefined
+
+  switch (exp.action_type) {
+    case 'WHATSAPP':
+      return {
+        data: whatsappUrl(data, exp.prefilled_message),
+        caption: 'Escanea para reservar por WhatsApp',
+        event: 'booking_qr_shown',
+      }
+    case 'URL':
+      return {
+        data,
+        caption: 'Escanea para reservar en tu móvil',
+        event: 'booking_qr_shown',
+      }
+    case 'PHONE':
+      // Un QR `tel:` abre el marcador del móvil ya con el número puesto: en una
+      // TV es más útil que enseñar los dígitos para que los copie a mano.
+      return {
+        data: `tel:${data.replace(/[^+\d]/g, '')}`,
+        caption: 'Escanea para llamar y reservar',
+        event: 'booking_qr_shown',
+      }
+    default:
+      // COUPON no tiene destino que escanear.
+      return undefined
+  }
+}
+
+/**
  * Une portada + galería en una sola lista sin huecos ni duplicados: la
  * portada (cover_image_url) y la galería (guide_poi_media) son dos campos
  * independientes en el backend y a veces se pisan (la portada es también la
@@ -103,14 +153,19 @@ function buildEat(data: GuidebookData): Entry[] {
     // Un restaurante delega su fotografía a la carta Gravy (QR abajo): ese es
     // el catálogo visual real, no un mosaico de fotos sueltas en la TV.
     gallery: [],
-    featured: false,
-    badge: r.tier === 'premium' ? 'Premium' : undefined,
+    // El tier real de guide_zone_restaurants es 'basic' | 'featured' (CHECK de
+    // la tabla). Aquí se comparaba con 'premium', que no existe: ni el badge ni
+    // la fila de destacados se activaban nunca. Ahora un restaurante destacado
+    // sube a su propia fila, igual que una experiencia destacada.
+    featured: r.tier === 'featured' || r.is_promoted === true,
+    badge: r.tier === 'featured' ? 'Destacado' : undefined,
+    sponsored: r.is_promoted === true,
     category: 'restaurant',
     // Sin tipo de cocina el antetítulo ya dice 'Restaurante'; repetirlo como
     // chip justo debajo sólo añade ruido.
     facts: [
       ...(r.cuisine_type ? [{ icon: '🍽️', label: r.cuisine_type }] : []),
-      ...(r.tier === 'premium' ? [{ icon: '⭐', label: 'Selección del anfitrión' }] : []),
+      ...(r.tier === 'featured' ? [{ icon: '⭐', label: 'Selección del anfitrión' }] : []),
     ],
     address: [r.address, r.city].filter(Boolean).join(', ') || null,
     phone: r.phone || null,
@@ -130,7 +185,6 @@ function buildEat(data: GuidebookData): Entry[] {
 
 function buildDo(data: GuidebookData): Entry[] {
   return data.experiences.map((e): Entry => {
-    const whatsappNumber = e.action_type === 'whatsapp' ? e.action_data : null
     const { image, gallery } = photoSet(e.cover_image_url, e.media)
     return {
       id: e.id,
@@ -140,8 +194,12 @@ function buildDo(data: GuidebookData): Entry[] {
       description: e.description || '',
       image,
       gallery,
-      featured: e.is_featured,
+      // Una experiencia con el puesto pagado sube a la fila de destacados
+      // igual que una destacada por criterio del anfitrión; lo que las
+      // distingue es el aviso de publicidad, no la posición.
+      featured: e.is_featured || e.is_promoted === true,
       badge: e.is_featured ? 'Destacado' : undefined,
+      sponsored: e.cta_source === 'affiliate' || e.is_promoted === true,
       category: e.category,
       subcategory: e.service_subcategory,
       address: e.address || null,
@@ -157,13 +215,7 @@ function buildDo(data: GuidebookData): Entry[] {
         ...(e.category ? [{ icon: '🎟️', label: e.category }] : []),
         ...(e.duration_text ? [{ icon: '⏱️', label: e.duration_text }] : []),
       ],
-      qr: whatsappNumber
-        ? {
-            data: whatsappUrl(whatsappNumber, e.prefilled_message),
-            caption: e.cta_label || 'Escanea para reservar por WhatsApp',
-            event: 'booking_qr_shown',
-          }
-        : undefined,
+      qr: bookingQr(e),
     }
   })
 }
@@ -179,8 +231,9 @@ function buildNearby(data: GuidebookData): Entry[] {
       description: p.description || '',
       image,
       gallery,
-      featured: p.is_featured === true,
+      featured: p.is_featured === true || p.is_promoted === true,
       badge: p.is_featured ? 'Destacado' : undefined,
+      sponsored: p.is_promoted === true,
       category: p.category,
       address: p.address || null,
       phone: p.phone || null,

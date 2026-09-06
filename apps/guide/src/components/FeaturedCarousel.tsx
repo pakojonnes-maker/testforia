@@ -7,16 +7,19 @@ type ItemKind = 'restaurant' | 'experience' | 'product';
 
 interface Restaurant {
   id: string; name: string; slug: string; cuisine_type: string; tier: string; cover_image: string;
+  is_promoted?: boolean;
 }
 interface Experience {
-  id: string; name: string; category: string; is_featured: boolean; cover_image_url?: string; price_display: string;
+  id: string; name: string; category: string; is_featured: boolean; is_promoted?: boolean; cover_image_url?: string; price_display: string;
 }
 interface StoreItem {
-  id: string; name: string; category: string; price_display: string; cover_image_url?: string | null; is_featured: boolean;
+  id: string; name: string; category: string; price_display: string; cover_image_url?: string | null; is_featured: boolean; is_promoted?: boolean;
 }
 
 interface CarouselItem {
   id: string; kind: ItemKind; name: string; subtitle: string; image?: string | null; price?: string; tab: TabKey;
+  /** Puesto de pago: abre el carrusel, que es el sitio más visible de la guía. */
+  promoted?: boolean;
 }
 
 interface FeaturedCarouselProps {
@@ -37,26 +40,30 @@ const ROTATE_MS = 6000;
 export default function FeaturedCarousel({ restaurants, experiences, storeItems, lang, onNavigateTab, onIntent }: FeaturedCarouselProps) {
   const items: CarouselItem[] = useMemo(() => {
     const list: CarouselItem[] = [];
-    experiences.filter(e => e.is_featured).forEach(e => list.push({
+    experiences.filter(e => e.is_featured || e.is_promoted).forEach(e => list.push({
       id: `experience-${e.id}`, kind: 'experience', name: e.name,
       subtitle: getCategoryLabel(e.category, lang), image: e.cover_image_url,
-      price: e.price_display, tab: 'services',
+      price: e.price_display, tab: 'services', promoted: e.is_promoted,
     }));
-    storeItems.filter(i => i.is_featured).forEach(i => list.push({
+    storeItems.filter(i => i.is_featured || i.is_promoted).forEach(i => list.push({
       id: `product-${i.id}`, kind: 'product', name: i.name,
       subtitle: getCategoryLabel(i.category, lang), image: i.cover_image_url,
-      price: i.price_display, tab: 'services',
+      price: i.price_display, tab: 'services', promoted: i.is_promoted,
     }));
     // `guide_zone_restaurants.tier` solo admite 'basic'|'featured' — igual que en
     // RestaurantsSection.tsx, no comparar nunca contra 'premium'.
-    restaurants.filter(r => r.tier === 'featured').forEach(r => list.push({
+    restaurants.filter(r => r.tier === 'featured' || r.is_promoted).forEach(r => list.push({
       id: `restaurant-${r.id}`, kind: 'restaurant', name: r.name,
       subtitle: r.cuisine_type
         ? getTranslation('cuisine_label', lang).replace('{cuisine}', r.cuisine_type)
         : getTranslation('category_restaurants', lang),
-      image: r.cover_image, tab: 'restaurants',
+      image: r.cover_image, tab: 'restaurants', promoted: r.is_promoted,
     }));
-    return list;
+    // La lista se arma por tipo (experiencias, productos, restaurantes), así que
+    // sin esto un puesto pagado de restaurante quedaría detrás de cualquier
+    // experiencia destacada. Array.prototype.sort es estable en ES2019+, así que
+    // dentro de cada grupo se conserva el orden que ya trae el backend.
+    return list.sort((a, b) => Number(!!b.promoted) - Number(!!a.promoted));
   }, [restaurants, experiences, storeItems, lang]);
 
   const [index, setIndex] = useState(0);

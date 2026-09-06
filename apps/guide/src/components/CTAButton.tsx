@@ -1,10 +1,12 @@
 import React from 'react';
 import { buildWhatsAppUrl } from '../lib/api';
 import { getTranslation } from '../lib/i18n';
+import type { CtaActionType } from '../lib/types';
 
 interface Experience {
   id: string;
-  action_type: string;
+  // Ya resuelto por el worker (principal o secundario, ver workerGuide.js).
+  action_type: CtaActionType;
   action_data: string;
   prefilled_message: string;
   cta_label?: string;
@@ -20,6 +22,10 @@ interface CTAButtonProps {
 // of the guidebook palette, guests recognize it), everything else is cobalt.
 export default function CTAButton({ experience, lang, onIntent }: CTAButtonProps) {
   const { action_type, action_data, prefilled_message, cta_label } = experience;
+
+  // Sin canal o sin destino no hay nada que pulsar. Antes se pintaba igual un
+  // botón que caía en el `default` del switch y no hacía absolutamente nada.
+  if (!action_type || !action_data?.trim()) return null;
 
   const handleClick = () => {
     switch (action_type) {
