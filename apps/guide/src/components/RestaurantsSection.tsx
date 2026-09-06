@@ -59,10 +59,9 @@ export default function RestaurantsSection({ restaurants, zoneName, lang, onInte
   return (
     <div className="flex flex-col gap-stack-lg">
       <section className="flex flex-col gap-2 max-w-2xl mx-auto w-full">
-        <h2 className="font-display-xl text-display-lg md:text-display-xl text-on-background uppercase tracking-wide">
+        <h2 className="font-display-xl text-display-lg md:text-display-xl text-primary uppercase tracking-wide">
           {getTranslation('restaurants_title', lang).replace('{zone}', zoneName || getTranslation('surroundings_fallback', lang))}
         </h2>
-        <p className="font-body-lg text-body-lg text-on-surface-variant">{getTranslation('restaurants_default_description', lang)}</p>
         {/* Divulgación de la relación comercial. Una recomendación retribuida que
             no se identifica como tal es publicidad encubierta (Directiva
             2005/29/CE, art. 7.2 y anexo I.11; en España, TRLGDCU y Ley 3/1991).
@@ -81,14 +80,17 @@ export default function RestaurantsSection({ restaurants, zoneName, lang, onInte
 
           return (
             <article key={r.id} className="bg-surface-container-lowest border border-on-background/10 flex flex-col w-full">
-              <div className="relative w-full h-[240px] md:h-[300px] shrink-0">
+              {/* Arco a juego con las tarjetas de guías/experiencias (InfoSection,
+                  ServicesSection) — antes era una foto rectangular a sangre, la
+                  única de la app sin el tratamiento en arco. */}
+              <div className="relative w-full aspect-[4/5] p-2 shrink-0">
                 {isRealImage(r.cover_image) ? (
-                  <img className="w-full h-full object-cover" src={r.cover_image} alt={r.name} />
+                  <img className="w-full h-full object-cover arch-mask" src={r.cover_image} alt={r.name} />
                 ) : (
-                  <MediaPlaceholder label={r.name} />
+                  <MediaPlaceholder label={r.name} className="arch-mask" />
                 )}
                 {isFeatured && (
-                  <div className="absolute top-4 right-4 stamped-badge-1 bg-tertiary-fixed-dim text-on-tertiary-fixed font-mono-badge text-mono-badge px-2.5 py-1.5 border border-on-background/20 uppercase">
+                  <div className="absolute top-5 right-5 stamped-badge-1 bg-tertiary-fixed-dim text-on-tertiary-fixed font-mono-badge text-mono-badge px-2.5 py-1.5 border border-on-background/20 uppercase">
                     {getTranslation('premium_badge', lang)}
                   </div>
                 )}

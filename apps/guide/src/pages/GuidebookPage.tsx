@@ -8,7 +8,7 @@ const MENU_URL = import.meta.env.VITE_MENU_URL || 'https://menu.visualtastes.com
 import WelcomeHero from '../components/WelcomeHero';
 import FeaturedCarousel from '../components/FeaturedCarousel';
 import ProductBillboard from '../components/ProductBillboard';
-import Header from '../components/Header';
+import Header, { LanguageSwitcher } from '../components/Header';
 import BottomNavBar from '../components/BottomNavBar';
 import InfoSection from '../components/InfoSection';
 import ExploreSection from '../components/explore/ExploreSection';
@@ -462,6 +462,11 @@ export default function GuidebookPage() {
   // explore uses h-dvh (no bottom input bar fighting mobile browser chrome).
   const isExploreTab = activeTab === 'discover';
   const isFullBleed = isChatTab || isExploreTab;
+  // info/restaurantes/chat pierden la cabecera y en su lugar dejan el selector de
+  // idioma flotando en la esquina (ver más abajo) — <main> reserva un hueco de
+  // sitio para que ese círculo no tape nada (el título de Restaurantes llega a
+  // ocupar 3 líneas en móvil y se metía debajo).
+  const showFloatingLangCorner = !isExploreTab && activeTab !== 'services';
 
   // min-h-screen deja crecer la página más allá del viewport, que es lo que
   // queremos en las pestañas normales (contenido largo, footer al final). En
@@ -478,16 +483,31 @@ export default function GuidebookPage() {
         <WelcomeModal welcome={data.welcome_modal} onClose={() => setShowWelcome(false)} lang={lang} />
       )}
 
-      {/* Explore is a fullscreen map — the app masthead would just eat into
-          it for no reason. Its own ExploreTopBar carries the language
-          switcher instead, in the same row as the search pill. */}
-      {!isExploreTab && (
+      {/* El masthead completo (idioma + nav de escritorio) se queda solo en
+          "services" — la única pestaña que lo conserva, así que en
+          escritorio (donde BottomNavBar es md:hidden) siempre hay un sitio
+          desde el que volver a cualquier otra. Info/restaurantes/chat van
+          sin cabecera, igual que Explorar ya hacía por ser mapa a pantalla
+          completa: solo dejan el selector de idioma flotando en la esquina
+          (mismo control, variant="floating", que ExploreTopBar). */}
+      {activeTab === 'services' ? (
         <Header
           activeTab={activeTab}
           onTabChange={setActiveTab}
           lang={lang}
           onLanguageChange={handleLanguageChange}
         />
+      ) : showFloatingLangCorner && (
+        // absolute (no fixed) sobre el shell de la app (el <div className="guide-app
+        // ... relative ..."> raíz): en info/restaurantes, donde <main> no tiene
+        // altura propia y es la página entera la que hace scroll, esto se desplaza
+        // con el contenido y deja de tapar botones más abajo (pasaba con el código
+        // de entrada de InfoSection). En chat, el shell raíz es h-screen
+        // overflow-hidden y no hace scroll él mismo, así que el efecto ahí sigue
+        // siendo "flotando en la esquina" todo el rato, igual que en Explorar.
+        <div className="absolute top-4 end-4 z-50">
+          <LanguageSwitcher lang={lang} onLanguageChange={handleLanguageChange} variant="floating" />
+        </div>
       )}
 
       {/* El chat y explorar son apps de pantalla completa sin scroll de página
@@ -497,10 +517,10 @@ export default function GuidebookPage() {
           BottomNavBar fijo (h-16) para que no tape el input/sheet. */}
       <main
         className={isChatTab
-          ? "flex-1 min-h-0 flex flex-col w-full max-w-container-max mx-auto px-margin-mobile md:px-margin-desktop pt-6 pb-16 md:pb-6"
+          ? `flex-1 min-h-0 flex flex-col w-full max-w-container-max mx-auto px-margin-mobile md:px-margin-desktop ${showFloatingLangCorner ? 'pt-16' : 'pt-6'} pb-16 md:pb-6`
           : isExploreTab
           ? "relative flex-1 min-h-0 overflow-hidden pb-16 md:pb-0"
-          : "w-full max-w-container-max mx-auto px-margin-mobile md:px-margin-desktop py-8 flex flex-col gap-12"}
+          : `w-full max-w-container-max mx-auto px-margin-mobile md:px-margin-desktop ${showFloatingLangCorner ? 'pt-20 pb-8' : 'py-8'} flex flex-col gap-12`}
         onTouchStart={handleTouchStart}
         onTouchMove={handleTouchMove}
         onTouchEnd={handleTouchEnd}
@@ -596,13 +616,7 @@ export default function GuidebookPage() {
       {!isFullBleed && (
         <footer style={{
           textAlign: 'center',
-          padding: '32px 16px',
-          /* Sin marginTop propio: <main> ya cierra con py-8 (32px) y este
-             padding añade otros 32px — un var(--sp-2xl) (48px) extra aquí
-             apilaba tres espacios seguidos (112px en total) antes de que
-             apareciera cualquier texto. Con una pestaña que termina en un
-             elemento a sangre como ProductBillboard el hueco se notaba
-             todavía más, por el borde duro de la cinta justo encima. */
+          padding: 0,
           marginBottom: '80px', /* space for bottom nav */
           fontSize: '0.75rem',
           color: 'var(--gris-medio)'

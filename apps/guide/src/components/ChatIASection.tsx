@@ -180,6 +180,35 @@ function getUpsellHint(lang: string, itemName: string): string {
   return templates[lang] || templates.es;
 }
 
+// Portada del concierge IA — arco a juego con el resto de la app. Antes este
+// hueco solo tenía un icono genérico ("spark") sobre un fondo de color, sin
+// ninguna foto real ("portada" a secas). onError cae de vuelta a ese mismo
+// icono (mismo patrón que FlagIcon en Header.tsx) si /ai-concierge-cover.jpg
+// no existe todavía en apps/guide/public/ — así nunca se ve un icono de
+// imagen rota mientras nadie ha subido la foto definitiva.
+function AiCoverImage() {
+  const [errored, setErrored] = useState(false);
+
+  if (errored) {
+    return (
+      <div className="w-20 h-24 arch-mask bg-primary/10 border border-primary/20 flex items-center justify-center mx-auto mb-3">
+        <span className="material-symbols-outlined text-primary text-3xl" style={{ fontVariationSettings: "'FILL' 1" }}>spark</span>
+      </div>
+    );
+  }
+
+  return (
+    <div className="w-20 h-24 arch-mask overflow-hidden border border-primary/20 mx-auto mb-3 bg-surface-variant">
+      <img
+        src="/ai-concierge-cover.jpg"
+        alt=""
+        className="w-full h-full object-cover"
+        onError={() => setErrored(true)}
+      />
+    </div>
+  );
+}
+
 export default function ChatIASection({
   lang, apartmentId, apartmentName,
   restaurants = [], pois = [], experiences = [], storeItems = [],
@@ -327,13 +356,11 @@ export default function ChatIASection({
 
   return (
     <div className="flex flex-col h-full min-h-0 w-full max-w-3xl mx-auto relative bg-surface">
-      {/* AI Header — "AI Concierge" (Stitch): avatar en arco, título pequeño en una línea.
+      {/* AI Header — "AI Concierge" (Stitch): portada en arco, título pequeño en una línea.
           Antes usaba text-display-lg (36px serif) para un rótulo de una palabra: se
           rompía en 2 líneas y dominaba el panel entero. */}
       <div className="text-center mb-6 shrink-0">
-        <div className="w-20 h-24 arch-mask bg-primary/10 border border-primary/20 flex items-center justify-center mx-auto mb-3">
-          <span className="material-symbols-outlined text-primary text-3xl" style={{ fontVariationSettings: "'FILL' 1" }}>spark</span>
-        </div>
+        <AiCoverImage />
         <h2 className="font-label-lg text-label-lg text-primary uppercase tracking-widest whitespace-nowrap">{getTranslation('chat_assistant_title', lang)}</h2>
       </div>
 
@@ -345,43 +372,34 @@ export default function ChatIASection({
         style={{ scrollbarWidth: 'thin' }}
       >
         {messages.map(msg => (
+          // Solo la burbuja, sin avatar — como WhatsApp. Antes cada mensaje llevaba
+          // un icono de 32px (spark/person) indicando quién "habla"; a petición
+          // expresa se quita también en el chat en sí, no solo en la cabecera.
           <div
             key={msg.id}
-            className={`flex gap-3 max-w-[85%] ${msg.sender === 'user' ? 'self-end flex-row-reverse' : 'flex-col'}`}
+            className={`flex flex-col gap-2 max-w-[85%] ${msg.sender === 'user' ? 'self-end' : ''}`}
           >
-            <div className={`flex gap-3 ${msg.sender === 'user' ? 'flex-row-reverse' : ''}`}>
-              {msg.sender === 'ai' ? (
-                <div className="w-8 h-8 rounded-full bg-primary/10 flex-shrink-0 flex items-center justify-center mt-1">
-                  <span className="material-symbols-outlined text-primary text-sm" style={{ fontVariationSettings: "'FILL' 1" }}>spark</span>
-                </div>
-              ) : (
-                <div className="w-8 h-8 rounded-full bg-surface-container-high flex-shrink-0 overflow-hidden mt-1 flex items-center justify-center">
-                  <span className="material-symbols-outlined text-on-surface-variant text-sm">person</span>
-                </div>
+            <div
+              className={`p-4 rounded-3xl border text-body-md font-body-md ${
+                msg.sender === 'user'
+                  ? 'bg-primary border-primary text-on-primary rounded-tr-sm'
+                  : 'bg-surface-container-lowest border-primary/20 text-on-surface rounded-tl-sm'
+              }`}
+            >
+              {msg.text || (msg.streaming && (
+                <span className="flex items-center gap-1">
+                  <span className="w-1.5 h-1.5 bg-primary rounded-full animate-bounce [animation-delay:0ms]" />
+                  <span className="w-1.5 h-1.5 bg-primary rounded-full animate-bounce [animation-delay:150ms]" />
+                  <span className="w-1.5 h-1.5 bg-primary rounded-full animate-bounce [animation-delay:300ms]" />
+                </span>
+              ))}
+              {msg.streaming && msg.text && (
+                <span className="inline-block w-0.5 h-4 bg-primary ml-0.5 animate-pulse align-middle" />
               )}
-
-              <div
-                className={`p-4 rounded-3xl border text-body-md font-body-md ${
-                  msg.sender === 'user'
-                    ? 'bg-primary border-primary text-on-primary rounded-tr-sm'
-                    : 'bg-surface-container-lowest border-primary/20 text-on-surface rounded-tl-sm'
-                }`}
-              >
-                {msg.text || (msg.streaming && (
-                  <span className="flex items-center gap-1">
-                    <span className="w-1.5 h-1.5 bg-primary rounded-full animate-bounce [animation-delay:0ms]" />
-                    <span className="w-1.5 h-1.5 bg-primary rounded-full animate-bounce [animation-delay:150ms]" />
-                    <span className="w-1.5 h-1.5 bg-primary rounded-full animate-bounce [animation-delay:300ms]" />
-                  </span>
-                ))}
-                {msg.streaming && msg.text && (
-                  <span className="inline-block w-0.5 h-4 bg-primary ml-0.5 animate-pulse align-middle" />
-                )}
-              </div>
             </div>
 
             {msg.recs && msg.recs.length > 0 && (
-              <div className="flex flex-col gap-2 pl-11 max-w-full">
+              <div className="flex flex-col gap-2 max-w-full">
                 {msg.recs.map((ref, i) => renderRec(ref, i))}
               </div>
             )}
