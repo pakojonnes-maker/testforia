@@ -32,11 +32,9 @@ function EntryCard({ entry, autoFocus, onSelect }: { entry: Entry; autoFocus?: b
           src={entry.image}
           fallback={
             <div
-              className="absolute inset-0 grid place-items-center"
+              className="absolute inset-0"
               style={{ background: `linear-gradient(150deg, ${visual.from}, ${visual.to})` }}
-            >
-              <span className="text-7xl">{visual.emoji}</span>
-            </div>
+            />
           }
         />
 

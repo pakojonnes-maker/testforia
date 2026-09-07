@@ -4,7 +4,7 @@ import { PhotoTile, PlainTile, CodeTile, WifiTile } from '../components/Tile'
 import { BrandedQr } from '../components/BrandedQr'
 import { LanguageFlag } from '../components/LanguageFlag'
 import { wifiQrPayload } from '../lib/mockData'
-import { isDoorCode } from '../lib/infoIcon'
+import { isDoorCode } from '../lib/infoKeys'
 import { languageOption } from '../lib/languages'
 import { getTvString } from '../lib/i18n'
 import { track } from '../lib/tracking'
@@ -97,7 +97,6 @@ export function HomeScreen({ data, collections, lang, onNavigate }: HomeScreenPr
         <PlainTile
           id="tile-info"
           area="info"
-          icon="📋"
           value={getTvString('rules', lang)}
           label={getTvString('quick_guides', lang)}
           onSelect={() => onNavigate({ name: 'info' })}
@@ -125,7 +124,6 @@ export function HomeScreen({ data, collections, lang, onNavigate }: HomeScreenPr
           <PlainTile
             id="tile-wifi"
             area="wifi"
-            icon="📶"
             label="Consulta los datos del WiFi con tu anfitrión"
             onSelect={() => onNavigate({ name: 'wifi' })}
           />
@@ -166,7 +164,6 @@ export function HomeScreen({ data, collections, lang, onNavigate }: HomeScreenPr
           id="tile-stay"
           area="stay"
           compact
-          icon="🕚"
           value={checkin && checkout ? `${checkin} · ${checkout}` : checkout || checkin || '—'}
           label={checkin && checkout ? 'Entrada y salida' : 'Tu estancia'}
           onSelect={() => onNavigate({ name: 'info' })}

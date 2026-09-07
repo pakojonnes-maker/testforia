@@ -56,7 +56,7 @@ export interface Entry {
    *  ya es su distintivo, ver buildEat. */
   featured: boolean
   /** Chips de datos junto al título en el detalle. */
-  facts: Array<{ icon: string; label: string }>
+  facts: Array<{ label: string }>
   qr?: EntryQr
   category?: string
   subcategory?: string | null
@@ -173,8 +173,8 @@ function buildEat(data: GuidebookData): Entry[] {
     // Sin tipo de cocina el antetítulo ya dice 'Restaurante'; repetirlo como
     // chip justo debajo sólo añade ruido.
     facts: [
-      ...(r.cuisine_type ? [{ icon: '🍽️', label: r.cuisine_type }] : []),
-      ...(r.tier === 'featured' ? [{ icon: '⭐', label: 'Selección del anfitrión' }] : []),
+      ...(r.cuisine_type ? [{ label: r.cuisine_type }] : []),
+      ...(r.tier === 'featured' ? [{ label: 'Selección del anfitrión' }] : []),
     ],
     address: [r.address, r.city].filter(Boolean).join(', ') || null,
     phone: r.phone || null,
@@ -221,8 +221,8 @@ function buildDo(data: GuidebookData): Entry[] {
       // El precio ya es el antetítulo de la ficha (y el pie de la tarjeta), así
       // que no se repite como chip: en el detalle salía dos veces seguidas.
       facts: [
-        ...(e.category ? [{ icon: '🎟️', label: e.category }] : []),
-        ...(e.duration_text ? [{ icon: '⏱️', label: e.duration_text }] : []),
+        ...(e.category ? [{ label: e.category }] : []),
+        ...(e.duration_text ? [{ label: e.duration_text }] : []),
       ],
       qr: bookingQr(e),
     }

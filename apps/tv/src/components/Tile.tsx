@@ -89,14 +89,21 @@ export function PhotoTile({
 export function PlainTile({
   id, area, autoFocus, onSelect, icon, label, value, accent, compact,
 }: BaseProps & {
-  icon: ReactNode
+  /**
+   * OPCIONAL, y hoy sólo lo usa la bandera del idioma. Los emoji decorativos
+   * que llevaban estas teselas (📋, 📶, 🕚) se quitaron: cada uno estaba pegado
+   * a una etiqueta que ya decía lo mismo. Si vuelve a hacer falta un icono
+   * aquí, que sea un nodo real (SVG o imagen), nunca un carácter emoji — ver
+   * lib/languages.ts sobre por qué no son fiables en esta plataforma.
+   */
+  icon?: ReactNode
   label: string
   value?: string
   /** Pinta la tesela con el color de marca: se reserva a UNA por rejilla. */
   accent?: boolean
-  /** Icono + texto en una sola fila, centrados — para contenido de una sola
-   *  palabra (idioma, hora) donde el patrón icono-arriba/valor-abajo dejaba
-   *  la tesela con mucho hueco muerto alrededor de casi nada. */
+  /** Contenido centrado en una sola fila — para valores de una palabra
+   *  (idioma, hora) donde el patrón etiqueta-abajo dejaba la tesela con mucho
+   *  hueco muerto alrededor de casi nada. */
   compact?: boolean
 }) {
   return (
@@ -106,22 +113,35 @@ export function PlainTile({
         border: accent ? '1px solid transparent' : '1px solid var(--tv-line)',
       }}>
       {compact ? (
-        <div className="flex h-full items-center justify-center gap-4 px-6">
-          <div className="shrink-0 text-3xl leading-none" style={{ color: accent ? 'var(--tv-accent-ink)' : 'var(--tv-accent)' }}>
-            {icon}
-          </div>
-          <div
-            className="t-display truncate tv-card font-bold"
-            style={{ color: accent ? 'var(--tv-accent-ink)' : 'var(--tv-text)' }}
-          >
-            {value || label}
+        <div className="flex h-full flex-col items-center justify-center gap-2 px-6 text-center">
+          {/* La etiqueta pasa a ser un antetítulo visible. En compacto sólo se
+              pintaba `value`, y el icono era lo único que insinuaba de qué iba:
+              sin el reloj, "15:00 · 11:00" era un número desnudo. Ahora lo dice
+              el texto, que además es lo que sí se lee a 3 m. */}
+          {value && (
+            <div className="t-label" style={{ color: accent ? 'var(--tv-accent-ink)' : 'var(--tv-text-faint)' }}>
+              {label}
+            </div>
+          )}
+          <div className="flex min-w-0 items-center justify-center gap-3">
+            {icon && <span className="shrink-0 leading-none">{icon}</span>}
+            <span
+              className="t-display truncate tv-card font-bold"
+              style={{ color: accent ? 'var(--tv-accent-ink)' : 'var(--tv-text)' }}
+            >
+              {value || label}
+            </span>
           </div>
         </div>
       ) : (
-        <div className="flex h-full flex-col justify-between p-6">
-          <div className="text-5xl leading-none" style={{ color: accent ? 'var(--tv-accent-ink)' : 'var(--tv-accent)' }}>
-            {icon}
-          </div>
+        // Sin icono el contenido se ancla ABAJO, como el rótulo de PhotoTile:
+        // con `justify-between` y un solo hijo se quedaba pegado arriba.
+        <div className={`flex h-full flex-col p-6 ${icon ? 'justify-between' : 'justify-end'}`}>
+          {icon && (
+            <div className="text-5xl leading-none" style={{ color: accent ? 'var(--tv-accent-ink)' : 'var(--tv-accent)' }}>
+              {icon}
+            </div>
+          )}
           <div className="min-w-0">
             {value && (
               <div

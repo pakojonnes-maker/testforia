@@ -27,13 +27,22 @@ function DetailInfoCard({ title, children }: { title: string; children: ReactNod
   )
 }
 
-function DetailInfoRow({ icon, text }: { icon: string; text: string }) {
+function DetailInfoRow({ text }: { text: string }) {
   return (
-    <div className="flex items-start gap-3 tv-body" style={{ color: 'var(--tv-text-dim)' }}>
-      <span aria-hidden="true" className="shrink-0">{icon}</span>
-      <span className="min-w-0 whitespace-pre-wrap break-words">{text}</span>
+    <div className="tv-body whitespace-pre-wrap break-words" style={{ color: 'var(--tv-text-dim)' }}>
+      {text}
     </div>
   )
+}
+
+/**
+ * El modo de transporte era el ÚNICO emoji de la ficha que llevaba información
+ * propia: "🚶 1,2 km · 15 min" y "🚗 1,2 km · 15 min" dicen cosas distintas y el
+ * texto no lo repetía. Al quitar la iconografía se pasa a decirlo con palabras,
+ * que además se entiende sin depender de que el aparato pinte el emoji.
+ */
+function travelModeLabel(mode?: 'walk' | 'drive' | 'bike' | null): string {
+  return mode === 'walk' ? 'A pie' : mode === 'bike' ? 'En bici' : 'En coche'
 }
 
 /**
@@ -153,11 +162,9 @@ export function DetailScreen({ entry, apartmentId, onBack }: DetailScreenProps) 
               src={entry.image}
               fallback={
                 <div
-                  className="absolute inset-0 grid place-items-center"
+                  className="absolute inset-0"
                   style={{ background: `linear-gradient(150deg, ${visual.from}, ${visual.to})` }}
-                >
-                  <span className="text-[9rem]">{visual.emoji}</span>
-                </div>
+                />
               }
             />
 
@@ -206,10 +213,9 @@ export function DetailScreen({ entry, apartmentId, onBack }: DetailScreenProps) 
                   {entry.facts.map(fact => (
                     <span
                       key={fact.label}
-                      className="flex items-center gap-2 rounded-full px-5 py-2.5 tv-meta font-semibold capitalize"
+                      className="rounded-full px-5 py-2.5 tv-meta font-semibold capitalize"
                       style={{ background: 'var(--tv-surface-raised)', color: 'var(--tv-text-dim)' }}
                     >
-                      <span aria-hidden="true">{fact.icon}</span>
                       {fact.label}
                     </span>
                   ))}
@@ -261,10 +267,10 @@ export function DetailScreen({ entry, apartmentId, onBack }: DetailScreenProps) 
 
             {hasContact && (
               <DetailInfoCard title="Datos de contacto">
-                {entry.address && <DetailInfoRow icon="📍" text={entry.address} />}
-                {entry.phone && <DetailInfoRow icon="📞" text={entry.phone} />}
-                {entry.website && <DetailInfoRow icon="🌐" text={entry.website} />}
-                {entry.openingHours && <DetailInfoRow icon="🕒" text={entry.openingHours} />}
+                {entry.address && <DetailInfoRow text={entry.address} />}
+                {entry.phone && <DetailInfoRow text={entry.phone} />}
+                {entry.website && <DetailInfoRow text={entry.website} />}
+                {entry.openingHours && <DetailInfoRow text={entry.openingHours} />}
               </DetailInfoCard>
             )}
 
@@ -272,14 +278,16 @@ export function DetailScreen({ entry, apartmentId, onBack }: DetailScreenProps) 
               <DetailInfoCard title="Distancia y cómo llegar">
                 {entry.distanceText && (
                   <DetailInfoRow
-                    icon={entry.travelMode === 'walk' ? '🚶' : entry.travelMode === 'bike' ? '🚲' : '🚗'}
-                    text={entry.travelTimeText ? `${entry.distanceText} · ${entry.travelTimeText}` : entry.distanceText}
+                    text={[
+                      travelModeLabel(entry.travelMode),
+                      entry.distanceText,
+                      entry.travelTimeText,
+                    ].filter(Boolean).join(' · ')}
                   />
                 )}
                 {!entry.distanceText && entry.travelTimeText && (
                   <DetailInfoRow
-                    icon={entry.travelMode === 'walk' ? '🚶' : entry.travelMode === 'bike' ? '🚲' : '🚗'}
-                    text={entry.travelTimeText}
+                    text={`${travelModeLabel(entry.travelMode)} · ${entry.travelTimeText}`}
                   />
                 )}
               </DetailInfoCard>

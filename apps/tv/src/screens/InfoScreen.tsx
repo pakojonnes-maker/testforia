@@ -1,6 +1,6 @@
 import { Focusable } from '../lib/spatialNav'
 import { CoverImage } from '../components/CoverImage'
-import { infoIcon, isDoorCode } from '../lib/infoIcon'
+import { isDoorCode } from '../lib/infoKeys'
 import { getTvString } from '../lib/i18n'
 import type { GuidebookData } from '../lib/api'
 
@@ -45,9 +45,7 @@ function InfoCard({ item, autoFocus, onSelect }: { item: InfoItem; autoFocus?: b
         <CoverImage
           src={photo}
           fallback={
-            <div className="absolute inset-0 grid place-items-center" style={{ background: iconBackground }}>
-              <span className="text-6xl">{infoIcon(item.icon, item.key)}</span>
-            </div>
+            <div className="absolute inset-0" style={{ background: iconBackground }} />
           }
         />
 

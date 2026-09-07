@@ -1,49 +1,57 @@
-// Mapea categorías del guidebook a un emoji + degradado mediterráneo, para las
-// tarjetas cuando no hay imagen (o como marco de la imagen).
-//
-// El catálogo real (guide_pois.category, ver migrations/0060 y 0063) usa
-// vocabulario en español ("Actividades", "Transporte"...); el mock y alguna
-// zona antigua usa claves en inglés ("beach", "boat"...). Sin las claves en
-// español, TODO caía en el fallback 📍 — que es justo lo que se veía en la
-// pantalla de Guía: kayak, catamarán y mariposario mostraban el mismo pin
-// genérico en vez de un icono acorde. `subcategory` (p.ej. "nautical/kayak")
-// es más específico que `category` y se comprueba primero.
-const MAP: Record<string, { emoji: string; from: string; to: string }> = {
+/**
+ * Mapea categorías del guidebook a un DEGRADADO, para las tarjetas cuando no
+ * hay imagen.
+ *
+ * Antes cada entrada traía además un emoji, que se pintaba encima del degradado
+ * a 72 px en la tarjeta de sección y a 144 px como imagen heroica de la ficha.
+ * Se quitó: era redundante con el título que tiene justo debajo, y dependía de
+ * que el aparato trajera fuente de emoji — el mismo motivo por el que las
+ * banderas ya se sirven como SVG (ver lib/languages.ts). Lo que diferencia una
+ * tarjeta sin foto de otra es el COLOR de su categoría y su título, que es como
+ * ya funcionaba PhotoTile en el mosaico de inicio.
+ *
+ * El catálogo real (guide_pois.category, ver migrations/0060 y 0063) usa
+ * vocabulario en español ("Actividades", "Transporte"...); el mock y alguna
+ * zona antigua usa claves en inglés ("beach", "boat"...). Sin las claves en
+ * español, TODO caía en el degradado por defecto. `subcategory` (p.ej.
+ * "nautical/kayak") es más específico que `category` y se comprueba primero.
+ */
+const MAP: Record<string, { from: string; to: string }> = {
   // Categorías en español (vocabulario real de guide_pois.category)
-  cultura:     { emoji: '🏛️', from: '#e2caa2', to: '#c9613f' },
-  naturaleza:  { emoji: '🌅', from: '#f6b24c', to: '#e07a5f' },
-  compras:     { emoji: '🛍️', from: '#d24c8e', to: '#c9613f' },
-  playas:      { emoji: '🏖️', from: '#34c2c9', to: '#128099' },
-  actividades: { emoji: '🎟️', from: '#34c2c9', to: '#0a5a72' },
-  transporte:  { emoji: '🚗', from: '#7ad7d1', to: '#06415c' },
-  bienestar:   { emoji: '💆', from: '#e07a5f', to: '#c9613f' },
-  relax:       { emoji: '💆', from: '#e07a5f', to: '#c9613f' },
-  gastronomia: { emoji: '🍽️', from: '#e07a5f', to: '#c9613f' },
+  cultura:     { from: '#e2caa2', to: '#c9613f' },
+  naturaleza:  { from: '#f6b24c', to: '#e07a5f' },
+  compras:     { from: '#d24c8e', to: '#c9613f' },
+  playas:      { from: '#34c2c9', to: '#128099' },
+  actividades: { from: '#34c2c9', to: '#0a5a72' },
+  transporte:  { from: '#7ad7d1', to: '#06415c' },
+  bienestar:   { from: '#e07a5f', to: '#c9613f' },
+  relax:       { from: '#e07a5f', to: '#c9613f' },
+  gastronomia: { from: '#e07a5f', to: '#c9613f' },
 
   // Categorías en inglés (mock data / zonas antiguas)
-  beach:     { emoji: '🏖️', from: '#34c2c9', to: '#128099' },
-  landmark:  { emoji: '🏛️', from: '#e2caa2', to: '#c9613f' },
-  nature:    { emoji: '🌅', from: '#f6b24c', to: '#e07a5f' },
-  food:      { emoji: '🍽️', from: '#e07a5f', to: '#c9613f' },
-  boat:      { emoji: '⛵', from: '#7ad7d1', to: '#06415c' },
-  kayak:     { emoji: '🛶', from: '#34c2c9', to: '#0a5a72' },
-  shopping:  { emoji: '🛍️', from: '#d24c8e', to: '#c9613f' },
-  restaurant:{ emoji: '🍴', from: '#e07a5f', to: '#c9613f' },
+  beach:     { from: '#34c2c9', to: '#128099' },
+  landmark:  { from: '#e2caa2', to: '#c9613f' },
+  nature:    { from: '#f6b24c', to: '#e07a5f' },
+  food:      { from: '#e07a5f', to: '#c9613f' },
+  boat:      { from: '#7ad7d1', to: '#06415c' },
+  kayak:     { from: '#34c2c9', to: '#0a5a72' },
+  shopping:  { from: '#d24c8e', to: '#c9613f' },
+  restaurant:{ from: '#e07a5f', to: '#c9613f' },
 
   // Subcategorías (el segmento tras la "/", más específico que category)
-  catamaran: { emoji: '⛵', from: '#7ad7d1', to: '#06415c' },
-  yacht:     { emoji: '⛵', from: '#7ad7d1', to: '#06415c' },
-  surf:      { emoji: '🏄', from: '#34c2c9', to: '#128099' },
-  massage:   { emoji: '💆', from: '#e07a5f', to: '#c9613f' },
-  nails:     { emoji: '💅', from: '#d24c8e', to: '#c9613f' },
-  chef:      { emoji: '👨‍🍳', from: '#e07a5f', to: '#c9613f' },
-  transfer:  { emoji: '🚗', from: '#7ad7d1', to: '#06415c' },
+  catamaran: { from: '#7ad7d1', to: '#06415c' },
+  yacht:     { from: '#7ad7d1', to: '#06415c' },
+  surf:      { from: '#34c2c9', to: '#128099' },
+  massage:   { from: '#e07a5f', to: '#c9613f' },
+  nails:     { from: '#d24c8e', to: '#c9613f' },
+  chef:      { from: '#e07a5f', to: '#c9613f' },
+  transfer:  { from: '#7ad7d1', to: '#06415c' },
 
-  // Tienda (buildStore en collections.ts) — mismo emoji que 'compras'/'shopping'.
-  store_host:     { emoji: '🛍️', from: '#d24c8e', to: '#c9613f' },
-  store_platform: { emoji: '🛍️', from: '#d24c8e', to: '#c9613f' },
+  // Tienda (buildStore en collections.ts) — mismo color que 'compras'/'shopping'.
+  store_host:     { from: '#d24c8e', to: '#c9613f' },
+  store_platform: { from: '#d24c8e', to: '#c9613f' },
 
-  default:   { emoji: '📍', from: '#128099', to: '#06415c' },
+  default:   { from: '#128099', to: '#06415c' },
 }
 
 export function categoryVisual(category?: string, subcategory?: string | null) {
@@ -51,8 +59,6 @@ export function categoryVisual(category?: string, subcategory?: string | null) {
   if (leaf && MAP[leaf]) return MAP[leaf]
   return MAP[(category || '').toLowerCase()] || MAP.default
 }
-
-export function cuisineEmoji(): string { return '🍴' }
 
 // Etiqueta legible para la cabecera de cada fila de categoría (pantalla de
 // colección). El resto de la app TV no traduce su propio texto de UI a los 13

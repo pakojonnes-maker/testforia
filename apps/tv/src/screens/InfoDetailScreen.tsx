@@ -1,6 +1,5 @@
 import { Focusable } from '../lib/spatialNav'
 import { CoverImage } from '../components/CoverImage'
-import { infoIcon } from '../lib/infoIcon'
 import type { GuidebookData } from '../lib/api'
 
 type InfoItem = GuidebookData['apartment']['info'][number]
@@ -60,9 +59,7 @@ export function InfoDetailScreen({ item, onBack }: InfoDetailScreenProps) {
             <CoverImage
               src={hero}
               fallback={
-                <div className="absolute inset-0 grid place-items-center" style={{ background: iconBackground }}>
-                  <span className="text-[9rem]">{infoIcon(item.icon, item.key)}</span>
-                </div>
+                <div className="absolute inset-0" style={{ background: iconBackground }} />
               }
             />
           </div>
