@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { FocusProvider, Focusable } from './lib/spatialNav'
 import { MediterraneanBackground } from './components/MediterraneanBackground'
 import { Header } from './components/Header'
@@ -25,6 +25,12 @@ export type Route =
   | { name: 'wifi' }
   | { name: 'language' }
 
+/**
+ * Superficie que la app expone al envoltorio nativo del APK. Hoy sólo el botón
+ * atrás; si crece (apagar pantalla, salir de la app), este es el sitio.
+ */
+type TvBridgeWindow = Window & { vtTvBack?: () => boolean }
+
 /** Nombre del evento `screen_view`: estable y legible en el panel de KPIs. */
 function screenName(route: Route): string {
   return route.name === 'collection' || route.name === 'detail'
@@ -35,7 +41,7 @@ function screenName(route: Route): string {
 function Loading({ label }: { label: string }) {
   return (
     <div className="grid h-full place-items-center">
-      <div className="t-display text-4xl font-bold" style={{ color: 'var(--tv-text-dim)' }}>
+      <div className="t-display tv-title font-bold" style={{ color: 'var(--tv-text-dim)' }}>
         {label}
       </div>
     </div>
@@ -122,17 +128,46 @@ export function App() {
   useEffect(() => { setTrackingContext(pairingCode) }, [pairingCode])
   useEffect(() => { track('screen_view', { screen: screenName(route), lang }) }, [route, lang])
 
-  // Backspace/Escape = botón "atrás" del mando. Se registra una sola vez a
-  // nivel de app para que ninguna pantalla tenga que reimplementarlo.
+  // Profundidad de la pila en un ref: el puente nativo de abajo necesita saber
+  // si hay algo a lo que volver SIN volver a registrarse en cada navegación.
+  const stackDepth = useRef(1)
+  stackDepth.current = stack.length
+
+  /**
+   * Botón "atrás", por las dos vías que existen.
+   *
+   * Teclado: Backspace/Escape (portátil en desarrollo, y los mandos que los
+   * emiten) y 'BrowserBack', que es el valor real de la tecla de retroceso.
+   * Antes había aquí un `'GoBack'` que NO es un valor válido de
+   * `KeyboardEvent.key`: esa rama no se disparó nunca.
+   *
+   * Android: el botón atrás del mando es `KEYCODE_BACK`, un evento de Activity
+   * que **no llega al WebView como keydown**. El envoltorio del APK tiene que
+   * interceptar `onBackPressed()` y llamar a `window.vtTvBack()`. Devuelve
+   * `true` si se consumió (había pantalla anterior) y `false` si ya estábamos
+   * en el inicio — así el lado nativo sabe si dejar que el sistema haga lo suyo
+   * en vez de tragarse la pulsación y dejar la app sin salida.
+   */
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Backspace' || e.key === 'Escape' || e.key === 'GoBack') {
+      if (e.key === 'Backspace' || e.key === 'Escape' || e.key === 'BrowserBack') {
         e.preventDefault()
         back()
       }
     }
     window.addEventListener('keydown', onKey)
-    return () => window.removeEventListener('keydown', onKey)
+
+    const bridged = window as TvBridgeWindow
+    bridged.vtTvBack = () => {
+      if (stackDepth.current <= 1) return false
+      back()
+      return true
+    }
+
+    return () => {
+      window.removeEventListener('keydown', onKey)
+      delete bridged.vtTvBack
+    }
   }, [back])
 
   const theme = useMemo(() => buildTheme(guide?.agency), [guide?.agency])

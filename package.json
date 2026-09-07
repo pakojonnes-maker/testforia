@@ -18,6 +18,7 @@
     "build:client": "cd apps/client && npm run build",
     "build:guide": "cd apps/guide && npm run build",
     "build:tv": "cd apps/tv && npm run build",
+    "build:tv:apk": "cd apps/tv && npm run build:apk",
     "test:authz": "node tests/authz.test.mjs",
     "test:auth": "node tests/auth.test.mjs",
     "test:security": "node tests/sessions-mfa-invites.test.mjs",

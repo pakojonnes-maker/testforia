@@ -1,4 +1,5 @@
 import { Focusable } from '../lib/spatialNav'
+import { CoverImage } from '../components/CoverImage'
 import { infoIcon, isDoorCode } from '../lib/infoIcon'
 import { getTvString } from '../lib/i18n'
 import type { GuidebookData } from '../lib/api'
@@ -41,13 +42,14 @@ function InfoCard({ item, autoFocus, onSelect }: { item: InfoItem; autoFocus?: b
         className="arch-mask relative aspect-[4/5] w-full overflow-hidden"
         style={{ background: 'var(--tv-surface)', border: '1px solid var(--tv-line)' }}
       >
-        {photo ? (
-          <img src={photo} alt="" className="absolute inset-0 h-full w-full object-cover" />
-        ) : (
-          <div className="absolute inset-0 grid place-items-center" style={{ background: iconBackground }}>
-            <span className="text-6xl">{infoIcon(item.icon, item.key)}</span>
-          </div>
-        )}
+        <CoverImage
+          src={photo}
+          fallback={
+            <div className="absolute inset-0 grid place-items-center" style={{ background: iconBackground }}>
+              <span className="text-6xl">{infoIcon(item.icon, item.key)}</span>
+            </div>
+          }
+        />
 
         <div
           className="absolute inset-0"

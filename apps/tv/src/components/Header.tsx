@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { CoverImage } from './CoverImage'
 
 /**
  * Cabecera persistente: 3 secciones — marca del alojamiento, fecha y hora —
@@ -62,39 +63,42 @@ export function Header({ brand, property, logoUrl, lang, demoMode }: HeaderProps
     <header className="grid items-center gap-8" style={{ gridTemplateColumns: 'minmax(0,1.3fr) auto minmax(0,0.85fr)' }}>
       {/* Logo / marca */}
       <div className="flex min-w-0 items-center gap-5">
-        {logoUrl ? (
-          <img
-            src={logoUrl}
-            alt=""
-            className="h-20 w-20 shrink-0 rounded-2xl object-cover"
-            style={{ background: 'var(--tv-surface)' }}
-          />
-        ) : (
-          <div
-            className="grid h-20 w-20 shrink-0 place-items-center rounded-2xl"
-            style={{ background: 'var(--tv-accent)', color: 'var(--tv-accent-ink)' }}
-          >
-            <svg width="38" height="38" viewBox="0 0 24 24" fill="none">
-              <circle cx="12" cy="8" r="3.4" fill="currentColor" />
-              <path d="M2 16c2.2 0 2.2 2 4.5 2s2.3-2 4.5-2 2.2 2 4.5 2 2.3-2 4.5-2"
-                stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" />
-              <path d="M2 20c2.2 0 2.2 2 4.5 2s2.3-2 4.5-2 2.2 2 4.5 2 2.3-2 4.5-2"
-                stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" opacity="0.6" />
-            </svg>
-          </div>
-        )}
+        <CoverImage
+          src={logoUrl}
+          className="h-20 w-20 shrink-0 rounded-2xl object-cover"
+          fallback={
+            <div
+              className="grid h-20 w-20 shrink-0 place-items-center rounded-2xl"
+              style={{ background: 'var(--tv-accent)', color: 'var(--tv-accent-ink)' }}
+            >
+              <svg width="38" height="38" viewBox="0 0 24 24" fill="none">
+                <circle cx="12" cy="8" r="3.4" fill="currentColor" />
+                <path d="M2 16c2.2 0 2.2 2 4.5 2s2.3-2 4.5-2 2.2 2 4.5 2 2.3-2 4.5-2"
+                  stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" />
+                <path d="M2 20c2.2 0 2.2 2 4.5 2s2.3-2 4.5-2 2.2 2 4.5 2 2.3-2 4.5-2"
+                  stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" opacity="0.6" />
+              </svg>
+            </div>
+          }
+        />
 
         <div className="min-w-0 leading-tight">
           <div className="flex items-center gap-3">
             <h1 className="t-display truncate tv-title font-bold" style={{ color: 'var(--tv-text)' }}>
               {brand}
             </h1>
+            {/* Este aviso es lo único que distingue "la TV funciona" de "la TV
+                enseña un apartamento inventado, con su WiFi falso". Iba a 11 px
+                —5,5 sp— o sea el texto MÁS PEQUEÑO de toda la pantalla, para el
+                mensaje más importante que puede dar. Quien lo tiene que leer es
+                el instalador, de pie delante de la tele, y a esa distancia
+                sencillamente no existía. */}
             {demoMode && (
               <span
-                className="shrink-0 rounded-full px-3 py-1 text-[11px] font-bold uppercase tracking-[0.16em]"
+                className="shrink-0 rounded-full px-5 py-2 tv-meta font-bold uppercase tracking-[0.12em]"
                 style={{ background: 'var(--color-terracotta)', color: '#fff' }}
               >
-                Modo demo
+                Datos de ejemplo
               </span>
             )}
           </div>

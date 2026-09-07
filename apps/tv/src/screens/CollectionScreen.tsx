@@ -1,5 +1,6 @@
 import { useMemo } from 'react'
 import { Focusable } from '../lib/spatialNav'
+import { CoverImage } from '../components/CoverImage'
 import { categoryVisual, categoryLabel } from '../lib/categoryVisual'
 import type { Collection, Entry } from '../lib/collections'
 
@@ -27,16 +28,17 @@ function EntryCard({ entry, autoFocus, onSelect }: { entry: Entry; autoFocus?: b
         className="arch-mask relative h-[520px] w-[416px] shrink-0 overflow-hidden"
         style={{ background: 'var(--tv-surface)', border: '1px solid var(--tv-line)' }}
       >
-        {entry.image ? (
-          <img src={entry.image} alt="" className="absolute inset-0 h-full w-full object-cover" />
-        ) : (
-          <div
-            className="absolute inset-0 grid place-items-center"
-            style={{ background: `linear-gradient(150deg, ${visual.from}, ${visual.to})` }}
-          >
-            <span className="text-7xl">{visual.emoji}</span>
-          </div>
-        )}
+        <CoverImage
+          src={entry.image}
+          fallback={
+            <div
+              className="absolute inset-0 grid place-items-center"
+              style={{ background: `linear-gradient(150deg, ${visual.from}, ${visual.to})` }}
+            >
+              <span className="text-7xl">{visual.emoji}</span>
+            </div>
+          }
+        />
 
         <div
           className="absolute inset-0"
@@ -51,7 +53,7 @@ function EntryCard({ entry, autoFocus, onSelect }: { entry: Entry; autoFocus?: b
         <div className="absolute inset-x-0 bottom-0 p-5">
           {entry.badge && (
             <span
-              className="mb-2 inline-block rounded-full px-3 py-1.5 text-[17px] font-bold uppercase tracking-[0.1em]"
+              className="t-label mb-2 inline-block rounded-full px-3 py-1.5"
               style={{ background: 'var(--tv-accent)', color: 'var(--tv-accent-ink)' }}
             >
               {entry.badge}

@@ -1,6 +1,7 @@
 import { useEffect, useState, type ReactNode } from 'react'
 import { Focusable } from '../lib/spatialNav'
 import { BrandedQr } from '../components/BrandedQr'
+import { CoverImage } from '../components/CoverImage'
 import { categoryVisual } from '../lib/categoryVisual'
 import { track } from '../lib/tracking'
 import { submitStoreOrder } from '../lib/api'
@@ -148,20 +149,21 @@ export function DetailScreen({ entry, apartmentId, onBack }: DetailScreenProps) 
             className="relative min-h-0 flex-1 overflow-hidden"
             style={{ borderRadius: '1.5rem', background: 'var(--tv-surface)', border: '1px solid var(--tv-line)' }}
           >
-            {entry.image ? (
-              <img src={entry.image} alt="" className="absolute inset-0 h-full w-full object-cover" />
-            ) : (
-              <div
-                className="absolute inset-0 grid place-items-center"
-                style={{ background: `linear-gradient(150deg, ${visual.from}, ${visual.to})` }}
-              >
-                <span className="text-[9rem]">{visual.emoji}</span>
-              </div>
-            )}
+            <CoverImage
+              src={entry.image}
+              fallback={
+                <div
+                  className="absolute inset-0 grid place-items-center"
+                  style={{ background: `linear-gradient(150deg, ${visual.from}, ${visual.to})` }}
+                >
+                  <span className="text-[9rem]">{visual.emoji}</span>
+                </div>
+              }
+            />
 
             {entry.badge && (
               <span
-                className="absolute left-6 top-6 rounded-full px-4 py-2 text-[19px] font-bold uppercase tracking-[0.12em]"
+                className="t-label absolute left-6 top-6 rounded-full px-4 py-2"
                 style={{ background: 'var(--tv-accent)', color: 'var(--tv-accent-ink)' }}
               >
                 {entry.badge}
@@ -176,7 +178,14 @@ export function DetailScreen({ entry, apartmentId, onBack }: DetailScreenProps) 
             >
               {entry.gallery.slice(0, 4).map(url => (
                 <div key={url} className="overflow-hidden" style={{ borderRadius: '1rem', border: '1px solid var(--tv-line)' }}>
-                  <img src={url} alt="" className="h-full w-full object-cover" />
+                  <CoverImage
+                    src={url}
+                    className="h-full w-full object-cover"
+                    // Una miniatura caída se rellena en vez de dejar el marco
+                    // hueco: la rejilla se calcula sobre gallery.length, así que
+                    // esconderla descuadraría las demás.
+                    fallback={<div className="h-full w-full" style={{ background: 'var(--tv-surface-raised)' }} />}
+                  />
                 </div>
               ))}
             </div>

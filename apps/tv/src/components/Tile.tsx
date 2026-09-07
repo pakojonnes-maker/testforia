@@ -1,5 +1,6 @@
 import type { ReactNode } from 'react'
 import { Focusable } from '../lib/spatialNav'
+import { CoverImage } from './CoverImage'
 
 /**
  * Piezas del mosaico de inicio.
@@ -50,16 +51,17 @@ export function PhotoTile({
   return (
     <Shell id={id} area={area} autoFocus={autoFocus} onSelect={onSelect}
       style={{ background: 'var(--tv-surface)' }}>
-      {image ? (
-        <img src={image} alt="" className="absolute inset-0 h-full w-full object-cover" />
-      ) : (
-        <div
-          className="absolute inset-0"
-          // A plena saturación: rebajado quedaba gris y parecía una imagen que
-          // no había cargado, en vez de una tesela sin foto a propósito.
-          style={{ background: 'linear-gradient(140deg, var(--tv-accent) 0%, var(--tv-secondary) 100%)' }}
-        />
-      )}
+      <CoverImage
+        src={image}
+        fallback={
+          <div
+            className="absolute inset-0"
+            // A plena saturación: rebajado quedaba gris y parecía una imagen que
+            // no había cargado, en vez de una tesela sin foto a propósito.
+            style={{ background: 'linear-gradient(140deg, var(--tv-accent) 0%, var(--tv-secondary) 100%)' }}
+          />
+        }
+      />
 
       {/* Velo inferior: sin él el texto blanco desaparece sobre fotos claras.
           El degradado va desde abajo para no apagar la imagen entera. */}
@@ -209,7 +211,7 @@ export function WifiTile({
 function Credential({ label, value }: { label: string; value: string }) {
   return (
     <div className="flex items-baseline gap-3">
-      <span className="shrink-0 text-[17px] font-bold uppercase tracking-[0.14em]" style={{ color: 'var(--tv-text-faint)' }}>
+      <span className="t-label shrink-0" style={{ color: 'var(--tv-text-faint)' }}>
         {label}
       </span>
       {/* La contraseña puede ser larga y no se puede recortar: quien no pueda

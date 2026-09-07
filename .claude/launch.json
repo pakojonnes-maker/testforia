@@ -48,6 +48,13 @@
       "port": 5186
     },
     {
+      "_comment": "Tercera instancia de tv, para cuando 5176 y 5186 ya los ocupan otras sesiones. OJO: el 5187 NO está en ALLOWED_ORIGINS (workerCors.js), así que cualquier fetch al worker falla por CORS y la app cae a datos mock. Sirve para verificar RENDER (tipografía, escala, layout, estados de fallo), no para probar datos reales.",
+      "name": "tv-verify3",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["--prefix", "apps/tv", "run", "dev", "--", "--port", "5187"],
+      "port": 5187
+    },
+    {
       "name": "worker",
       "runtimeExecutable": "npx",
       "runtimeArgs": ["wrangler", "dev"],

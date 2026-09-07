@@ -1,4 +1,5 @@
 import { Focusable } from '../lib/spatialNav'
+import { CoverImage } from '../components/CoverImage'
 import { infoIcon } from '../lib/infoIcon'
 import type { GuidebookData } from '../lib/api'
 
@@ -56,13 +57,14 @@ export function InfoDetailScreen({ item, onBack }: InfoDetailScreenProps) {
             className="relative min-h-0 flex-1 overflow-hidden"
             style={{ borderRadius: '1.5rem', background: 'var(--tv-surface)', border: '1px solid var(--tv-line)' }}
           >
-            {hero ? (
-              <img src={hero} alt="" className="absolute inset-0 h-full w-full object-cover" />
-            ) : (
-              <div className="absolute inset-0 grid place-items-center" style={{ background: iconBackground }}>
-                <span className="text-[9rem]">{infoIcon(item.icon, item.key)}</span>
-              </div>
-            )}
+            <CoverImage
+              src={hero}
+              fallback={
+                <div className="absolute inset-0 grid place-items-center" style={{ background: iconBackground }}>
+                  <span className="text-[9rem]">{infoIcon(item.icon, item.key)}</span>
+                </div>
+              }
+            />
           </div>
 
           {gallery.length > 0 && (
@@ -72,7 +74,11 @@ export function InfoDetailScreen({ item, onBack }: InfoDetailScreenProps) {
             >
               {gallery.slice(0, 4).map(url => (
                 <div key={url} className="overflow-hidden" style={{ borderRadius: '1rem', border: '1px solid var(--tv-line)' }}>
-                  <img src={url} alt="" className="h-full w-full object-cover" />
+                  <CoverImage
+                    src={url}
+                    className="h-full w-full object-cover"
+                    fallback={<div className="h-full w-full" style={{ background: 'var(--tv-surface-raised)' }} />}
+                  />
                 </div>
               ))}
             </div>
