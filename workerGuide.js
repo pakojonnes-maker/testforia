@@ -707,6 +707,7 @@ export async function handleGetGuidebook(env, slug, lang, origin, surface = 'gui
 
     const wifiInfoRow = (apartmentInfo.results || []).find(info => info.info_key === 'wifi');
     const wifiFallback = parseWifiFromInfo(wifiInfoRow?.content);
+    const wifiPassword = apartment.wifi_password || wifiFallback.password;
 
     const responseData = {
         success: true,
@@ -724,8 +725,15 @@ export async function handleGetGuidebook(env, slug, lang, origin, surface = 'gui
             longitude: apartment.longitude ?? null,
             wifi: {
                 ssid: apartment.wifi_ssid || wifiFallback.ssid,
-                password: apartment.wifi_password || wifiFallback.password,
-                security: apartment.wifi_security || 'WPA'
+                password: wifiPassword,
+                // wifi_security no tiene selector en ningún sitio del admin
+                // (ni el formulario ni la importación) — en la práctica es
+                // siempre el 'WPA' por defecto de la columna, nunca una
+                // elección real del anfitrión. La única señal fiable de si
+                // la red pide contraseña es si HAY contraseña: declarar WPA
+                // sin ella rompe el autoconectado del QR de la TV (el móvil
+                // pide una clave que no existe en vez de conectarse solo).
+                security: wifiPassword ? (apartment.wifi_security || 'WPA') : 'nopass'
             },
             info: (apartmentInfo.results || []).map(info => ({
                 id: info.id,
