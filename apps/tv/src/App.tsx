@@ -138,7 +138,7 @@ export function App() {
   const theme = useMemo(() => buildTheme(guide?.agency), [guide?.agency])
   // Tamaño físico de la tele: lo fija la instalación, no se puede detectar.
   const screenSize = useMemo(() => resolveScreenSize(guide?.device?.screen_size), [guide?.device?.screen_size])
-  const collections = useMemo(() => (guide ? buildCollections(guide) : []), [guide])
+  const collections = useMemo(() => (guide ? buildCollections(guide, lang) : []), [guide, lang])
 
   const activeEntry: Entry | undefined = useMemo(() => {
     if (route.name !== 'detail') return undefined
@@ -195,7 +195,7 @@ export function App() {
               })()
             ) : route.name === 'detail' ? (
               activeEntry
-                ? <DetailScreen entry={activeEntry} onBack={back} />
+                ? <DetailScreen entry={activeEntry} apartmentId={guide.apartment.id} onBack={back} />
                 : <Loading label="Ficha no disponible" />
             ) : route.name === 'info' ? (
               <InfoScreen data={guide} lang={lang} onOpen={item => navigate({ name: 'info-detail', id: item.id })} />

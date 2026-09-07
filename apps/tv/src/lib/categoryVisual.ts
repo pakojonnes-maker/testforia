@@ -39,6 +39,10 @@ const MAP: Record<string, { emoji: string; from: string; to: string }> = {
   chef:      { emoji: '👨‍🍳', from: '#e07a5f', to: '#c9613f' },
   transfer:  { emoji: '🚗', from: '#7ad7d1', to: '#06415c' },
 
+  // Tienda (buildStore en collections.ts) — mismo emoji que 'compras'/'shopping'.
+  store_host:     { emoji: '🛍️', from: '#d24c8e', to: '#c9613f' },
+  store_platform: { emoji: '🛍️', from: '#d24c8e', to: '#c9613f' },
+
   default:   { emoji: '📍', from: '#128099', to: '#06415c' },
 }
 
@@ -61,6 +65,9 @@ const LABEL: Record<string, string> = {
   relax: 'Bienestar', gastronomia: 'Gastronomía', restaurantes: 'Restaurantes', otro: 'Otros',
   beach: 'Playas', landmark: 'Cultura', nature: 'Naturaleza', food: 'Gastronomía',
   boat: 'Náutica', kayak: 'Náutica', shopping: 'Compras',
+  // Agrupación de la Tienda (buildStore en collections.ts) — mismo criterio
+  // host/platform que ya usa apps/guide (ServicesSection.tsx).
+  store_host: 'Productos del anfitrión', store_platform: 'Productos locales',
 }
 
 export function categoryLabel(category?: string | null): string {

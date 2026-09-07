@@ -46,5 +46,10 @@ export const MOCK_GUIDE: GuidebookData = {
     // justo por lo que el fallo de mayúsculas sobrevivió tanto.
     { id: 'e3', name: 'Cata de quesos de Mahón', description: 'Degustación en una quesería artesanal con maridaje.', category: 'food', service_subcategory: null, action_type: 'URL', action_data: 'https://ejemplo-partner.com/cata?sub=demo-tv', prefilled_message: '', cta_source: 'affiliate', price_display: '30€', is_featured: false, cta_label: 'Reservar', cover_image_url: '' },
   ],
+  store_items: [
+    { id: 's1', owner_type: 'host', category: null, icon: null, name: 'Botella de vino de bienvenida', description: 'Vino local de la bodega de la zona, para brindar la primera noche.', price_amount: 12, price_currency: 'EUR', price_display: '12,00 €', cover_image_url: '', is_featured: true, in_stock: true, cta_label: null },
+    { id: 's2', owner_type: 'host', category: null, icon: null, name: 'Toallas de playa (x2)', description: 'Dos toallas grandes, listas para llevar a la piscina o la cala.', price_amount: 8, price_currency: 'EUR', price_display: '8,00 €', cover_image_url: '', is_featured: false, in_stock: true, cta_label: null },
+    { id: 's3', owner_type: 'platform', category: null, icon: null, name: 'Kit de snorkel', description: 'Gafas y tubo, tu talla a elegir por WhatsApp.', price_amount: 15, price_currency: 'EUR', price_display: '15,00 €', cover_image_url: '', is_featured: false, in_stock: false, cta_label: null },
+  ],
   meta: { lang: 'es', available_langs: ['es', 'en', 'fr', 'de'] },
 }

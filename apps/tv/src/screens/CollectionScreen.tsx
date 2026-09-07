@@ -1,13 +1,12 @@
-import { useEffect, useMemo } from 'react'
-import { Focusable, useFocus } from '../lib/spatialNav'
+import { useMemo } from 'react'
+import { Focusable } from '../lib/spatialNav'
 import { categoryVisual, categoryLabel } from '../lib/categoryVisual'
-import { track } from '../lib/tracking'
 import type { Collection, Entry } from '../lib/collections'
 
 /**
  * Pantalla de sección: portada editorial arriba, fila de tarjetas abajo.
  *
- * Es el mismo componente para comer, hacer y alrededores. Antes cada uno tenía
+ * Es el mismo componente para comer, hacer y tienda. Antes cada uno tenía
  * su propia pantalla con su propio layout (carrusel en una, maestro-detalle en
  * otra), y esa inconsistencia es la que hacía que la app se sintiera improvisada:
  * el huésped tenía que reaprender la navegación en cada sección.
@@ -114,24 +113,11 @@ interface CollectionScreenProps {
 }
 
 export function CollectionScreen({ collection, onOpen }: CollectionScreenProps) {
-  const { focusedId } = useFocus()
   const { entries } = collection
   const sections = useMemo(
     () => buildSections(entries, collection.railLabel),
     [entries, collection.railLabel]
   )
-
-  /**
-   * `poi_select` sigue midiendo qué lugar mira el huésped: en alrededores el
-   * foco ES la selección, porque no hace falta abrir el detalle para leer la
-   * tarjeta. `targetId` dice cuál, que es lo que hace útil el KPI.
-   */
-  useEffect(() => {
-    if (collection.kind !== 'nearby') return
-    if (focusedId?.startsWith('entry-')) {
-      track('poi_select', { screen: 'nearby', targetId: focusedId.slice('entry-'.length) })
-    }
-  }, [focusedId, collection.kind])
 
   return (
     <div className="screen-in flex h-full flex-col">

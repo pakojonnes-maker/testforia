@@ -1,20 +1,27 @@
 import type { GuidebookData } from './api'
+import { getTvString } from './i18n'
 
 /**
  * Normaliza las tres fuentes de recomendaciones del guidebook (restaurantes,
- * experiencias y POIs) a una sola forma, para que la pantalla de colección y
- * la de detalle sean UN componente cada una en vez de tres variantes.
+ * experiencias y productos de la tienda) a una sola forma, para que la
+ * pantalla de colección y la de detalle sean UN componente cada una en vez de
+ * tres variantes.
  *
  * Lo que cambia entre las tres no es el layout, es la ACCIÓN: un restaurante
- * lleva a la carta Gravy, una experiencia a WhatsApp y un POI a Google Maps.
- * Eso queda encapsulado aquí en `qr`.
+ * lleva a la carta Gravy, una experiencia a WhatsApp y un producto de la
+ * tienda a un pedido por WhatsApp (con registro en D1). Eso queda
+ * encapsulado aquí en `qr` — salvo la tienda, que no puede resolverse aquí:
+ * ver el comentario de `buildStore`.
+ *
+ * Alrededores (POIs) se retiró de aquí a favor de la Tienda: ya no hay
+ * `buildNearby`/`kind: 'nearby'` en esta app.
  */
 
 // Carta digital "Gravy" (apps/client): experiencia táctil tipo Reels, por eso
 // se delega al móvil con un QR en vez de navegarla desde la TV.
 const MENU_URL = import.meta.env.VITE_MENU_URL || 'https://menu.visualtastes.com'
 
-export type CollectionKind = 'eat' | 'do' | 'nearby'
+export type CollectionKind = 'eat' | 'do' | 'store'
 
 export interface EntryQr {
   data: string
@@ -53,6 +60,9 @@ export interface Entry {
   qr?: EntryQr
   category?: string
   subcategory?: string | null
+  /** Solo tienda: false si el ítem está agotado — DetailScreen desactiva el
+   *  pedido en vez de dejar que se genere un QR para algo que no hay. */
+  inStock?: boolean
   /** Ficha de contacto del detalle — sólo restaurantes y guía (POI/experiencia)
    *  la rellenan; ninguno la tiene siempre completa, el detalle omite lo que
    *  falte en vez de mostrar un hueco. */
@@ -219,44 +229,39 @@ function buildDo(data: GuidebookData): Entry[] {
   })
 }
 
-function buildNearby(data: GuidebookData): Entry[] {
-  return data.pois.map((p): Entry => {
-    const { image, gallery } = photoSet(p.cover_image_url, p.media)
-    return {
-      id: p.id,
-      kind: 'nearby',
-      name: p.name,
-      subtitle: p.category || 'Lugar de interés',
-      description: p.description || '',
-      image,
-      gallery,
-      featured: p.is_featured === true || p.is_promoted === true,
-      badge: p.is_featured ? 'Destacado' : undefined,
-      sponsored: p.is_promoted === true,
-      category: p.category,
-      address: p.address || null,
-      phone: p.phone || null,
-      website: p.website_url || null,
-      openingHours: p.opening_hours || null,
-      distanceText: p.distance_text || null,
-      travelTimeText: p.travel_time_text || null,
-      travelMode: p.travel_mode || null,
-      facts: p.category ? [{ icon: '📍', label: p.category }] : [],
-      qr: p.google_maps_url
-        ? {
-            data: p.google_maps_url,
-            caption: 'Escanea para abrir la ruta en tu móvil',
-            // Abrir direcciones es intención de visita, igual que una reserva:
-            // se cuenta con el mismo KPI para no inventar un tipo de evento que
-            // el backend (workerTvScreen.js) no acepta.
-            event: 'booking_qr_shown',
-          }
-        : undefined,
-    }
-  })
+/**
+ * A diferencia de un restaurante (QR fijo a la carta) o una experiencia (QR
+ * a un WhatsApp/URL ya resuelto en `/guide/:slug`), un producto de la tienda
+ * NO trae el número de WhatsApp en esa respuesta: lo resuelve el propio
+ * worker en `POST /guide/store/orders` (workerGuideStore.js) — contacto del
+ * ítem, si no del apartamento (host) o `PLATFORM_WHATSAPP` (platform) — y de
+ * paso dejar el pedido en D1 es lo que lo hace auditable. Por eso `qr` se
+ * deja SIN RESOLVER aquí: DetailScreen la pide bajo demanda cuando el
+ * huésped de verdad selecciona "Pedir", no una por cada tarjeta de la
+ * rejilla (eso crearía un pedido en D1 por cada producto que alguien mira de
+ * pasada, sin intención real de comprar).
+ */
+function buildStore(data: GuidebookData): Entry[] {
+  return data.store_items.map((item): Entry => ({
+    id: item.id,
+    kind: 'store',
+    name: item.name,
+    subtitle: item.price_display || '',
+    description: item.description || '',
+    image: item.cover_image_url || undefined,
+    gallery: [],
+    featured: item.is_featured === true,
+    badge: !item.in_stock ? 'Agotado' : item.is_featured ? 'Destacado' : undefined,
+    sponsored: item.is_promoted === true,
+    // Mismo agrupamiento que ServicesSection.tsx en apps/guide: anfitrión
+    // primero, catálogo de VisualTaste después — ver categoryVisual.ts.
+    category: item.owner_type === 'host' ? 'store_host' : 'store_platform',
+    facts: [],
+    inStock: item.in_stock,
+  }))
 }
 
-export function buildCollections(data: GuidebookData): Collection[] {
+export function buildCollections(data: GuidebookData, lang: string): Collection[] {
   return [
     {
       kind: 'eat',
@@ -275,12 +280,12 @@ export function buildCollections(data: GuidebookData): Collection[] {
       entries: buildDo(data),
     },
     {
-      kind: 'nearby',
-      tile: 'Alrededores',
-      title: 'Alrededores',
-      eyebrow: 'Qué ver cerca',
-      railLabel: 'Lugares de interés',
-      entries: buildNearby(data),
+      kind: 'store',
+      tile: getTvString('store_title', lang),
+      title: getTvString('store_title', lang),
+      eyebrow: 'Pide a tu anfitrión',
+      railLabel: 'Disponible durante tu estancia',
+      entries: buildStore(data),
     },
   ]
 }

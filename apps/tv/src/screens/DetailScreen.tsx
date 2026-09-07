@@ -1,8 +1,9 @@
-import { useEffect, type ReactNode } from 'react'
+import { useEffect, useState, type ReactNode } from 'react'
 import { Focusable } from '../lib/spatialNav'
 import { BrandedQr } from '../components/BrandedQr'
 import { categoryVisual } from '../lib/categoryVisual'
 import { track } from '../lib/tracking'
+import { submitStoreOrder } from '../lib/api'
 import type { Entry } from '../lib/collections'
 
 /**
@@ -34,12 +35,94 @@ function DetailInfoRow({ icon, text }: { icon: string; text: string }) {
   )
 }
 
+/**
+ * Producto de tienda: a diferencia de un restaurante o una experiencia, su QR
+ * no llega resuelto en `entry.qr` — el número de WhatsApp lo decide el propio
+ * worker (`POST /guide/store/orders`, ver collections.ts/buildStore) y de
+ * paso deja el pedido registrado en D1. Por eso hace falta un paso explícito
+ * ("Pedir por WhatsApp") en vez de pintar el QR nada más abrir la ficha: así
+ * el registro sólo se crea cuando el huésped de verdad quiere pedir, no cada
+ * vez que alguien mira un producto de pasada.
+ */
+function StoreOrderPanel({ entry, apartmentId }: { entry: Entry; apartmentId: string }) {
+  const [state, setState] = useState<'idle' | 'loading' | 'ready' | 'no_contact' | 'error'>('idle')
+  const [qr, setQr] = useState<{ data: string } | null>(null)
+
+  // Sin esto, volver atrás y abrir OTRO producto seguía enseñando el QR (o el
+  // error) del anterior hasta que se pulsara "Pedir" de nuevo.
+  useEffect(() => { setState('idle'); setQr(null) }, [entry.id])
+
+  const handleOrder = async () => {
+    setState('loading')
+    const result = await submitStoreOrder({ apartmentId, itemId: entry.id })
+    const url = result.success ? result.orders?.[0]?.whatsappUrl : null
+    if (!result.success) { setState('error'); return }
+    if (!url) { setState('no_contact'); return }
+    setQr({ data: url })
+    setState('ready')
+    track('booking_qr_shown', { targetId: entry.id })
+  }
+
+  if (entry.inStock === false) {
+    return (
+      <div
+        className="mt-6 rounded-2xl px-7 py-6 tv-body"
+        style={{ background: 'var(--tv-surface)', color: 'var(--tv-text-dim)' }}
+      >
+        Producto agotado por ahora.
+      </div>
+    )
+  }
+
+  if (state === 'ready' && qr) {
+    return (
+      <div className="flex shrink-0 flex-col items-center">
+        <div className="rounded-2xl bg-white p-3 shadow-xl">
+          <BrandedQr data={qr.data} size={176} />
+        </div>
+        <p className="mt-3 max-w-[230px] text-center tv-meta font-semibold leading-snug" style={{ color: 'var(--tv-text-dim)' }}>
+          Escanea para confirmar tu pedido por WhatsApp
+        </p>
+      </div>
+    )
+  }
+
+  if (state === 'no_contact' || state === 'error') {
+    return (
+      <div className="flex shrink-0 flex-col items-center gap-3 text-center">
+        <p className="max-w-[230px] tv-meta font-semibold leading-snug" style={{ color: 'var(--tv-text-dim)' }}>
+          {state === 'no_contact' ? 'Pregunta a tu anfitrión para pedir este producto.' : 'No se ha podido generar el pedido.'}
+        </p>
+        <Focusable id="store-order-retry" onSelect={handleOrder} className="w-fit rounded-full">
+          <div className="rounded-full px-6 py-3 tv-meta font-bold" style={{ background: 'var(--tv-surface-raised)', color: 'var(--tv-text)' }}>
+            Reintentar
+          </div>
+        </Focusable>
+      </div>
+    )
+  }
+
+  return (
+    <Focusable id="store-order" onSelect={handleOrder} className="w-fit rounded-full">
+      <div
+        className="inline-flex items-center gap-3 rounded-full px-8 py-4 tv-body font-bold"
+        style={{ background: 'var(--tv-accent)', color: 'var(--tv-accent-ink)' }}
+      >
+        {state === 'loading' ? 'Generando pedido…' : 'Pedir por WhatsApp'}
+      </div>
+    </Focusable>
+  )
+}
+
 interface DetailScreenProps {
   entry: Entry
+  /** Solo hace falta para la tienda (ver StoreOrderPanel) — el resto de
+   *  fichas no llaman al worker. */
+  apartmentId: string
   onBack: () => void
 }
 
-export function DetailScreen({ entry, onBack }: DetailScreenProps) {
+export function DetailScreen({ entry, apartmentId, onBack }: DetailScreenProps) {
   const visual = categoryVisual(entry.category, entry.subcategory)
   // Un restaurante enseña su carta entera vía QR (Gravy) y no tiene distancia
   // precalculada; un POI/experiencia sí — estas cajas aparecen o no según lo
@@ -126,7 +209,9 @@ export function DetailScreen({ entry, onBack }: DetailScreenProps) {
             </div>
 
             {/* QR arriba a la derecha: mismo sitio en todas las fichas, para
-                que el huésped sepa dónde mirar sin leer. */}
+                que el huésped sepa dónde mirar sin leer. Tienda no trae `qr`
+                resuelto — ver StoreOrderPanel arriba. */}
+            {entry.kind === 'store' && <StoreOrderPanel entry={entry} apartmentId={apartmentId} />}
             {entry.qr && (
               <div className="flex shrink-0 flex-col items-center">
                 <div className="rounded-2xl bg-white p-3 shadow-xl">
@@ -191,7 +276,7 @@ export function DetailScreen({ entry, onBack }: DetailScreenProps) {
               </DetailInfoCard>
             )}
 
-            {!entry.qr && !hasContact && (
+            {entry.kind !== 'store' && !entry.qr && !hasContact && (
               <div
                 className="mt-6 rounded-2xl px-7 py-6 tv-body"
                 style={{ background: 'var(--tv-surface)', color: 'var(--tv-text-dim)' }}

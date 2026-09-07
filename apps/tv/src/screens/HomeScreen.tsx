@@ -42,7 +42,7 @@ export function HomeScreen({ data, collections, lang, onNavigate }: HomeScreenPr
   const byKind = (kind: CollectionKind) => collections.find(c => c.kind === kind)
   const eat = byKind('eat')
   const doing = byKind('do')
-  const nearby = byKind('nearby')
+  const store = byKind('store')
 
   const infoItems = data.apartment.info.filter(i => i.key.toLowerCase() !== 'wifi')
   const door = infoItems.find(i => isDoorCode(i.key))
@@ -68,20 +68,20 @@ export function HomeScreen({ data, collections, lang, onNavigate }: HomeScreenPr
 
   const language = languageOption(lang)
 
-  // Sin código de entrada la última fila se reparte entre Alrededores y Estancia
+  // Sin código de entrada la última fila se reparte entre Tienda y Estancia
   // en vez de dejar un hueco en la rejilla.
   const areas = door
     ? [
         '"info   eat  eat   do"',
         '"wifi   eat  eat   do"',
         '"wifi   lang stay  do"',
-        '"wifi   near near  code"',
+        '"wifi   store store code"',
       ]
     : [
         '"info   eat  eat   do"',
         '"wifi   eat  eat   do"',
         '"wifi   lang stay  do"',
-        '"wifi   near near  near"',
+        '"wifi   store store store"',
       ]
 
   return (
@@ -173,13 +173,13 @@ export function HomeScreen({ data, collections, lang, onNavigate }: HomeScreenPr
         />
 
         <PhotoTile
-          id="tile-near"
-          area="near"
-          overline={nearby?.eyebrow}
-          label={nearby?.tile || 'Alrededores'}
-          count={nearby?.entries.length}
-          image={data.pois.find(p => p.media?.[0]?.url)?.media?.[0]?.url || data.apartment.cover_image_url}
-          onSelect={() => onNavigate({ name: 'collection', kind: 'nearby' })}
+          id="tile-store"
+          area="store"
+          overline={store?.eyebrow}
+          label={store?.tile || getTvString('store_title', lang)}
+          count={store?.entries.length}
+          image={data.store_items.find(i => i.cover_image_url)?.cover_image_url || data.apartment.cover_image_url}
+          onSelect={() => onNavigate({ name: 'collection', kind: 'store' })}
         />
 
         {door && (

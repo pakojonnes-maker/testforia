@@ -55,6 +55,15 @@ export interface GuidebookData {
     rating?: number | null; travel_time_text?: string | null; travel_mode?: 'walk' | 'drive' | 'bike' | null
     distance_text?: string | null; duration_text?: string | null
   }>
+  // Ya venía en /guide/:slug (workerGuide.js) — el tipo simplemente no lo
+  // declaraba porque nadie en la TV lo leía todavía.
+  store_items: Array<{
+    id: string; owner_type: 'host' | 'platform'; category: string | null; icon: string | null
+    name: string; description: string
+    price_amount: number | null; price_currency: string | null; price_display: string
+    cover_image_url?: string | null; is_featured: boolean; is_promoted?: boolean; in_stock: boolean
+    cta_label: string | null
+  }>
   meta: { lang: string; available_langs: string[] }
   /**
    * Ajustes del DISPOSITIVO emparejado. Solo puede llegar por
@@ -112,6 +121,41 @@ export function setReferralCookie(apartmentId: string) {
     document.cookie = `${GUIDE_REFERRAL_COOKIE}=${value}; path=/; max-age=${maxAge}; samesite=lax${domainAttr}${secureAttr}`
   } catch {
     // best-effort
+  }
+}
+
+// POST /guide/store/orders (workerGuideStore.js) — misma llamada que hace
+// apps/guide. El número de WhatsApp de un producto NO llega en /guide/:slug
+// (ni en `store_items` de arriba): lo resuelve el propio worker en servidor
+// (contacto del ítem → del apartamento si es 'host' → PLATFORM_WHATSAPP si es
+// 'platform'), y de paso dejar el pedido en D1 es lo que lo hace auditable —
+// por eso esto no se puede construir en el cliente como el QR de una
+// experiencia (ver bookingQr en lib/collections.ts).
+export interface StoreOrderResult {
+  success: boolean
+  orders?: Array<{ orderId: string; ownerType: 'host' | 'platform'; whatsappUrl: string | null }>
+  error?: string
+}
+
+export async function submitStoreOrder(params: {
+  apartmentId: string
+  itemId: string
+  quantity?: number
+}): Promise<StoreOrderResult> {
+  try {
+    const res = await fetch(`${API_URL}/guide/store/orders`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        apartmentId: params.apartmentId,
+        items: [{ itemId: params.itemId, quantity: params.quantity || 1 }],
+      }),
+    })
+    const data = await res.json().catch(() => ({}))
+    if (!res.ok) return { success: false, error: (data as any).error || `HTTP ${res.status}` }
+    return data as StoreOrderResult
+  } catch (err: any) {
+    return { success: false, error: err?.message || 'network error' }
   }
 }
 
