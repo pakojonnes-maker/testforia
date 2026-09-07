@@ -189,7 +189,6 @@ export function App() {
                 return (
                   <CollectionScreen
                     collection={collection}
-                    zoneName={guide.zone?.name || guide.apartment.name}
                     onOpen={entry => navigate({ name: 'detail', kind: entry.kind, id: entry.id })}
                   />
                 )
@@ -220,7 +219,7 @@ export function App() {
               así que aquí sólo se pinta para el resto. */}
           {route.name !== 'home' && route.name !== 'detail' && route.name !== 'info-detail' && (
             <div className="shrink-0 pt-5">
-              <Focusable id="app-back" onSelect={back} className="rounded-full">
+              <Focusable id="app-back" onSelect={back} className="w-fit rounded-full">
                 <div
                   className="inline-flex items-center gap-3 rounded-full px-8 py-4 tv-body font-bold"
                   style={{ background: 'var(--tv-surface-raised)', color: 'var(--tv-text)' }}

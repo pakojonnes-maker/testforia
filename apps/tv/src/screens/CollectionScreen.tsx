@@ -13,30 +13,20 @@ import type { Collection, Entry } from '../lib/collections'
  * el huésped tenía que reaprender la navegación en cada sección.
  */
 
-/** Línea de metadatos con separadores: da sensación de catálogo curado. */
-function MetaLine({ parts }: { parts: string[] }) {
-  return (
-    <div className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-1 tv-meta" style={{ color: 'var(--tv-text-dim)' }}>
-      {parts.map((part, i) => (
-        <span key={part} className="flex items-center gap-3">
-          {i > 0 && <span style={{ color: 'var(--tv-text-faint)' }}>|</span>}
-          <span>{part}</span>
-        </span>
-      ))}
-    </div>
-  )
-}
-
 function EntryCard({ entry, autoFocus, onSelect }: { entry: Entry; autoFocus?: boolean; onSelect: () => void }) {
   const visual = categoryVisual(entry.category, entry.subcategory)
 
   return (
-    <Focusable id={`entry-${entry.id}`} autoFocus={autoFocus} onSelect={onSelect} className="rounded-[1.25rem]">
-      {/* Tarjeta VERTICAL: en una fila horizontal caben más y la foto manda,
-          que es lo que hace que se escanee de un vistazo desde el sofá. */}
+    <Focusable id={`entry-${entry.id}`} autoFocus={autoFocus} onSelect={onSelect} className="arch-mask">
+      {/* Tarjeta VERTICAL en arco: mismo recorte y proporción que las teselas
+          de Guías Rápidas (InfoScreen) — arco de verdad sólo sale en un
+          contenedor retrato, y "mucho más grande" que el rectángulo de 268px
+          de antes. Sigue en fila horizontal (una por sección) porque aquí sí
+          hay varias secciones que apilar, a diferencia de la rejilla única de
+          Guías Rápidas. */}
       <div
-        className="relative h-[360px] w-[268px] shrink-0 overflow-hidden"
-        style={{ borderRadius: '1.25rem', background: 'var(--tv-surface)', border: '1px solid var(--tv-line)' }}
+        className="arch-mask relative h-[520px] w-[416px] shrink-0 overflow-hidden"
+        style={{ background: 'var(--tv-surface)', border: '1px solid var(--tv-line)' }}
       >
         {entry.image ? (
           <img src={entry.image} alt="" className="absolute inset-0 h-full w-full object-cover" />
@@ -54,16 +44,20 @@ function EntryCard({ entry, autoFocus, onSelect }: { entry: Entry; autoFocus?: b
           style={{ background: 'linear-gradient(0deg, rgba(4,16,22,0.94) 4%, rgba(4,16,22,0.45) 42%, rgba(4,16,22,0) 72%)' }}
         />
 
-        {entry.badge && (
-          <span
-            className="absolute left-4 top-4 rounded-full px-3 py-1.5 text-[17px] font-bold uppercase tracking-[0.1em]"
-            style={{ background: 'var(--tv-accent)', color: 'var(--tv-accent-ink)' }}
-          >
-            {entry.badge}
-          </span>
-        )}
-
+        {/* El badge vive junto al título, no flotando arriba: en un arco (radio
+            = mitad del ancho, ver .arch-mask) la esquina superior está
+            recortada mucho más adentro que en un rectángulo normal, y un
+            badge en top-left quedaba medio cortado por la propia curva. Aquí
+            abajo el recorte no existe (las esquinas inferiores son rectas). */}
         <div className="absolute inset-x-0 bottom-0 p-5">
+          {entry.badge && (
+            <span
+              className="mb-2 inline-block rounded-full px-3 py-1.5 text-[17px] font-bold uppercase tracking-[0.1em]"
+              style={{ background: 'var(--tv-accent)', color: 'var(--tv-accent-ink)' }}
+            >
+              {entry.badge}
+            </span>
+          )}
           <div className="t-display clamp-2 tv-card font-bold leading-tight" style={{ color: '#fff' }}>
             {entry.name}
           </div>
@@ -116,11 +110,10 @@ function buildSections(entries: Entry[], railLabel: string): Section[] {
 
 interface CollectionScreenProps {
   collection: Collection
-  zoneName: string
   onOpen: (entry: Entry) => void
 }
 
-export function CollectionScreen({ collection, zoneName, onOpen }: CollectionScreenProps) {
+export function CollectionScreen({ collection, onOpen }: CollectionScreenProps) {
   const { focusedId } = useFocus()
   const { entries } = collection
   const sections = useMemo(
@@ -142,22 +135,14 @@ export function CollectionScreen({ collection, zoneName, onOpen }: CollectionScr
 
   return (
     <div className="screen-in flex h-full flex-col">
-      {/* Portada editorial */}
-      <div className="shrink-0 pb-2">
-        <div className="t-label" style={{ color: 'var(--tv-accent)' }}>{collection.eyebrow}</div>
-        <h2 className="t-display mt-3 tv-hero font-bold" style={{ color: 'var(--tv-text)' }}>
+      {/* Portada: sólo el título — el resto (antetítulo, zona/nº de fichas/año,
+          descripción) era texto superfluo que no aportaba nada que las
+          propias tarjetas no dijeran ya, igual que se simplificó Guías
+          Rápidas. */}
+      <div className="shrink-0 pb-6">
+        <h2 className="t-display tv-hero font-bold" style={{ color: 'var(--tv-text)' }}>
           {collection.title}
         </h2>
-        <MetaLine
-          parts={[
-            zoneName,
-            `${entries.length} ${entries.length === 1 ? 'ficha' : 'fichas'}`,
-            String(new Date().getFullYear()),
-          ]}
-        />
-        <p className="clamp-2 mt-4 max-w-[54ch] tv-body" style={{ color: 'var(--tv-text-dim)' }}>
-          {collection.intro}
-        </p>
       </div>
 
       {/* Secciones: Destacados arriba y, debajo, una fila por categoría — todas

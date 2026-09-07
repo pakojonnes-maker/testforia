@@ -73,7 +73,6 @@ export interface Collection {
   tile: string
   title: string
   eyebrow: string
-  intro: string
   /** Etiqueta de la fila cuando no hay categorías que agrupar (p.ej. "eat",
    *  donde todo es 'restaurant') — ver buildSections en CollectionScreen. */
   railLabel: string
@@ -258,14 +257,12 @@ function buildNearby(data: GuidebookData): Entry[] {
 }
 
 export function buildCollections(data: GuidebookData): Collection[] {
-  const zone = data.zone?.name || 'la zona'
   return [
     {
       kind: 'eat',
       tile: 'Dónde comer',
       title: 'Dónde comer',
       eyebrow: 'Recomendaciones',
-      intro: `Los sitios que recomendamos de verdad en ${zone}. Escanea el código de cualquiera para abrir su carta en el móvil antes de salir de casa.`,
       railLabel: 'Recomendado por tu anfitrión',
       entries: buildEat(data),
     },
@@ -274,7 +271,6 @@ export function buildCollections(data: GuidebookData): Collection[] {
       tile: 'Qué hacer',
       title: 'Experiencias',
       eyebrow: 'Qué hacer',
-      intro: data.zone?.description || `Planes y experiencias reservables cerca de ${zone}.`,
       railLabel: 'Reservable desde tu móvil',
       entries: buildDo(data),
     },
@@ -283,7 +279,6 @@ export function buildCollections(data: GuidebookData): Collection[] {
       tile: 'Alrededores',
       title: 'Alrededores',
       eyebrow: 'Qué ver cerca',
-      intro: `Playas, cultura y rincones de ${zone} que merecen la visita. Escanea para llevarte la ruta en el móvil.`,
       railLabel: 'Lugares de interés',
       entries: buildNearby(data),
     },

@@ -4,31 +4,51 @@
  * casos fijados por el proyecto (zh→cn, ko→kr, uk→ua, ar→ae) que hay que
  * respetar, y el catalán no tiene bandera en el estándar Unicode, así que se
  * pinta con una insignia de texto en lugar de colgarle la de otro país.
+ *
+ * Bandera = IMAGEN (flag-icons), no emoji. Un emoji de bandera es una pareja
+ * de "regional indicator symbols" que el sistema tiene que saber componer —
+ * ni Windows/Chromium ni bastantes WebView de TV Android lo hacen: en vez de
+ * la bandera pintan las dos letras del código sueltas, que es exactamente el
+ * síntoma que esto corrige. Con SVG el resultado es el mismo en cualquier
+ * plataforma, no depende de qué fuente de emoji tenga el dispositivo.
  */
+
+import flagEs from 'flag-icons/flags/4x3/es.svg'
+import flagGb from 'flag-icons/flags/4x3/gb.svg'
+import flagFr from 'flag-icons/flags/4x3/fr.svg'
+import flagDe from 'flag-icons/flags/4x3/de.svg'
+import flagIt from 'flag-icons/flags/4x3/it.svg'
+import flagPt from 'flag-icons/flags/4x3/pt.svg'
+import flagAe from 'flag-icons/flags/4x3/ae.svg'
+import flagRu from 'flag-icons/flags/4x3/ru.svg'
+import flagUa from 'flag-icons/flags/4x3/ua.svg'
+import flagCn from 'flag-icons/flags/4x3/cn.svg'
+import flagJp from 'flag-icons/flags/4x3/jp.svg'
+import flagKr from 'flag-icons/flags/4x3/kr.svg'
 
 export interface LanguageOption {
   code: string
   /** Nombre en su propio idioma: es lo que reconoce el huésped, no "Alemán". */
   native: string
-  /** Emoji de bandera, o null cuando no existe una honesta para ese idioma. */
+  /** URL de la bandera (SVG), o null cuando no existe una honesta (catalán). */
   flag: string | null
   rtl?: boolean
 }
 
 const CATALOG: Record<string, LanguageOption> = {
-  es: { code: 'es', native: 'Español', flag: '🇪🇸' },
-  en: { code: 'en', native: 'English', flag: '🇬🇧' },
-  fr: { code: 'fr', native: 'Français', flag: '🇫🇷' },
-  de: { code: 'de', native: 'Deutsch', flag: '🇩🇪' },
-  it: { code: 'it', native: 'Italiano', flag: '🇮🇹' },
-  pt: { code: 'pt', native: 'Português', flag: '🇵🇹' },
+  es: { code: 'es', native: 'Español', flag: flagEs },
+  en: { code: 'en', native: 'English', flag: flagGb },
+  fr: { code: 'fr', native: 'Français', flag: flagFr },
+  de: { code: 'de', native: 'Deutsch', flag: flagDe },
+  it: { code: 'it', native: 'Italiano', flag: flagIt },
+  pt: { code: 'pt', native: 'Português', flag: flagPt },
   ca: { code: 'ca', native: 'Català', flag: null },
-  ar: { code: 'ar', native: 'العربية', flag: '🇦🇪', rtl: true },
-  ru: { code: 'ru', native: 'Русский', flag: '🇷🇺' },
-  uk: { code: 'uk', native: 'Українська', flag: '🇺🇦' },
-  zh: { code: 'zh', native: '中文', flag: '🇨🇳' },
-  ja: { code: 'ja', native: '日本語', flag: '🇯🇵' },
-  ko: { code: 'ko', native: '한국어', flag: '🇰🇷' },
+  ar: { code: 'ar', native: 'العربية', flag: flagAe, rtl: true },
+  ru: { code: 'ru', native: 'Русский', flag: flagRu },
+  uk: { code: 'uk', native: 'Українська', flag: flagUa },
+  zh: { code: 'zh', native: '中文', flag: flagCn },
+  ja: { code: 'ja', native: '日本語', flag: flagJp },
+  ko: { code: 'ko', native: '한국어', flag: flagKr },
 }
 
 export const DEFAULT_LANG = 'es'

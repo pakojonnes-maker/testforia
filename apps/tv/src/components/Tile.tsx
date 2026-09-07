@@ -85,13 +85,17 @@ export function PhotoTile({
 
 /** Tesela de utilidad: icono, etiqueta y, opcionalmente, un valor destacado. */
 export function PlainTile({
-  id, area, autoFocus, onSelect, icon, label, value, accent,
+  id, area, autoFocus, onSelect, icon, label, value, accent, compact,
 }: BaseProps & {
   icon: ReactNode
   label: string
   value?: string
   /** Pinta la tesela con el color de marca: se reserva a UNA por rejilla. */
   accent?: boolean
+  /** Icono + texto en una sola fila, centrados — para contenido de una sola
+   *  palabra (idioma, hora) donde el patrón icono-arriba/valor-abajo dejaba
+   *  la tesela con mucho hueco muerto alrededor de casi nada. */
+  compact?: boolean
 }) {
   return (
     <Shell id={id} area={area} autoFocus={autoFocus} onSelect={onSelect}
@@ -99,32 +103,46 @@ export function PlainTile({
         background: accent ? 'var(--tv-accent)' : 'var(--tv-surface)',
         border: accent ? '1px solid transparent' : '1px solid var(--tv-line)',
       }}>
-      <div className="flex h-full flex-col justify-between p-6">
-        <div className="text-5xl leading-none" style={{ color: accent ? 'var(--tv-accent-ink)' : 'var(--tv-accent)' }}>
-          {icon}
-        </div>
-        <div className="min-w-0">
-          {value && (
-            <div
-              className="t-display truncate tv-lead font-bold"
-              style={{ color: accent ? 'var(--tv-accent-ink)' : 'var(--tv-text)' }}
-            >
-              {value}
-            </div>
-          )}
+      {compact ? (
+        <div className="flex h-full items-center justify-center gap-4 px-6">
+          <div className="shrink-0 text-3xl leading-none" style={{ color: accent ? 'var(--tv-accent-ink)' : 'var(--tv-accent)' }}>
+            {icon}
+          </div>
           <div
-            className={`clamp-2 font-semibold leading-tight ${value ? 'tv-meta' : 'tv-card'}`}
-            style={{
-              // Sin valor encima, la etiqueta ES el titulo de la tesela y va a plena
-              // tinta; con valor pasa a ser su pie y baja de jerarquia.
-              color: accent ? 'var(--tv-accent-ink)' : value ? 'var(--tv-text-dim)' : 'var(--tv-text)',
-              opacity: accent ? 0.82 : 1,
-            }}
+            className="t-display truncate tv-card font-bold"
+            style={{ color: accent ? 'var(--tv-accent-ink)' : 'var(--tv-text)' }}
           >
-            {label}
+            {value || label}
           </div>
         </div>
-      </div>
+      ) : (
+        <div className="flex h-full flex-col justify-between p-6">
+          <div className="text-5xl leading-none" style={{ color: accent ? 'var(--tv-accent-ink)' : 'var(--tv-accent)' }}>
+            {icon}
+          </div>
+          <div className="min-w-0">
+            {value && (
+              <div
+                className="t-display truncate tv-lead font-bold"
+                style={{ color: accent ? 'var(--tv-accent-ink)' : 'var(--tv-text)' }}
+              >
+                {value}
+              </div>
+            )}
+            <div
+              className={`clamp-2 font-semibold leading-tight ${value ? 'tv-meta' : 'tv-card'}`}
+              style={{
+                // Sin valor encima, la etiqueta ES el titulo de la tesela y va a plena
+                // tinta; con valor pasa a ser su pie y baja de jerarquia.
+                color: accent ? 'var(--tv-accent-ink)' : value ? 'var(--tv-text-dim)' : 'var(--tv-text)',
+                opacity: accent ? 0.82 : 1,
+              }}
+            >
+              {label}
+            </div>
+          </div>
+        </div>
+      )}
     </Shell>
   )
 }

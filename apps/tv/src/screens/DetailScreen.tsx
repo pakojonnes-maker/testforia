@@ -202,7 +202,7 @@ export function DetailScreen({ entry, onBack }: DetailScreenProps) {
           </div>
 
           <div className="shrink-0 pt-6">
-            <Focusable id="detail-back" autoFocus onSelect={onBack} className="rounded-full">
+            <Focusable id="detail-back" autoFocus onSelect={onBack} className="w-fit rounded-full">
               <div
                 className="inline-flex items-center gap-3 rounded-full px-9 py-4 tv-body font-bold"
                 style={{ background: 'var(--tv-surface-raised)', color: 'var(--tv-text)' }}

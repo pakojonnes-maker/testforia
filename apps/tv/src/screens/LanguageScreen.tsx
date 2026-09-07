@@ -1,5 +1,6 @@
 import { Focusable } from '../lib/spatialNav'
 import { orderedLanguages } from '../lib/languages'
+import { LanguageFlag } from '../components/LanguageFlag'
 
 /**
  * Selector de idioma. El guidebook ya viene traducido del backend (13 idiomas
@@ -51,21 +52,7 @@ export function LanguageScreen({
                     border: '1px solid var(--tv-line)',
                   }}
                 >
-                  {/* Sin bandera honesta (catalán) se pone el código en texto,
-                      que es mejor que colgarle la bandera de otro país. */}
-                  {language.flag ? (
-                    <span className="text-4xl leading-none">{language.flag}</span>
-                  ) : (
-                    <span
-                      className="grid h-14 w-14 shrink-0 place-items-center rounded-xl text-xl font-bold"
-                      style={{
-                        background: 'rgba(0,0,0,0.28)',
-                        color: isCurrent ? 'var(--tv-accent-ink)' : 'var(--tv-text)',
-                      }}
-                    >
-                      {language.code.toUpperCase()}
-                    </span>
-                  )}
+                  <LanguageFlag language={language} height={44} />
 
                   <span
                     className="t-display truncate tv-card font-bold"

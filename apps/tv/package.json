@@ -9,6 +9,7 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "flag-icons": "^7.5.0",
     "framer-motion": "^12.23.9",
     "qr-code-styling": "^1.9.2",
     "react": "^19.1.0",

@@ -2,6 +2,7 @@ import { useEffect, useRef } from 'react'
 import { useFocus } from '../lib/spatialNav'
 import { PhotoTile, PlainTile, CodeTile, WifiTile } from '../components/Tile'
 import { BrandedQr } from '../components/BrandedQr'
+import { LanguageFlag } from '../components/LanguageFlag'
 import { wifiQrPayload } from '../lib/mockData'
 import { isDoorCode } from '../lib/infoIcon'
 import { languageOption } from '../lib/languages'
@@ -154,7 +155,8 @@ export function HomeScreen({ data, collections, lang, onNavigate }: HomeScreenPr
         <PlainTile
           id="tile-lang"
           area="lang"
-          icon={language.flag || '🌐'}
+          compact
+          icon={<LanguageFlag language={language} height={30} />}
           value={language.native}
           label="Idioma"
           onSelect={() => onNavigate({ name: 'language' })}
@@ -163,6 +165,7 @@ export function HomeScreen({ data, collections, lang, onNavigate }: HomeScreenPr
         <PlainTile
           id="tile-stay"
           area="stay"
+          compact
           icon="🕚"
           value={checkin && checkout ? `${checkin} · ${checkout}` : checkout || checkin || '—'}
           label={checkin && checkout ? 'Entrada y salida' : 'Tu estancia'}
