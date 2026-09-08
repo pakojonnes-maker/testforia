@@ -32,6 +32,7 @@ import {
   Apartment as ApartmentIcon,
 } from '@mui/icons-material';
 import QRCodeGenerator, { type QRCodeHandle } from '../../components/QRCodeGenerator';
+import { TvTileImages } from './TvTileImages';
 
 ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, ChartTitle, ChartTooltip, Legend, Filler);
 
@@ -554,6 +555,9 @@ export default function GuideTvPage() {
               </Box>
             )}
           </Paper>
+
+          {/* Imágenes de las teselas y del fondo */}
+          <TvTileImages apartmentId={aptId} />
 
           {/* Estadísticas */}
           {renderTvStats()}

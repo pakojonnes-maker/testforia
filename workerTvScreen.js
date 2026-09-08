@@ -13,6 +13,10 @@
 //   GET  /guide/admin/tv/stats/:apartment_id     — protegido: KPIs agregados para el host.
 //   PATCH /guide/admin/tv/devices/:id            — protegido: activa/desactiva una TV
 //                                                   (soft, conserva el pairing_code).
+//   GET  /guide/admin/tv/tiles?apartment_id=X    — protegido: imágenes de las teselas
+//                                                   reescritas por el anfitrión.
+//   PUT  /guide/admin/tv/tiles                   — protegido: sobrescribe (o restaura,
+//                                                   con imageUrl null) una ranura.
 // ============================================
 
 import { verifyJWT } from './workerAuthentication.js';
@@ -41,6 +45,10 @@ function generatePairingCode() {
     for (let i = 0; i < 6; i++) code += chars[Math.floor(Math.random() * chars.length)];
     return code;
 }
+
+// Espejo de TileSlot en apps/tv/src/lib/tileImages.ts y del CHECK de la tabla
+// guide_tv_tile_images (migración 0092). Los tres tienen que moverse juntos.
+const VALID_TILE_SLOTS = ['eat', 'do', 'store', 'info', 'background'];
 
 const VALID_EVENT_TYPES = ['impression', 'screen_view', 'wifi_reveal', 'poi_select', 'menu_qr_shown', 'booking_qr_shown'];
 
@@ -82,6 +90,12 @@ export async function handleTvScreenRequests(request, env) {
             const deviceMatch = url.pathname.match(/^\/guide\/admin\/tv\/devices\/([^/]+)$/);
             if (deviceMatch && request.method === 'PATCH') {
                 return await handleUpdateDeviceStatus(request, env, deviceMatch[1], auth);
+            }
+            if (url.pathname === '/guide/admin/tv/tiles' && request.method === 'GET') {
+                return await handleListTiles(request, env, auth);
+            }
+            if (url.pathname === '/guide/admin/tv/tiles' && request.method === 'PUT') {
+                return await handleSetTile(request, env, auth);
             }
         }
 
@@ -152,7 +166,74 @@ async function handleTvConfig(env, pairingCode, lang, origin) {
     // superficie 'tv' va explícita porque el JSON lleva las URLs de afiliado ya
     // resueltas y su sub-id distingue TV de guía; también le da entrada de caché
     // propia (ver handleGetGuidebook), o las ventas de una se atribuirían a la otra.
-    return handleGetGuidebook(env, device.apartment_slug, lang, origin, 'tv');
+    const response = await handleGetGuidebook(env, device.apartment_slug, lang, origin, 'tv');
+
+    return await attachTvConfig(response, env, device.apartment_id);
+}
+
+/**
+ * Cuelga el bloque `tv` del JSON del guidebook, FUERA de la caché KV.
+ *
+ * Es a propósito que no viaje dentro de handleGetGuidebook: esa respuesta se
+ * cachea en KV con una clave versionada que sólo se invalida al editar el
+ * CONTENIDO del guidebook (touchGuideVersion). Si las imágenes de las teselas
+ * fueran ahí dentro, cambiar la foto de "Tienda" en el admin no se vería en la
+ * tele hasta que caducara la entrada o alguien tocara un POI — el clásico de
+ * este repo (CLAUDE.md §3). Aquí son una lectura suelta a D1 por arranque de
+ * TV, que es un evento raro, y se ven en el siguiente encendido.
+ */
+async function attachTvConfig(response, env, apartmentId) {
+    // Un 404/500 del guidebook se devuelve tal cual: no hay JSON que enriquecer.
+    if (!response.ok) return response;
+
+    let payload;
+    try {
+        payload = await response.clone().json();
+    } catch {
+        return response;
+    }
+
+    const tiles = await loadTileOverrides(env, apartmentId);
+    // Sin overrides no se añade nada: la TV ya sabe pintar las de serie y así
+    // el JSON no engorda para el 99 % de alojamientos que no tocan esto.
+    if (!Object.keys(tiles).length) return response;
+
+    payload.tv = { ...(payload.tv || {}), tiles };
+
+    // Se conservan las cabeceras originales (X-Cache, CORS…) menos la longitud,
+    // que ya no vale porque el cuerpo ha crecido.
+    const headers = new Headers(response.headers);
+    headers.delete('Content-Length');
+    return new Response(JSON.stringify(payload), { status: response.status, headers });
+}
+
+/**
+ * { slot: image_url } de las ranuras reescritas. Vacío si no hay ninguna.
+ *
+ * El try/catch NO es decorativo: en este repo no hay ledger de migraciones
+ * (CLAUDE.md §3), así que un deploy puede adelantarse a la 0092 con toda
+ * normalidad. Sin él, un "no such table" subiría hasta el catch de
+ * handleTvScreenRequests y /guide/tv/config devolvería 500 — es decir, TODAS las
+ * teles del parque en negro por una tabla de personalización que la mayoría de
+ * alojamientos ni usa. Degradar a "sin overrides" deja la pantalla con sus
+ * imágenes de serie, que es exactamente lo que tenía que enseñar de todos modos.
+ */
+async function loadTileOverrides(env, apartmentId) {
+    let rows;
+    try {
+        rows = await env.DB.prepare(
+            'SELECT slot, image_url FROM guide_tv_tile_images WHERE apartment_id = ?'
+        ).bind(apartmentId).all();
+    } catch (error) {
+        console.error('[TvScreen] No se pudieron leer las imágenes de las teselas:', error.message);
+        return {};
+    }
+
+    const tiles = {};
+    for (const row of rows.results || []) {
+        if (row.image_url) tiles[row.slot] = row.image_url;
+    }
+    return tiles;
 }
 
 async function handleTvTrack(request, env) {
@@ -381,4 +462,68 @@ async function handleTvStats(env, apartmentId, auth, range = '30d') {
         },
         topPois: topPois.results || [],
     });
+}
+
+// ============================================
+// Admin: imágenes de las teselas
+// ============================================
+
+/** GET /guide/admin/tv/tiles?apartment_id=X */
+async function handleListTiles(request, env, auth) {
+    const url = new URL(request.url);
+    const apartmentId = url.searchParams.get('apartment_id');
+    if (!apartmentId) return errorResponse('apartment_id es obligatorio');
+
+    const access = await assertApartmentAccess(env, apartmentId, auth);
+    if (!access.ok) return access.response;
+
+    return jsonResponse({ success: true, tiles: await loadTileOverrides(env, apartmentId) });
+}
+
+/**
+ * PUT /guide/admin/tv/tiles  { apartmentId, slot, imageUrl }
+ *
+ * `imageUrl: null` (o cadena vacía) BORRA la fila en vez de guardar un vacío:
+ * "restaurar la de serie" y "poner una imagen en blanco" son cosas distintas, y
+ * la ausencia de fila es lo que la TV entiende como "usa la del APK".
+ */
+async function handleSetTile(request, env, auth) {
+    let data;
+    try {
+        data = await request.json();
+    } catch {
+        return errorResponse('JSON inválido');
+    }
+
+    const { apartmentId, slot } = data;
+    if (!apartmentId) return errorResponse('apartmentId es obligatorio');
+    if (!VALID_TILE_SLOTS.includes(slot)) {
+        return errorResponse(`slot debe ser uno de: ${VALID_TILE_SLOTS.join(', ')}`);
+    }
+
+    const access = await assertApartmentAccess(env, apartmentId, auth);
+    if (!access.ok) return access.response;
+
+    const imageUrl = typeof data.imageUrl === 'string' ? data.imageUrl.trim() : '';
+
+    if (!imageUrl) {
+        await env.DB.prepare(
+            'DELETE FROM guide_tv_tile_images WHERE apartment_id = ? AND slot = ?'
+        ).bind(apartmentId, slot).run();
+        return jsonResponse({ success: true, slot, imageUrl: null });
+    }
+
+    // Sólo http(s): el valor acaba en el `src` de un <img> de la TV, y un
+    // `javascript:` o un `data:` ahí no tiene ningún uso legítimo.
+    if (!/^https?:\/\//i.test(imageUrl)) {
+        return errorResponse('imageUrl debe ser una URL http(s)');
+    }
+
+    await env.DB.prepare(`
+        INSERT INTO guide_tv_tile_images (apartment_id, slot, image_url, updated_at)
+        VALUES (?, ?, ?, ?)
+        ON CONFLICT(apartment_id, slot) DO UPDATE SET image_url = excluded.image_url, updated_at = excluded.updated_at
+    `).bind(apartmentId, slot, imageUrl, new Date().toISOString()).run();
+
+    return jsonResponse({ success: true, slot, imageUrl });
 }

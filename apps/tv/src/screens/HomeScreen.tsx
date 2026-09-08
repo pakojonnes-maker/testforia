@@ -7,6 +7,7 @@ import { wifiQrPayload } from '../lib/mockData'
 import { isDoorCode } from '../lib/infoKeys'
 import { languageOption } from '../lib/languages'
 import { getTvString } from '../lib/i18n'
+import { tileImage } from '../lib/tileImages'
 import { track } from '../lib/tracking'
 import type { GuidebookData } from '../lib/api'
 import type { Collection, CollectionKind } from '../lib/collections'
@@ -43,6 +44,10 @@ export function HomeScreen({ data, collections, lang, onNavigate }: HomeScreenPr
   const eat = byKind('eat')
   const doing = byKind('do')
   const store = byKind('store')
+
+  // Imágenes de las teselas: las de serie van dentro del APK y el anfitrión
+  // puede sustituirlas por alojamiento desde el admin (ver lib/tileImages.ts).
+  const tiles = data.tv?.tiles
 
   const infoItems = data.apartment.info.filter(i => i.key.toLowerCase() !== 'wifi')
   const door = infoItems.find(i => isDoorCode(i.key))
@@ -97,6 +102,7 @@ export function HomeScreen({ data, collections, lang, onNavigate }: HomeScreenPr
         <PlainTile
           id="tile-info"
           area="info"
+          image={tileImage('info', tiles)}
           value={getTvString('rules', lang)}
           label={getTvString('quick_guides', lang)}
           onSelect={() => onNavigate({ name: 'info' })}
@@ -136,7 +142,7 @@ export function HomeScreen({ data, collections, lang, onNavigate }: HomeScreenPr
           overline={eat?.eyebrow}
           label={eat?.tile || 'Dónde comer'}
           count={eat?.entries.length}
-          image={data.restaurants.find(r => r.cover_image)?.cover_image || data.zone?.cover_image_url}
+          image={tileImage('eat', tiles)}
           onSelect={() => onNavigate({ name: 'collection', kind: 'eat' })}
         />
 
@@ -146,7 +152,7 @@ export function HomeScreen({ data, collections, lang, onNavigate }: HomeScreenPr
           overline={doing?.eyebrow}
           label={doing?.tile || 'Qué hacer'}
           count={doing?.entries.length}
-          image={data.experiences.find(e => e.cover_image_url)?.cover_image_url || data.zone?.cover_image_url}
+          image={tileImage('do', tiles)}
           onSelect={() => onNavigate({ name: 'collection', kind: 'do' })}
         />
 
@@ -175,7 +181,7 @@ export function HomeScreen({ data, collections, lang, onNavigate }: HomeScreenPr
           overline={store?.eyebrow}
           label={store?.tile || getTvString('store_title', lang)}
           count={store?.entries.length}
-          image={data.store_items.find(i => i.cover_image_url)?.cover_image_url || data.apartment.cover_image_url}
+          image={tileImage('store', tiles)}
           onSelect={() => onNavigate({ name: 'collection', kind: 'store' })}
         />
 

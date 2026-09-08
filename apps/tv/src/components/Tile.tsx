@@ -64,10 +64,24 @@ export function PhotoTile({
       />
 
       {/* Velo inferior: sin él el texto blanco desaparece sobre fotos claras.
-          El degradado va desde abajo para no apagar la imagen entera. */}
+          El degradado va desde abajo para no apagar la imagen entera.
+
+          Las paradas van en PÍXELES, no en porcentajes. Con porcentajes el velo
+          se estira con la tesela, y las de una sola fila (Tienda mide 140 px de
+          alto) se quedaban con el antetítulo justo en la zona al 5 % — sobre la
+          botella de aceite a contraluz, "PIDE A TU ANFITRIÓN" desaparecía. Lo
+          que hay que proteger es el TEXTO, que siempre ocupa lo mismo, así que
+          el velo se ata a su altura: cubre la tesela corta entera y en la
+          grande sigue dejando ver la foto de la mitad para arriba. */}
       <div
         className="absolute inset-0"
-        style={{ background: 'linear-gradient(0deg, rgba(4,16,22,0.92) 0%, rgba(4,16,22,0.55) 34%, rgba(4,16,22,0.05) 68%)' }}
+        style={{
+          background: `linear-gradient(0deg,
+            rgba(4,16,22,0.94) 0px,
+            rgba(4,16,22,0.80) 90px,
+            rgba(4,16,22,0.42) 170px,
+            rgba(4,16,22,0.06) 250px)`,
+        }}
       />
 
       <div className="absolute inset-x-0 bottom-0 p-7">
@@ -87,8 +101,17 @@ export function PhotoTile({
 
 /** Tesela de utilidad: icono, etiqueta y, opcionalmente, un valor destacado. */
 export function PlainTile({
-  id, area, autoFocus, onSelect, icon, label, value, accent, compact,
+  id, area, autoFocus, onSelect, icon, label, value, accent, compact, image,
 }: BaseProps & {
+  /**
+   * Foto de fondo OPCIONAL. Existe para "Normas de la casa", que es una tesela
+   * de utilidad —caja pequeña, tipografía de utilidad— pero también una de las
+   * cuatro secciones con imagen propia. Con `PhotoTile` habría que subirla a
+   * rótulo de 48 px en una caja de 213 px de alto y el texto se partía en tres
+   * líneas; así se queda la maqueta que ya estaba ajustada y sólo cambia lo que
+   * hay detrás.
+   */
+  image?: string
   /**
    * OPCIONAL, y hoy sólo lo usa la bandera del idioma. Los emoji decorativos
    * que llevaban estas teselas (📋, 📶, 🕚) se quitaron: cada uno estaba pegado
@@ -106,20 +129,44 @@ export function PlainTile({
    *  hueco muerto alrededor de casi nada. */
   compact?: boolean
 }) {
+  // Sobre foto, la jerarquía por tono (`--tv-text-dim` para el pie) desaparece:
+  // cualquier gris sobre una imagen se lee como texto apagado, no como segundo
+  // nivel. Con imagen se pasa a blanco pleno y el peso lo marca el tamaño.
+  const onPhoto = Boolean(image) && !accent
+  const ink = accent ? 'var(--tv-accent-ink)' : onPhoto ? '#fff' : 'var(--tv-text)'
+  const inkDim = accent
+    ? 'var(--tv-accent-ink)'
+    : onPhoto ? 'rgba(255,255,255,0.78)' : 'var(--tv-text-dim)'
+  const inkFaint = accent
+    ? 'var(--tv-accent-ink)'
+    : onPhoto ? 'rgba(255,255,255,0.72)' : 'var(--tv-text-faint)'
+
   return (
     <Shell id={id} area={area} autoFocus={autoFocus} onSelect={onSelect}
       style={{
         background: accent ? 'var(--tv-accent)' : 'var(--tv-surface)',
         border: accent ? '1px solid transparent' : '1px solid var(--tv-line)',
       }}>
+      {onPhoto && (
+        <>
+          <CoverImage src={image} fallback={null} />
+          {/* Más cerrado que el velo de PhotoTile: aquí el texto no vive sólo
+              abajo, así que la foto tiene que ceder en toda la caja. */}
+          <div
+            className="absolute inset-0"
+            style={{ background: 'linear-gradient(0deg, rgba(4,16,22,0.90) 0%, rgba(4,16,22,0.62) 55%, rgba(4,16,22,0.34) 100%)' }}
+          />
+        </>
+      )}
+
       {compact ? (
-        <div className="flex h-full flex-col items-center justify-center gap-2 px-6 text-center">
+        <div className="relative flex h-full flex-col items-center justify-center gap-2 px-6 text-center">
           {/* La etiqueta pasa a ser un antetítulo visible. En compacto sólo se
               pintaba `value`, y el icono era lo único que insinuaba de qué iba:
               sin el reloj, "15:00 · 11:00" era un número desnudo. Ahora lo dice
               el texto, que además es lo que sí se lee a 3 m. */}
           {value && (
-            <div className="t-label" style={{ color: accent ? 'var(--tv-accent-ink)' : 'var(--tv-text-faint)' }}>
+            <div className="t-label" style={{ color: inkFaint }}>
               {label}
             </div>
           )}
@@ -127,7 +174,7 @@ export function PlainTile({
             {icon && <span className="shrink-0 leading-none">{icon}</span>}
             <span
               className="t-display truncate tv-card font-bold"
-              style={{ color: accent ? 'var(--tv-accent-ink)' : 'var(--tv-text)' }}
+              style={{ color: ink }}
             >
               {value || label}
             </span>
@@ -136,7 +183,7 @@ export function PlainTile({
       ) : (
         // Sin icono el contenido se ancla ABAJO, como el rótulo de PhotoTile:
         // con `justify-between` y un solo hijo se quedaba pegado arriba.
-        <div className={`flex h-full flex-col p-6 ${icon ? 'justify-between' : 'justify-end'}`}>
+        <div className={`relative flex h-full flex-col p-6 ${icon ? 'justify-between' : 'justify-end'}`}>
           {icon && (
             <div className="text-5xl leading-none" style={{ color: accent ? 'var(--tv-accent-ink)' : 'var(--tv-accent)' }}>
               {icon}
@@ -146,7 +193,7 @@ export function PlainTile({
             {value && (
               <div
                 className="t-display truncate tv-lead font-bold"
-                style={{ color: accent ? 'var(--tv-accent-ink)' : 'var(--tv-text)' }}
+                style={{ color: ink }}
               >
                 {value}
               </div>
@@ -156,7 +203,7 @@ export function PlainTile({
               style={{
                 // Sin valor encima, la etiqueta ES el titulo de la tesela y va a plena
                 // tinta; con valor pasa a ser su pie y baja de jerarquia.
-                color: accent ? 'var(--tv-accent-ink)' : value ? 'var(--tv-text-dim)' : 'var(--tv-text)',
+                color: value ? inkDim : ink,
                 opacity: accent ? 0.82 : 1,
               }}
             >

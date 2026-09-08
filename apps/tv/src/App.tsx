@@ -15,6 +15,7 @@ import { buildTheme } from './lib/theme'
 import { DEFAULT_LANG, isRtl } from './lib/languages'
 import { densityFor, resolveScreenSize } from './lib/display'
 import { setTrackingContext, track } from './lib/tracking'
+import { tileImage } from './lib/tileImages'
 
 export type Route =
   | { name: 'home' }
@@ -198,7 +199,7 @@ export function App() {
         dir={isRtl(lang) ? 'rtl' : 'ltr'}
         lang={lang}
       >
-        <MediterraneanBackground />
+        <MediterraneanBackground image={tileImage('background', guide?.tv?.tiles)} />
 
         <Stage density={densityFor(screenSize)}>
         <div className="tv-safe flex flex-col">

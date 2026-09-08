@@ -75,6 +75,18 @@ export interface GuidebookData {
     /** 'small' | 'normal' | 'large' — pulgadas de la tele, ver lib/display.ts */
     screen_size?: string | null
   }
+  /**
+   * Personalización de la pantalla que el anfitrión edita en el admin
+   * (Pantalla TV → Imágenes de la pantalla). Igual que `device`, sólo puede
+   * llegar por `/guide/tv/config/:code`.
+   *
+   * `tiles` sólo trae las ranuras REESCRITAS: lo que no venga se pinta con la
+   * imagen empaquetada en el APK (ver lib/tileImages.ts), así que la pantalla
+   * tiene su aspecto definitivo aunque este bloque no llegue nunca.
+   */
+  tv?: {
+    tiles?: Partial<Record<'eat' | 'do' | 'store' | 'info' | 'background', string | null>>
+  }
 }
 
 // GET /guide/tv/config/:pairingCode — resuelve la TV emparejada, hace heartbeat
