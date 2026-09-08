@@ -2,18 +2,15 @@
 -- BDschemaFinal.sql — ESQUEMA REAL DE PRODUCCION
 -- =====================================================
 -- Base de datos D1: restaurant-menu-saas (7e8d1efe-2a54-4849-9a06-4c47152392bd)
--- Exportado el 2026-09-06 desde la BD en produccion, tras aplicar la
--- migracion 0091 (orden promocionable + afiliacion del guidebook):
---   · guide_pois: promotion_rank, promoted_from, promoted_until,
---     action_is_affiliate, affiliate_network, affiliate_code,
---     secondary_action_type, secondary_action_data,
---     secondary_action_prefilled_message.
---   · guide_store_items y guide_zone_restaurants: promotion_rank,
---     promoted_from, promoted_until.
---   · Tabla nueva guide_apartment_item_order (override de orden y visibilidad
---     por apartamento sobre catalogos que el alojamiento no posee).
--- Todas las columnas NULLABLE.
--- 86 tablas.
+-- Exportado el 2026-09-08 desde la BD en produccion, tras aplicar la
+-- migracion 0092 (imagenes de las teselas de VisualTaste TV):
+--   · Tabla nueva guide_tv_tile_images (apartment_id, slot, image_url,
+--     updated_at). PK compuesta (apartment_id, slot); slot con CHECK sobre
+--     'eat' | 'do' | 'store' | 'info' | 'background'.
+--     Guarda SOLO las excepciones: la imagen que un anfitrion sube desde
+--     Pantalla TV para sustituir la que la app de la TV lleva empaquetada.
+--     Lo normal es que un apartamento no tenga ninguna fila aqui.
+-- 87 tablas.
 --
 -- NO editar a mano. Para regenerar:
 --   npx wrangler d1 export restaurant-menu-saas --remote --no-data --output BDschemaFinal.sql
@@ -1245,6 +1242,17 @@ CREATE TABLE guide_apartment_item_order (
   created_at     TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   modified_at    TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY (apartment_id, item_type, item_id),
+  FOREIGN KEY (apartment_id) REFERENCES guide_apartments(id) ON DELETE CASCADE
+);
+CREATE TABLE guide_tv_tile_images (
+  apartment_id  TEXT NOT NULL,
+  -- Las mismas cinco claves que TileSlot en apps/tv/src/lib/tileImages.ts. El
+  -- CHECK es el que evita que una ranura mal escrita desde el admin se guarde
+  -- en silencio y no se pinte nunca en ninguna parte.
+  slot          TEXT NOT NULL CHECK(slot IN ('eat', 'do', 'store', 'info', 'background')),
+  image_url     TEXT NOT NULL,
+  updated_at    TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (apartment_id, slot),
   FOREIGN KEY (apartment_id) REFERENCES guide_apartments(id) ON DELETE CASCADE
 );
 CREATE INDEX idx_dishes_restaurant ON dishes(restaurant_id);
