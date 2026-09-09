@@ -70,7 +70,9 @@ export function InfoScreen({ data, lang, onOpen }: { data: GuidebookData; lang: 
   return (
     <div className="screen-in flex h-full flex-col">
       <div className="shrink-0 pb-6">
-        <h2 className="t-display tv-hero font-bold" style={{ color: 'var(--tv-text)' }}>
+        {/* Sin hoja debajo, como CollectionScreen: rejilla de fichas con
+            foto. El título va sobreimpreso en la pared. */}
+        <h2 className="t-display tv-overprint tv-hero font-bold" style={{ color: 'var(--tv-ink)' }}>
           {getTvString('quick_guides', lang)}
         </h2>
       </div>

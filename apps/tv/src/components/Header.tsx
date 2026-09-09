@@ -9,7 +9,12 @@ import { CoverImage } from './CoverImage'
  *
  * Sin tarjeta ni fondo propio a propósito: el texto vive directamente sobre
  * MediterraneanBackground, como una sobreimpresión, no como un panel flotante
- * encima de la escena.
+ * encima de la escena. De ahí la clase `tv-overprint` (index.css) y de ahí que
+ * el alojamiento y la fecha vayan a tinta PLENA en vez de a los tonos apagados
+ * --tv-text-dim/faint: esas transparencias están calibradas contra un lienzo
+ * oscuro, y desde que el fondo es una foto de la casa —que suele ser clara— un
+ * blanco al 45 % no lo rescata ninguna sombra. La jerarquía la marcan aquí el
+ * tamaño y la caja alta, que a 3 m se leen antes que un cambio de tono.
  *
  * El reloj grande no es decoración: es lo que convierte la pantalla en un
  * "aparato" del alojamiento y no en una web abierta en la tele. Es también lo
@@ -84,7 +89,7 @@ export function Header({ brand, property, logoUrl, lang, demoMode }: HeaderProps
 
         <div className="min-w-0 leading-tight">
           <div className="flex items-center gap-3">
-            <h1 className="t-display truncate tv-title font-bold" style={{ color: 'var(--tv-text)' }}>
+            <h1 className="t-display tv-overprint truncate tv-title font-bold" style={{ color: 'var(--tv-ink)' }}>
               {brand}
             </h1>
             {/* Este aviso es lo único que distingue "la TV funciona" de "la TV
@@ -102,7 +107,7 @@ export function Header({ brand, property, logoUrl, lang, demoMode }: HeaderProps
               </span>
             )}
           </div>
-          <p className="tv-meta mt-1 truncate font-medium uppercase tracking-[0.1em]" style={{ color: 'var(--tv-text-faint)' }}>
+          <p className="tv-meta tv-overprint mt-1 truncate font-medium uppercase tracking-[0.1em]" style={{ color: 'var(--tv-ink-faint)' }}>
             {property}
           </p>
         </div>
@@ -110,7 +115,7 @@ export function Header({ brand, property, logoUrl, lang, demoMode }: HeaderProps
 
       {/* Fecha */}
       <div className="shrink-0 self-center text-center leading-none">
-        <div className="t-display tv-lead font-bold whitespace-nowrap" style={{ color: 'var(--tv-text-dim)' }}>
+        <div className="t-display tv-overprint tv-lead font-bold whitespace-nowrap" style={{ color: 'var(--tv-ink-dim)' }}>
           {date}
         </div>
       </div>
@@ -118,7 +123,7 @@ export function Header({ brand, property, logoUrl, lang, demoMode }: HeaderProps
       {/* Hora */}
       <div className="shrink-0 justify-self-end text-right leading-none">
         <div
-          className="t-display tv-hero font-bold tabular-nums"
+          className="t-display tv-overprint tv-hero font-bold tabular-nums"
           style={{ color: 'var(--tv-accent)' }}
         >
           {time}

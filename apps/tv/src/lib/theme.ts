@@ -109,6 +109,37 @@ export function buildTheme(agency?: GuidebookData['agency']): TvTheme {
     '--tv-canvas-deep': canvasDeep,
     '--tv-surface': surface,
     '--tv-surface-raised': surfaceRaised,
+    // ---- PAPEL: la polaridad INVERTIDA de las pantallas de contenido ----
+    // El mosaico de inicio es tinta clara sobre teselas oscuras y funciona,
+    // porque cada tesela trae su propio fondo. El contenido no puede jugar a
+    // eso: son párrafos y datos sobre una pared encalada. En vez de apagar la
+    // foto para que quepa una UI oscura, el contenido se pasa a papel — que es
+    // además lo que la foto está pidiendo, y lo que hace que la pantalla
+    // parezca un objeto de la casa y no una web abierta en la tele.
+    //
+    // PaperSurface (App.tsx) reescribe --tv-text/-dim/-faint y --tv-surface
+    // con estos valores DENTRO de su caja. Como las custom properties
+    // cascadean, las cinco pantallas se invierten sin tocar ni una línea suya.
+    // El papel NO es un relleno plano: es un degradado diagonal y ligeramente
+    // TRASLÚCIDO. Ahí está el efecto de integración — la hoja recoge el tono de
+    // la pared que tiene detrás y comparte su dirección de luz, así que parece
+    // apoyada en la habitación en vez de pegada sobre la foto. Un blanco opaco
+    // y liso, por muy cálido que sea, siempre se lee como un recorte.
+    '--tv-paper': `linear-gradient(150deg,
+      rgba(255, 255, 255, 0.96) 0%,
+      rgba(252, 250, 246, 0.93) 38%,
+      rgba(245, 241, 234, 0.88) 100%)`,
+    // Mismo tratamiento, más cerrado, para las fichas de dentro (red,
+    // contraseña, secciones de la ficha): el degradado tiene que ser el mismo
+    // gesto en toda la pantalla, no sólo en la hoja grande.
+    '--tv-paper-raised': `linear-gradient(150deg,
+      rgba(255, 255, 255, 0.98) 0%,
+      rgba(253, 251, 249, 0.95) 55%,
+      rgba(248, 245, 240, 0.92) 100%)`,
+    '--tv-paper-line': 'rgba(30, 58, 90, 0.10)',
+    '--tv-ink': '#1e3a5a',           // titulares
+    '--tv-ink-dim': '#4a5c70',       // texto corrido
+    '--tv-ink-faint': '#78899b',     // antetítulos y etiquetas
     '--tv-line': 'rgba(255,255,255,0.14)',
     '--tv-line-strong': 'rgba(255,255,255,0.26)',
     '--tv-text': '#f8f5ef',

@@ -85,6 +85,25 @@ body {
   font-weight: 600;
 }
 
+/* Texto SOBREIMPRESO en la foto de fondo, sin papel debajo: hoy, la cabecera.
+
+   Va en tinta OSCURA, como el contenido, porque los fondos de esta pantalla son
+   interiores encalados. Así que el halo es CLARO, no una sombra: lo que hay que
+   separar es una letra azul noche de una pared con sombras de olivo encima, y
+   para eso hace falta luz alrededor de la letra, no oscuridad.
+
+   Dos capas: la corta perfila el carácter, la larga y difusa despega el bloque.
+   Con una sola, o se ve sucia de cerca o no levanta nada a 3 m, que es la única
+   distancia a la que se mira esto.
+
+   Límite conocido: si un anfitrión sube un fondo OSCURO, la cabecera se queda
+   sin contraste (el contenido no, va sobre papel). Si eso llega a pasar, lo
+   correcto es elegir la tinta según la luminosidad de la franja superior de la
+   imagen, no volver a velar la foto entera. */
+.tv-overprint {
+  text-shadow: 0 1px 2px rgba(255, 255, 255, 0.85), 0 2px 18px rgba(250, 248, 244, 0.8);
+}
+
 /* Recorte de texto a N líneas: en una tesela el texto NUNCA debe empujar la
    caja ni salirse; el desbordamiento silencioso es el bug clásico de la TV. */
 .clamp-2, .clamp-3, .clamp-4, .clamp-6 {

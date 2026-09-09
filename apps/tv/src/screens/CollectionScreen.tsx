@@ -126,7 +126,11 @@ export function CollectionScreen({ collection, onOpen }: CollectionScreenProps) 
           propias tarjetas no dijeran ya, igual que se simplificó Guías
           Rápidas. */}
       <div className="shrink-0 pb-6">
-        <h2 className="t-display tv-hero font-bold" style={{ color: 'var(--tv-text)' }}>
+        {/* Esta pantalla NO lleva hoja de papel debajo (ver PAPER_ROUTES en
+            App.tsx): es un catálogo de fichas con foto, y taparle la habitación
+            no aportaría nada. Su texto suelto va entonces como la cabecera —
+            tinta oscura sobre la pared, con halo claro. */}
+        <h2 className="t-display tv-overprint tv-hero font-bold" style={{ color: 'var(--tv-ink)' }}>
           {collection.title}
         </h2>
       </div>
@@ -145,7 +149,7 @@ export function CollectionScreen({ collection, onOpen }: CollectionScreenProps) 
         <div className="col-scroll mt-6 min-h-0 flex-1 pr-1">
           {sections.map((section, si) => (
             <div key={section.label} className="pb-6">
-              <div className="t-label shrink-0 pb-4" style={{ color: 'var(--tv-text-faint)' }}>
+              <div className="t-label tv-overprint shrink-0 pb-4" style={{ color: 'var(--tv-ink-faint)' }}>
                 {section.label}
               </div>
               {/* pt/pb dan aire al anillo de foco: sin ellos se recorta contra
