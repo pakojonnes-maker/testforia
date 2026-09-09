@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { CoverImage } from './CoverImage'
 
 /**
- * Cabecera persistente: 3 secciones — marca del alojamiento, fecha y hora —
+ * Cabecera persistente: 3 secciones — marca, fecha y hora —
  * repartidas en una rejilla de 3 columnas para que la fecha quede centrada de
  * verdad (no "lo que sobre" entre marca y hora, que es lo que da un flex
  * justify-between con anchos desiguales a cada lado).
@@ -41,13 +41,12 @@ function useClock() {
 
 interface HeaderProps {
   brand: string
-  property: string
   logoUrl?: string
   lang: string
   demoMode?: boolean
 }
 
-export function Header({ brand, property, logoUrl, lang, demoMode }: HeaderProps) {
+export function Header({ brand, logoUrl, lang, demoMode }: HeaderProps) {
   const now = useClock()
   const locale = lang === 'es' ? 'es-ES' : lang
 
@@ -107,9 +106,6 @@ export function Header({ brand, property, logoUrl, lang, demoMode }: HeaderProps
               </span>
             )}
           </div>
-          <p className="tv-meta tv-overprint mt-1 truncate font-medium uppercase tracking-[0.1em]" style={{ color: 'var(--tv-ink-faint)' }}>
-            {property}
-          </p>
         </div>
       </div>
 

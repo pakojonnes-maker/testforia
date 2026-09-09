@@ -268,7 +268,6 @@ export function App() {
           <div className="shrink-0 pb-8">
             <Header
               brand={guide?.agency?.name || 'VisualTaste'}
-              property={guide?.apartment?.name || 'Pantalla de bienvenida'}
               logoUrl={guide?.agency?.logo_url || undefined}
               lang={lang}
               demoMode={usingMock && !!identifierAttempted}
