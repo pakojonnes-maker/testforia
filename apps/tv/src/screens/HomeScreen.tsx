@@ -95,7 +95,13 @@ export function HomeScreen({ data, collections, lang, onNavigate }: HomeScreenPr
         className="grid h-full gap-4"
         style={{
           gridTemplateColumns: '0.92fr 1.06fr 1.06fr 1.04fr',
-          gridTemplateRows: 'repeat(4, minmax(0, 1fr))',
+          // La fila 3 (Idioma y Tu estancia) va al 40 % de la altura de las
+          // demás. Son teselas de UTILIDAD: dentro sólo hay una etiqueta y un
+          // dato de una palabra, así que a un cuarto de la pantalla eran casi
+          // todo hueco muerto y competían en peso con los destinos, que son lo
+          // que el huésped ha venido a mirar. 3/3/1/3 sobre 10 deja esa fila en
+          // el 10 % del alto y reparte el 90 % restante entre las otras tres.
+          gridTemplateRows: 'minmax(0, 3fr) minmax(0, 3fr) minmax(0, 1fr) minmax(0, 3fr)',
           gridTemplateAreas: areas.join(' '),
         }}
       >
