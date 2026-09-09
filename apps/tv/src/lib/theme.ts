@@ -109,13 +109,6 @@ export function buildTheme(agency?: GuidebookData['agency']): TvTheme {
     '--tv-canvas-deep': canvasDeep,
     '--tv-surface': surface,
     '--tv-surface-raised': surfaceRaised,
-    // Velo sobre la foto de fondo (ver MediterraneanBackground). Se calcula
-    // aquí y no en CSS porque `color-mix()` es Chrome 111+ y estas pantallas
-    // corren en WebViews de Android TV que a menudo van MUY por detrás: allí la
-    // regla se descarta entera y el lienzo se queda sin velo, con la cabecera
-    // ilegible sobre la pared encalada. `rgba()` lo entiende todo.
-    '--tv-scrim-top': rgba(canvasDeep, 0.86),
-    '--tv-scrim-bottom': rgba(canvas, 0.74),
     '--tv-line': 'rgba(255,255,255,0.14)',
     '--tv-line-strong': 'rgba(255,255,255,0.26)',
     '--tv-text': '#f8f5ef',
