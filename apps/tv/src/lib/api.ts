@@ -85,7 +85,7 @@ export interface GuidebookData {
    * tiene su aspecto definitivo aunque este bloque no llegue nunca.
    */
   tv?: {
-    tiles?: Partial<Record<'eat' | 'do' | 'store' | 'info' | 'background', string | null>>
+    tiles?: Partial<Record<'eat' | 'do' | 'store' | 'info' | 'lang' | 'stay' | 'wifi' | 'background', string | null>>
   }
 }
 

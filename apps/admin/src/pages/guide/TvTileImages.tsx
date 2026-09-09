@@ -1,8 +1,8 @@
 // src/pages/guide/TvTileImages.tsx
-// Imágenes de las cuatro teselas del mosaico de VisualTaste TV y del fondo de
+// Imágenes de las siete teselas del mosaico de VisualTaste TV y del fondo de
 // pantalla, por apartamento.
 //
-// Las cinco de serie viven DENTRO del APK de la TV (apps/tv/src/assets/tiles):
+// Las ocho de serie viven DENTRO del APK de la TV (apps/tv/src/assets/tiles):
 // la pantalla arranca con su aspecto definitivo aunque el WiFi del apartamento
 // no levante, que es justo el momento en que menos se puede contar con él. Este
 // panel sólo guarda las EXCEPCIONES — el anfitrión que quiere su propia foto —
@@ -11,7 +11,7 @@
 // Las miniaturas de aquí son copias de esos mismos webp en assets/tv/. Están
 // duplicadas a propósito: cada app se construye y se despliega por su cuenta
 // (Pages vs APK) y el admin no debe depender del dominio de la TV para pintar
-// una vista previa. Son 432 KB entre las cinco; si alguna cambia, hay que
+// una vista previa. Son ~600 KB entre las ocho; si alguna cambia, hay que
 // copiarla a los dos sitios.
 import { useCallback, useEffect, useState } from 'react';
 import {
@@ -28,12 +28,15 @@ import eatDefault from '../../assets/tv/eat.webp';
 import doDefault from '../../assets/tv/do.webp';
 import storeDefault from '../../assets/tv/store.webp';
 import infoDefault from '../../assets/tv/info.webp';
+import langDefault from '../../assets/tv/lang.webp';
+import stayDefault from '../../assets/tv/stay.webp';
+import wifiDefault from '../../assets/tv/wifi.webp';
 import backgroundDefault from '../../assets/tv/background.webp';
 
 const MEDIA_BASE = import.meta.env.VITE_API_URL || 'https://visualtasteworker.franciscotortosaestudios.workers.dev';
 
 /** Mismas claves que TileSlot en apps/tv y que el CHECK de guide_tv_tile_images. */
-type TileSlot = 'eat' | 'do' | 'store' | 'info' | 'background';
+type TileSlot = 'eat' | 'do' | 'store' | 'info' | 'lang' | 'stay' | 'wifi' | 'background';
 
 interface SlotSpec {
   slot: TileSlot;
@@ -49,6 +52,9 @@ const SLOTS: SlotSpec[] = [
   { slot: 'do', title: 'Qué hacer', hint: 'Columna derecha, alta y estrecha: funcionan mejor las fotos con horizonte.', defaultImage: doDefault },
   { slot: 'store', title: 'Tienda', hint: 'Tesela ancha y baja. Evita fotos con el motivo en el centro.', defaultImage: storeDefault },
   { slot: 'info', title: 'Normas de la casa', hint: 'Tesela pequeña, arriba a la izquierda, con el texto encima.', defaultImage: infoDefault },
+  { slot: 'wifi', title: 'WiFi', hint: 'Columna izquierda, alta y estrecha. Lleva el QR y la contraseña encima, así que va muy atenuada: mejor una foto tranquila.', defaultImage: wifiDefault },
+  { slot: 'lang', title: 'Idioma', hint: 'Franja baja y muy ancha (85 px de alto). Se recorta a una banda central: evita fotos con el motivo arriba o abajo.', defaultImage: langDefault },
+  { slot: 'stay', title: 'Tu estancia', hint: 'Misma franja baja que Idioma, al lado. Muestra las horas de entrada y salida encima.', defaultImage: stayDefault },
   { slot: 'background', title: 'Fondo de pantalla', hint: 'Detrás de todo y muy atenuado: da ambiente, no protagonismo. Mejor una foto sin motivo central.', defaultImage: backgroundDefault, wide: true },
 ];
 

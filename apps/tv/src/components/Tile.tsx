@@ -243,12 +243,26 @@ export function CodeTile({
  * vive en el inicio con el QR ya escaneable — no detrás de un menú.
  */
 export function WifiTile({
-  id, area, autoFocus, onSelect, ssid, password, qr,
-}: BaseProps & { ssid: string; password: string; qr: ReactNode }) {
+  id, area, autoFocus, onSelect, ssid, password, qr, image,
+}: BaseProps & { ssid: string; password: string; qr: ReactNode; image?: string }) {
   return (
     <Shell id={id} area={area} autoFocus={autoFocus} onSelect={onSelect}
       style={{ background: 'var(--tv-surface-raised)' }}>
-      <div className="flex h-full flex-col items-center justify-between p-6 text-center">
+      {image && (
+        <>
+          <CoverImage src={image} fallback={null} />
+          {/* El velo aquí va más cerrado que en ninguna otra tesela: esta no
+              tiene UN rótulo abajo sino cinco bloques repartidos por toda la
+              caja (rótulo, QR, instrucción, red y clave), y la clave del WiFi
+              es el dato que más veces se teclea mal de toda la pantalla. La
+              foto se queda como textura, no como protagonista. */}
+          <div
+            className="absolute inset-0"
+            style={{ background: 'linear-gradient(0deg, rgba(4,16,22,0.93) 0%, rgba(4,16,22,0.86) 50%, rgba(4,16,22,0.78) 100%)' }}
+          />
+        </>
+      )}
+      <div className="relative flex h-full flex-col items-center justify-between p-6 text-center">
         <div className="w-full">
           <div className="t-label" style={{ color: 'var(--tv-accent)' }}>Conéctate</div>
           <div className="t-display mt-1.5 tv-card font-bold" style={{ color: 'var(--tv-text)' }}>

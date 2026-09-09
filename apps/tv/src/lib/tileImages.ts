@@ -2,6 +2,9 @@ import eatDefault from '../assets/tiles/eat.webp'
 import doDefault from '../assets/tiles/do.webp'
 import storeDefault from '../assets/tiles/store.webp'
 import infoDefault from '../assets/tiles/info.webp'
+import langDefault from '../assets/tiles/lang.webp'
+import stayDefault from '../assets/tiles/stay.webp'
+import wifiDefault from '../assets/tiles/wifi.webp'
 import backgroundDefault from '../assets/tiles/background.webp'
 
 /**
@@ -14,20 +17,23 @@ import backgroundDefault from '../assets/tiles/background.webp'
  * veces se enciende gris. Vite las mete en el bundle con hash, así que salen
  * del disco local y están pintadas antes del primer fetch.
  *
- * Pesan 432 KB las cinco en WebP (los PNG originales eran 8,6 MB): a esa
+ * Pesan ~600 KB las ocho en WebP (los PNG originales pasaban de 14 MB): a esa
  * escala caben en el APK sin discusión.
  */
 
-/** Las cinco ranuras que el anfitrión puede sobrescribir desde el admin. */
-export type TileSlot = 'eat' | 'do' | 'store' | 'info' | 'background'
+/** Las ocho ranuras que el anfitrión puede sobrescribir desde el admin. */
+export type TileSlot = 'eat' | 'do' | 'store' | 'info' | 'lang' | 'stay' | 'wifi' | 'background'
 
-export const TILE_SLOTS: TileSlot[] = ['eat', 'do', 'store', 'info', 'background']
+export const TILE_SLOTS: TileSlot[] = ['eat', 'do', 'store', 'info', 'lang', 'stay', 'wifi', 'background']
 
 export const DEFAULT_TILE_IMAGES: Record<TileSlot, string> = {
   eat: eatDefault,
   do: doDefault,
   store: storeDefault,
   info: infoDefault,
+  lang: langDefault,
+  stay: stayDefault,
+  wifi: wifiDefault,
   background: backgroundDefault,
 }
 

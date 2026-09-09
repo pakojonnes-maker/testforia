@@ -120,6 +120,7 @@ export function HomeScreen({ data, collections, lang, onNavigate }: HomeScreenPr
             area="wifi"
             ssid={wifi.ssid || '—'}
             password={wifi.password || '—'}
+            image={tileImage('wifi', tiles)}
             onSelect={() => onNavigate({ name: 'wifi' })}
             qr={
               <BrandedQr
@@ -136,6 +137,7 @@ export function HomeScreen({ data, collections, lang, onNavigate }: HomeScreenPr
           <PlainTile
             id="tile-wifi"
             area="wifi"
+            image={tileImage('wifi', tiles)}
             label="Consulta los datos del WiFi con tu anfitrión"
             onSelect={() => onNavigate({ name: 'wifi' })}
           />
@@ -166,6 +168,7 @@ export function HomeScreen({ data, collections, lang, onNavigate }: HomeScreenPr
           id="tile-lang"
           area="lang"
           compact
+          image={tileImage('lang', tiles)}
           icon={<LanguageFlag language={language} height={30} />}
           value={language.native}
           label="Idioma"
@@ -176,6 +179,7 @@ export function HomeScreen({ data, collections, lang, onNavigate }: HomeScreenPr
           id="tile-stay"
           area="stay"
           compact
+          image={tileImage('stay', tiles)}
           value={checkin && checkout ? `${checkin} · ${checkout}` : checkout || checkin || '—'}
           label={checkin && checkout ? 'Entrada y salida' : 'Tu estancia'}
           onSelect={() => onNavigate({ name: 'info' })}

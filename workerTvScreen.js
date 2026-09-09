@@ -48,7 +48,7 @@ function generatePairingCode() {
 
 // Espejo de TileSlot en apps/tv/src/lib/tileImages.ts y del CHECK de la tabla
 // guide_tv_tile_images (migración 0092). Los tres tienen que moverse juntos.
-const VALID_TILE_SLOTS = ['eat', 'do', 'store', 'info', 'background'];
+const VALID_TILE_SLOTS = ['eat', 'do', 'store', 'info', 'lang', 'stay', 'wifi', 'background'];
 
 const VALID_EVENT_TYPES = ['impression', 'screen_view', 'wifi_reveal', 'poi_select', 'menu_qr_shown', 'booking_qr_shown'];
 
