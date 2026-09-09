@@ -1,0 +1,5 @@
+# Las imágenes de las demos no se versionan: son fotos de propiedades reales y
+# pesan. El manifiesto de qué ficheros hacen falta lo imprime seed.mjs, y el
+# .ps1 generado avisa uno por uno de los que falten.
+*
+!.gitignore

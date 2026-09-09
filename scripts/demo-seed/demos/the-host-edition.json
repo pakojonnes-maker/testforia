@@ -1,0 +1,94 @@
+{
+  "key": "the-host-edition",
+  "_nota": "Ficha de la demo. Todo lo editable de una demo vive aquí; el contenido de las guías y la tienda es plantilla compartida en lib/content/ y ya está en los 13 idiomas. Para una demo nueva: copiar este fichero, cambiar estos valores y ejecutar seed.mjs.",
+
+  "agency": {
+    "name": "The Host Edition",
+    "slug": "the-host-edition",
+    "contact_email": "hola@thehostedition.es",
+    "contact_phone": "+34 974 21 44 90",
+    "logo": "logo.png",
+    "_colores": "Sacados del logo: sello serif negro sobre blanco. Negro tinta, papel hueso y un latón apagado de acento.",
+    "colors": {
+      "primary": "#1A1A1A",
+      "secondary": "#F4F1EC",
+      "accent": "#9A8455"
+    },
+    "fonts": {
+      "headline": "Playfair Display",
+      "body": "Inter",
+      "label": "Archivo Narrow"
+    }
+  },
+
+  "apartment": {
+    "name": "Finca Alboroto",
+    "_zona": "zone_benalmadena a propósito: la demo REUTILIZA las experiencias y el restaurante que ya existen en Benalmádena en lugar de crear POIs de Huesca que habría que borrar después. El piso conserva su dirección real; la pestaña Explorar mostrará Benalmádena.",
+    "zone_id": "zone_benalmadena",
+    "address": "Partida Afueras Huesca, 965, 22194 Huesca",
+    "_coordenadas": "Aproximadas a partir de la dirección del anuncio. No afectan al mapa de Explorar, que se encuadra sobre los POIs de la zona, no sobre el piso.",
+    "latitude": 42.1489,
+    "longitude": -0.3958,
+    "property_type": "villa",
+    "capacity": 10,
+    "bedrooms": 4,
+    "beds": 9,
+    "bathrooms": 3,
+    "size_m2": 300,
+    "checkin_time": "16:00",
+    "checkout_time": "11:00",
+    "rating_value": 9.5,
+    "rating_count": 21,
+    "external_identifier": "VUT-HU-25-0074",
+    "source_url": "https://www.booking.com/hotel/es/finca-alboroto.es.html",
+    "description": "Villa de 300 m² construidos y 2.000 m² de parcela a diez minutos andando de Huesca capital. Cuatro dormitorios, salón con chimenea en un espacio abierto de más de 100 m², cocina completa, piscina privada, cenador con barbacoa y zona chill out. Pensada para grupos y familias que quieren la casa entera para ellos.",
+    "amenities": [
+      "Piscina privada",
+      "Jardín de 2.000 m²",
+      "Terraza y zona chill out",
+      "Cenador con barbacoa",
+      "Chimenea de leña",
+      "Wifi gratis",
+      "Parking privado gratuito",
+      "Aire acondicionado frío/calor",
+      "Cocina totalmente equipada",
+      "Cafetera de grano",
+      "Vinoteca",
+      "Freidora de aire",
+      "Lavadora y secadora",
+      "Lavavajillas",
+      "Ropa de cama y toallas incluidas",
+      "Admite mascotas",
+      "Alojamiento para no fumadores",
+      "Apto para familias"
+    ],
+    "_wifi": "Inventado, como todo lo operativo. La demo enseña la clave en pantalla; no uses aquí una real.",
+    "wifi_ssid": "FincaAlboroto",
+    "wifi_password": "alboroto2026",
+    "wifi_security": "WPA",
+    "contact_whatsapp": "+34633747033",
+    "cover_image": "cover.jpg",
+    "gallery": ["gallery-1.jpg", "gallery-2.jpg", "gallery-3.jpg", "gallery-4.jpg", "gallery-5.jpg", "gallery-6.jpg"]
+  },
+
+  "_vars": "Valores que rellenan los {{tokens}} de las plantillas de lib/content/. Son los mismos en los 13 idiomas, que es lo que permite escribir las traducciones una sola vez y reutilizarlas en cada demo.",
+  "vars": {
+    "town": "Huesca",
+    "host_name": "Raúl",
+    "host_phone": "+34 633 74 70 33",
+    "door_code": "4820"
+  },
+
+  "tv": {
+    "_nota": "Código de emparejamiento con el alfabeto de generatePairingCode() en workerTvScreen.js (sin O/0/I/1). Fijo aquí para poder llevar la TV a la reunión ya emparejada.",
+    "pairing_code": "ALBRT2",
+    "label": "Salón",
+    "tiles": {
+      "background": "tv-background.jpg",
+      "eat": "tv-eat.jpg",
+      "do": "tv-do.jpg",
+      "store": "tv-store.jpg",
+      "info": "tv-info.jpg"
+    }
+  }
+}
