@@ -1,6 +1,8 @@
 import type { ReactNode } from 'react'
 import { Focusable } from '../lib/spatialNav'
 import { CoverImage } from './CoverImage'
+import { NoPhoto } from './NoPhoto'
+import { bottomVeil } from '../lib/veil'
 
 /**
  * Piezas del mosaico de inicio.
@@ -13,26 +15,6 @@ import { CoverImage } from './CoverImage'
 
 const RADIUS = '1.5rem'
 
-/**
- * Velo de PIE: opaco donde se apoya el texto y transparente arriba, para que la
- * foto se vea a plena saturación en la parte que no lleva nada encima.
- *
- * Las paradas van en PÍXELES, no en porcentajes. Con porcentajes el velo se
- * estira con la tesela: en las cortas el antetítulo caía en la zona casi
- * transparente y desaparecía, y en las altas la foto salía apagada de arriba
- * abajo. Lo que hay que proteger es el TEXTO, y el texto siempre mide lo mismo
- * — así que el velo se ata a SU altura y no a la de la caja.
- *
- * `content` es el alto aproximado del bloque de texto en px de diseño. El velo
- * cubre hasta ahí y se disuelve en los 80 px siguientes.
- */
-function bottomVeil(content: number): string {
-  return `linear-gradient(0deg,
-    rgba(4,16,22,0.94) 0px,
-    rgba(4,16,22,0.86) ${Math.round(content * 0.55)}px,
-    rgba(4,16,22,0.55) ${content}px,
-    rgba(4,16,22,0.06) ${content + 80}px)`
-}
 
 interface BaseProps {
   id: string
@@ -74,14 +56,7 @@ export function PhotoTile({
       style={{ background: 'var(--tv-surface)' }}>
       <CoverImage
         src={image}
-        fallback={
-          <div
-            className="absolute inset-0"
-            // A plena saturación: rebajado quedaba gris y parecía una imagen que
-            // no había cargado, en vez de una tesela sin foto a propósito.
-            style={{ background: 'linear-gradient(140deg, var(--tv-accent) 0%, var(--tv-secondary) 100%)' }}
-          />
-        }
+        fallback={<NoPhoto />}
       />
 
       {/* El rótulo de una PhotoTile ocupa unos 170 px (antetítulo, título de

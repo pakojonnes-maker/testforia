@@ -2,7 +2,7 @@ import { useEffect, useState, type ReactNode } from 'react'
 import { Focusable } from '../lib/spatialNav'
 import { BrandedQr } from '../components/BrandedQr'
 import { CoverImage } from '../components/CoverImage'
-import { categoryVisual } from '../lib/categoryVisual'
+import { NoPhoto } from '../components/NoPhoto'
 import { track } from '../lib/tracking'
 import { submitStoreOrder } from '../lib/api'
 import type { Entry } from '../lib/collections'
@@ -133,7 +133,6 @@ interface DetailScreenProps {
 }
 
 export function DetailScreen({ entry, apartmentId, onBack }: DetailScreenProps) {
-  const visual = categoryVisual(entry.category, entry.subcategory)
   // Un restaurante enseña su carta entera vía QR (Gravy) y no tiene distancia
   // precalculada; un POI/experiencia sí — estas cajas aparecen o no según lo
   // que de verdad haya para ese tipo de ficha, sin distinguir "es restaurante"
@@ -158,15 +157,7 @@ export function DetailScreen({ entry, apartmentId, onBack }: DetailScreenProps) 
             className="relative min-h-0 flex-1 overflow-hidden"
             style={{ borderRadius: '1.5rem', background: 'var(--tv-surface)', border: '1px solid var(--tv-line)' }}
           >
-            <CoverImage
-              src={entry.image}
-              fallback={
-                <div
-                  className="absolute inset-0"
-                  style={{ background: `linear-gradient(150deg, ${visual.from}, ${visual.to})` }}
-                />
-              }
-            />
+            <CoverImage src={entry.image} fallback={<NoPhoto />} />
 
             {entry.badge && (
               <span

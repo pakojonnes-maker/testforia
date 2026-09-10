@@ -1,7 +1,9 @@
 import { useMemo } from 'react'
 import { Focusable } from '../lib/spatialNav'
 import { CoverImage } from '../components/CoverImage'
-import { categoryVisual, categoryLabel } from '../lib/categoryVisual'
+import { NoPhoto } from '../components/NoPhoto'
+import { bottomVeil } from '../lib/veil'
+import { categoryLabel } from '../lib/categoryVisual'
 import type { Collection, Entry } from '../lib/collections'
 
 /**
@@ -13,8 +15,14 @@ import type { Collection, Entry } from '../lib/collections'
  * el huésped tenía que reaprender la navegación en cada sección.
  */
 
-function EntryCard({ entry, autoFocus, onSelect }: { entry: Entry; autoFocus?: boolean; onSelect: () => void }) {
-  const visual = categoryVisual(entry.category, entry.subcategory)
+function EntryCard({
+  entry, autoFocus, onSelect, inFeaturedRow,
+}: { entry: Entry; autoFocus?: boolean; onSelect: () => void; inFeaturedRow?: boolean }) {
+  // "DESTACADO" repetido en las tres tarjetas de una fila titulada
+  // "DESTACADOS" no informa de nada: la fila ya lo dice. El distintivo se
+  // guarda para lo que SÍ cambia de una tarjeta a otra ("Agotado"), que es
+  // justo lo que quedaba enterrado entre tres etiquetas idénticas.
+  const badge = inFeaturedRow && entry.badge === 'Destacado' ? undefined : entry.badge
 
   return (
     <Focusable id={`entry-${entry.id}`} autoFocus={autoFocus} onSelect={onSelect} className="arch-mask">
@@ -28,20 +36,14 @@ function EntryCard({ entry, autoFocus, onSelect }: { entry: Entry; autoFocus?: b
         className="arch-mask relative h-[520px] w-[416px] shrink-0 overflow-hidden"
         style={{ background: 'var(--tv-surface)', border: '1px solid var(--tv-line)' }}
       >
-        <CoverImage
-          src={entry.image}
-          fallback={
-            <div
-              className="absolute inset-0"
-              style={{ background: `linear-gradient(150deg, ${visual.from}, ${visual.to})` }}
-            />
-          }
-        />
+        <CoverImage src={entry.image} fallback={<NoPhoto />} />
 
-        <div
-          className="absolute inset-0"
-          style={{ background: 'linear-gradient(0deg, rgba(4,16,22,0.94) 4%, rgba(4,16,22,0.45) 42%, rgba(4,16,22,0) 72%)' }}
-        />
+        {/* El velo se ata al alto del TEXTO (distintivo + título de 2 líneas +
+            antetítulo + relleno ≈ 170 px), no a un porcentaje de la tarjeta:
+            con el 42 % de antes se comía 218 px de una tarjeta de 520 y la
+            foto salía apagada de arriba abajo. Misma función que ya usaba el
+            mosaico de inicio — ver lib/veil.ts. */}
+        <div className="absolute inset-0" style={{ background: bottomVeil(170) }} />
 
         {/* El badge vive junto al título, no flotando arriba: en un arco (radio
             = mitad del ancho, ver .arch-mask) la esquina superior está
@@ -49,12 +51,12 @@ function EntryCard({ entry, autoFocus, onSelect }: { entry: Entry; autoFocus?: b
             badge en top-left quedaba medio cortado por la propia curva. Aquí
             abajo el recorte no existe (las esquinas inferiores son rectas). */}
         <div className="absolute inset-x-0 bottom-0 p-5">
-          {entry.badge && (
+          {badge && (
             <span
               className="t-label mb-2 inline-block rounded-full px-3 py-1.5"
               style={{ background: 'var(--tv-accent)', color: 'var(--tv-accent-ink)' }}
             >
-              {entry.badge}
+              {badge}
             </span>
           )}
           <div className="t-display clamp-2 tv-card font-bold leading-tight" style={{ color: '#fff' }}>
@@ -74,6 +76,8 @@ function EntryCard({ entry, autoFocus, onSelect }: { entry: Entry; autoFocus?: b
 interface Section {
   label: string
   entries: Entry[]
+  /** La fila de "Destacados": sus tarjetas no repiten el distintivo. */
+  featured?: boolean
 }
 
 /**
@@ -100,7 +104,7 @@ function buildSections(entries: Entry[], railLabel: string): Section[] {
   }
 
   const sections: Section[] = []
-  if (featured.length > 0) sections.push({ label: 'Destacados', entries: featured })
+  if (featured.length > 0) sections.push({ label: 'Destacados', entries: featured, featured: true })
   for (const [key, group] of grouped) {
     sections.push({ label: key === '_' ? railLabel : categoryLabel(key), entries: group })
   }
@@ -162,6 +166,7 @@ export function CollectionScreen({ collection, onOpen }: CollectionScreenProps) 
                     key={entry.id}
                     entry={entry}
                     autoFocus={si === 0 && i === 0}
+                    inFeaturedRow={section.featured}
                     onSelect={() => onOpen(entry)}
                   />
                 ))}

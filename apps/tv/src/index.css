@@ -147,16 +147,50 @@ body {
 }
 .col-scroll::-webkit-scrollbar { display: none; }
 
-.focus-gutter-x { padding-left: 20px; padding-right: 20px; }
-.focus-gutter-y { padding-top: 20px; padding-bottom: 20px; }
-.focus-bleed-x { margin-left: -20px; margin-right: -20px; }
+/* ALCANCE DEL FOCO — la única cifra que dice cuánto sobresale la señal de foco
+   de su caja, y por tanto cuánto hueco tiene que reservar cualquier contenedor
+   que scrollee. La sombra de `.focusable[data-focused]` y estos huecos salen
+   los DOS de aquí a propósito: el bug clásico es tocar una y olvidar el otro.
+   Pasó (sep-2026): el halo medía 62 px de alcance (blur 48 + spread 14) y el
+   hueco seguía en 20 px, así que en Tienda y en Experiencias el foco salía
+   cortado en plano por un lado. No es un fallo de pintado, es aritmética.
+
+   Presupuesto con la tesela más grande de la app (416×520 px de diseño):
+     escala 1.035 ......... 7,3 px por lado en x · 9,1 px en y
+     anillo (spread 4) .... 4 px
+     halo   (spread 12) ... 12 px
+     glow   (blur 22) ..... 22 px
+     contacto (0 10 24 −12) 22 px abajo · 12 px a los lados · 2 px arriba
+   Peor caso: 9,1 + 22 = 31,1 px. Con 44 px quedan ~13 px de margen por lado,
+   medidos en vivo. Si tocas la sombra, rehaz esta cuenta ANTES de nada más:
+   la sombra de contacto es la que más lejos llega y la que se olvida. */
+:root { --tv-focus-reach: 44px; }
+
+.focus-gutter-x { padding-left: var(--tv-focus-reach); padding-right: var(--tv-focus-reach); }
+.focus-gutter-y { padding-top: var(--tv-focus-reach); padding-bottom: var(--tv-focus-reach); }
+.focus-bleed-x { margin-left: calc(-1 * var(--tv-focus-reach)); margin-right: calc(-1 * var(--tv-focus-reach)); }
 
 /* ---------- FOCO POR MANDO ----------
    Es el elemento de UI más importante de toda la app: si el huésped no ve
-   dónde está, la pantalla no sirve. Iluminación suave del color de marca (línea
-   fina + halo difuminado) en vez del anillo sólido doble de antes — ese doble
-   anillo (4px + 8px, sin blur) es justo lo que lo hacía leerse como un
-   "recuadro" pegado encima de la tesela en vez de una luz sobre ella.
+   dónde está, la pantalla no sirve.
+
+   Ha pasado por tres versiones y conviene saber por qué, porque las dos
+   primeras fallaban por motivos OPUESTOS:
+     1. Anillo sólido doble (4 px + 8 px, sin desenfoque). Se leía como un
+        "recuadro" pegado encima de la tesela, no como una luz sobre ella.
+     2. Línea de 2 px + halo de 48 px al 16 %. Arreglaba lo del recuadro y se
+        veía bien sobre el mosaico OSCURO del inicio. Pero las pantallas de
+        catálogo se pintan sobre PAPEL crema, y ahí un 16 % de un acento
+        apagado (#9a8455 en The Host Edition) no se ve: lo único perceptible
+        era la sombra negra. Y con 48+14 px de alcance contra 20 px de hueco,
+        salía además cortada en plano.
+     3. La de ahora. El peso lo lleva un anillo sólido —que no depende del
+        contraste del fondo— pero es UNO, y lo que le da grosor es una banda
+        translúcida del mismo color más un glow desenfocado: se lee como luz,
+        no como marco, y funciona igual sobre pared encalada que sobre el
+        mosaico oscuro. Su alcance está acotado y cuadrado con el hueco que
+        reservan los contenedores (ver ALCANCE DEL FOCO, arriba).
+
    Sin animación en bucle: a 3 m un halo que late lee como "cargando" y compite
    con el contenido en lugar de señalarlo.
 
@@ -180,12 +214,23 @@ body {
   transition: transform 170ms cubic-bezier(.2,.8,.2,1);
   will-change: transform;
 }
+/* Cuatro capas, de dentro afuera: anillo sólido (la señal), banda del mismo
+   color al 30 % (le da grosor sin desenfocar), glow corto y sombra de contacto.
+
+   El halo de antes iba al 16 % y con 48 px de desenfoque. Sobre el mosaico
+   oscuro del inicio se veía; sobre las pantallas de PAPEL —crema, que es donde
+   viven los carriles de Tienda y Experiencias— con un acento apagado (esta
+   agencia usa #9a8455) era literalmente invisible: lo único que se percibía era
+   la sombra negra, y encima cortada. Un foco que hay que adivinar no es un foco.
+   Ahora el peso lo lleva el anillo, que no depende del contraste del fondo, y
+   el glow sólo lo acompaña. */
 .focusable[data-focused="true"] {
   transform: scale(1.035);
   box-shadow:
-    0 0 0 2px var(--tv-accent, #34c2c9),
-    0 0 48px 14px var(--tv-accent-soft, rgba(52,194,201,0.16)),
-    0 22px 44px rgba(0, 0, 0, 0.45);
+    0 0 0 4px var(--tv-accent, #34c2c9),
+    0 0 0 12px var(--tv-accent-halo, rgba(52,194,201,0.30)),
+    0 0 22px var(--tv-accent-glow, rgba(52,194,201,0.45)),
+    0 10px 24px -12px rgba(0, 0, 0, 0.5);
   z-index: 5;
 }
 

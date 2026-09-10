@@ -103,6 +103,21 @@ export function buildTheme(agency?: GuidebookData['agency']): TvTheme {
     '--tv-accent': accent,
     '--tv-accent-ink': accentInk,
     '--tv-accent-soft': rgba(accent, 0.16),
+    // Las dos capas exteriores del foco (ver .focusable en index.css). Van más
+    // subidas que --tv-accent-soft porque el foco se pinta también sobre PAPEL
+    // crema, donde un 16 % de un acento apagado no se ve; --tv-accent-soft
+    // sigue al 16 % porque su otro consumidor es el resplandor ambiente del
+    // fondo, que sí debe quedarse en el umbral de lo perceptible.
+    '--tv-accent-halo': rgba(accent, 0.30),
+    '--tv-accent-glow': rgba(accent, 0.45),
+    // Fondo de una tarjeta SIN fotografía (componente NoPhoto). Es el gesto que
+    // ya usaba el mosaico de inicio —el degradado de la marca del anfitrión— y
+    // ahora también las pantallas de catálogo, que hasta ahora inventaban una
+    // paleta por categoría ajena al resto de la app (magentas y naranjas que no
+    // salen en ningún otro sitio). A plena saturación: rebajado queda gris y
+    // parece una imagen que no ha cargado, en vez de una tesela sin foto a
+    // propósito.
+    '--tv-nophoto': `linear-gradient(150deg, ${accent} 0%, ${secondary} 100%)`,
     '--tv-brand': brand,
     '--tv-secondary': secondary,
     '--tv-canvas': canvas,
