@@ -32,7 +32,9 @@ export function LanguageScreen({
         </p>
       </div>
 
-      <div className="col-scroll min-h-0 flex-1">
+      {/* Igual que en Guías Rápidas: sin este hueco el anillo de foco de las
+          fichas de idioma se recorta contra los bordes del scroll. */}
+      <div className="col-scroll focus-gutter-x focus-gutter-y focus-bleed-x min-h-0 flex-1">
         <div className="grid grid-cols-4 gap-4 pt-1">
           {languages.map((language, i) => {
             const isCurrent = language.code === current

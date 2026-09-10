@@ -116,10 +116,27 @@ body {
 .clamp-4 { -webkit-line-clamp: 4; }
 .clamp-6 { -webkit-line-clamp: 6; }
 
-/* Carruseles: sin barra de scroll visible, el foco arrastra la fila. */
+/* ---------- SCROLL Y RECORTE DEL FOCO ----------
+
+   OJO con `overflow-y: visible` junto a `overflow-x: auto`: NO hace lo que
+   parece. Por spec, cuando un eje vale algo distinto de `visible`, el otro
+   deja de ser `visible` y pasa a `auto`. Es decir, un carrusel horizontal
+   TAMBIÉN recorta por arriba y por abajo, aunque el CSS diga lo contrario.
+   Aquí estaba escrito así, creyendo que el foco podría desbordar en vertical.
+
+   Y el foco desborda SIEMPRE: escala la tesela un 3,5 % y le pinta un anillo
+   de 2 px más un halo de 48 px, todo FUERA de su caja de maquetación. En la
+   tesela más grande de la app (416×520) eso son ~11 px por lado. Cualquier
+   ancestro que scrollee se lo come, y el resultado es un anillo con un lado
+   plano — se veía en la primera tarjeta de Guías Rápidas, cortada por la
+   izquierda porque su contenedor no tenía nada de relleno a ese lado.
+
+   Por eso el relleno de abajo NO es decorativo: es el hueco donde cabe la
+   señal de foco. Y el margen negativo devuelve el contenido a su sitio, para
+   que las tarjetas sigan alineadas con el título que tienen encima en vez de
+   entrar 20 px. */
 .rail {
   overflow-x: auto;
-  overflow-y: visible;
   scrollbar-width: none;
 }
 .rail::-webkit-scrollbar { display: none; }
@@ -129,6 +146,10 @@ body {
   scrollbar-width: none;
 }
 .col-scroll::-webkit-scrollbar { display: none; }
+
+.focus-gutter-x { padding-left: 20px; padding-right: 20px; }
+.focus-gutter-y { padding-top: 20px; padding-bottom: 20px; }
+.focus-bleed-x { margin-left: -20px; margin-right: -20px; }
 
 /* ---------- FOCO POR MANDO ----------
    Es el elemento de UI más importante de toda la app: si el huésped no ve

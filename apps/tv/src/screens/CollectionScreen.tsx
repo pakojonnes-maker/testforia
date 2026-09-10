@@ -146,15 +146,17 @@ export function CollectionScreen({ collection, onOpen }: CollectionScreenProps) 
           Tu anfitrión aún no ha añadido recomendaciones en esta sección.
         </div>
       ) : (
-        <div className="col-scroll mt-6 min-h-0 flex-1 pr-1">
+        <div className="col-scroll focus-gutter-x focus-bleed-x mt-6 min-h-0 flex-1">
           {sections.map((section, si) => (
             <div key={section.label} className="pb-6">
               <div className="t-label tv-overprint shrink-0 pb-4" style={{ color: 'var(--tv-ink-faint)' }}>
                 {section.label}
               </div>
-              {/* pt/pb dan aire al anillo de foco: sin ellos se recorta contra
-                  los bordes del carrusel al escalar la tarjeta. */}
-              <div className="rail flex items-center gap-5 px-1 pb-4 pt-2">
+              {/* El carrusel recorta por los CUATRO lados, no solo por los
+                  costados: su `overflow-y: visible` nunca llegó a aplicarse
+                  (ver index.css). De ahí el hueco en los dos ejes; el sangrado
+                  horizontal mantiene las tarjetas alineadas con su antetítulo. */}
+              <div className="rail focus-gutter-x focus-gutter-y focus-bleed-x flex items-center gap-5">
                 {section.entries.map((entry, i) => (
                   <EntryCard
                     key={entry.id}

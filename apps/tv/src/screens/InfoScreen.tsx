@@ -77,8 +77,12 @@ export function InfoScreen({ data, lang, onOpen }: { data: GuidebookData; lang: 
         </h2>
       </div>
 
-      <div className="col-scroll min-h-0 flex-1 pr-1">
-        <div className="grid grid-cols-4 gap-8 pb-2 pt-3">
+      {/* focus-gutter/bleed: hueco para el anillo de foco, que se pinta fuera
+          de la caja de la tarjeta y lo recortaba el scroll (ver index.css). El
+          margen negativo devuelve la rejilla bajo el título en vez de dejarla
+          entrada 20 px. */}
+      <div className="col-scroll focus-gutter-x focus-gutter-y focus-bleed-x min-h-0 flex-1">
+        <div className="grid grid-cols-4 gap-8">
           {door && (
             <Focusable id={`info-${door.id}`} autoFocus className="rounded-[1.25rem]">
               <div
