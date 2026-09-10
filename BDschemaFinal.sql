@@ -2,14 +2,14 @@
 -- BDschemaFinal.sql — ESQUEMA REAL DE PRODUCCION
 -- =====================================================
 -- Base de datos D1: restaurant-menu-saas (7e8d1efe-2a54-4849-9a06-4c47152392bd)
--- Exportado el 2026-09-08 desde la BD en produccion, tras aplicar la
--- migracion 0092 (imagenes de las teselas de VisualTaste TV):
---   · Tabla nueva guide_tv_tile_images (apartment_id, slot, image_url,
---     updated_at). PK compuesta (apartment_id, slot); slot con CHECK sobre
---     'eat' | 'do' | 'store' | 'info' | 'background'.
---     Guarda SOLO las excepciones: la imagen que un anfitrion sube desde
---     Pantalla TV para sustituir la que la app de la TV lleva empaquetada.
---     Lo normal es que un apartamento no tenga ninguna fila aqui.
+-- Exportado el 2026-09-10 desde la BD en produccion, tras aplicar la
+-- migracion 0093 (tres ranuras mas para las teselas de VisualTaste TV):
+--   · guide_tv_tile_images recreada para ampliar el CHECK de `slot` de cinco
+--     a ocho valores: eat, do, store, info, lang, stay, wifi, background.
+--     SQLite no deja alterar un CHECK, asi que la tabla se recrea y se copia.
+--     OJO: sin BEGIN TRANSACTION/COMMIT en el fichero — D1 remoto los rechaza
+--     (ya envuelve el fichero en su transaccion) aunque el SQLite local si los
+--     acepte. Que una migracion pase en local NO prueba que pase en remoto.
 -- 87 tablas.
 --
 -- NO editar a mano. Para regenerar:
@@ -1244,12 +1244,15 @@ CREATE TABLE guide_apartment_item_order (
   PRIMARY KEY (apartment_id, item_type, item_id),
   FOREIGN KEY (apartment_id) REFERENCES guide_apartments(id) ON DELETE CASCADE
 );
-CREATE TABLE guide_tv_tile_images (
+CREATE TABLE IF NOT EXISTS "guide_tv_tile_images" (
   apartment_id  TEXT NOT NULL,
-  -- Las mismas cinco claves que TileSlot en apps/tv/src/lib/tileImages.ts. El
-  -- CHECK es el que evita que una ranura mal escrita desde el admin se guarde
-  -- en silencio y no se pinte nunca en ninguna parte.
-  slot          TEXT NOT NULL CHECK(slot IN ('eat', 'do', 'store', 'info', 'background')),
+  -- Mismas claves que TileSlot en apps/tv/src/lib/tileImages.ts y que
+  -- VALID_TILE_SLOTS en workerTvScreen.js. Los tres se mueven juntos.
+  slot          TEXT NOT NULL CHECK(slot IN (
+                  'eat', 'do', 'store', 'info',
+                  'lang', 'stay', 'wifi',
+                  'background'
+                )),
   image_url     TEXT NOT NULL,
   updated_at    TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY (apartment_id, slot),
