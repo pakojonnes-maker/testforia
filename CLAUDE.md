@@ -304,6 +304,9 @@ npx wrangler pages deploy apps/client/dist --project-name=visualtaste
 npx wrangler pages deploy apps/admin/dist  --project-name=visualtasteadmin
 npx wrangler pages deploy apps/guide/dist  --project-name=visualtastes-guide
 npx wrangler pages deploy apps/tv/dist     --project-name=visualtaste-tv
+
+# --- Demos para agencias (ver §10 y la skill /demo) ---
+node scripts/demo-seed/seed.mjs <clave>   # ficha JSON → seed.sql + teardown.sql + assets.ps1
 ```
 
 Puertos de dev previstos (según CORS de `worker.js`): client `5173`, admin `5174`,
@@ -417,5 +420,41 @@ mínima mientras eso no cambie.
    una razón que puedas explicar.
 7. **Verifica contra la realidad, no contra el 200 OK**: caché KV (§3), datos reales
    en producción, y el idioma/RTL si tocaste i18n.
-8. Rituales largos: `/deploy` y `/migracion` (en `.claude/skills/`) llevan el
-   procedimiento completo escrito. Úsalos en vez de reconstruirlo de memoria.
+8. Rituales largos: `/deploy`, `/migracion` y `/demo` (en `.claude/skills/`) llevan
+   el procedimiento completo escrito. Úsalos en vez de reconstruirlo de memoria.
+
+---
+
+## 10. Demos para agencias (`scripts/demo-seed/`)
+
+Enseñar el guidebook a una agencia nueva era rellenar el admin a mano durante horas,
+y una demo a medias (tarjetas grises, idiomas sin traducir) vende peor que no enseñar
+nada. `scripts/demo-seed/` convierte una **ficha JSON de ~90 líneas** en una agencia
+demo con un apartamento completo: 14 bloques de guía, 6 productos de tienda,
+teléfonos, modal de bienvenida y TV emparejada, **en los 13 idiomas**.
+
+```bash
+node scripts/demo-seed/seed.mjs the-host-edition
+```
+
+No aplica nada: deja `out/<clave>.seed.sql`, `out/<clave>.teardown.sql` y
+`out/<clave>.assets.ps1`, e imprime los comandos. Es a propósito — un script que
+lanzara `wrangler` como proceso hijo pasaría por debajo del hook de §7.
+
+- **El contenido es plantilla, no se reescribe por demo.** `lib/content/` tiene las
+  guías, la tienda y el modal escritos a mano en los 13 idiomas con `{{tokens}}`.
+  Una demo nueva cuesta un JSON. Por eso **no** se usa `POST /guide/admin/translate`:
+  cada demo crea ids nuevos, así que la IA se pagaría cada vez, gastando del mismo
+  cupo diario que el chatbot del huésped.
+- **Nunca escribe en nada compartido.** Zonas, POIs, restaurantes y catálogos
+  globales no se tocan: la demo **reutiliza** el contenido que ya existe en su zona.
+  Contrapartida: "Explorar" enseña la zona asignada, no la del piso — si están en
+  provincias distintas, se nota (el mapa no, encuadra sobre los POIs).
+- **El teardown es un espejo de `deleteApartment()`** (`workerGuideAdmin.js` ~840).
+  Si allí se añade una tabla, hay que añadirla en `lib/build.mjs` o el borrado
+  empezará a dejar restos en silencio.
+- **Booking.com no se puede importar** (muro anti-bot AWS WAF, y
+  `workerGuideApartmentLink.js` no lo esquiva a propósito). Se lee con el navegador
+  y se rellena la ficha a mano.
+
+Detalle completo en `scripts/demo-seed/README.md`; el ritual paso a paso, en `/demo`.
