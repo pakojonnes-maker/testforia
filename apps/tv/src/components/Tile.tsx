@@ -13,6 +13,27 @@ import { CoverImage } from './CoverImage'
 
 const RADIUS = '1.5rem'
 
+/**
+ * Velo de PIE: opaco donde se apoya el texto y transparente arriba, para que la
+ * foto se vea a plena saturación en la parte que no lleva nada encima.
+ *
+ * Las paradas van en PÍXELES, no en porcentajes. Con porcentajes el velo se
+ * estira con la tesela: en las cortas el antetítulo caía en la zona casi
+ * transparente y desaparecía, y en las altas la foto salía apagada de arriba
+ * abajo. Lo que hay que proteger es el TEXTO, y el texto siempre mide lo mismo
+ * — así que el velo se ata a SU altura y no a la de la caja.
+ *
+ * `content` es el alto aproximado del bloque de texto en px de diseño. El velo
+ * cubre hasta ahí y se disuelve en los 80 px siguientes.
+ */
+function bottomVeil(content: number): string {
+  return `linear-gradient(0deg,
+    rgba(4,16,22,0.94) 0px,
+    rgba(4,16,22,0.86) ${Math.round(content * 0.55)}px,
+    rgba(4,16,22,0.55) ${content}px,
+    rgba(4,16,22,0.06) ${content + 80}px)`
+}
+
 interface BaseProps {
   id: string
   area: string
@@ -63,26 +84,9 @@ export function PhotoTile({
         }
       />
 
-      {/* Velo inferior: sin él el texto blanco desaparece sobre fotos claras.
-          El degradado va desde abajo para no apagar la imagen entera.
-
-          Las paradas van en PÍXELES, no en porcentajes. Con porcentajes el velo
-          se estira con la tesela, y las de una sola fila (Tienda mide 140 px de
-          alto) se quedaban con el antetítulo justo en la zona al 5 % — sobre la
-          botella de aceite a contraluz, "PIDE A TU ANFITRIÓN" desaparecía. Lo
-          que hay que proteger es el TEXTO, que siempre ocupa lo mismo, así que
-          el velo se ata a su altura: cubre la tesela corta entera y en la
-          grande sigue dejando ver la foto de la mitad para arriba. */}
-      <div
-        className="absolute inset-0"
-        style={{
-          background: `linear-gradient(0deg,
-            rgba(4,16,22,0.94) 0px,
-            rgba(4,16,22,0.80) 90px,
-            rgba(4,16,22,0.42) 170px,
-            rgba(4,16,22,0.06) 250px)`,
-        }}
-      />
+      {/* El rótulo de una PhotoTile ocupa unos 170 px (antetítulo, título de
+          48 px y contador) más el relleno de 28. */}
+      <div className="absolute inset-0" style={{ background: bottomVeil(170) }} />
 
       <div className="absolute inset-x-0 bottom-0 p-7">
         {overline && (
@@ -150,11 +154,13 @@ export function PlainTile({
       {onPhoto && (
         <>
           <CoverImage src={image} fallback={null} />
-          {/* Más cerrado que el velo de PhotoTile: aquí el texto no vive sólo
-              abajo, así que la foto tiene que ceder en toda la caja. */}
+          {/* En compacto el texto va CENTRADO y la caja mide 85 px, así que el
+              velo tiene que cubrirla entera; con el contenido anclado abajo
+              (Normas de la casa) basta con el pie, y la foto se queda viva de
+              la mitad para arriba. */}
           <div
             className="absolute inset-0"
-            style={{ background: 'linear-gradient(0deg, rgba(4,16,22,0.90) 0%, rgba(4,16,22,0.62) 55%, rgba(4,16,22,0.34) 100%)' }}
+            style={{ background: bottomVeil(compact ? 120 : 110) }}
           />
         </>
       )}
@@ -251,26 +257,27 @@ export function WifiTile({
       {image && (
         <>
           <CoverImage src={image} fallback={null} />
-          {/* El velo aquí va más cerrado que en ninguna otra tesela: esta no
-              tiene UN rótulo abajo sino cinco bloques repartidos por toda la
-              caja (rótulo, QR, instrucción, red y clave), y la clave del WiFi
-              es el dato que más veces se teclea mal de toda la pantalla. La
-              foto se queda como textura, no como protagonista. */}
-          <div
-            className="absolute inset-0"
-            style={{ background: 'linear-gradient(0deg, rgba(4,16,22,0.93) 0%, rgba(4,16,22,0.86) 50%, rgba(4,16,22,0.78) 100%)' }}
-          />
+          {/* Esta tesela apila mucho: QR, rótulo, instrucción, red y clave. El
+              velo se ata a ese bloque (~470 px) en vez de cubrir la caja
+              entera, así que la foto respira arriba igual que en las teselas
+              grandes y el texto sigue protegido donde está. */}
+          <div className="absolute inset-0" style={{ background: bottomVeil(470) }} />
         </>
       )}
-      <div className="relative flex h-full flex-col items-center justify-between p-6 text-center">
+      {/* Todo anclado ABAJO, no repartido con justify-between: es lo que deja
+          la franja de foto a plena luz en la parte alta. */}
+      <div className="relative flex h-full flex-col items-center justify-end gap-5 p-6 text-center">
+        <div className="rounded-2xl bg-white p-3 shadow-lg">{qr}</div>
+
+        {/* El rótulo va DEBAJO del QR: el QR es lo que se busca con la cámara
+            desde el sofá, así que es lo que tiene que estar más alto y libre;
+            el texto lo explica después, no antes. */}
         <div className="w-full">
           <div className="t-label" style={{ color: 'var(--tv-accent)' }}>Conéctate</div>
           <div className="t-display mt-1.5 tv-card font-bold" style={{ color: 'var(--tv-text)' }}>
             WiFi de la casa
           </div>
         </div>
-
-        <div className="rounded-2xl bg-white p-3 shadow-lg">{qr}</div>
 
         <div className="w-full">
           <p className="tv-meta leading-snug" style={{ color: 'var(--tv-text-dim)' }}>
