@@ -58,7 +58,7 @@ export interface GuidebookData {
   // Ya venía en /guide/:slug (workerGuide.js) — el tipo simplemente no lo
   // declaraba porque nadie en la TV lo leía todavía.
   store_items: Array<{
-    id: string; owner_type: 'host' | 'platform'; category: string | null; icon: string | null
+    id: string; owner_type: 'host' | 'agency' | 'platform'; category: string | null; icon: string | null
     name: string; description: string
     price_amount: number | null; price_currency: string | null; price_display: string
     cover_image_url?: string | null; is_featured: boolean; is_promoted?: boolean; in_stock: boolean

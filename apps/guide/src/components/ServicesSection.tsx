@@ -31,7 +31,7 @@ interface Experience {
 
 export interface StoreItem {
   id: string;
-  owner_type: 'host' | 'platform';
+  owner_type: 'host' | 'agency' | 'platform';
   category: string;
   name: string;
   description: string;
@@ -75,7 +75,12 @@ export default function ServicesSection({ experiences, storeItems, zoneName, apa
   // resto se abre a petición explícita desde el aviso.
   const [pendingOrders, setPendingOrders] = useState<string[]>([]);
 
-  const hostItems = storeItems.filter(i => i.owner_type === 'host');
+  // Dos grupos, no tres: al huésped le da igual si un producto es de su piso o
+  // del catálogo de la agencia —en los dos casos se lo sirve el anfitrión—, y
+  // lo que sí cambia es el catálogo de VisualTaste, que lo sirve la plataforma.
+  // Por eso 'agency' cae del lado del anfitrión y el filtro pregunta por
+  // 'platform', que es el único ámbito que no lo es.
+  const hostItems = storeItems.filter(i => i.owner_type !== 'platform');
   const platformItems = storeItems.filter(i => i.owner_type === 'platform');
   const cartCount = Object.values(cart).reduce((sum, qty) => sum + qty, 0);
   const cartTotal = Object.entries(cart).reduce((sum, [itemId, qty]) => {

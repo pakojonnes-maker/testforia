@@ -8,9 +8,16 @@
 // el botón sale ya traducido a los 13 idiomas por el i18n del frontend. Poner
 // un texto propio serían 78 cadenas más para conseguir exactamente lo mismo.
 //
-// `category` tiene que ser una de las del comentario de guide_store_items:
-// late_checkout|early_checkin|cleaning|crib|transfer|welcome_pack|parking|
-// rental|grocery|local_product|custom.
+// `category` es una AGRUPACIÓN, no el nombre del servicio, y el vocabulario
+// vigente es el de la migración 0081:
+//   checkinout | service | welcome | grocery | local_product | custom
+//
+// El comentario de guide_store_items todavía lista el enum de la 0080
+// (late_checkout, early_checkin, transfer, welcome_pack...), que la 0081
+// fusionó precisamente porque convertía cada servicio en su propia categoría.
+// Este archivo se escribió siguiendo ese comentario viejo, así que las demos
+// sembradas salían con categorías que el admin no sabe etiquetar: la tarjeta
+// enseñaba "late_checkout" en crudo y el filtro por categoría no las cazaba.
 //
 // Nada de 'cleaning' (limpieza intermedia) en el catálogo demo: es el upsell
 // que en España activa el IVA del servicio y complica la conversación de
@@ -21,7 +28,7 @@
 export const STORE_ITEMS = [
     {
         slug: 'late-checkout',
-        category: 'late_checkout',
+        category: 'checkinout',
         icon: 'schedule',
         price: 35,
         priceDisplay: '35 €',
@@ -52,7 +59,7 @@ export const STORE_ITEMS = [
     },
     {
         slug: 'early-checkin',
-        category: 'early_checkin',
+        category: 'checkinout',
         icon: 'login',
         price: 35,
         priceDisplay: '35 €',
@@ -83,7 +90,7 @@ export const STORE_ITEMS = [
     },
     {
         slug: 'welcome-pack',
-        category: 'welcome_pack',
+        category: 'welcome',
         icon: 'redeem',
         price: 45,
         priceDisplay: '45 €',
@@ -145,7 +152,7 @@ export const STORE_ITEMS = [
     },
     {
         slug: 'airport-transfer',
-        category: 'transfer',
+        category: 'service',
         icon: 'airport_shuttle',
         price: 120,
         priceDisplay: '120 € por trayecto',

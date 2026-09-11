@@ -511,10 +511,22 @@ export async function handleGetGuidebook(env, slug, lang, origin, surface = 'gui
             WHERE w.apartment_id = ? AND w.is_active = TRUE
         `).bind(lang, lang, lang, apartment.id).first(),
 
-        // Store items: los propios del anfitrión (apartment_id = este apartamento) +
-        // el catálogo global de VisualTaste (owner_type='platform'), fusionados en un
-        // solo array. Los platform items son un slot reservado que la agencia no puede
-        // editar ni borrar — ver migrations/0080_guide_store.sql.
+        // Store items: TRES ámbitos fusionados en un solo array, de más específico
+        // a más general:
+        //   · apartment_id = este piso  → productos sólo de este alojamiento
+        //   · owner_type='agency'       → catálogo del property manager: sale en
+        //                                 TODAS sus propiedades
+        //   · owner_type='platform'     → catálogo de VisualTaste, slot reservado
+        //                                 que la agencia no edita ni borra
+        //                                 (ver migrations/0080_guide_store.sql)
+        //
+        // El nivel de agencia se añadió porque un PM ofrece los mismos extras en
+        // todos sus pisos (salida tardía, cesta de bienvenida, traslado): sin él,
+        // seis productos por cinco pisos eran treinta filas y treinta juegos de
+        // traducciones a los 13 idiomas, que había que editar de una en una. Las
+        // excepciones no obligan a duplicar nada: se ocultan o se recolocan en el
+        // piso concreto con guide_apartment_item_order — el mismo mecanismo que ya
+        // usaban los productos 'platform'.
         env.DB.prepare(`
             SELECT
                 si.id, si.owner_type, si.category, si.icon_name,
@@ -550,15 +562,20 @@ export async function handleGetGuidebook(env, slug, lang, origin, surface = 'gui
                 AND t_cta_es.field = 'cta_label'
                 AND t_cta_es.language_code = ?
             -- Los ítems 'host' ya son de este apartamento (su order_index basta).
-            -- El override existe sobre todo por los 'platform', que son globales:
-            -- sin esto un anfitrión no podía ni recolocar ni quitar de su guía un
-            -- producto del catálogo de VisualTaste.
+            -- El override existe por los HEREDADOS, que no lo son: los 'platform'
+            -- (catálogo de VisualTaste) y los 'agency' (catálogo del property
+            -- manager, en todas sus propiedades). Es lo que permite que un piso
+            -- concreto recoloque u oculte algo que no ha escrito él — y, en el
+            -- caso de agencia, es el mecanismo entero de las excepciones.
             LEFT JOIN guide_apartment_item_order aio
                 ON aio.item_id = si.id AND aio.item_type = 'store_item' AND aio.apartment_id = ?
-            WHERE si.is_active = TRUE AND (si.apartment_id = ? OR si.owner_type = 'platform')
+            WHERE si.is_active = TRUE
+              AND (si.apartment_id = ?
+                   OR si.owner_type = 'platform'
+                   OR (si.owner_type = 'agency' AND si.agency_id = ?))
               AND COALESCE(aio.is_hidden, 0) = 0
             ORDER BY ${orderClause('si', 'aio.order_override')}
-        `).bind(lang, FALLBACK_LANG, lang, FALLBACK_LANG, lang, FALLBACK_LANG, apartment.id, apartment.id).all(),
+        `).bind(lang, FALLBACK_LANG, lang, FALLBACK_LANG, lang, FALLBACK_LANG, apartment.id, apartment.id, apartment.agency_id).all(),
 
         // Apartment phones (migración 0084) — la agencia va siempre primera por
         // order_index del catálogo (10), luego policía/bomberos/ambulancia/otro.

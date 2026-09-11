@@ -383,14 +383,19 @@ export default function DashboardLayout() {
       featureKey: null,
       section: 'CATÁLOGO'
     },
+    // Ya no es superadmin-only: esta pantalla gestiona los TRES ámbitos de la
+    // tienda, y el de agencia —un producto que sale en todas las propiedades del
+    // property manager— es precisamente el que tiene que poder tocar el personal
+    // de agencia. El catálogo global sigue siendo de solo lectura para ellos, y
+    // eso lo decide el worker (can_edit), no el menú.
+    {
+      text: 'Tienda (catálogo)',
+      icon: <StoreIcon />,
+      path: '/guide/store',
+      featureKey: null,
+      section: 'CATÁLOGO'
+    },
     ...(user?.is_superadmin ? [
-      {
-        text: 'Tienda (catálogo)',
-        icon: <StoreIcon />,
-        path: '/guide/store',
-        featureKey: null,
-        section: 'CATÁLOGO'
-      },
       {
         text: 'Imágenes de categorías',
         icon: <CollectionsIcon />,

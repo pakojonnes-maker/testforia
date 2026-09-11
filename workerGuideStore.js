@@ -75,20 +75,25 @@ export async function handleGuideStoreRequests(request, env) {
     }
 
     const apartment = await env.DB.prepare(
-        'SELECT id, name, contact_whatsapp FROM guide_apartments WHERE id = ? AND is_active = TRUE'
+        'SELECT id, name, agency_id, contact_whatsapp FROM guide_apartments WHERE id = ? AND is_active = TRUE'
     ).bind(apartmentId).first();
     if (!apartment) return errorResponse('Apartment not found', 404);
 
-    // Solo ítems activos de ESTE apartamento (host) o del catálogo global (platform) —
-    // un host item de OTRO apartamento no debe poder pedirse desde aquí.
+    // Los tres ámbitos que este apartamento puede vender, y sólo esos: los suyos
+    // (host), los de su agencia y el catálogo global. Tiene que ser el MISMO
+    // filtro que sirve la guía (workerGuide.js): si aquí faltara el nivel de
+    // agencia, el huésped vería el producto en la tienda y al pedirlo le
+    // saltaría "Item not available".
     const itemIds = items.map(i => i.itemId);
     const placeholders = itemIds.map(() => '?').join(',');
     const dbItems = await env.DB.prepare(`
         SELECT id, owner_type, price_amount, price_currency, contact_whatsapp
         FROM guide_store_items
         WHERE id IN (${placeholders}) AND is_active = TRUE
-            AND (apartment_id = ? OR owner_type = 'platform')
-    `).bind(...itemIds, apartmentId).all();
+            AND (apartment_id = ?
+                 OR owner_type = 'platform'
+                 OR (owner_type = 'agency' AND agency_id = ?))
+    `).bind(...itemIds, apartmentId, apartment.agency_id).all();
 
     const itemsById = new Map((dbItems.results || []).map(i => [i.id, i]));
     for (const line of items) {
@@ -110,8 +115,12 @@ export async function handleGuideStoreRequests(request, env) {
     const groups = new Map(); // contactNumber -> { lines: [], ownerType }
     for (const line of items) {
         const item = itemsById.get(line.itemId);
+        // Un producto de AGENCIA lo sirve el mismo anfitrión que uno propio del
+        // piso (es su catálogo, replicado en todas sus propiedades), así que su
+        // destinatario es el WhatsApp del alojamiento. Sólo el catálogo global de
+        // VisualTaste va al número de la plataforma.
         const contact = item.contact_whatsapp
-            || (item.owner_type === 'host' ? apartment.contact_whatsapp : env.PLATFORM_WHATSAPP)
+            || (item.owner_type === 'platform' ? env.PLATFORM_WHATSAPP : apartment.contact_whatsapp)
             || null;
         const key = contact || `__no_contact_${item.owner_type}`;
         if (!groups.has(key)) groups.set(key, { contact, ownerType: item.owner_type, lines: [] });

@@ -45,6 +45,22 @@ export async function touchZoneGuideVersions(env, zoneId) {
     await Promise.all(writes);
 }
 
+// Todos los alojamientos de una AGENCIA. Lo pide el catálogo de Tienda: un
+// producto con owner_type='agency' sale en la tienda de todas las propiedades
+// de ese property manager, así que editarlo tiene que invalidar todas — pero
+// sólo esas. Antes la única herramienta para "esto sale en varias guías" era
+// touchAllGuideVersions (los productos 'platform'), que escribe en KV una clave
+// por apartamento ACTIVO DE LA PLATAFORMA: correcto para el catálogo global y
+// desproporcionado para una agencia de tres pisos.
+export async function touchAgencyGuideVersions(env, agencyId) {
+    if (!env.GUIDE_CACHE || !agencyId) return;
+    const apts = await env.DB.prepare(
+        'SELECT slug FROM guide_apartments WHERE agency_id = ? AND is_active = TRUE'
+    ).bind(agencyId).all();
+    const now = String(Date.now());
+    await Promise.all((apts.results || []).map(a => env.GUIDE_CACHE.put(`ver:apt:${a.slug}`, now)));
+}
+
 // Per-zone version for the "explore other cities" endpoint (GET /guide/:slug/explore).
 // Bumped by touchZoneGuideVersions above (POI/experience edits within that zone).
 export async function getZoneExploreVersion(env, zoneSlug) {

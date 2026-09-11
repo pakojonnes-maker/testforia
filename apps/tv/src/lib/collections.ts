@@ -253,9 +253,16 @@ function buildStore(data: GuidebookData): Entry[] {
     featured: item.is_featured === true,
     badge: !item.in_stock ? 'Agotado' : item.is_featured ? 'Destacado' : undefined,
     sponsored: item.is_promoted === true,
-    // Mismo agrupamiento que ServicesSection.tsx en apps/guide: anfitrión
-    // primero, catálogo de VisualTaste después — ver categoryVisual.ts.
-    category: item.owner_type === 'host' ? 'store_host' : 'store_platform',
+    // Mismo agrupamiento que ServicesSection.tsx en apps/guide: lo del anfitrión
+    // primero, el catálogo de VisualTaste después.
+    //
+    // La comparación va contra 'platform' y no contra 'host' a propósito. Desde
+    // que existe el ámbito de AGENCIA (un producto que el property manager
+    // ofrece en todas sus propiedades), preguntar "¿es host?" mandaba esos
+    // productos al grupo de VisualTaste — que es justo lo contrario de lo que
+    // son. Lo que de verdad separa los dos grupos es de quién es el producto, y
+    // sólo uno de los tres ámbitos no es del anfitrión.
+    category: item.owner_type === 'platform' ? 'store_platform' : 'store_host',
     facts: [],
     inStock: item.in_stock,
   }))

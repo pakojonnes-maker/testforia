@@ -1,9 +1,20 @@
 // src/pages/guide/GuideStorePage.tsx
-// Catálogo global de la Tienda (owner_type='platform'): productos de VisualTaste
-// visibles en TODAS las guías, junto a los propios de cada anfitrión. Solo
-// superadmin — es el slot reservado que un anfitrión no puede tocar ni borrar
-// (ver migrations/0080_guide_store.sql).
-import { useState, useEffect } from 'react';
+// Catálogo de la Tienda: TODOS los productos, agrupados por su ÁMBITO.
+//
+// Antes esta pantalla enseñaba sólo el catálogo global de VisualTaste
+// (owner_type='platform', superadmin). El resultado era que el panel no
+// coincidía con lo que salía en la guía y en la TV: la tienda de un huésped
+// mezcla el catálogo global con los productos del alojamiento, y esos últimos
+// sólo se veían entrando en cada piso. "Parece que no son gestionables desde el
+// admin" fue el diagnóstico, y era razonable.
+//
+// El cambio de fondo no es enseñar más filas, es el ÁMBITO "agencia". Un
+// property manager ofrece los mismos extras en todas sus propiedades; con un
+// producto por piso, seis extras en cinco pisos eran treinta fichas con sus
+// treinta juegos de traducciones a 13 idiomas. Ahora son seis, y las
+// excepciones se resuelven ocultando el producto en el piso donde no aplica,
+// desde su propia pestaña Tienda (no hace falta duplicar nada).
+import { useState, useEffect, useMemo, useCallback } from 'react';
 import { useAuth } from '../../contexts/AuthContext';
 import { apiClient } from '../../lib/apiClient';
 import {
@@ -11,7 +22,7 @@ import {
   Dialog, DialogTitle, DialogContent, DialogActions,
   TextField, Select, MenuItem, InputLabel, FormControl, Grid,
   Card, CardContent, IconButton, Chip, Switch, FormControlLabel,
-  Tabs, Tab,
+  Tabs, Tab, Tooltip, Divider,
 } from '@mui/material';
 import {
   Add as AddIcon,
@@ -19,6 +30,11 @@ import {
   Edit as EditIcon,
   Storefront as StoreIcon,
   CheckCircle as CheckCircleIcon,
+  Public as PublicIcon,
+  Business as BusinessIcon,
+  Apartment as ApartmentIcon,
+  ImageNotSupported as NoImageIcon,
+  VisibilityOff as HiddenIcon,
 } from '@mui/icons-material';
 
 // Categorías de la Tienda — agrupaciones, no nombres de producto (ver
@@ -50,8 +66,38 @@ const LANGUAGES = [
   { code: 'ko', label: '🇰🇷 한국어' },
 ];
 
+/**
+ * Claves anteriores a la migración 0081, que fusionó "cada servicio es su propia
+ * categoría" en agrupaciones reales. Siguen apareciendo en filas sembradas por
+ * scripts que iban detrás de la migración, y sin esto la tarjeta enseñaba
+ * "late_checkout" tal cual. Etiquetar no es migrar: la fila se corrige cuando se
+ * guarda desde el formulario, que ya sólo ofrece el vocabulario vigente.
+ */
+const LEGACY_CATEGORY_LABELS: Record<string, string> = {
+  late_checkout: 'Check-in / Check-out', early_checkin: 'Check-in / Check-out',
+  cleaning: 'Servicios de la estancia', crib: 'Servicios de la estancia',
+  transfer: 'Servicios de la estancia', parking: 'Servicios de la estancia',
+  rental: 'Servicios de la estancia', welcome_pack: 'Bienvenida',
+};
+
+const categoryLabel = (key: string): string =>
+  STORE_CATEGORIES.find(c => c.key === key)?.label
+  || LEGACY_CATEGORY_LABELS[key]
+  || key.replace(/_/g, ' ');
+
+type Scope = 'platform' | 'agency' | 'apartment';
+
 interface StoreItem {
   id: string;
+  scope: Scope;
+  can_edit: boolean;
+  owner_type: string;
+  agency_id: string | null;
+  agency_name: string | null;
+  apartment_id: string | null;
+  apartment_name: string | null;
+  /** En cuántos alojamientos lo ha ocultado su anfitrión (sólo platform/agency). */
+  hidden_count: number;
   category: string;
   name: string;
   description: string;
@@ -66,73 +112,123 @@ interface StoreItem {
   order_index: number;
 }
 
+interface Apartment {
+  id: string;
+  name: string;
+}
+
 const MEDIA_BASE = import.meta.env.VITE_API_URL || 'https://visualtasteworker.franciscotortosaestudios.workers.dev';
 
+const SCOPE_META: Record<Scope, { label: string; icon: JSX.Element; color: 'default' | 'primary' | 'secondary' }> = {
+  platform: { label: 'Todas las guías', icon: <PublicIcon sx={{ fontSize: 15 }} />, color: 'secondary' },
+  agency: { label: 'Todas mis propiedades', icon: <BusinessIcon sx={{ fontSize: 15 }} />, color: 'primary' },
+  apartment: { label: 'Un solo alojamiento', icon: <ApartmentIcon sx={{ fontSize: 15 }} />, color: 'default' },
+};
+
 export default function GuideStorePage() {
-  const { user } = useAuth();
+  const { user, currentAgency } = useAuth();
+  const isSuperAdmin = !!user?.is_superadmin;
+  const agencyId: string | undefined = currentAgency?.id;
+  const agencyName: string = currentAgency?.name || 'mi agencia';
 
   const [loading, setLoading] = useState(true);
   const [items, setItems] = useState<StoreItem[]>([]);
+  const [apartments, setApartments] = useState<Apartment[]>([]);
   const [error, setError] = useState<string | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
 
   const [openDialog, setOpenDialog] = useState(false);
   const [editingItem, setEditingItem] = useState<StoreItem | null>(null);
   const [formLang, setFormLang] = useState('es');
-  const [formData, setFormData] = useState<Partial<StoreItem> & { translations: Record<string, { name?: string; description?: string }> }>({
-    category: STORE_CATEGORIES[0].key, is_active: true, is_featured: false, translations: {},
-  });
+  const [formData, setFormData] = useState<
+    Partial<StoreItem> & { scope: Scope; translations: Record<string, { name?: string; description?: string }> }
+  >({ category: STORE_CATEGORIES[0].key, scope: 'agency', is_active: true, is_featured: false, translations: {} });
   const [saving, setSaving] = useState(false);
   const [uploading, setUploading] = useState(false);
+  // Una portada puede apuntar a un objeto de R2 que ya no está (la demo de The
+  // Host Edition tiene las seis así: la fila se sembró, las imágenes nunca se
+  // subieron). Distinguir "sin foto" de "foto rota" importa, porque la segunda
+  // se arregla subiendo el fichero y la primera eligiéndolo.
+  const [brokenImages, setBrokenImages] = useState<Record<string, boolean>>({});
 
-  const load = async () => {
+  const load = useCallback(async () => {
     setLoading(true);
+    setError(null);
     try {
-      const res = await apiClient.request('/guide/admin/store-items?owner_type=platform');
-      setItems(res.items || []);
+      const query = agencyId ? `?agency_id=${encodeURIComponent(agencyId)}` : '';
+      const [catalog, apts] = await Promise.all([
+        apiClient.request(`/guide/admin/store-items${query}`),
+        agencyId
+          ? apiClient.request(`/guide/admin/apartments?agency_id=${encodeURIComponent(agencyId)}`)
+          : Promise.resolve({ apartments: [] }),
+      ]);
+      setItems(catalog.items || []);
+      setApartments(apts.apartments || []);
     } catch (err: any) {
       setError(err.message || 'Error al cargar el catálogo');
     } finally {
       setLoading(false);
     }
-  };
+  }, [agencyId]);
 
-  useEffect(() => {
-    if (user?.is_superadmin) load();
-  }, [user]);
+  useEffect(() => { load(); }, [load]);
 
-  if (!user?.is_superadmin) {
-    return (
-      <Box sx={{ p: 4, textAlign: 'center' }}>
-        <Alert severity="error" sx={{ maxWidth: 500, mx: 'auto' }}>
-          No tienes permisos de superadmin para acceder a esta página.
-        </Alert>
-      </Box>
-    );
-  }
+  const groups = useMemo(() => ({
+    platform: items.filter(i => i.scope === 'platform'),
+    agency: items.filter(i => i.scope === 'agency'),
+    apartment: items.filter(i => i.scope === 'apartment'),
+  }), [items]);
 
-  const handleOpenDialog = (item?: StoreItem) => {
+  const handleOpenDialog = (item?: StoreItem, presetScope?: Scope) => {
     setFormLang('es');
     if (item) {
       setEditingItem(item);
       // Precarga las traducciones que ya existan: si el backend no devolviera nada
       // para un idioma, dejarlo vacío aquí y guardar sobrescribiría ese idioma con
       // "" (saveTranslations no distingue "vacío a propósito" de "no lo he tocado").
-      setFormData({ ...item, translations: { ...(item.translations || {}) } });
+      setFormData({ ...item, scope: item.scope, translations: { ...(item.translations || {}) } });
     } else {
       setEditingItem(null);
-      setFormData({ category: STORE_CATEGORIES[0].key, is_active: true, is_featured: false, translations: {} });
+      setFormData({
+        category: STORE_CATEGORIES[0].key,
+        // El ámbito por defecto es el de agencia, que es el que casi siempre
+        // quieres: un producto que se ofrece en todas las propiedades. Sin
+        // agencia seleccionada sólo cabe el catálogo global (superadmin).
+        scope: presetScope || (agencyId ? 'agency' : 'platform'),
+        agency_id: agencyId || null,
+        apartment_id: apartments[0]?.id || null,
+        is_active: true,
+        is_featured: false,
+        translations: {},
+      });
     }
     setOpenDialog(true);
   };
+
+  const scopePayload = (scope: Scope) => ({
+    scope,
+    agency_id: scope === 'agency' ? agencyId : null,
+    apartment_id: scope === 'apartment' ? formData.apartment_id : null,
+  });
 
   const handleSave = async () => {
     setSaving(true);
     setError(null);
     try {
+      const scope = formData.scope;
+      if (scope === 'apartment' && !formData.apartment_id) {
+        throw new Error('Elige el alojamiento al que pertenece este producto.');
+      }
+      if (scope === 'agency' && !agencyId) {
+        throw new Error('Selecciona una agencia arriba para crear un producto de todas sus propiedades.');
+      }
       const payload = {
+        ...scopePayload(scope),
         category: formData.category,
-        price_amount: formData.price_amount === undefined || formData.price_amount === null || (formData.price_amount as any) === ''
-          ? null : Number(formData.price_amount),
+        price_amount:
+          formData.price_amount === undefined || formData.price_amount === null || (formData.price_amount as any) === ''
+            ? null
+            : Number(formData.price_amount),
         cover_image_url: formData.cover_image_url || null,
         contact_whatsapp: formData.contact_whatsapp || null,
         is_featured: !!formData.is_featured,
@@ -154,10 +250,39 @@ export default function GuideStorePage() {
     }
   };
 
-  const handleDelete = async (itemId: string) => {
-    if (!window.confirm('¿Desactivar este producto del catálogo global? Dejará de verse en todas las guías.')) return;
+  /**
+   * El atajo que da sentido a toda la pantalla: subir un producto de un piso al
+   * catálogo de la agencia. Es un PUT con scope, no un alta nueva — mover la
+   * fila conserva sus traducciones (13 idiomas) y sus pedidos históricos, que es
+   * justo lo que se perdería copiándolo.
+   */
+  const handlePromoteToAgency = async (item: StoreItem) => {
+    if (!agencyId) return;
+    const question =
+      `¿Ofrecer "${item.name}" en TODAS las propiedades de ${agencyName}?\n\n` +
+      'Deja de estar atado a un alojamiento y pasa a salir en la tienda de todos. ' +
+      'Donde no aplique, se oculta desde la pestaña Tienda de ese alojamiento.';
+    if (!window.confirm(question)) return;
     try {
-      await apiClient.request(`/guide/admin/store-items/${itemId}`, { method: 'DELETE' });
+      await apiClient.request(`/guide/admin/store-items/${item.id}`, {
+        method: 'PUT',
+        body: JSON.stringify({ scope: 'agency', agency_id: agencyId }),
+      });
+      setNotice(`"${item.name}" ya se ofrece en todas las propiedades de ${agencyName}.`);
+      await load();
+    } catch (err: any) {
+      setError(err.message || 'Error al cambiar el ámbito del producto');
+    }
+  };
+
+  const handleDelete = async (item: StoreItem) => {
+    const where =
+      item.scope === 'platform' ? 'todas las guías'
+        : item.scope === 'agency' ? `todas las propiedades de ${agencyName}`
+          : item.apartment_name || 'su alojamiento';
+    if (!window.confirm(`¿Desactivar "${item.name}"? Dejará de verse en ${where}.`)) return;
+    try {
+      await apiClient.request(`/guide/admin/store-items/${item.id}`, { method: 'DELETE' });
       await load();
     } catch (err: any) {
       setError(err.message || 'Error al desactivar el producto');
@@ -172,33 +297,143 @@ export default function GuideStorePage() {
       const fd = new FormData();
       fd.append('file', file);
       const token = localStorage.getItem('auth_token') || '';
-      // Platform catalog upload — NOT the shared /media/upload in workerMedia.js,
-      // which requires a dish_id and 400s for anything guidebook-related.
+      // Subida propia del catálogo — NO el /media/upload compartido de
+      // workerMedia.js, que exige dish_id y devuelve 400 para cualquier cosa
+      // del guidebook.
       const res = await fetch(`${MEDIA_BASE}/guide/admin/store-items/media`, {
         method: 'POST',
-        headers: { 'Authorization': `Bearer ${token}` },
+        headers: { Authorization: `Bearer ${token}` },
         body: fd,
       });
       const data = await res.json();
       if (!data.success) throw new Error(data.message || data.error);
       setFormData(prev => ({ ...prev, cover_image_url: data.url || `${MEDIA_BASE}/media/${data.r2_key}` }));
     } catch (err: any) {
-      alert(err.message || 'Error al subir imagen');
+      setError(err.message || 'Error al subir imagen');
     } finally {
       setUploading(false);
       if (event.target) event.target.value = '';
     }
   };
 
+  const renderCard = (item: StoreItem) => (
+    <Grid item xs={12} sm={6} md={4} lg={3} key={item.id}>
+      <Card sx={{ height: '100%', display: 'flex', flexDirection: 'column', opacity: item.is_active ? 1 : 0.5 }}>
+        <Box sx={{ position: 'relative', height: 140, bgcolor: 'action.hover' }}>
+          {item.cover_image_url && !brokenImages[item.id] ? (
+            <img
+              src={item.cover_image_url}
+              alt=""
+              style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+              onError={() => setBrokenImages(prev => ({ ...prev, [item.id]: true }))}
+            />
+          ) : (
+            // Un producto sin foto sale en la TV y en la guía como un bloque de
+            // color con el título encima. Es un aviso, no una decoración: es
+            // exactamente lo que hace que una demo parezca a medias.
+            <Box sx={{ height: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', color: 'text.disabled', gap: 0.5, px: 1, textAlign: 'center' }}>
+              <NoImageIcon />
+              <Typography variant="caption">
+                {item.cover_image_url ? 'La foto no carga (404)' : 'Sin foto'}
+              </Typography>
+            </Box>
+          )}
+          {item.can_edit && (
+            <Box sx={{ position: 'absolute', top: 8, right: 8, display: 'flex', gap: 0.5 }}>
+              <Tooltip title="Editar">
+                <IconButton size="small" sx={{ bgcolor: 'rgba(255,255,255,0.9)' }} onClick={() => handleOpenDialog(item)}>
+                  <EditIcon fontSize="small" />
+                </IconButton>
+              </Tooltip>
+              <Tooltip title="Desactivar">
+                <IconButton size="small" sx={{ bgcolor: 'rgba(255,255,255,0.9)' }} color="error" onClick={() => handleDelete(item)}>
+                  <DeleteIcon fontSize="small" />
+                </IconButton>
+              </Tooltip>
+            </Box>
+          )}
+        </Box>
+        <CardContent sx={{ flexGrow: 1 }}>
+          <Typography variant="subtitle1" fontWeight={700} noWrap title={item.name}>{item.name}</Typography>
+          <Box sx={{ display: 'flex', gap: 0.75, flexWrap: 'wrap', mb: 1, mt: 0.75 }}>
+            <Chip size="small" label={categoryLabel(item.category)} />
+            {item.scope === 'apartment' && item.apartment_name && (
+              <Chip size="small" variant="outlined" icon={<ApartmentIcon sx={{ fontSize: 15 }} />} label={item.apartment_name} />
+            )}
+            {/* Un superadmin sin agencia seleccionada ve las de TODAS bajo la
+                misma cabecera; sin este chip no hay forma de saber de quién es
+                cada producto. */}
+            {item.scope === 'agency' && item.agency_name && !agencyId && (
+              <Chip size="small" variant="outlined" icon={<BusinessIcon sx={{ fontSize: 15 }} />} label={item.agency_name} />
+            )}
+            {/* !! y no la variable tal cual: D1 devuelve 0/1, y en React un 0
+                no es "no pintes nada", es un cero pintado. Ese "0" suelto llevaba
+                tiempo en las tarjetas del catálogo. */}
+            {!!item.is_featured && <Chip size="small" color="warning" label="Destacado" />}
+            {!item.is_active && <Chip size="small" label="Inactivo" />}
+            {item.scope !== 'apartment' && item.hidden_count > 0 && (
+              <Tooltip title="Alojamientos donde su anfitrión lo ha ocultado, desde la pestaña Tienda de cada uno">
+                <Chip
+                  size="small" variant="outlined" icon={<HiddenIcon sx={{ fontSize: 15 }} />}
+                  label={`Oculto en ${item.hidden_count}`}
+                />
+              </Tooltip>
+            )}
+          </Box>
+          {item.price_amount != null && (
+            <Typography variant="subtitle1" fontWeight={700}>
+              {Number(item.price_amount).toFixed(2)} {item.price_currency || 'EUR'}
+            </Typography>
+          )}
+        </CardContent>
+        {item.scope === 'apartment' && item.can_edit && agencyId && (
+          <Box sx={{ px: 2, pb: 1.5 }}>
+            <Button size="small" fullWidth variant="outlined" startIcon={<BusinessIcon />} onClick={() => handlePromoteToAgency(item)}>
+              Ofrecer en todas
+            </Button>
+          </Box>
+        )}
+      </Card>
+    </Grid>
+  );
+
+  const renderSection = (scope: Scope, title: string, help: string, addable: boolean) => {
+    const list = groups[scope];
+    return (
+      <Box sx={{ mb: 5 }}>
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, mb: 0.5, flexWrap: 'wrap' }}>
+          <Chip size="small" color={SCOPE_META[scope].color} icon={SCOPE_META[scope].icon} label={SCOPE_META[scope].label} />
+          <Typography variant="h6" fontWeight={700}>{title}</Typography>
+          <Typography variant="body2" color="text.secondary">{list.length}</Typography>
+          <Box sx={{ flexGrow: 1 }} />
+          {addable && (
+            <Button size="small" startIcon={<AddIcon />} onClick={() => handleOpenDialog(undefined, scope)}>
+              Añadir aquí
+            </Button>
+          )}
+        </Box>
+        <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>{help}</Typography>
+        <Divider sx={{ mb: 2 }} />
+        {list.length === 0 ? (
+          <Paper variant="outlined" sx={{ p: 3, textAlign: 'center' }}>
+            <Typography variant="body2" color="text.secondary">Todavía no hay ningún producto en este ámbito.</Typography>
+          </Paper>
+        ) : (
+          <Grid container spacing={3}>{list.map(renderCard)}</Grid>
+        )}
+      </Box>
+    );
+  };
+
   return (
     <Box sx={{ p: { xs: 2, md: 0 } }}>
-      <Box sx={{ mb: 4, display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 2 }}>
+      <Box sx={{ mb: 3, display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 2 }}>
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
           <StoreIcon sx={{ fontSize: 32, color: 'primary.main' }} />
           <Box>
             <Typography variant="h4" fontWeight={700}>Catálogo de la Tienda</Typography>
             <Typography variant="body2" color="text.secondary">
-              Productos de VisualTaste visibles en la tienda de TODOS los alojamientos (Superadmin)
+              Todo lo que se puede vender en la guía y en la TV, agrupado por dónde se ofrece
             </Typography>
           </Box>
         </Box>
@@ -207,58 +442,80 @@ export default function GuideStorePage() {
         </Button>
       </Box>
 
-      {error && <Alert severity="error" sx={{ mb: 3 }}>{error}</Alert>}
+      <Alert severity="info" sx={{ mb: 3 }}>
+        La tienda que ve un huésped es la <strong>suma de los tres bloques de abajo</strong>. Un producto
+        del ámbito «{agencyName}» se escribe una sola vez —también sus traducciones a los 13 idiomas— y
+        sale en todas las propiedades; si en alguna no aplica, se oculta desde{' '}
+        <strong>Apartamentos → ese alojamiento → Tienda</strong> sin duplicarlo ni borrarlo.
+      </Alert>
+
+      {error && <Alert severity="error" sx={{ mb: 3 }} onClose={() => setError(null)}>{error}</Alert>}
+      {notice && <Alert severity="success" sx={{ mb: 3 }} onClose={() => setNotice(null)}>{notice}</Alert>}
 
       {loading ? (
-        <Box sx={{ display: 'flex', justifyContent: 'center', py: 8 }}>
-          <CircularProgress />
-        </Box>
+        <Box sx={{ display: 'flex', justifyContent: 'center', py: 8 }}><CircularProgress /></Box>
       ) : (
-        <Grid container spacing={3}>
-          {items.map(item => (
-            <Grid item xs={12} sm={6} md={4} lg={3} key={item.id}>
-              <Card sx={{ height: '100%', display: 'flex', flexDirection: 'column', opacity: item.is_active ? 1 : 0.5 }}>
-                <Box sx={{ position: 'relative', height: 140, bgcolor: 'action.hover' }}>
-                  {item.cover_image_url && (
-                    <img src={item.cover_image_url} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-                  )}
-                  <Box sx={{ position: 'absolute', top: 8, right: 8, display: 'flex', gap: 0.5 }}>
-                    <IconButton size="small" sx={{ bgcolor: 'rgba(255,255,255,0.9)' }} onClick={() => handleOpenDialog(item)}>
-                      <EditIcon fontSize="small" />
-                    </IconButton>
-                    <IconButton size="small" sx={{ bgcolor: 'rgba(255,255,255,0.9)' }} color="error" onClick={() => handleDelete(item.id)}>
-                      <DeleteIcon fontSize="small" />
-                    </IconButton>
-                  </Box>
-                </Box>
-                <CardContent sx={{ flexGrow: 1 }}>
-                  <Typography variant="subtitle1" fontWeight={700} noWrap title={item.name}>{item.name}</Typography>
-                  <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap', mb: 1, mt: 0.5 }}>
-                    <Chip size="small" label={STORE_CATEGORIES.find(c => c.key === item.category)?.label || item.category} />
-                    {item.is_featured && <Chip size="small" color="warning" label="Destacado" />}
-                    {!item.is_active && <Chip size="small" label="Inactivo" />}
-                  </Box>
-                  {item.price_amount != null && (
-                    <Typography variant="subtitle1" fontWeight={700}>{Number(item.price_amount).toFixed(2)} {item.price_currency || 'EUR'}</Typography>
-                  )}
-                </CardContent>
-              </Card>
-            </Grid>
-          ))}
-          {items.length === 0 && (
-            <Grid item xs={12}>
-              <Paper sx={{ p: 4, textAlign: 'center' }}>
-                <Typography color="text.secondary">Todavía no hay ningún producto en el catálogo global.</Typography>
-              </Paper>
-            </Grid>
+        <>
+          {renderSection(
+            'agency',
+            agencyId ? `Catálogo de ${agencyName}` : 'Catálogos de agencia',
+            agencyId
+              ? 'Se ofrece en todas las propiedades de esta agencia. Es el sitio por defecto para un extra que repites en todos tus pisos.'
+              : 'Productos que cada agencia ofrece en todas sus propiedades. Selecciona una agencia arriba para añadir o mover productos aquí.',
+            !!agencyId,
           )}
-        </Grid>
+          {renderSection(
+            'apartment',
+            'Solo en un alojamiento',
+            'Excepciones reales: algo que únicamente existe en ese piso. Si acabas repitiéndolo, súbelo al catálogo de la agencia con «Ofrecer en todas».',
+            apartments.length > 0,
+          )}
+          {renderSection(
+            'platform',
+            'Catálogo de VisualTaste',
+            isSuperAdmin
+              ? 'Sale en TODAS las guías de la plataforma, de cualquier agencia. Solo superadmin.'
+              : 'Productos de VisualTaste que salen en tu tienda. No se pueden editar desde aquí.',
+            isSuperAdmin,
+          )}
+        </>
       )}
 
       <Dialog open={openDialog} onClose={() => !saving && setOpenDialog(false)} maxWidth="sm" fullWidth>
-        <DialogTitle>{editingItem ? 'Editar producto' : 'Nuevo producto del catálogo'}</DialogTitle>
+        <DialogTitle>{editingItem ? 'Editar producto' : 'Nuevo producto'}</DialogTitle>
         <DialogContent dividers>
           <Grid container spacing={2}>
+            {/* El ámbito va ARRIBA del todo: es la decisión que cambia dónde se
+                ve el producto, y la que antes no existía. */}
+            <Grid item xs={12}>
+              <FormControl fullWidth size="small">
+                <InputLabel>¿Dónde se ofrece?</InputLabel>
+                <Select
+                  value={formData.scope}
+                  label="¿Dónde se ofrece?"
+                  onChange={e => setFormData({ ...formData, scope: e.target.value as Scope })}
+                >
+                  {agencyId && <MenuItem value="agency">Todas las propiedades de {agencyName}</MenuItem>}
+                  <MenuItem value="apartment" disabled={apartments.length === 0}>Solo en un alojamiento</MenuItem>
+                  {isSuperAdmin && <MenuItem value="platform">Catálogo de VisualTaste (todas las guías)</MenuItem>}
+                </Select>
+              </FormControl>
+            </Grid>
+            {formData.scope === 'apartment' && (
+              <Grid item xs={12}>
+                <FormControl fullWidth size="small">
+                  <InputLabel>Alojamiento</InputLabel>
+                  <Select
+                    value={formData.apartment_id || ''}
+                    label="Alojamiento"
+                    onChange={e => setFormData({ ...formData, apartment_id: e.target.value })}
+                  >
+                    {apartments.map(a => <MenuItem key={a.id} value={a.id}>{a.name}</MenuItem>)}
+                  </Select>
+                </FormControl>
+              </Grid>
+            )}
+
             <Grid item xs={12}>
               <FormControl fullWidth size="small">
                 <InputLabel>Categoría</InputLabel>
@@ -321,6 +578,11 @@ export default function GuideStorePage() {
                   {uploading ? 'Subiendo...' : 'Subir imagen'}
                   <input type="file" hidden accept="image/*" onChange={handleImageUpload} />
                 </Button>
+                {!formData.cover_image_url && (
+                  <Typography variant="caption" color="text.secondary">
+                    Sin foto, la tarjeta sale como un bloque de color en la guía y en la TV.
+                  </Typography>
+                )}
               </Box>
             </Grid>
             <Grid item xs={12}>

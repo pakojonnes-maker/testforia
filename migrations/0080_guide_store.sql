@@ -26,8 +26,8 @@ CREATE TABLE IF NOT EXISTS guide_store_items (
   owner_type        TEXT NOT NULL,          -- 'host' | 'platform'
   apartment_id      TEXT,                   -- NULL si owner_type='platform'
   agency_id         TEXT,                   -- NULL si owner_type='platform'
-  category          TEXT NOT NULL,          -- late_checkout|early_checkin|cleaning|crib|transfer|
-                                             -- welcome_pack|parking|rental|grocery|local_product|custom
+  category          TEXT NOT NULL,          -- OJO: este enum lo SUSTITUYÓ la migración 0081 por
+                                             -- checkinout|service|welcome|grocery|local_product|custom
   icon_name         TEXT,
   price_amount      REAL,
   price_currency    TEXT DEFAULT 'EUR',

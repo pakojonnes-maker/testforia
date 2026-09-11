@@ -24,7 +24,11 @@
 //   POST   /guide/admin/apartments/:id/info/bulk-translations — Import translations (JSON, all langs at once)
 //   POST   /guide/admin/apartments/:id/media                    — Upload a file, get back a URL (no DB row; for cover/welcome image_url fields). Accepts multipart (file) OR application/json ({source_url}) to fetch-and-store a remote image (importador desde URL)
 //   POST   /guide/admin/agencies/:id/media                      — Upload a file, get back a URL (no DB row; for agency logo)
-//   POST   /guide/admin/store-items/media                       — Upload a file, get back a URL (no DB row; for platform store item photo, superadmin only)
+//   GET    /guide/admin/store-items?agency_id=X                 — Catálogo de tienda: global + agencia + por alojamiento
+//   POST   /guide/admin/store-items                             — Crea un producto en el ámbito que diga `scope`
+//   PUT    /guide/admin/store-items/:id                         — Edita, y con `scope` lo mueve entre ámbitos
+//   DELETE /guide/admin/store-items/:id                         — Baja lógica (is_active = FALSE)
+//   POST   /guide/admin/store-items/media                       — Upload a file, get back a URL (no DB row; foto de un producto)
 //   POST   /guide/admin/apartments/:id/info/:infoId/media       — Upload a photo/video for an info block
 //   DELETE /guide/admin/apartments/:id/info/:infoId/media/:mid  — Delete one info block media item
 //   DELETE /guide/admin/apartments/:id/info/:infoId — Delete an info block
@@ -53,7 +57,7 @@
 // ============================================
 
 import { verifyJWT } from './workerAuthentication.js';
-import { touchGuideVersion, touchZoneGuideVersions, touchAllGuideVersions, touchZoneCatalogVersion } from './workerGuideCache.js';
+import { touchGuideVersion, touchZoneGuideVersions, touchAgencyGuideVersions, touchAllGuideVersions, touchZoneCatalogVersion } from './workerGuideCache.js';
 import { isSafeExternalUrl } from './workerGuideApartmentLink.js';
 import { logSecurityEvent } from './workerAudit.js';
 
@@ -258,28 +262,29 @@ export async function handleGuideAdminRequests(request, env) {
             return await deleteApartmentStoreItem(env, parts[1], parts[3], isSuperAdmin, userAgencyIds);
         }
 
-        // ============ STORE ITEMS — platform catalog (superadmin only, global) ============
+        // ============ STORE ITEMS — catálogo completo (los tres ámbitos) ============
+        // Antes esto era "catálogo platform, superadmin only". Ahora es EL sitio
+        // donde se gestiona la tienda entera, porque el ÁMBITO de un producto
+        // (global / de la agencia / de un piso) es justo la decisión que hay que
+        // poder cambiar sin volver a escribir el producto. El control de acceso
+        // ya no lo puede hacer la ruta: depende del ámbito de cada fila, así que
+        // baja a cada handler.
         if (path === 'store-items' && method === 'GET') {
-            if (!isSuperAdmin) return errorResponse('Only superadmin can manage the platform catalog', 403);
-            return await listPlatformStoreItems(env);
+            return await listStoreCatalog(env, url.searchParams, isSuperAdmin, userAgencyIds);
         }
         if (path === 'store-items' && method === 'POST') {
-            if (!isSuperAdmin) return errorResponse('Only superadmin can manage the platform catalog', 403);
-            return await createPlatformStoreItem(env, await request.json());
+            return await createStoreCatalogItem(env, await request.json(), isSuperAdmin, userAgencyIds);
         }
         if (path === 'store-items/media' && method === 'POST') {
-            if (!isSuperAdmin) return errorResponse('Only superadmin can manage the platform catalog', 403);
+            // Subir la foto no toca ninguna fila: el R2 key es nuevo y el ítem al
+            // que se asocie pasará por el control de ámbito al guardarse.
             return await uploadGenericMedia(env, request, 'guide/store');
         }
-        if (path.match(/^store-items\/[^/]+$/) && method === 'PUT') {
-            if (!isSuperAdmin) return errorResponse('Only superadmin can manage the platform catalog', 403);
-            const id = path.split('/')[1];
-            return await updatePlatformStoreItem(env, id, await request.json());
+        if (path.match(STORE_ITEM_PATH) && method === 'PUT') {
+            return await updateStoreCatalogItem(env, path.split('/')[1], await request.json(), isSuperAdmin, userAgencyIds);
         }
-        if (path.match(/^store-items\/[^/]+$/) && method === 'DELETE') {
-            if (!isSuperAdmin) return errorResponse('Only superadmin can manage the platform catalog', 403);
-            const id = path.split('/')[1];
-            return await deletePlatformStoreItem(env, id);
+        if (path.match(STORE_ITEM_PATH) && method === 'DELETE') {
+            return await deleteStoreCatalogItem(env, path.split('/')[1], isSuperAdmin, userAgencyIds);
         }
 
         // ============ STORE ORDERS ============
@@ -1857,7 +1862,7 @@ async function getApartmentOrderableItems(env, aptId, itemType, isSuperAdmin, us
         return errorResponse(`item_type inválido (permitidos: ${ORDERABLE_ITEM_TYPES.join(', ')})`);
     }
 
-    const apt = await env.DB.prepare('SELECT id, zone_id FROM guide_apartments WHERE id = ?').bind(aptId).first();
+    const apt = await env.DB.prepare('SELECT id, zone_id, agency_id FROM guide_apartments WHERE id = ?').bind(aptId).first();
     if (!apt) return errorResponse('Apartamento no encontrado', 404);
 
     const joinOverride = (alias) => `
@@ -1893,14 +1898,22 @@ async function getApartmentOrderableItems(env, aptId, itemType, isSuperAdmin, us
             LEFT JOIN translations t ON t.entity_id = si.id AND t.entity_type = 'store_item'
                  AND t.field = 'name' AND t.language_code = 'es'
             ${joinOverride('si')}
-            WHERE si.is_active = TRUE AND (si.apartment_id = ? OR si.owner_type = 'platform')
+            -- Mismos tres ámbitos que ve el huésped (workerGuide.js). El de
+            -- agencia entra aquí porque es justo donde se gestionan sus EXCEPCIONES:
+            -- un producto que el PM ofrece en todas sus propiedades y que en este
+            -- piso concreto no aplica se oculta desde esta lista, sin duplicar nada
+            -- ni tocar el catálogo.
+            WHERE si.is_active = TRUE
+              AND (si.apartment_id = ?
+                   OR si.owner_type = 'platform'
+                   OR (si.owner_type = 'agency' AND si.agency_id = ?))
             ORDER BY
                 CASE WHEN ${PROMOTED('si')} THEN 0 ELSE 1 END,
                 COALESCE(si.promotion_rank, 2147483647),
                 si.is_featured DESC,
                 COALESCE(aio.order_override, si.order_index, 2147483647),
                 si.id`;
-        params = [itemType, aptId, aptId];
+        params = [itemType, aptId, aptId, apt.agency_id];
     } else {
         query = `
             SELECT r.id, r.name, zr.cuisine_type_override AS subtitle,
@@ -1972,49 +1985,206 @@ async function setApartmentItemOrder(env, aptId, data, isSuperAdmin, userAgencyI
     return jsonResponse({ success: true, item_type: itemType, count: ids.length });
 }
 
-// ---- Catálogo platform (superadmin only, global) ----
-// A diferencia del resto (apartamento/zona), un item de plataforma es visible en
-// TODAS las guías a la vez, así que una escritura aquí bumpea la versión de TODOS
-// los apartamentos activos (touchAllGuideVersions) — es una ruta admin-only y rara,
-// así que el coste extra de KV writes es asumible a cambio de que el catálogo
-// nuevo se vea al instante en vez de depender del TTL de 24h.
-async function listPlatformStoreItems(env) {
-    const result = await env.DB.prepare(
-        `SELECT * FROM guide_store_items WHERE owner_type = 'platform'
-         ORDER BY ${STORE_ORDER_SQL}`
-    ).all();
-    const items = result.results || [];
+/// ============================================
+// CATÁLOGO DE TIENDA — los tres ámbitos, una sola pantalla
+// ============================================
+// Un producto de tienda vive en uno de tres ámbitos. La diferencia no es de
+// contenido: es a cuántas guías sale.
+//
+//   platform  → catálogo de VisualTaste. Sale en TODAS las guías. Solo superadmin.
+//   agency    → catálogo del property manager. Sale en todas SUS propiedades.
+//   apartment → sólo en ese alojamiento (owner_type = 'host').
+//
+// El ámbito de agencia es el motivo de este bloque. Un PM ofrece los mismos
+// extras en todos sus pisos —salida tardía, cesta de bienvenida, traslado— y
+// hasta ahora eso obligaba a crear una fila por piso, cada una con su juego de
+// traducciones a los 13 idiomas, y a editarlas de una en una. Con un producto
+// de agencia hay UNA fila. Las excepciones (el piso sin parking, el que no hace
+// traslados) no obligan a duplicar: se ocultan o se recolocan en ese piso desde
+// su pestaña Tienda, con guide_apartment_item_order — el mismo mecanismo que ya
+// existía para los productos 'platform'.
+//
+// Sin migración: guide_store_items ya traía agency_id (nullable, FK a
+// guide_agencies) y owner_type nunca tuvo CHECK; se valida aquí, que es lo que
+// dejó escrito la migración 0080.
+//
+// El control de acceso NO puede vivir en la tabla de rutas, porque depende del
+// ámbito de cada fila. Toda escritura pasa por resolveStoreScope (destino) y,
+// si es una edición, además por loadStoreItem (origen): mover un producto entre
+// ámbitos exige permiso sobre LOS DOS, o un usuario de agencia podría sacarse
+// del catálogo global un producto de VisualTaste declarándolo suyo.
+
+const STORE_ITEM_PATH = new RegExp('^store-items/[^/]+$');
+
+const OWNER_TYPE_BY_SCOPE = { platform: 'platform', agency: 'agency', apartment: 'host' };
+
+function scopeOfOwnerType(ownerType) {
+    if (ownerType === 'platform') return 'platform';
+    if (ownerType === 'agency') return 'agency';
+    return 'apartment';
+}
+
+/**
+ * Resuelve el ámbito PEDIDO y comprueba el permiso sobre él.
+ * Devuelve { scope, owner_type, apartment_id, agency_id, slug } o { error }.
+ */
+async function resolveStoreScope(env, data, isSuperAdmin, userAgencyIds) {
+    const scope = data.scope
+        || (data.apartment_id ? 'apartment' : data.agency_id ? 'agency' : 'platform');
+    if (!OWNER_TYPE_BY_SCOPE[scope]) {
+        return { error: errorResponse('scope must be platform, agency or apartment') };
+    }
+
+    if (scope === 'platform') {
+        if (!isSuperAdmin) return { error: errorResponse('Only superadmin can manage the platform catalog', 403) };
+        return { scope, owner_type: 'platform', apartment_id: null, agency_id: null, slug: null };
+    }
+
+    if (scope === 'agency') {
+        const agencyId = data.agency_id;
+        if (!agencyId) return { error: errorResponse('agency_id is required for an agency-wide product') };
+        if (!isSuperAdmin && !userAgencyIds.includes(agencyId)) return { error: errorResponse('Forbidden', 403) };
+        return { scope, owner_type: 'agency', apartment_id: null, agency_id: agencyId, slug: null };
+    }
+
+    const aptId = data.apartment_id;
+    if (!aptId) return { error: errorResponse('apartment_id is required for an apartment-only product') };
+    const access = await checkAptAccess(env, aptId, isSuperAdmin, userAgencyIds);
+    if (access.error) return { error: access.error };
+    return {
+        scope, owner_type: 'host',
+        apartment_id: aptId, agency_id: access.apt.agency_id, slug: access.apt.slug,
+    };
+}
+
+/** Ámbito ACTUAL de un ítem existente, ya comprobado el permiso sobre él. */
+async function loadStoreItem(env, id, isSuperAdmin, userAgencyIds) {
+    const item = await env.DB.prepare(
+        `SELECT si.id, si.owner_type, si.apartment_id, si.agency_id, a.slug AS apartment_slug
+         FROM guide_store_items si
+         LEFT JOIN guide_apartments a ON a.id = si.apartment_id
+         WHERE si.id = ?`
+    ).bind(id).first();
+    if (!item) return { error: errorResponse('Store item not found', 404) };
+
+    if (item.owner_type === 'platform') {
+        if (!isSuperAdmin) return { error: errorResponse('Only superadmin can manage the platform catalog', 403) };
+    } else if (!isSuperAdmin && !userAgencyIds.includes(item.agency_id)) {
+        return { error: errorResponse('Forbidden', 403) };
+    }
+    return {
+        item,
+        target: {
+            owner_type: item.owner_type,
+            apartment_id: item.apartment_id,
+            agency_id: item.agency_id,
+            slug: item.apartment_slug,
+        },
+    };
+}
+
+/**
+ * Invalida exactamente las guías que ese ámbito afecta, ni una más. Un producto
+ * de agencia con tres pisos no tiene por qué bumpear la caché de la plataforma
+ * entera, que es lo único que había antes (touchAllGuideVersions).
+ */
+async function touchStoreScope(env, target) {
+    if (!target) return;
+    if (target.owner_type === 'platform') return touchAllGuideVersions(env);
+    if (target.owner_type === 'agency') return touchAgencyGuideVersions(env, target.agency_id);
+    const slug = target.slug || await getApartmentSlug(env, target.apartment_id);
+    if (slug) return touchGuideVersion(env, slug);
+}
+
+/**
+ * El catálogo entero que quien pregunta puede gestionar.
+ *
+ * El global va SIEMPRE, incluso para una agencia que no puede tocarlo: sale en
+ * su tienda, y "el admin no me cuadra con lo que enseña la TV" empieza justo
+ * ahí. Lo demás se filtra por agencia. `can_edit` viaja en la respuesta para que
+ * el panel no tenga que reproducir estas reglas por su cuenta.
+ */
+async function listStoreCatalog(env, params, isSuperAdmin, userAgencyIds) {
+    const agencyFilter = params.get('agency_id');
+    if (agencyFilter && !isSuperAdmin && !userAgencyIds.includes(agencyFilter)) {
+        return errorResponse('Forbidden', 403);
+    }
+    // null = sin restricción (superadmin sin filtro). [] = no ve ninguna agencia.
+    const agencies = agencyFilter ? [agencyFilter] : (isSuperAdmin ? null : userAgencyIds);
+
+    let scopeSql = "si.owner_type = 'platform'";
+    const binds = [];
+    if (agencies === null) {
+        scopeSql = '1 = 1';
+    } else if (agencies.length > 0) {
+        scopeSql += ` OR si.agency_id IN (${agencies.map(() => '?').join(',')})`;
+        binds.push(...agencies);
+    }
+
+    const result = await env.DB.prepare(`
+        SELECT si.*,
+               a.name AS apartment_name,
+               ag.name AS agency_name,
+               -- En cuántos alojamientos lo ha ocultado su anfitrión. Sólo tiene
+               -- sentido en platform/agency (los de un piso no se heredan), y es
+               -- lo que convierte "sale en todas" en un dato comprobable.
+               (SELECT COUNT(*) FROM guide_apartment_item_order o
+                 WHERE o.item_id = si.id AND o.item_type = 'store_item' AND o.is_hidden = 1) AS hidden_count
+        FROM guide_store_items si
+        LEFT JOIN guide_apartments a ON a.id = si.apartment_id
+        LEFT JOIN guide_agencies  ag ON ag.id = si.agency_id
+        WHERE (${scopeSql})
+        ORDER BY
+            CASE si.owner_type WHEN 'platform' THEN 0 WHEN 'agency' THEN 1 ELSE 2 END,
+            a.name,
+            si.is_featured DESC,
+            COALESCE(si.order_index, 2147483647),
+            si.id
+    `).bind(...binds).all();
+
+    const items = (result.results || []).map(item => ({
+        ...item,
+        scope: scopeOfOwnerType(item.owner_type),
+        can_edit: item.owner_type === 'platform'
+            ? isSuperAdmin
+            : (isSuperAdmin || userAgencyIds.includes(item.agency_id)),
+    }));
     await attachStoreItemTranslations(env, items);
     return jsonResponse({ success: true, items });
 }
 
-async function createPlatformStoreItem(env, data) {
+async function createStoreCatalogItem(env, data, isSuperAdmin, userAgencyIds) {
     if (!data.category) return errorResponse('category is required');
+    const target = await resolveStoreScope(env, data, isSuperAdmin, userAgencyIds);
+    if (target.error) return target.error;
+
     const id = generateId('sitem');
     await env.DB.prepare(`
         INSERT INTO guide_store_items
             (id, owner_type, apartment_id, agency_id, category, icon_name,
              price_amount, price_currency, price_display, cover_image_url,
              contact_whatsapp, is_featured, is_active, order_index, stock_unlimited, stock_qty)
-        VALUES (?, 'platform', NULL, NULL, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `).bind(
-        id, data.category, data.icon_name || null,
-        data.price_amount ?? null, data.price_currency || 'EUR', data.price_display || null, data.cover_image_url || null,
-        data.contact_whatsapp || null, data.is_featured ? 1 : 0, data.is_active === false ? 0 : 1,
-        data.order_index ?? 0, data.stock_unlimited === false ? 0 : 1, data.stock_qty ?? null
+        id, target.owner_type, target.apartment_id, target.agency_id,
+        data.category, data.icon_name || null,
+        data.price_amount ?? null, data.price_currency || 'EUR',
+        data.price_display || null, data.cover_image_url || null,
+        data.contact_whatsapp || null, data.is_featured ? 1 : 0,
+        data.is_active === false ? 0 : 1, data.order_index ?? 0,
+        data.stock_unlimited === false ? 0 : 1, data.stock_qty ?? null
     ).run();
+
     if (data.translations && typeof data.translations === 'object') {
         await saveTranslations(env, id, 'store_item', data.translations);
     }
-    await touchAllGuideVersions(env);
+    await touchStoreScope(env, target);
     return jsonResponse({ success: true, id });
 }
 
-async function updatePlatformStoreItem(env, id, data) {
-    const item = await env.DB.prepare(
-        `SELECT id FROM guide_store_items WHERE id = ? AND owner_type = 'platform'`
-    ).bind(id).first();
-    if (!item) return errorResponse('Store item not found', 404);
+async function updateStoreCatalogItem(env, id, data, isSuperAdmin, userAgencyIds) {
+    const current = await loadStoreItem(env, id, isSuperAdmin, userAgencyIds);
+    if (current.error) return current.error;
 
     const sets = [];
     const vals = [];
@@ -2024,6 +2194,23 @@ async function updatePlatformStoreItem(env, id, data) {
     if (data.is_featured !== undefined) { sets.push('is_featured = ?'); vals.push(data.is_featured ? 1 : 0); }
     if (data.is_active !== undefined) { sets.push('is_active = ?'); vals.push(data.is_active ? 1 : 0); }
     if (data.stock_unlimited !== undefined) { sets.push('stock_unlimited = ?'); vals.push(data.stock_unlimited ? 1 : 0); }
+
+    // Cambio de ámbito: "esto lo ofrezco en todas mis propiedades" es la operación
+    // central de esta pantalla, así que se hace EDITANDO el producto y no
+    // recreándolo — recrearlo perdería sus traducciones y sus pedidos.
+    let moved = null;
+    if (data.scope !== undefined) {
+        const next = await resolveStoreScope(env, data, isSuperAdmin, userAgencyIds);
+        if (next.error) return next.error;
+        if (next.owner_type !== current.target.owner_type
+            || next.apartment_id !== current.target.apartment_id
+            || next.agency_id !== current.target.agency_id) {
+            sets.push('owner_type = ?', 'apartment_id = ?', 'agency_id = ?');
+            vals.push(next.owner_type, next.apartment_id, next.agency_id);
+            moved = next;
+        }
+    }
+
     if (sets.length > 0) {
         sets.push('modified_at = CURRENT_TIMESTAMP');
         vals.push(id);
@@ -2032,15 +2219,22 @@ async function updatePlatformStoreItem(env, id, data) {
     if (data.translations && typeof data.translations === 'object') {
         await saveTranslations(env, id, 'store_item', data.translations);
     }
-    await touchAllGuideVersions(env);
+
+    // Al moverlo hay que invalidar también el ámbito de ORIGEN: si no, las guías
+    // donde ha dejado de salir lo seguirían enseñando desde KV hasta que caduque.
+    await touchStoreScope(env, current.target);
+    if (moved) await touchStoreScope(env, moved);
     return jsonResponse({ success: true });
 }
 
-async function deletePlatformStoreItem(env, id) {
-    await env.DB.prepare(
-        `UPDATE guide_store_items SET is_active = FALSE WHERE id = ? AND owner_type = 'platform'`
-    ).bind(id).run();
-    await touchAllGuideVersions(env);
+async function deleteStoreCatalogItem(env, id, isSuperAdmin, userAgencyIds) {
+    const current = await loadStoreItem(env, id, isSuperAdmin, userAgencyIds);
+    if (current.error) return current.error;
+
+    // Baja lógica, igual que antes: guide_store_orders referencia estas filas y
+    // un pedido histórico tiene que seguir siendo legible.
+    await env.DB.prepare('UPDATE guide_store_items SET is_active = FALSE WHERE id = ?').bind(id).run();
+    await touchStoreScope(env, current.target);
     return jsonResponse({ success: true });
 }
 

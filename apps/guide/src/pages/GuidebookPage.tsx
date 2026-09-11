@@ -68,7 +68,7 @@ interface GuidebookData {
     cover_image_url?: string;
   }>;
   store_items: Array<{
-    id: string; owner_type: 'host' | 'platform'; category: string;
+    id: string; owner_type: 'host' | 'agency' | 'platform'; category: string;
     name: string; description: string; price_amount: number | null;
     price_currency: string; price_display: string; cover_image_url?: string | null;
     is_featured: boolean; is_promoted?: boolean; in_stock: boolean;
