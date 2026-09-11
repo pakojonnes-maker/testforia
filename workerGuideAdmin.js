@@ -397,7 +397,7 @@ export async function handleGuideAdminRequests(request, env) {
             if (!['place', 'experience', 'all'].includes(kind)) {
                 return errorResponse('kind must be place, experience or all');
             }
-            return await listPOIs(env, zoneId, { kind, includeInactive });
+            return await listPOIs(env, zoneId, { kind, includeInactive, origin: url.origin });
         }
         if (path === 'pois' && method === 'POST') {
             if (!isSuperAdmin) return errorResponse('Only superadmin can manage POIs', 403);
@@ -436,7 +436,7 @@ export async function handleGuideAdminRequests(request, env) {
         // ============ EXPERIENCES ============
         if (path === 'experiences' && method === 'GET') {
             const zoneId = url.searchParams.get('zone_id');
-            return await listExperiences(env, zoneId, isSuperAdmin);
+            return await listExperiences(env, zoneId, isSuperAdmin, url.origin);
         }
         if (path === 'experiences' && method === 'POST') {
             if (!isSuperAdmin) return errorResponse('Only superadmin can manage experiences', 403);
@@ -2182,9 +2182,25 @@ async function updateZone(env, id, data) {
 // Los valores por defecto reproducen el contrato antiguo — solo lugares activos —
 // porque de este endpoint también come el selector de POIs de un apartamento
 // (GuideApartmentDetail), al que sí llegan usuarios de agencia.
+// `origin` sirve para componer la URL pública de las fotos de guide_poi_media
+// (R2 se sirve por /media/:r2_key, ver workerMedia.js).
 async function listPOIs(env, zoneId, options = {}) {
-    const { kind = 'place', includeInactive = false } = options;
+    const { kind = 'place', includeInactive = false, origin = '' } = options;
     let query = `SELECT p.*, p.subcategory AS service_subcategory,
+            -- Portada de la GALERÍA. Una ficha tiene dos sitios donde puede vivir
+            -- su foto: la columna cover_image_url y la tabla guide_poi_media. El
+            -- formulario del admin rellena las dos a la vez, pero las fichas
+            -- sembradas por script sólo escribieron la tabla, así que el catálogo
+            -- del admin salía SIN foto para POIs que en la guía y en la TV se ven
+            -- perfectamente (esas dos ya leen las dos fuentes: ver loadPoiMedia y
+            -- photoSet). Aquí se devuelve aparte, no fusionada con cover_image_url:
+            -- el formulario tiene que seguir sabiendo si la portada propia existe
+            -- o no, o "Guardar" acabaría copiando una foto de galería a la columna.
+            (SELECT m.r2_key FROM guide_poi_media m
+              WHERE m.poi_id = p.id AND m.media_type = 'image'
+              ORDER BY CASE WHEN m.role = 'PRIMARY_IMAGE' THEN 0 ELSE 1 END,
+                       COALESCE(m.order_index, 2147483647), m.id
+              LIMIT 1) AS media_r2_key,
             t_name.value AS name_es, t_name_en.value AS name_en, t_desc.value AS description_es, t_desc_en.value AS description_en,
             t_tip.value AS short_tip_es, t_tip_en.value AS short_tip_en,
             t_cta.value AS cta_label_es, t_cta_en.value AS cta_label_en
@@ -2226,7 +2242,11 @@ async function listPOIs(env, zoneId, options = {}) {
         COALESCE(p.order_index, 2147483647),
         p.id`;
     const result = await env.DB.prepare(query).bind(...params).all();
-    return jsonResponse({ success: true, pois: result.results || [] });
+    const pois = (result.results || []).map(({ media_r2_key, ...poi }) => ({
+        ...poi,
+        media_url: media_r2_key ? `${origin}/media/${media_r2_key}` : null,
+    }));
+    return jsonResponse({ success: true, pois });
 }
 
 // Columns on the unified guide_pois table that admins may set directly.
@@ -2519,10 +2539,19 @@ async function deletePoi(env, request, id, userData) {
 // ============================================
 // EXPERIENCES (superadmin only)
 // ============================================
-async function listExperiences(env, zoneId, isSuperAdmin) {
+async function listExperiences(env, zoneId, isSuperAdmin, origin = '') {
     // Experiences are the bookable slice of the unified guide_pois table.
     // service_subcategory is aliased from subcategory to keep the admin API shape.
-    let query = `SELECT e.*, e.subcategory AS service_subcategory, t_name.value AS name_es, t_name_en.value AS name_en,
+    let query = `SELECT e.*, e.subcategory AS service_subcategory,
+            -- Misma portada de galería que listPOIs, y por el mismo motivo: esta
+            -- es la vista de SOLO LECTURA de la agencia, y sin esto ve en gris
+            -- fichas que sus huéspedes ven con foto.
+            (SELECT m.r2_key FROM guide_poi_media m
+              WHERE m.poi_id = e.id AND m.media_type = 'image'
+              ORDER BY CASE WHEN m.role = 'PRIMARY_IMAGE' THEN 0 ELSE 1 END,
+                       COALESCE(m.order_index, 2147483647), m.id
+              LIMIT 1) AS media_r2_key,
+            t_name.value AS name_es, t_name_en.value AS name_en,
             t_desc.value AS description_es, t_desc_en.value AS description_en,
             t_cta.value AS cta_label_es, t_cta_en.value AS cta_label_en
         FROM guide_pois e
@@ -2556,7 +2585,10 @@ async function listExperiences(env, zoneId, isSuperAdmin) {
         COALESCE(e.order_index, 2147483647),
         e.id`;
     const result = await env.DB.prepare(query).bind(...params).all();
-    let experiences = result.results || [];
+    let experiences = (result.results || []).map(({ media_r2_key, ...exp }) => ({
+        ...exp,
+        media_url: media_r2_key ? `${origin}/media/${media_r2_key}` : null,
+    }));
 
     // Commissions and internal action config are superadmin-only business data —
     // agency staff can see which promotions are active, not how they're wired or paid.

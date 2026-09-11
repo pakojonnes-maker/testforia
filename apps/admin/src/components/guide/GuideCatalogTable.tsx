@@ -15,7 +15,9 @@ import {
   LocalActivity as LocalActivityIcon,
   Place as PlaceIcon,
 } from '@mui/icons-material';
-import { CatalogItem, BADGE_LABELS, isExperience, isTrue, priceLabel, displayName } from './catalogTypes';
+import {
+  CatalogItem, BADGE_LABELS, isExperience, isTrue, priceLabel, displayName, coverImage,
+} from './catalogTypes';
 
 type SortKey = 'name' | 'category' | 'order' | 'type';
 
@@ -90,7 +92,7 @@ export default function GuideCatalogTable({ items, onEdit, onDelete, onToggleAct
               return (
                 <TableRow key={item.id} hover sx={{ opacity: active ? 1 : 0.55 }}>
                   <TableCell>
-                    <Avatar variant="rounded" src={item.cover_image_url || undefined} sx={{ width: 42, height: 42 }}>
+                    <Avatar variant="rounded" src={coverImage(item) || undefined} sx={{ width: 42, height: 42 }}>
                       {experience ? <LocalActivityIcon fontSize="small" /> : <PlaceIcon fontSize="small" />}
                     </Avatar>
                   </TableCell>

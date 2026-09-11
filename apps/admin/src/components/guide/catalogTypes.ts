@@ -79,6 +79,12 @@ export interface CatalogItem {
   commission_value?: number | null;
 
   cover_image_url?: string | null;
+  /**
+   * Primera foto de la GALERÍA (guide_poi_media), ya como URL absoluta — la
+   * calcula el worker en listPOIs/listExperiences. Es de solo lectura: la
+   * portada que se edita sigue siendo cover_image_url.
+   */
+  media_url?: string | null;
   source?: string | null;
 }
 
@@ -185,6 +191,18 @@ export const priceLabel = (item: CatalogItem): string => {
   if (access === 'free') return 'Gratis';
   return ACCESS_TYPES.find(a => a.value === access)?.label || 'De pago';
 };
+
+/**
+ * La foto que de verdad va a ver el huésped.
+ *
+ * Una ficha puede tener su foto en la columna cover_image_url o en la galería
+ * guide_poi_media, y las dos son igual de reales: la guía y la TV mezclan
+ * ambas (photoSet en apps/tv/src/lib/collections.ts). El admin sólo miraba la
+ * columna, así que enseñaba en gris fichas que en producción salen con foto
+ * — el catálogo de Benalmádena entero, sembrado por script, se veía así.
+ */
+export const coverImage = (item: CatalogItem): string | null =>
+  item.cover_image_url || item.media_url || null;
 
 export const displayName = (item: CatalogItem): string =>
   item.name_es || item.name_en || item.category || 'Sin nombre';

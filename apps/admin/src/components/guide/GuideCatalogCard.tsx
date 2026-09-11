@@ -20,7 +20,7 @@ import {
   Place as PlaceIcon,
 } from '@mui/icons-material';
 import {
-  CatalogItem, BADGE_LABELS, getCategoryGradient, isExperience, isTrue, priceLabel, displayName,
+  CatalogItem, BADGE_LABELS, getCategoryGradient, isExperience, isTrue, priceLabel, displayName, coverImage,
 } from './catalogTypes';
 
 interface Props {
@@ -43,9 +43,10 @@ export default function GuideCatalogCard({ item, readOnly, onEdit, onDelete, onT
   const badge = item.badge_type && item.badge_type !== 'none' ? item.badge_type : null;
   const isFree = (item.access_type || 'free') === 'free' && !item.price_display;
 
-  const cover = item.cover_image_url
+  const photo = coverImage(item);
+  const cover = photo
     ? 'linear-gradient(180deg, rgba(0,0,0,.35) 0%, rgba(0,0,0,0) 45%, rgba(0,0,0,.45) 100%), url(' +
-      item.cover_image_url + ') center/cover'
+      photo + ') center/cover'
     : getCategoryGradient(item.category);
 
   return (
