@@ -5,6 +5,44 @@ a partir de un análisis real del repo + la infraestructura Cloudflare (julio 20
 
 ---
 
+## 0. Protocolo de cada turno: reescribe el prompt antes de trabajar
+
+**IMPORTANTE.** Francisco escribe en español, corto y natural: el prompt lo terminas tú.
+
+**Si el mensaje pide trabajo** (código, SQL, deploy, análisis, una decisión) → antes de
+llamar a la primera herramienta, muestra el brief:
+
+> **Prompt mejorado**
+> - **Objetivo:** el resultado observable al acabar, no "arregla X".
+> - **Contexto:** archivos y rutas concretas + el patrón a imitar (§4: cada app, su stack).
+> - **Guardarraíles:** qué NO se toca y qué reglas aplican (authz, CORS, commit-antes-de-deploy).
+> - **Verificación:** el check que voy a ejecutar y cuya salida pegaré en la respuesta.
+> - **Fuera de alcance:** lo que dejo fuera a propósito.
+
+**Si es trivial** ("sí", "dale", corregir una línea, "¿qué es X?") → sin brief, responde y ya.
+**Si ya trae objetivo + archivo + check** → brief de dos líneas; no lo infles por ritual.
+
+- **Si dudas entre receta y brief** → brief. Objetivo + guardarraíles + criterio de salida
+  rinde más que doce pasos numerados: los pasos ponen techo (Boris Cherny).
+- **Si el brief no acaba en un check ejecutable** → no está terminado. Worker → curl al
+  endpoint real + `wrangler tail` (+ `npm test` si tocas auth/authz); D1 → `SELECT --remote`;
+  frontend → build + captura del preview; KV → `X-Cache: MISS` tras el bump (§3); i18n → el
+  idioma real, y RTL si tocaste `ar`. **Un 200 OK no es verificación.**
+- **Si no hay check posible** → dilo con esas palabras: "esto no lo he verificado".
+- **Si una duda cambia el trabajo** → pregúntala dentro del brief, en una sola ronda
+  (`AskUserQuestion`), antes de escribir código. Si no lo cambia → decide y dilo en una línea.
+- **Si llevas dos correcciones sobre lo mismo** → para: el brief estaba mal. Rehazlo con lo
+  aprendido en vez de parchear una tercera vez.
+- **Si metes la pata en algo que se repetirá** → la regla entra en este archivo o en una skill
+  de `.claude/skills/` **en el mismo turno**; los errores se escriben, no se re-promptean.
+- **Si vas a añadir una regla aquí** → pregúntate "¿sin esto me equivocaría?". Si no, fuera.
+  Este archivo compite consigo mismo: pasado de largo, se ignoran las reglas que importan.
+
+*Canario:* si dejas de mostrar el brief en turnos que no son triviales, este archivo ya no se
+está leyendo entero → toca podar, no añadir.
+
+---
+
 ## 1. Qué es VisualTaste
 
 SaaS premium para restaurantes. Una carta digital tipo "Reels/TikTok" + panel de
@@ -402,6 +440,8 @@ mínima mientras eso no cambie.
 
 ## 9. Cómo trabajar en este repo (resumen operativo)
 
+0. **Reescribe el prompt como brief** y enséñalo antes de tocar nada (§0). Ese brief
+   es el que fija el objetivo, los guardarraíles y —sobre todo— el check de verificación.
 1. **Identifica el área** antes de escribir: ¿admin (Tailwind+MUI), client (Emotion),
    guide (Tailwind v4), tv (Tailwind v4 + mando) o worker (JS/SQL)? Las reglas de
    estilo NO se mezclan.
