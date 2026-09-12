@@ -1,5 +1,6 @@
 import { Focusable } from '../lib/spatialNav'
 import { CoverImage } from '../components/CoverImage'
+import { NoPhoto } from '../components/NoPhoto'
 import { isDoorCode } from '../lib/infoKeys'
 import { getTvString } from '../lib/i18n'
 import type { GuidebookData } from '../lib/api'
@@ -32,9 +33,6 @@ function InfoCard({ item, autoFocus, onSelect }: { item: InfoItem; autoFocus?: b
   // color de siempre: la mayoría de categorías aún no tienen foto de stock al
   // lanzamiento, y la tesela no puede quedarse sin imagen.
   const photo = item.media?.[0]?.url || item.category_image_url || null
-  const iconBackground = item.color
-    ? `linear-gradient(150deg, ${item.color}, ${item.color}bb)`
-    : 'linear-gradient(150deg, var(--tv-accent), var(--tv-secondary))'
 
   return (
     <Focusable id={`info-${item.id}`} autoFocus={autoFocus} onSelect={onSelect} className="arch-mask">
@@ -42,12 +40,7 @@ function InfoCard({ item, autoFocus, onSelect }: { item: InfoItem; autoFocus?: b
         className="arch-mask relative aspect-[4/5] w-full overflow-hidden"
         style={{ background: 'var(--tv-surface)', border: '1px solid var(--tv-line)' }}
       >
-        <CoverImage
-          src={photo}
-          fallback={
-            <div className="absolute inset-0" style={{ background: iconBackground }} />
-          }
-        />
+        <CoverImage src={photo} fallback={<NoPhoto tint={item.color} />} />
 
         <div
           className="absolute inset-0"
@@ -89,6 +82,11 @@ export function InfoScreen({ data, lang, onOpen }: { data: GuidebookData; lang: 
                 className="flex h-full flex-col justify-between p-6"
                 style={{
                   borderRadius: '1.25rem',
+                  // Terracota fija, no la marca: es la única tesela de esta
+                  // pantalla que NO es una foto sino un DATO grande (el código),
+                  // y necesita leerse distinta del resto a tres metros. Lo que
+                  // cambia respecto de antes es que ya no compite con cuatro
+                  // colores primarios al lado.
                   background: 'linear-gradient(150deg, var(--color-terracotta), var(--color-ink))',
                 }}
               >

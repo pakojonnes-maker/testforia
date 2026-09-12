@@ -248,7 +248,21 @@ export async function handleGetGuidebook(env, slug, lang, origin, surface = 'gui
     const apartment = await env.DB.prepare(`
         SELECT
             a.id, a.name, a.slug, a.address, a.latitude, a.longitude, a.cover_image_url,
-            a.zone_id, a.agency_id, a.wifi_ssid, a.wifi_password, a.wifi_security
+            a.zone_id, a.agency_id, a.wifi_ssid, a.wifi_password, a.wifi_security,
+            -- Horas de entrada y salida. Existen en la tabla desde la importación
+            -- de fichas (el importador las rellena) y NUNCA se habían devuelto, así
+            -- que la TV las adivinaba con un regex sobre el texto libre del bloque
+            -- "Check-in". Cuando ese texto no llevaba un HH:MM —que es lo normal si
+            -- lo escribió el anfitrión a su manera— la tesela "Tu estancia" salía
+            -- con un guion. Dato fantasma, mismo patrón que las fotos de los POIs.
+            a.checkin_time, a.checkout_time,
+            -- Horas de entrada y salida. Existen en la tabla desde la importación
+            -- de fichas (el importador las rellena) y NUNCA se habían devuelto, así
+            -- que la TV las adivinaba con un regex sobre el texto libre del bloque
+            -- "Check-in". Cuando ese texto no llevaba un HH:MM —que es lo normal si
+            -- lo escribió el anfitrión a su manera— la tesela "Tu estancia" salía
+            -- con un guion. Dato fantasma, mismo patrón que las fotos de los POIs.
+            a.checkin_time, a.checkout_time
         FROM guide_apartments a
         WHERE a.slug = ? AND a.is_active = TRUE
     `).bind(slug).first();
@@ -740,6 +754,10 @@ export async function handleGetGuidebook(env, slug, lang, origin, surface = 'gui
             // omits the distance row rather than showing 0km or lying.
             latitude: apartment.latitude ?? null,
             longitude: apartment.longitude ?? null,
+            checkin_time: apartment.checkin_time || null,
+            checkout_time: apartment.checkout_time || null,
+            checkin_time: apartment.checkin_time || null,
+            checkout_time: apartment.checkout_time || null,
             wifi: {
                 ssid: apartment.wifi_ssid || wifiFallback.ssid,
                 password: wifiPassword,

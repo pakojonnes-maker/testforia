@@ -23,8 +23,23 @@ import type { Route } from '../App'
  * y el WiFi se puede escanear sin navegar a ninguna parte.
  */
 
-/** El contenido de checkin/checkout es texto libre y largo; el chip sólo cabe la hora. */
-function extractTime(content?: string): string | null {
+/**
+ * La hora de entrada/salida, por orden de fiabilidad.
+ *
+ * Primero la columna del apartamento (guide_apartments.checkin_time), que es un
+ * dato de verdad y que el importador de fichas ya rellena. Sólo si no la hay se
+ * rasca del texto libre del bloque, que es lo único que había antes: una hora
+ * escrita dentro de un párrafo del anfitrión. Ese regex falla en cuanto alguien
+ * escribe "a partir de las cuatro" o no pone hora, y entonces la tesela enseñaba
+ * un guion — que es como está hoy en producción en Costa del Sol Apartments.
+ */
+function stayTime(structured?: string | null, content?: string): string | null {
+  const fromColumn = structured?.trim()
+  if (fromColumn) {
+    // La columna es TEXT sin formato fijo: puede venir "16:00" o "16:00:00".
+    const m = fromColumn.match(/\d{1,2}[:.]\d{2}/)
+    return m ? m[0].replace('.', ':') : fromColumn
+  }
   const match = content?.match(/\d{1,2}[:.]\d{2}/)
   return match ? match[0].replace('.', ':') : null
 }
@@ -51,8 +66,8 @@ export function HomeScreen({ data, collections, lang, onNavigate }: HomeScreenPr
 
   const infoItems = data.apartment.info.filter(i => i.key.toLowerCase() !== 'wifi')
   const door = infoItems.find(i => isDoorCode(i.key))
-  const checkin = extractTime(data.apartment.info.find(i => i.key === 'checkin')?.content)
-  const checkout = extractTime(data.apartment.info.find(i => i.key === 'checkout')?.content)
+  const checkin = stayTime(data.apartment.checkin_time, data.apartment.info.find(i => i.key === 'checkin')?.content)
+  const checkout = stayTime(data.apartment.checkout_time, data.apartment.info.find(i => i.key === 'checkout')?.content)
 
   const wifi = data.apartment.wifi
   const hasWifi = Boolean(wifi.ssid)
@@ -180,7 +195,10 @@ export function HomeScreen({ data, collections, lang, onNavigate }: HomeScreenPr
           area="stay"
           compact
           image={tileImage('stay', tiles)}
-          value={checkin && checkout ? `${checkin} · ${checkout}` : checkout || checkin || '—'}
+          // Sin ninguna hora NO se pinta un guion: un guion no es un dato, es un
+          // hueco con tipografía. La tesela sigue siendo la puerta a Guías
+          // Rápidas, que es para lo que el huésped la usa.
+          value={checkin && checkout ? `${checkin} · ${checkout}` : checkout || checkin || undefined}
           label={checkin && checkout ? 'Entrada y salida' : 'Tu estancia'}
           onSelect={() => onNavigate({ name: 'info' })}
         />

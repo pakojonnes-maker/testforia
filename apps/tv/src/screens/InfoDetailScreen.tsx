@@ -1,5 +1,7 @@
+import { useState, useEffect } from 'react'
 import { Focusable } from '../lib/spatialNav'
 import { CoverImage } from '../components/CoverImage'
+import { NoPhoto } from '../components/NoPhoto'
 import type { GuidebookData } from '../lib/api'
 
 type InfoItem = GuidebookData['apartment']['info'][number]
@@ -36,21 +38,33 @@ export function InfoDetailScreen({ item, onBack }: InfoDetailScreenProps) {
   // Fotos propias del apartado primero, y sólo si no hay ninguna cae a la de
   // stock de su categoría — la de stock es compartida, no tiene sentido
   // enseñarla como "galería" de este apartamento en concreto.
+  // Que exista la URL no significa que exista la foto: las de la demo apuntan
+  // a claves de R2 que nunca se subieron y devuelven 404. Quien lo sabe de
+  // verdad es CoverImage, así que lo dice hacia fuera.
+  const [heroShown, setHeroShown] = useState(true)
+  useEffect(() => { setHeroShown(true) }, [item.id])
+
   const ownPhotos = (item.media || []).map(m => m.url).filter(Boolean)
   const hero = ownPhotos[0] || item.category_image_url || null
   const gallery = ownPhotos.slice(1)
-  const iconBackground = item.color
-    ? `linear-gradient(150deg, ${item.color}, ${item.color}bb)`
-    : 'linear-gradient(150deg, var(--tv-accent), var(--tv-secondary))'
   const eyebrow = item.category_name && item.category_name !== item.title
     ? item.category_name
     : 'Información de la casa'
 
   return (
     <div className="screen-in h-full">
-      <div className="grid h-full gap-8" style={{ gridTemplateColumns: '0.85fr 1fr' }}>
+      {/* SIN foto no hay columna de imagen: el texto ocupa el ancho entero.
+          Un tinte de categoría funciona en una tesela de la rejilla —es pequeña
+          y va rotulada—, pero a media pantalla es medio panel de color liso y se
+          lee como una imagen que no ha cargado. Lo que el huésped viene a hacer
+          aquí es LEER las instrucciones de la casa, así que se le da el ancho. */}
+      <div
+        className="grid h-full gap-8"
+        style={{ gridTemplateColumns: heroShown ? '0.85fr 1fr' : '1fr' }}
+      >
         {/* Columna de imagen: foto grande y, si hay más, una galería debajo —
             igual que la ficha de una recomendación. */}
+        {heroShown && (
         <div className="flex h-full min-h-0 flex-col gap-3">
           <div
             className="relative min-h-0 flex-1 overflow-hidden"
@@ -58,9 +72,8 @@ export function InfoDetailScreen({ item, onBack }: InfoDetailScreenProps) {
           >
             <CoverImage
               src={hero}
-              fallback={
-                <div className="absolute inset-0" style={{ background: iconBackground }} />
-              }
+              onUnavailable={u => setHeroShown(!u)}
+              fallback={<NoPhoto tint={item.color} />}
             />
           </div>
 
@@ -81,6 +94,7 @@ export function InfoDetailScreen({ item, onBack }: InfoDetailScreenProps) {
             </div>
           )}
         </div>
+        )}
 
         {/* Columna de contenido */}
         <div className="flex min-w-0 flex-col">

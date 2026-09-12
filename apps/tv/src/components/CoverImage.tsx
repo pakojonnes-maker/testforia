@@ -15,10 +15,20 @@ import { useEffect, useState, type ReactNode } from 'react'
 export function CoverImage({
   src,
   fallback,
+  onUnavailable,
   className = 'absolute inset-0 h-full w-full object-cover',
 }: {
   src?: string | null
   fallback: ReactNode
+  /**
+   * Se llama cuando no hay foto que enseñar: ni URL, ni descarga que funcione.
+   * Existe porque hay sitios donde el respaldo no es "pinta otra cosa en el
+   * mismo hueco" sino "este hueco sobra" — la ficha de Guías Rápidas colapsa su
+   * columna de imagen y le da el ancho entero al texto. Sin esto, el consumidor
+   * no puede distinguir "sin foto" de "la foto da 404", que es el caso normal
+   * cuando una demo se siembra y las imágenes no se llegan a subir.
+   */
+  onUnavailable?: (unavailable: boolean) => void
   className?: string
 }) {
   const [failed, setFailed] = useState(false)
@@ -27,7 +37,10 @@ export function CoverImage({
   // fichas, y sin esto una imagen rota marcaba como rota también la siguiente.
   useEffect(() => { setFailed(false) }, [src])
 
-  if (!src || failed) return <>{fallback}</>
+  const unavailable = !src || failed
+  useEffect(() => { onUnavailable?.(unavailable) }, [unavailable, onUnavailable])
+
+  if (unavailable) return <>{fallback}</>
 
   return (
     <img

@@ -22,6 +22,9 @@ export interface GuidebookData {
   apartment: {
     id: string; name: string; slug: string; address: string
     cover_image_url: string
+    /** Horas de entrada/salida de guide_apartments — pueden faltar. */
+    checkin_time?: string | null
+    checkout_time?: string | null
     wifi: { ssid: string | null; password: string | null; security: 'WPA' | 'WEP' | 'nopass' }
     info: Array<{
       id: string; key: string; category?: string | null; icon: string; color?: string | null;
