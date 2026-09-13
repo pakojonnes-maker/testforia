@@ -10,7 +10,7 @@
 //   - Quedarse corto: dejar huérfanos. Es lo que hacía el código anterior — el
 //     DELETE ni existía, el admin caía a is_active=FALSE y el POI se quedaba
 //     "borrado" en pantalla con sus 24 traducciones, sus fotos en R2 y sus
-//     filas de guide_apartment_pois intactas.
+//     filas de override por apartamento intactas.
 //
 // Se cubren los dos lados, más el caso de las comisiones: si hay dinero
 // registrado contra ese POI el borrado se rechaza en vez de reescribir la
@@ -83,8 +83,15 @@ function makeEnv({ poiExists = true, commissions = 0 } = {}) {
                                 if (s.includes('FROM guide_poi_media')) {
                                     return { results: [{ r2_key: `guide/pois/${POI_ID}/foto.jpg` }] };
                                 }
-                                if (s.includes('JOIN guide_apartments')) {
-                                    return { results: [{ id: 'apt_1', name: 'Piso Carabeo' }] };
+                                // Pisos que enseñan HOY este POI. Con el modelo
+                                // opt-out (migración 0094) eso son los pisos de SU
+                                // ZONA que no lo han ocultado: si la consulta no
+                                // va acotada por la zona del POI, contaría pisos
+                                // de toda la plataforma. Por eso el mock sólo
+                                // devuelve nombres cuando llega el zone_id.
+                                if (s.includes('SELECT a.id, a.name FROM guide_apartments a')) {
+                                    const acotadaPorZona = s.includes('a.zone_id = ?2') && args.includes('zone_1');
+                                    return { results: acotadaPorZona ? [{ id: 'apt_1', name: 'Piso Carabeo' }] : [] };
                                 }
                                 // touchZoneGuideVersions pide los slugs de la zona
                                 if (s.includes('FROM guide_apartments WHERE zone_id')) {
@@ -192,7 +199,7 @@ section('Qué se borra y qué NO');
     const OBLIGATORIAS = [
         ['translations', /^DELETE FROM translations WHERE entity_type = 'poi' AND entity_id = \?1$/],
         ['guide_poi_media', /^DELETE FROM guide_poi_media WHERE poi_id = \?1$/],
-        ['guide_apartment_pois', /^DELETE FROM guide_apartment_pois WHERE poi_id = \?1$/],
+        ['guide_apartment_items', /^DELETE FROM guide_apartment_items WHERE item_type = 'poi' AND item_id = \?1$/],
         ['guide_coupons', /^DELETE FROM guide_coupons WHERE poi_id = \?1$/],
         ['guide_pois', /^DELETE FROM guide_pois WHERE id = \?1$/],
     ];
@@ -225,10 +232,13 @@ section('Qué se borra y qué NO');
     ok('...nunca borra clics de restaurant/product',
         !intents[0].includes("'restaurant'") && !intents[0].includes("'product'"));
 
-    // Enlaces: sólo los de ESTE POI, no los del apartamento entero.
-    const links = env.batched.filter(s => s.includes('guide_apartment_pois'));
-    ok('guide_apartment_pois se filtra por poi_id, no por apartment_id',
-        links.length === 1 && links[0].includes('WHERE poi_id') && !links[0].includes('apartment_id'));
+    // Overrides: sólo los de ESTE POI, no los del apartamento entero. Y sólo
+    // los de tipo poi: guide_apartment_items también guarda overrides de tienda
+    // y restaurantes, y un item_id de otro tipo podría coincidir.
+    const links = env.batched.filter(s => s.includes('guide_apartment_items'));
+    ok('guide_apartment_items se filtra por item_type + item_id, no por apartment_id',
+        links.length === 1 && links[0].includes("item_type = 'poi'")
+        && links[0].includes('item_id = ?1') && !links[0].includes('apartment_id'));
 
     ok('guide_pois es la última sentencia',
         /^DELETE FROM guide_pois WHERE id/.test(env.batched[env.batched.length - 1]));

@@ -84,7 +84,7 @@ function makeEnv({ apartmentExists = true } = {}) {
                                 }
                                 if (s.includes('AS info_blocks')) {
                                     return {
-                                        info_blocks: 9, phones: 7, poi_links: 10,
+                                        info_blocks: 9, phones: 7, item_overrides: 10,
                                         store_items: 2, store_orders: 4, tv_devices: 1, sessions: 120,
                                     };
                                 }
@@ -228,11 +228,11 @@ section('Qué se borra y qué NO');
         const tocada = env.batched.some(s => new RegExp(`^(DELETE FROM|UPDATE) ${tabla}\\b`, 'i').test(s));
         ok(`NO se escribe en ${tabla}`, !tocada);
     }
-    // guide_pois puede aparecer como substring de guide_apartment_pois; el
-    // check de arriba usa ^ + \b justo para no confundirlos. Se comprueba
-    // además que el enlace SÍ se borra.
-    ok('SÍ se borra el enlace guide_apartment_pois',
-        env.batched.some(s => /^DELETE FROM guide_apartment_pois WHERE apartment_id/i.test(s)));
+    // Los overrides del piso (visibilidad/orden/distancia sobre POIs, tienda y
+    // restaurantes) SÍ se borran; los ítems a los que apuntan, no — el check de
+    // INTOCABLES de arriba usa ^ + \b justo para no confundir tablas.
+    ok('SÍ se borran los overrides guide_apartment_items del piso',
+        env.batched.some(s => /^DELETE FROM guide_apartment_items WHERE apartment_id/i.test(s)));
 
     // Lo propio del apartamento.
     const OBLIGATORIAS = [
@@ -295,7 +295,7 @@ section('Media en R2 y caché KV');
         JSON.stringify(env.kv));
 
     ok('La respuesta informa de lo borrado',
-        body.deleted?.info_blocks === 9 && body.deleted?.poi_links === 10 && body.deleted?.media_files === 2,
+        body.deleted?.info_blocks === 9 && body.deleted?.item_overrides === 10 && body.deleted?.media_files === 2,
         JSON.stringify(body.deleted));
 
     ok('Queda registrado en security_audit_log',

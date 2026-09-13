@@ -9,7 +9,7 @@ import type { SheetSnap } from '../components/explore/BottomSheet';
 // refetch it. Never holds the home zone — the home zone's POIs always come
 // from the main guidebook payload (see fetchExploreZone's doc comment in
 // api.ts: that endpoint returns the zone's UNCURATED full catalog, which
-// would silently drop the host's guide_apartment_pois ordering/exclusions).
+// would silently drop the host's guide_apartment_items ordering/hiding).
 const zonePoiCache = new Map<string, { pois: GuidePoi[]; cities: CitySummary[]; zone: ZoneSummary }>();
 
 export type ZoneStatus = 'idle' | 'loading' | 'error';

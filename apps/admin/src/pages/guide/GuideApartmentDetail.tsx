@@ -250,10 +250,6 @@ export default function GuideApartmentDetail() {
   const [uploadingCover, setUploadingCover] = useState(false);
 
   // POIs tab state
-  const [poisLoading, setPoisLoading] = useState(false);
-  const [catalogPois, setCatalogPois] = useState<Poi[]>([]);
-  const [assignedOrder, setAssignedOrder] = useState<Record<string, number>>({});
-  const [poisError, setPoisError] = useState<string | null>(null);
 
   // Welcome modal tab state
   const [welcomeForm, setWelcomeForm] = useState({
@@ -384,27 +380,6 @@ export default function GuideApartmentDetail() {
     }
   };
 
-  const loadPois = async (zoneId: string) => {
-    if (!id || !zoneId) return;
-    setPoisLoading(true);
-    setPoisError(null);
-    try {
-      const [catalogRes, assignedRes] = await Promise.all([
-        apiClient.request(`/guide/admin/pois?zone_id=${zoneId}`),
-        apiClient.request(`/guide/admin/apartments/${id}/pois`),
-      ]);
-      setCatalogPois(catalogRes.pois || []);
-      const orderMap: Record<string, number> = {};
-      for (const p of (assignedRes.pois || [])) {
-        orderMap[p.poi_id] = p.order_override ?? 0;
-      }
-      setAssignedOrder(orderMap);
-    } catch (err: any) {
-      setPoisError(err.message || 'Error al cargar localizaciones');
-    } finally {
-      setPoisLoading(false);
-    }
-  };
 
   const loadWelcome = async () => {
     if (!id) return;
@@ -457,10 +432,6 @@ export default function GuideApartmentDetail() {
 
   useEffect(() => { loadInfo(); loadZones(); loadWelcome(); loadCategories(); loadCoverage(); loadPhoneCategories(); loadPhones(); }, [id]);
   useEffect(() => { if (id) loadInfo(); }, [currentLang]);
-  useEffect(() => {
-    if (apartment?.zone_id) loadPois(apartment.zone_id);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [apartment?.zone_id]);
   useEffect(() => {
     if (activeMainTab === 4 && id) { loadStoreItems(); loadStoreOrders(); }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -962,61 +933,6 @@ export default function GuideApartmentDetail() {
     }
   };
 
-  // ---------- Localizaciones (POI assignment) tab ----------
-  const handleTogglePoi = async (poiId: string, isAssigned: boolean) => {
-    if (!id) return;
-    setPoisError(null);
-    try {
-      if (isAssigned) {
-        await apiClient.request(`/guide/admin/apartments/${id}/pois/${poiId}`, { method: 'DELETE' });
-        setAssignedOrder(prev => {
-          const next = { ...prev };
-          delete next[poiId];
-          return next;
-        });
-      } else {
-        const nextOrder = Object.keys(assignedOrder).length > 0 ? Math.max(...Object.values(assignedOrder)) + 1 : 0;
-        await apiClient.request(`/guide/admin/apartments/${id}/pois`, {
-          method: 'POST',
-          body: JSON.stringify({ poi_id: poiId, order_override: nextOrder }),
-        });
-        setAssignedOrder(prev => ({ ...prev, [poiId]: nextOrder }));
-      }
-    } catch (err: any) {
-      setPoisError(err.message || 'Error al actualizar la localización');
-    }
-  };
-
-  const handleReorderPoi = async (poiId: string, direction: -1 | 1) => {
-    if (!id) return;
-    const assignedIds = Object.keys(assignedOrder).sort((a, b) => assignedOrder[a] - assignedOrder[b]);
-    const currentIdx = assignedIds.indexOf(poiId);
-    const targetIdx = currentIdx + direction;
-    if (targetIdx < 0 || targetIdx >= assignedIds.length) return;
-
-    const reordered = [...assignedIds];
-    [reordered[currentIdx], reordered[targetIdx]] = [reordered[targetIdx], reordered[currentIdx]];
-    const items = reordered.map((pid, index) => ({ poi_id: pid, order_override: index }));
-
-    const newOrderMap: Record<string, number> = {};
-    for (const item of items) newOrderMap[item.poi_id] = item.order_override;
-    setAssignedOrder(newOrderMap); // optimistic
-
-    try {
-      await apiClient.request(`/guide/admin/apartments/${id}/pois/reorder`, {
-        method: 'PUT',
-        body: JSON.stringify({ items }),
-      });
-    } catch (err: any) {
-      setPoisError(err.message || 'Error al reordenar');
-      if (apartment?.zone_id) loadPois(apartment.zone_id); // revert on failure
-    }
-  };
-
-  const travelIcon = (mode?: string) =>
-    mode === 'drive' ? <DriveIcon sx={{ fontSize: 16 }} /> : mode === 'bike' ? <BikeIcon sx={{ fontSize: 16 }} /> : <WalkIcon sx={{ fontSize: 16 }} />;
-
-  // Sub-components for tabs to keep layout clean
   const renderSettingsTab = () => (
     <Box>
       {apartment && (
@@ -1489,114 +1405,29 @@ export default function GuideApartmentDetail() {
     );
   };
 
-  const renderPoisTab = () => {
-    const assignedIds = Object.keys(assignedOrder).sort((a, b) => assignedOrder[a] - assignedOrder[b]);
-    const sortedPois = [...catalogPois].sort((a, b) => {
-      const aAssigned = a.id in assignedOrder;
-      const bAssigned = b.id in assignedOrder;
-      if (aAssigned && bAssigned) return assignedOrder[a.id] - assignedOrder[b.id];
-      if (aAssigned) return -1;
-      if (bAssigned) return 1;
-      return 0;
-    });
-
-    const assignedCount = assignedIds.length;
-
-    return (
-      <Box>
-        <Alert severity="info" sx={{ mb: 3, borderRadius: 2 }}>
-          Elige qué localizaciones del catálogo de la zona aparecen en la guía de este apartamento, y en qué orden.
-          El catálogo (nombres, fotos, categorías) solo puede editarlo el superadmin desde <strong>Localizaciones</strong>.
-        </Alert>
-        {poisError && <Alert severity="error" sx={{ mb: 2 }}>{poisError}</Alert>}
-
-        {poisLoading ? (
-          <Box sx={{ display: 'flex', justifyContent: 'center', py: 6 }}>
-            <CircularProgress />
-          </Box>
-        ) : catalogPois.length === 0 ? (
-          <Box sx={{ textAlign: 'center', py: 8, border: '1px dashed', borderColor: 'divider', borderRadius: 3 }}>
-            <LocationOnIcon sx={{ fontSize: 48, color: 'text.disabled', mb: 2 }} />
-            <Typography variant="subtitle1" fontWeight={600} color="text.secondary">
-              Sin localizaciones en esta zona todavía
-            </Typography>
-            <Typography variant="body2" color="text.secondary">
-              Pide al administrador que añada puntos de interés a esta zona turística.
-            </Typography>
-          </Box>
-        ) : (
-          <>
-            <Typography variant="body2" color="text.secondary" fontWeight={600} sx={{ mb: 1.5 }}>
-              {assignedCount} de {catalogPois.length} incluidas en la guía
-            </Typography>
-            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.5 }}>
-              {sortedPois.map(poi => {
-                const isAssigned = poi.id in assignedOrder;
-                const idx = assignedIds.indexOf(poi.id);
-                return (
-                  <Card
-                    key={poi.id}
-                    elevation={0}
-                    onClick={() => handleTogglePoi(poi.id, isAssigned)}
-                    sx={{
-                      border: '2px solid', borderColor: isAssigned ? 'success.main' : 'divider', borderRadius: 3,
-                      bgcolor: isAssigned ? 'rgba(107,125,84,0.08)' : 'transparent',
-                      cursor: 'pointer', transition: 'all 0.15s',
-                      '&:hover': { borderColor: isAssigned ? 'success.main' : 'primary.light', boxShadow: '0 2px 12px rgba(0,0,0,0.06)' },
-                    }}
-                  >
-                    <CardContent sx={{ display: 'flex', alignItems: 'center', gap: 2, p: '12px 16px !important' }}>
-                      <Box sx={{ flexGrow: 1, minWidth: 0 }}>
-                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                          <Typography variant="subtitle2" fontWeight={600} noWrap>
-                            {poi.name_es || poi.category}
-                          </Typography>
-                          <Chip label={poi.category} size="small" variant="outlined" sx={{ borderRadius: 1 }} />
-                        </Box>
-                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, mt: 0.5 }}>
-                          {!!poi.rating && (
-                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.3, color: '#f59e0b' }}>
-                              <StarIcon sx={{ fontSize: 14 }} />
-                              <Typography variant="caption" fontWeight={600}>{poi.rating}</Typography>
-                            </Box>
-                          )}
-                          {poi.travel_time_text && (
-                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.3, color: 'text.secondary' }}>
-                              {travelIcon(poi.travel_mode)}
-                              <Typography variant="caption">{poi.travel_time_text}</Typography>
-                            </Box>
-                          )}
-                        </Box>
-                      </Box>
-
-                      {isAssigned && (
-                        <Box sx={{ display: 'flex', flexDirection: 'column' }} onClick={(e) => e.stopPropagation()}>
-                          <IconButton size="small" disabled={idx === 0} onClick={() => handleReorderPoi(poi.id, -1)}>
-                            <ArrowUpIcon fontSize="small" />
-                          </IconButton>
-                          <IconButton size="small" disabled={idx === assignedIds.length - 1} onClick={() => handleReorderPoi(poi.id, 1)}>
-                            <ArrowDownIcon fontSize="small" />
-                          </IconButton>
-                        </Box>
-                      )}
-
-                      <Chip
-                        icon={isAssigned ? <CheckCircleIcon /> : <AddCircleOutlineIcon />}
-                        label={isAssigned ? 'Incluida' : 'Añadir'}
-                        color={isAssigned ? 'success' : 'default'}
-                        variant={isAssigned ? 'filled' : 'outlined'}
-                        sx={{ fontWeight: 700, pointerEvents: 'none', minWidth: 104 }}
-                      />
-                    </CardContent>
-                  </Card>
-                );
-              })}
-            </Box>
-          </>
-        )}
-      </Box>
-    );
-  };
+  // Localizaciones: el catálogo de la zona ENTERO (lugares y experiencias
+  // reservables son la misma tabla desde 0059), con la visibilidad y el orden de
+  // ESTE piso encima. Antes era una lista de inclusión y era una trampa: incluir
+  // una localización excluía todas las demás de la zona (migración 0094).
+  //
+  // Es el mismo componente que ya ordenaba tienda y restaurantes. Un solo
+  // mecanismo para los cuatro catálogos que el apartamento no posee.
+  const renderPoisTab = () => (
+    <Box sx={{ maxWidth: 780 }}>
+      <Alert severity="info" sx={{ mb: 3, borderRadius: 2 }}>
+        Tu guía muestra <strong>todas</strong> las localizaciones y experiencias de la zona.
+        Aquí puedes ocultar las que no quieras enseñar y cambiar el orden en que salen.
+        El catálogo en sí (nombres, fotos, categorías) solo lo edita el superadmin desde <strong>Localizaciones</strong>.
+      </Alert>
+      <ApartmentItemOrder
+        apartmentId={id!}
+        itemType="poi"
+        description="Los lugares y experiencias de la zona, en el orden en que el huésped los ve en Explorar y en el carrusel de reservables."
+        emptyLabel="No hay localizaciones activas en la zona de este alojamiento."
+        onSaved={handleRefreshPreview}
+      />
+    </Box>
+  );
 
   const renderWelcomeTab = () => (
     <Box sx={{ maxWidth: 640 }}>
@@ -1765,16 +1596,14 @@ export default function GuideApartmentDetail() {
         pueden desplazar desde aquí.
       </Alert>
 
-      <Typography variant="h6" fontWeight={600} sx={{ mb: 1 }}>Experiencias</Typography>
-      <ApartmentItemOrder
-        apartmentId={id!}
-        itemType="experience"
-        description="Las experiencias reservables de la zona, en el orden en que aparecen en la pestaña Tienda de la guía y en «Qué hacer» de la TV."
-        emptyLabel="No hay experiencias activas en la zona de este alojamiento."
-        onSaved={handleRefreshPreview}
-      />
-
-      <Divider sx={{ my: 4 }} />
+      {/* Las experiencias reservables son filas de guide_pois igual que los
+          lugares (migración 0059), así que se ordenan y se ocultan desde
+          Localizaciones junto al resto del catálogo de la zona: dos controles
+          sobre las mismas filas sólo servirían para contradecirse. */}
+      <Alert severity="info" sx={{ mb: 4, borderRadius: 2 }}>
+        ¿Buscas las experiencias reservables? Se ordenan en la pestaña <strong>Localizaciones</strong>,
+        junto al resto del catálogo de la zona.
+      </Alert>
 
       <Typography variant="h6" fontWeight={600} sx={{ mb: 1 }}>Tienda</Typography>
       <ApartmentItemOrder

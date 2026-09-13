@@ -89,7 +89,14 @@ const LAST = 2147483647;
 
 /**
  * Cláusula ORDER BY completa. `overrideCol` es la columna de override por
- * apartamento (guide_apartment_item_order) o null si esa lista no lo soporta.
+ * apartamento (guide_apartment_items) o null si esa lista no lo soporta.
+ *
+ * El override y el orden global van en DOS claves, no en un COALESCE. Antes
+ * eran COALESCE(override, order_index): posiciones 0..N compitiendo en el mismo
+ * número que un order_index 10, 20, 30… — un POI nuevo de la zona con
+ * order_index 10 se colaba en mitad de una lista que el anfitrión ya había
+ * ordenado a mano. Así, lo colocado a mano va primero por su posición y todo lo
+ * demás detrás, en el orden global de la zona.
  *
  * Termina SIEMPRE en una columna única: sin desempate final SQLite ordena los
  * empates como quiere, y como la respuesta se cachea en KV ese capricho se
@@ -100,7 +107,8 @@ const orderClause = (alias, overrideCol, featuredExpr = null, tiebreak = null) =
     CASE WHEN ${promotedExpr(alias)} THEN 0 ELSE 1 END,
     COALESCE(${alias}.promotion_rank, ${LAST}),
     ${featuredExpr || `${alias}.is_featured DESC`},
-    COALESCE(${overrideCol ? `${overrideCol}, ` : ''}${alias}.order_index, ${LAST}),
+    ${overrideCol ? `COALESCE(${overrideCol}, ${LAST}),` : ''}
+    COALESCE(${alias}.order_index, ${LAST}),
     ${tiebreak || `${alias}.id`}
 `;
 
@@ -264,14 +272,9 @@ export async function handleGetGuidebook(env, slug, lang, origin, surface = 'gui
         return errorResponse('Apartment not found', 404);
     }
 
-    // Check if apartment has specific POI assignments
-    const aptPoisCheck = await env.DB.prepare(
-        'SELECT COUNT(*) as count FROM guide_apartment_pois WHERE apartment_id = ?'
-    ).bind(apartment.id).first();
-    const hasAssignedPois = aptPoisCheck?.count > 0;
-
-    // 2. Parallel load: zone, agency, info, POIs, experiences, restaurants, welcome modal, store items, sibling cities
-    const [zone, agency, apartmentInfo, pois, experiences, zoneRestaurants, welcomeModal, storeItems, apartmentPhones, cities] = await Promise.all([
+    // 2. Parallel load: zone, agency, info, catálogo de la zona, restaurantes,
+    // modal de bienvenida, tienda, teléfonos y ciudades hermanas.
+    const [zone, agency, apartmentInfo, catalog, zoneRestaurants, welcomeModal, storeItems, apartmentPhones, cities] = await Promise.all([
         // Zone
         env.DB.prepare(`
             SELECT id, name, slug, country, region, latitude, longitude, cover_image_url
@@ -350,49 +353,39 @@ export async function handleGetGuidebook(env, slug, lang, origin, surface = 'gui
             ORDER BY ai.order_index ASC
         `).bind(lang, FALLBACK_LANG, lang, FALLBACK_LANG, lang, FALLBACK_LANG, lang, FALLBACK_LANG, apartment.id).all(),
 
-        // POIs with translations (falls back to Spanish when missing)
-        hasAssignedPois
-        ? env.DB.prepare(`
+        // Catálogo de la zona: lugares Y experiencias reservables, en UNA sola
+        // consulta. La migración 0059 unificó ambos en guide_pois (is_bookable
+        // distingue), así que tener dos SELECT con los mismos seis JOIN de
+        // traducciones sólo garantizaba que acabaran divergiendo — y así fue: el
+        // de experiencias nunca trajo latitude/longitude ni access_type, de modo
+        // que una experiencia reservable no podía aparecer en el mapa de
+        // Explorar aunque tuviera coordenadas.
+        //
+        // Visibilidad: la zona entera por defecto. guide_apartment_items sólo
+        // puede QUITAR (is_hidden) o recolocar, nunca es una lista de inclusión
+        // — ver migración 0094.
+        env.DB.prepare(`
             SELECT
-                p.id, p.category, p.latitude, p.longitude, p.google_maps_url,
-                p.rating, p.travel_time_text, p.travel_mode, p.distance_text,
-                p.poi_type, p.access_type, p.price_display, p.duration_text, p.is_bookable,
+                p.id, p.category, p.subcategory AS service_subcategory,
+                p.latitude, p.longitude, p.google_maps_url,
+                p.rating, p.poi_type, p.access_type, p.price_display,
+                p.duration_text, p.is_bookable, p.is_featured, p.cover_image_url,
                 p.address, p.phone, p.website_url, p.booking_url, p.opening_hours,
-                p.is_featured, p.cover_image_url,
+                p.action_type, p.action_data, p.action_prefilled_message,
+                p.discount_display, p.original_price_display, p.badge_type,
+                -- CTA doble + afiliación (migración 0091). Se resuelven en JS
+                -- (resolveExperienceCta) para que guía y TV no puedan divergir.
+                p.action_is_affiliate, p.affiliate_code,
+                p.secondary_action_type, p.secondary_action_data, p.secondary_action_prefilled_message,
+                -- Distancia: el valor del piso manda; el del POI es el defecto
+                -- de zona (migración 0094).
+                COALESCE(ov.travel_time_text, p.travel_time_text) AS travel_time_text,
+                COALESCE(ov.travel_mode,      p.travel_mode)      AS travel_mode,
+                COALESCE(ov.distance_text,    p.distance_text)    AS distance_text,
                 ${promotedExpr('p')} AS is_promoted,
                 COALESCE(t_name.value, t_name_es.value) AS name,
-                COALESCE(t_desc.value, t_desc_es.value) AS description
-            FROM guide_apartment_pois gap
-            JOIN guide_pois p ON gap.poi_id = p.id AND p.is_active = TRUE
-            LEFT JOIN translations t_name ON p.id = t_name.entity_id
-                AND t_name.entity_type = 'poi'
-                AND t_name.field = 'name'
-                AND t_name.language_code = ?
-            LEFT JOIN translations t_name_es ON p.id = t_name_es.entity_id
-                AND t_name_es.entity_type = 'poi'
-                AND t_name_es.field = 'name'
-                AND t_name_es.language_code = ?
-            LEFT JOIN translations t_desc ON p.id = t_desc.entity_id
-                AND t_desc.entity_type = 'poi'
-                AND t_desc.field = 'description'
-                AND t_desc.language_code = ?
-            LEFT JOIN translations t_desc_es ON p.id = t_desc_es.entity_id
-                AND t_desc_es.entity_type = 'poi'
-                AND t_desc_es.field = 'description'
-                AND t_desc_es.language_code = ?
-            WHERE gap.apartment_id = ? AND p.latitude IS NOT NULL
-            ORDER BY ${orderClause('p', 'gap.order_override')}
-        `).bind(lang, FALLBACK_LANG, lang, FALLBACK_LANG, apartment.id).all()
-        : env.DB.prepare(`
-            SELECT
-                p.id, p.category, p.latitude, p.longitude, p.google_maps_url,
-                p.rating, p.travel_time_text, p.travel_mode, p.distance_text,
-                p.poi_type, p.access_type, p.price_display, p.duration_text, p.is_bookable,
-                p.address, p.phone, p.website_url, p.booking_url, p.opening_hours,
-                p.is_featured, p.cover_image_url,
-                ${promotedExpr('p')} AS is_promoted,
-                COALESCE(t_name.value, t_name_es.value) AS name,
-                COALESCE(t_desc.value, t_desc_es.value) AS description
+                COALESCE(t_desc.value, t_desc_es.value) AS description,
+                COALESCE(t_cta.value, t_cta_es.value) AS cta_label
             FROM guide_pois p
             LEFT JOIN translations t_name ON p.id = t_name.entity_id
                 AND t_name.entity_type = 'poi'
@@ -410,61 +403,19 @@ export async function handleGetGuidebook(env, slug, lang, origin, surface = 'gui
                 AND t_desc_es.entity_type = 'poi'
                 AND t_desc_es.field = 'description'
                 AND t_desc_es.language_code = ?
-            WHERE p.zone_id = ? AND p.is_active = TRUE AND p.latitude IS NOT NULL
-            ORDER BY ${orderClause('p', null)}
-        `).bind(lang, FALLBACK_LANG, lang, FALLBACK_LANG, apartment.zone_id).all(),
-
-        // Experiences = bookable items, now sourced from the unified guide_pois
-        // table (is_bookable = TRUE). Translations live under entity_type='poi'.
-        // subcategory is aliased back to service_subcategory to keep the API shape.
-        env.DB.prepare(`
-            SELECT
-                e.id, e.category, e.subcategory AS service_subcategory, e.action_type, e.action_data, e.action_prefilled_message,
-                e.price_display, e.cover_image_url, e.is_featured,
-                e.discount_display, e.original_price_display, e.badge_type,
-                e.address, e.phone, e.website_url, e.booking_url, e.opening_hours,
-                e.rating, e.travel_time_text, e.travel_mode, e.distance_text, e.duration_text,
-                -- CTA doble + afiliación (migración 0091). Se resuelven en JS
-                -- (resolveExperienceCta) para que guía y TV no puedan divergir.
-                e.action_is_affiliate, e.affiliate_code,
-                e.secondary_action_type, e.secondary_action_data, e.secondary_action_prefilled_message,
-                ${promotedExpr('e')} AS is_promoted,
-                COALESCE(t_name.value, t_name_es.value) AS name,
-                COALESCE(t_desc.value, t_desc_es.value) AS description,
-                COALESCE(t_cta.value, t_cta_es.value) AS cta_label
-            FROM guide_pois e
-            LEFT JOIN translations t_name ON e.id = t_name.entity_id
-                AND t_name.entity_type = 'poi'
-                AND t_name.field = 'name'
-                AND t_name.language_code = ?
-            LEFT JOIN translations t_name_es ON e.id = t_name_es.entity_id
-                AND t_name_es.entity_type = 'poi'
-                AND t_name_es.field = 'name'
-                AND t_name_es.language_code = ?
-            LEFT JOIN translations t_desc ON e.id = t_desc.entity_id
-                AND t_desc.entity_type = 'poi'
-                AND t_desc.field = 'description'
-                AND t_desc.language_code = ?
-            LEFT JOIN translations t_desc_es ON e.id = t_desc_es.entity_id
-                AND t_desc_es.entity_type = 'poi'
-                AND t_desc_es.field = 'description'
-                AND t_desc_es.language_code = ?
-            LEFT JOIN translations t_cta ON e.id = t_cta.entity_id
+            LEFT JOIN translations t_cta ON p.id = t_cta.entity_id
                 AND t_cta.entity_type = 'poi'
                 AND t_cta.field = 'cta_label'
                 AND t_cta.language_code = ?
-            LEFT JOIN translations t_cta_es ON e.id = t_cta_es.entity_id
+            LEFT JOIN translations t_cta_es ON p.id = t_cta_es.entity_id
                 AND t_cta_es.entity_type = 'poi'
                 AND t_cta_es.field = 'cta_label'
                 AND t_cta_es.language_code = ?
-            -- Override de orden/visibilidad de ESTE apartamento sobre el catálogo
-            -- de la zona (migración 0091). LEFT JOIN, no INNER: un apartamento que
-            -- no ha tocado nada sigue viendo la zona entera en su orden global.
-            LEFT JOIN guide_apartment_item_order aio
-                ON aio.item_id = e.id AND aio.item_type = 'experience' AND aio.apartment_id = ?
-            WHERE e.zone_id = ? AND e.is_active = TRUE AND e.is_bookable = TRUE
-              AND COALESCE(aio.is_hidden, 0) = 0
-            ORDER BY ${orderClause('e', 'aio.order_override')}
+            LEFT JOIN guide_apartment_items ov
+                ON ov.item_id = p.id AND ov.item_type = 'poi' AND ov.apartment_id = ?
+            WHERE p.zone_id = ? AND p.is_active = TRUE
+              AND COALESCE(ov.is_hidden, 0) = 0
+            ORDER BY ${orderClause('p', 'ov.order_override')}
         `).bind(lang, FALLBACK_LANG, lang, FALLBACK_LANG, lang, FALLBACK_LANG, apartment.id, apartment.zone_id).all(),
 
         // Zone restaurants (bridge to existing restaurants table). address/city/country
@@ -483,7 +434,7 @@ export async function handleGetGuidebook(env, slug, lang, origin, surface = 'gui
                  LIMIT 1) AS cover_image
             FROM guide_zone_restaurants zr
             JOIN restaurants r ON zr.restaurant_id = r.id AND r.is_active = TRUE
-            LEFT JOIN guide_apartment_item_order aio
+            LEFT JOIN guide_apartment_items aio
                 ON aio.item_id = r.id AND aio.item_type = 'restaurant' AND aio.apartment_id = ?
             WHERE zr.zone_id = ? AND zr.is_active = TRUE
               AND COALESCE(aio.is_hidden, 0) = 0
@@ -497,7 +448,8 @@ export async function handleGetGuidebook(env, slug, lang, origin, surface = 'gui
                 CASE WHEN ${promotedExpr('zr')} THEN 0 ELSE 1 END,
                 COALESCE(zr.promotion_rank, ${LAST}),
                 CASE WHEN zr.tier = 'featured' THEN 0 ELSE 1 END,
-                COALESCE(aio.order_override, zr.order_override, ${LAST}),
+                COALESCE(aio.order_override, ${LAST}),
+                COALESCE(zr.order_override, ${LAST}),
                 r.name
         `).bind(apartment.id, apartment.zone_id).all(),
 
@@ -532,7 +484,7 @@ export async function handleGetGuidebook(env, slug, lang, origin, surface = 'gui
         // seis productos por cinco pisos eran treinta filas y treinta juegos de
         // traducciones a los 13 idiomas, que había que editar de una en una. Las
         // excepciones no obligan a duplicar nada: se ocultan o se recolocan en el
-        // piso concreto con guide_apartment_item_order — el mismo mecanismo que ya
+        // piso concreto con guide_apartment_items — el mismo mecanismo que ya
         // usaban los productos 'platform'.
         env.DB.prepare(`
             SELECT
@@ -574,7 +526,7 @@ export async function handleGetGuidebook(env, slug, lang, origin, surface = 'gui
             -- manager, en todas sus propiedades). Es lo que permite que un piso
             -- concreto recoloque u oculte algo que no ha escrito él — y, en el
             -- caso de agencia, es el mecanismo entero de las excepciones.
-            LEFT JOIN guide_apartment_item_order aio
+            LEFT JOIN guide_apartment_items aio
                 ON aio.item_id = si.id AND aio.item_type = 'store_item' AND aio.apartment_id = ?
             WHERE si.is_active = TRUE
               AND (si.apartment_id = ?
@@ -626,14 +578,24 @@ export async function handleGetGuidebook(env, slug, lang, origin, surface = 'gui
 
     const mediaOrigin = origin || DEFAULT_MEDIA_ORIGIN;
 
-    // 3. Load POI + experience media. Bookable rows are the same guide_pois
-    // table (migration 0059 unified it), so a experience can have a
-    // guide_poi_media gallery exactly like a place — the admin upload endpoint
-    // never distinguished between the two. cover_image_url stays a separate
-    // single-image fallback for experiences that only ever set that field.
-    const poiIds = (pois.results || []).map(p => p.id);
-    const experienceIds = (experiences.results || []).map(e => e.id);
-    const poiMedia = await loadPoiMedia(env, [...poiIds, ...experienceIds], mediaOrigin);
+    // 2b. Las dos vistas del mismo catálogo. Una fila puede estar en las dos:
+    // una experiencia reservable CON coordenadas se reserva desde su carrusel y
+    // además se puede encontrar en el mapa, que es justo lo que faltaba.
+    //
+    //   pois        -> lo que Explorar puede pintar (necesita coordenadas).
+    //   experiences -> lo reservable, tenga coordenadas o no. Un alquiler de
+    //                  kayaks que se contrata por WhatsApp no está en el mapa,
+    //                  pero sigue vendiéndose desde el carrusel.
+    const catalogRows = catalog.results || [];
+    const mappableRows = catalogRows.filter(r => r.latitude != null && r.longitude != null);
+    const bookableRows = catalogRows.filter(r => r.is_bookable === 1);
+
+    // 3. Load POI media. Bookable rows are the same guide_pois table (migration
+    // 0059 unified it), so a experience can have a guide_poi_media gallery
+    // exactly like a place — the admin upload endpoint never distinguished
+    // between the two. cover_image_url stays a separate single-image fallback
+    // for experiences that only ever set that field.
+    const poiMedia = await loadPoiMedia(env, catalogRows.map(r => r.id), mediaOrigin);
 
     // 4. Load apartment media
     const infoIds = (apartmentInfo.results || []).map(i => i.id);
@@ -683,7 +645,7 @@ export async function handleGetGuidebook(env, slug, lang, origin, surface = 'gui
         subId: `${apartment.slug}-${surface}`,
     };
 
-    const processedExperiences = (experiences.results || []).map(exp => {
+    const processedExperiences = bookableRows.map(exp => {
         const cta = resolveExperienceCta(exp, { ...baseCtaContext, affiliateCode: exp.affiliate_code });
         return {
             id: exp.id,
@@ -843,7 +805,7 @@ export async function handleGetGuidebook(env, slug, lang, origin, surface = 'gui
             body_font: agency?.body_font || null,
             label_font: agency?.label_font || null,
         },
-        pois: (pois.results || []).map(poi => ({
+        pois: mappableRows.map(poi => ({
             id: poi.id,
             name: poi.name || poi.id,
             description: poi.description || '',
@@ -945,7 +907,7 @@ export async function handleGetGuidebook(env, slug, lang, origin, surface = 'gui
  *
  * Deliberately never used for the apartment's own home zone: GET /guide/:slug
  * already returns that zone's POIs in `pois`, which may be a host-curated
- * subset/order (guide_apartment_pois.order_override) — this endpoint always
+ * subset/order (guide_apartment_items.order_override) — this endpoint always
  * returns the *uncurated* full zone catalog, so calling it for home would
  * silently drop that curation. The frontend keeps the home zone's POIs from
  * the main payload and only calls this for a different zone.
@@ -1011,7 +973,7 @@ export async function handleGetExplore(env, apartmentSlug, zoneSlug, lang, origi
         `).bind(zone.region).all(),
 
         // Every active, mappable POI in the target zone. Unlike GET /guide/:slug,
-        // there's no per-apartment curation to honor here — guide_apartment_pois
+        // there's no per-apartment curation to honor here — guide_apartment_items
         // only ever applies to the guest's own home zone — so this is always the
         // full zone catalog, same projection as the p.zone_id branch of the main
         // guidebook query minus the apartment-relative travel fields.

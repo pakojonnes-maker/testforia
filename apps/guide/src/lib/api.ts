@@ -16,9 +16,9 @@ export async function fetchGuidebook(slug: string, lang: string = 'es') {
 /**
  * "Browse another city" for the Explore map tab (GET /guide/:slug/explore).
  * Only ever call this for a zone OTHER than the guest's home zone — the home
- * zone's POIs already come from fetchGuidebook() above, and may be a curated
- * subset/order the host picked (guide_apartment_pois); this endpoint always
- * returns the zone's full, uncurated catalog. See useExploreState.ts, which
+ * zone's POIs already come from fetchGuidebook() above, with the host's
+ * per-apartment hiding/order applied (guide_apartment_items); this endpoint
+ * always returns the zone's full catalog without them. See useExploreState.ts, which
  * enforces that and caches the result per zone+lang so re-selecting a city
  * already seen this session doesn't refetch it.
  */

@@ -303,22 +303,14 @@ export async function handleGuideAdminRequests(request, env) {
         }
 
         // ============ APARTMENT POIS ============
-        if (path.match(/^apartments\/[^/]+\/pois$/) && method === 'GET') {
-            const aptId = path.split('/')[1];
-            return await listApartmentPois(env, aptId, isSuperAdmin, userAgencyIds);
-        }
-        if (path.match(/^apartments\/[^/]+\/pois$/) && method === 'POST') {
-            const aptId = path.split('/')[1];
-            return await assignApartmentPoi(env, aptId, await request.json(), isSuperAdmin, userAgencyIds);
-        }
-        if (path.match(/^apartments\/[^/]+\/pois\/reorder$/) && method === 'PUT') {
-            const aptId = path.split('/')[1];
-            return await reorderApartmentPois(env, aptId, await request.json(), isSuperAdmin, userAgencyIds);
-        }
-        if (path.match(/^apartments\/[^/]+\/pois\/[^/]+$/) && method === 'DELETE') {
-            const parts = path.split('/');
-            return await removeApartmentPoi(env, parts[1], parts[3], isSuperAdmin, userAgencyIds);
-        }
+        // Los cuatro endpoints de asignación (GET/POST/PUT reorder/DELETE
+        // .../pois) desaparecieron con la migración 0094: eran la cara de red
+        // del modelo opt-in, donde asignar un POI a un piso excluía todos los
+        // demás de su zona. La visibilidad y el orden de los POIs se gestionan
+        // ahora por el mismo camino que tienda y restaurantes:
+        //   GET  /apartments/:id/orderable?item_type=poi
+        //   PUT  /apartments/:id/item-order   { item_type: 'poi', order, hidden }
+
 
         // ============ GUIDE INFO STEPS ============
         if (path.match(/^apartments\/[^/]+\/info\/[^/]+\/steps$/) && method === 'GET') {
@@ -817,13 +809,15 @@ async function updateApartment(env, id, data, isSuperAdmin, userAgencyIds) {
 //     guide_store_orders + guide_store_order_items ... pedidos de ESTE piso
 //     guide_tv_devices + guide_tv_events ............. pantallas emparejadas
 //     guide_sessions / guide_section_views / guide_affiliate_intents .. analítica
-//     guide_apartment_pois ........... SÓLO la fila de enlace piso<->POI
+//     guide_apartment_items .......... SÓLO los overrides de orden/visibilidad
+//       /distancia que este piso tuviera sobre catálogos ajenos
 //     R2: todo lo que cuelga de guide/apartments/{id}/ (prefijo exclusivo)
 //     KV: se bumpea ver:apt:{slug} para que la guía pública deje de servir caché
 //
 //   NO SE TOCA (compartido — borrarlo rompería otros apartamentos)
 //     guide_pois y guide_poi_media ... el POI vive en la ZONA y lo comparten
-//       todos los pisos de esa zona. Sólo se desasigna (guide_apartment_pois).
+//       todos los pisos de esa zona. Sólo se borran sus overrides
+//       (guide_apartment_items).
 //     restaurants / guide_zone_restaurants ... idéntico razonamiento.
 //     guide_zones, guide_agencies, guide_agency_staff, users
 //     guide_info_categories / guide_phone_categories ... catálogos globales
@@ -863,7 +857,7 @@ async function deleteApartment(env, request, id, userData) {
         SELECT
             (SELECT COUNT(*) FROM guide_apartment_info    WHERE apartment_id = ?1) AS info_blocks,
             (SELECT COUNT(*) FROM guide_apartment_phones  WHERE apartment_id = ?1) AS phones,
-            (SELECT COUNT(*) FROM guide_apartment_pois    WHERE apartment_id = ?1) AS poi_links,
+            (SELECT COUNT(*) FROM guide_apartment_items   WHERE apartment_id = ?1) AS item_overrides,
             (SELECT COUNT(*) FROM guide_store_items       WHERE apartment_id = ?1) AS store_items,
             (SELECT COUNT(*) FROM guide_store_orders      WHERE apartment_id = ?1) AS store_orders,
             (SELECT COUNT(*) FROM guide_tv_devices        WHERE apartment_id = ?1) AS tv_devices,
@@ -918,9 +912,10 @@ async function deleteApartment(env, request, id, userData) {
         // 3. resto de contenido propio del piso
         p(`DELETE FROM guide_apartment_phones WHERE apartment_id = ?1`),
         p(`DELETE FROM guide_welcome_modals WHERE apartment_id = ?1`),
-        // Sólo el enlace: el POI, que es de la zona y lo comparten los demás
-        // apartamentos, se queda intacto.
-        p(`DELETE FROM guide_apartment_pois WHERE apartment_id = ?1`),
+        // Sólo los overrides de visibilidad/orden/distancia de este piso. El
+        // POI, el producto y el restaurante son de la zona o del catálogo y los
+        // comparten los demás apartamentos: se quedan intactos.
+        p(`DELETE FROM guide_apartment_items WHERE apartment_id = ?1`),
 
         // 4. tienda del host (los del catálogo platform llevan apartment_id NULL)
         p(`DELETE FROM guide_store_order_items
@@ -1830,11 +1825,13 @@ async function deleteApartmentStoreItem(env, aptId, itemId, isSuperAdmin, userAg
 // tragar con el orden global y con el catálogo entero. Esta tabla es la capa de
 // override: recolocar u ocultar sin tocar el original.
 //
-// Deliberadamente NO se reutiliza guide_apartment_pois pese a tener ya un
-// order_override: workerGuide.js interpreta "existe alguna fila ahí" como "este
-// anfitrión ha curado sus POIs" y deja de servir la zona entera, así que meter
-// filas de experiencias vaciaría el mapa de quien no hubiera curado nada.
-const ORDERABLE_ITEM_TYPES = ['experience', 'store_item', 'restaurant'];
+// 'poi' cubre el catálogo entero de la zona, lugares y experiencias
+// reservables, porque desde la migración 0059 son la MISMA tabla (guide_pois,
+// is_bookable distingue). Tener un item_type por cada presentación permitía dos
+// filas de override para la misma fila de guide_pois, con is_hidden
+// contradictorio, y cambiar is_bookable dejaba la fila huérfana en silencio: el
+// tipo sigue a la tabla, no a cómo se pinte el ítem. Ver migración 0094.
+const ORDERABLE_ITEM_TYPES = ['poi', 'store_item', 'restaurant'];
 
 // Tope defensivo: el cuerpo lo manda el navegador y esto se traduce en un batch
 // de D1 de un statement por ítem.
@@ -1866,27 +1863,36 @@ async function getApartmentOrderableItems(env, aptId, itemType, isSuperAdmin, us
     if (!apt) return errorResponse('Apartamento no encontrado', 404);
 
     const joinOverride = (alias) => `
-        LEFT JOIN guide_apartment_item_order aio
+        LEFT JOIN guide_apartment_items aio
             ON aio.item_id = ${alias}.id AND aio.item_type = ? AND aio.apartment_id = ?`;
 
     let query;
     let params;
 
-    if (itemType === 'experience') {
+    if (itemType === 'poi') {
+        // El catálogo ENTERO de la zona, sin filtrar por is_bookable: esta es la
+        // pantalla donde el anfitrión decide qué enseña de su zona, y un museo y
+        // un tour en catamarán se ocultan igual. is_bookable viaja para que el
+        // admin pueda distinguirlos con una etiqueta; latitude, para avisar de
+        // que un ítem sin coordenadas no va a salir en el mapa de Explorar.
         query = `
             SELECT e.id, COALESCE(t.value, e.category) AS name, e.category AS subtitle,
                    e.cover_image_url, e.is_featured, ${PROMOTED('e')} AS is_promoted,
+                   e.is_bookable, e.latitude,
                    aio.order_override, COALESCE(aio.is_hidden, 0) AS is_hidden
             FROM guide_pois e
             LEFT JOIN translations t ON t.entity_id = e.id AND t.entity_type = 'poi'
                  AND t.field = 'name' AND t.language_code = 'es'
             ${joinOverride('e')}
-            WHERE e.zone_id = ? AND e.is_active = TRUE AND e.is_bookable = TRUE
+            WHERE e.zone_id = ? AND e.is_active = TRUE
             ORDER BY
                 CASE WHEN ${PROMOTED('e')} THEN 0 ELSE 1 END,
                 COALESCE(e.promotion_rank, 2147483647),
                 e.is_featured DESC,
-                COALESCE(aio.order_override, e.order_index, 2147483647),
+                -- Dos claves, igual que orderClause en workerGuide.js: lo
+                -- colocado a mano primero y el resto en orden global.
+                COALESCE(aio.order_override, 2147483647),
+                COALESCE(e.order_index, 2147483647),
                 e.id`;
         params = [itemType, aptId, apt.zone_id];
     } else if (itemType === 'store_item') {
@@ -1911,7 +1917,8 @@ async function getApartmentOrderableItems(env, aptId, itemType, isSuperAdmin, us
                 CASE WHEN ${PROMOTED('si')} THEN 0 ELSE 1 END,
                 COALESCE(si.promotion_rank, 2147483647),
                 si.is_featured DESC,
-                COALESCE(aio.order_override, si.order_index, 2147483647),
+                COALESCE(aio.order_override, 2147483647),
+                COALESCE(si.order_index, 2147483647),
                 si.id`;
         params = [itemType, aptId, aptId, apt.agency_id];
     } else {
@@ -1929,7 +1936,8 @@ async function getApartmentOrderableItems(env, aptId, itemType, isSuperAdmin, us
                 CASE WHEN ${PROMOTED('zr')} THEN 0 ELSE 1 END,
                 COALESCE(zr.promotion_rank, 2147483647),
                 CASE WHEN zr.tier = 'featured' THEN 0 ELSE 1 END,
-                COALESCE(aio.order_override, zr.order_override, 2147483647),
+                COALESCE(aio.order_override, 2147483647),
+                COALESCE(zr.order_override, 2147483647),
                 r.name`;
         params = [itemType, aptId, apt.zone_id];
     }
@@ -1945,9 +1953,16 @@ async function getApartmentOrderableItems(env, aptId, itemType, isSuperAdmin, us
  * recolocado; el índice del array es el order_override. `hidden` puede traer
  * ids que no estén en `order` (ocultar sin recolocar).
  *
- * Se borra y se reescribe el bloque entero de ese item_type en vez de hacer
- * UPDATEs uno a uno: es estado de override puro, no hay nada que conservar, y
- * así un ítem que sale de las dos listas vuelve solo al orden global.
+ * El cuerpo describe el estado COMPLETO de orden y visibilidad de ese
+ * item_type, así que un ítem que sale de las dos listas vuelve solo al orden
+ * global. Pero NO se borra y reescribe el bloque: desde la migración 0094 una
+ * fila de guide_apartment_items también guarda la distancia desde este piso
+ * (travel_time_text/travel_mode/distance_text), que es dato, no override, y un
+ * DELETE la perdería en el primer "mover" o "ocultar". Por eso:
+ *   1. se ponen a cero orden y visibilidad del bloque, conservando las filas;
+ *   2. se aplica el estado nuevo con un upsert que sólo toca esas dos columnas;
+ *   3. se barren las filas que hayan quedado vacías del todo.
+ * D1 ejecuta el batch en orden y en una transacción: nunca se ve el paso 1 solo.
  */
 async function setApartmentItemOrder(env, aptId, data, isSuperAdmin, userAgencyIds) {
     const access = await checkAptAccess(env, aptId, isSuperAdmin, userAgencyIds);
@@ -1968,17 +1983,30 @@ async function setApartmentItemOrder(env, aptId, data, isSuperAdmin, userAgencyI
     }
 
     const statements = [
-        env.DB.prepare('DELETE FROM guide_apartment_item_order WHERE apartment_id = ? AND item_type = ?')
-            .bind(aptId, itemType),
+        env.DB.prepare(`
+            UPDATE guide_apartment_items
+            SET order_override = NULL, is_hidden = 0, modified_at = CURRENT_TIMESTAMP
+            WHERE apartment_id = ? AND item_type = ?
+        `).bind(aptId, itemType),
     ];
     for (const id of ids) {
         const position = order.indexOf(id);
         statements.push(env.DB.prepare(`
-            INSERT INTO guide_apartment_item_order
+            INSERT INTO guide_apartment_items
                 (apartment_id, item_type, item_id, order_override, is_hidden, modified_at)
             VALUES (?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+            ON CONFLICT(apartment_id, item_type, item_id) DO UPDATE SET
+                order_override = excluded.order_override,
+                is_hidden      = excluded.is_hidden,
+                modified_at    = CURRENT_TIMESTAMP
         `).bind(aptId, itemType, id, position >= 0 ? position : null, hiddenSet.has(id) ? 1 : 0));
     }
+    statements.push(env.DB.prepare(`
+        DELETE FROM guide_apartment_items
+        WHERE apartment_id = ? AND item_type = ?
+          AND order_override IS NULL AND COALESCE(is_hidden, 0) = 0
+          AND travel_time_text IS NULL AND travel_mode IS NULL AND distance_text IS NULL
+    `).bind(aptId, itemType));
 
     await env.DB.batch(statements);
     if (access.apt.slug) await touchGuideVersion(env, access.apt.slug);
@@ -2001,7 +2029,7 @@ async function setApartmentItemOrder(env, aptId, data, isSuperAdmin, userAgencyI
 // traducciones a los 13 idiomas, y a editarlas de una en una. Con un producto
 // de agencia hay UNA fila. Las excepciones (el piso sin parking, el que no hace
 // traslados) no obligan a duplicar: se ocultan o se recolocan en ese piso desde
-// su pestaña Tienda, con guide_apartment_item_order — el mismo mecanismo que ya
+// su pestaña Tienda, con guide_apartment_items — el mismo mecanismo que ya
 // existía para los productos 'platform'.
 //
 // Sin migración: guide_store_items ya traía agency_id (nullable, FK a
@@ -2128,7 +2156,7 @@ async function listStoreCatalog(env, params, isSuperAdmin, userAgencyIds) {
                -- En cuántos alojamientos lo ha ocultado su anfitrión. Sólo tiene
                -- sentido en platform/agency (los de un piso no se heredan), y es
                -- lo que convierte "sale en todas" en un dato comprobable.
-               (SELECT COUNT(*) FROM guide_apartment_item_order o
+               (SELECT COUNT(*) FROM guide_apartment_items o
                  WHERE o.item_id = si.id AND o.item_type = 'store_item' AND o.is_hidden = 1) AS hidden_count
         FROM guide_store_items si
         LEFT JOIN guide_apartments a ON a.id = si.apartment_id
@@ -2552,8 +2580,9 @@ async function updatePOI(env, id, data) {
 //     guide_poi_media + los objetos R2 bajo guide/pois/{id}/ (prefijo exclusivo)
 //     translations con entity_type = 'poi' (13 idiomas x 4 campos)
 //     guide_coupons de esa experiencia (por poi_id)
-//     guide_apartment_pois ... las asignaciones a apartamentos. No es daño
-//       colateral: el POI deja de existir, no puede seguir en el mapa de nadie.
+//     guide_apartment_items ... los overrides de orden/visibilidad que algún
+//       piso tuviera sobre él. No es daño colateral: el POI deja de existir, no
+//       puede seguir en el mapa de nadie.
 //     guide_affiliate_intents con target_type='experience' y guide_tv_events de
 //       tipo 'poi_select' que apuntan a él. No tienen FK: si se dejan, quedan
 //       apuntando a un id inexistente y la analítica los pinta como un id crudo.
@@ -2561,7 +2590,7 @@ async function updatePOI(env, id, data) {
 //
 //   NO SE TOCA
 //     guide_zones / guide_apartments / restaurants / guide_zone_restaurants
-//     los demás POIs y sus guide_apartment_pois
+//     los demás POIs y sus guide_apartment_items
 //     guide_affiliate_intents con target_type 'restaurant' o 'product' — son
 //       clics a un restaurante o a un ítem de tienda, no a este POI
 //     translations de cualquier otro entity_type
@@ -2589,7 +2618,11 @@ async function getPoiUsage(env, id) {
 
     const usage = await env.DB.prepare(`
         SELECT
-            (SELECT COUNT(*) FROM guide_apartment_pois WHERE poi_id = ?1) AS apartments,
+            (SELECT COUNT(*) FROM guide_apartments a
+                WHERE a.zone_id = ?2 AND a.is_active = TRUE
+                  AND NOT EXISTS (SELECT 1 FROM guide_apartment_items o
+                                  WHERE o.apartment_id = a.id AND o.item_type = 'poi'
+                                    AND o.item_id = ?1 AND o.is_hidden = 1)) AS apartments,
             (SELECT COUNT(*) FROM guide_poi_media      WHERE poi_id = ?1) AS media,
             (SELECT COUNT(*) FROM translations WHERE entity_type = 'poi' AND entity_id = ?1) AS translations,
             (SELECT COUNT(*) FROM guide_coupons WHERE poi_id = ?1) AS coupons,
@@ -2601,16 +2634,18 @@ async function getPoiUsage(env, id) {
                 WHERE source_id = ?1
                    OR intent_id IN (SELECT id FROM guide_affiliate_intents
                                     WHERE target_type = 'experience' AND target_id = ?1)) AS commissions
-    `).bind(id).first();
+    `).bind(id, poi.zone_id).first();
 
     // Los nombres de los apartamentos afectados: un número no dice nada, saber
     // que es "Piso Carabeo" y "Ático Burriana" sí.
     const apartments = await env.DB.prepare(`
-        SELECT a.id, a.name FROM guide_apartment_pois gap
-        JOIN guide_apartments a ON gap.apartment_id = a.id
-        WHERE gap.poi_id = ?
+        SELECT a.id, a.name FROM guide_apartments a
+        WHERE a.zone_id = ?2 AND a.is_active = TRUE
+          AND NOT EXISTS (SELECT 1 FROM guide_apartment_items o
+                          WHERE o.apartment_id = a.id AND o.item_type = 'poi'
+                            AND o.item_id = ?1 AND o.is_hidden = 1)
         ORDER BY a.name ASC LIMIT 50
-    `).bind(id).all();
+    `).bind(id, poi.zone_id).all();
 
     return jsonResponse({
         success: true,
@@ -2637,7 +2672,11 @@ async function deletePoi(env, request, id, userData) {
 
     const counts = await env.DB.prepare(`
         SELECT
-            (SELECT COUNT(*) FROM guide_apartment_pois WHERE poi_id = ?1) AS apartments,
+            (SELECT COUNT(*) FROM guide_apartments a
+                WHERE a.zone_id = ?2 AND a.is_active = TRUE
+                  AND NOT EXISTS (SELECT 1 FROM guide_apartment_items o
+                                  WHERE o.apartment_id = a.id AND o.item_type = 'poi'
+                                    AND o.item_id = ?1 AND o.is_hidden = 1)) AS apartments,
             (SELECT COUNT(*) FROM guide_poi_media      WHERE poi_id = ?1) AS media,
             (SELECT COUNT(*) FROM translations WHERE entity_type = 'poi' AND entity_id = ?1) AS translations,
             (SELECT COUNT(*) FROM guide_coupons WHERE poi_id = ?1) AS coupons,
@@ -2649,7 +2688,7 @@ async function deletePoi(env, request, id, userData) {
                 WHERE source_id = ?1
                    OR intent_id IN (SELECT id FROM guide_affiliate_intents
                                     WHERE target_type = 'experience' AND target_id = ?1)) AS commissions
-    `).bind(id).first();
+    `).bind(id, poi.zone_id).first();
 
     // Dinero de por medio: no se borra ni se deja apuntando al vacío. Se archiva.
     if (counts.commissions > 0) {
@@ -2674,9 +2713,9 @@ async function deletePoi(env, request, id, userData) {
         p(`DELETE FROM guide_affiliate_intents WHERE target_type = 'experience' AND target_id = ?1`),
         p(`DELETE FROM guide_tv_events WHERE event_type = 'poi_select' AND target_id = ?1`),
         p(`DELETE FROM guide_coupons WHERE poi_id = ?1`),
-        // Sólo las filas de enlace de ESTE POI: los demás POIs del apartamento
+        // Sólo los overrides de ESTE POI: los de los demás POIs del apartamento
         // siguen en su sitio.
-        p(`DELETE FROM guide_apartment_pois WHERE poi_id = ?1`),
+        p(`DELETE FROM guide_apartment_items WHERE item_type = 'poi' AND item_id = ?1`),
         p(`DELETE FROM guide_poi_media WHERE poi_id = ?1`),
         p(`DELETE FROM guide_pois WHERE id = ?1`),
     ]);
@@ -3123,60 +3162,6 @@ async function checkAptAccess(env, aptId, isSuperAdmin, userAgencyIds) {
     if (!apt) return { error: errorResponse('Apartment not found', 404) };
     if (!isSuperAdmin && !userAgencyIds.includes(apt.agency_id)) return { error: errorResponse('Forbidden', 403) };
     return { apt };
-}
-
-async function listApartmentPois(env, aptId, isSuperAdmin, userAgencyIds) {
-    const access = await checkAptAccess(env, aptId, isSuperAdmin, userAgencyIds);
-    if (access.error) return access.error;
-
-    const result = await env.DB.prepare(`
-        SELECT gap.poi_id, gap.order_override, p.* 
-        FROM guide_apartment_pois gap
-        JOIN guide_pois p ON gap.poi_id = p.id
-        WHERE gap.apartment_id = ?
-        ORDER BY gap.order_override ASC
-    `).bind(aptId).all();
-
-    return jsonResponse({ success: true, pois: result.results || [] });
-}
-
-async function assignApartmentPoi(env, aptId, data, isSuperAdmin, userAgencyIds) {
-    const access = await checkAptAccess(env, aptId, isSuperAdmin, userAgencyIds);
-    if (access.error) return access.error;
-    if (!data.poi_id) return errorResponse('poi_id required');
-
-    await env.DB.prepare(`
-        INSERT INTO guide_apartment_pois (apartment_id, poi_id, order_override)
-        VALUES (?, ?, ?)
-        ON CONFLICT(apartment_id, poi_id) DO UPDATE SET order_override = excluded.order_override
-    `).bind(aptId, data.poi_id, data.order_override || 0).run();
-
-    await touchGuideVersion(env, access.apt.slug);
-    return jsonResponse({ success: true });
-}
-
-async function reorderApartmentPois(env, aptId, data, isSuperAdmin, userAgencyIds) {
-    const access = await checkAptAccess(env, aptId, isSuperAdmin, userAgencyIds);
-    if (access.error) return access.error;
-    if (!data.items || !Array.isArray(data.items)) return errorResponse('items array required');
-
-    const statements = data.items.map(i => 
-        env.DB.prepare('UPDATE guide_apartment_pois SET order_override = ? WHERE apartment_id = ? AND poi_id = ?')
-        .bind(i.order_override, aptId, i.poi_id)
-    );
-    if (statements.length > 0) await env.DB.batch(statements);
-
-    await touchGuideVersion(env, access.apt.slug);
-    return jsonResponse({ success: true });
-}
-
-async function removeApartmentPoi(env, aptId, poiId, isSuperAdmin, userAgencyIds) {
-    const access = await checkAptAccess(env, aptId, isSuperAdmin, userAgencyIds);
-    if (access.error) return access.error;
-
-    await env.DB.prepare('DELETE FROM guide_apartment_pois WHERE apartment_id = ? AND poi_id = ?').bind(aptId, poiId).run();
-    await touchGuideVersion(env, access.apt.slug);
-    return jsonResponse({ success: true });
 }
 
 // ============================================

@@ -326,8 +326,7 @@ DELETE FROM guide_store_items WHERE apartment_id = ${A};
 -- 4. resto de lo que cuelga del apartamento
 DELETE FROM guide_welcome_modals WHERE apartment_id = ${A};
 DELETE FROM guide_apartment_phones WHERE apartment_id = ${A};
-DELETE FROM guide_apartment_pois WHERE apartment_id = ${A};
-DELETE FROM guide_apartment_item_order WHERE apartment_id = ${A};
+DELETE FROM guide_apartment_items WHERE apartment_id = ${A};
 DELETE FROM guide_tv_tile_images WHERE apartment_id = ${A};
 DELETE FROM guide_tv_events WHERE apartment_id = ${A};
 DELETE FROM guide_tv_devices WHERE apartment_id = ${A};

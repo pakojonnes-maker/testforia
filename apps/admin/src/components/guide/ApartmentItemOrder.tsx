@@ -28,7 +28,9 @@ import {
 } from '@mui/icons-material';
 import { apiClient } from '../../lib/apiClient';
 
-export type OrderableItemType = 'experience' | 'store_item' | 'restaurant';
+// 'poi' cubre lugares Y experiencias reservables: son la misma tabla desde la
+// migración 0059 y comparten una sola fila de override (migración 0094).
+export type OrderableItemType = 'poi' | 'store_item' | 'restaurant';
 
 interface OrderableItem {
   id: string;
@@ -39,6 +41,10 @@ interface OrderableItem {
   is_promoted?: number | boolean | null;
   order_override?: number | null;
   is_hidden?: number | boolean | null;
+  /** Sólo item_type='poi': distingue una experiencia reservable de un lugar. */
+  is_bookable?: number | boolean | null;
+  /** Sólo item_type='poi': sin coordenadas no hay pin en el mapa de Explorar. */
+  latitude?: number | null;
 }
 
 interface Props {
@@ -80,13 +86,24 @@ export default function ApartmentItemOrder({
   useEffect(() => { load(); }, [load]);
 
   /**
-   * Se persiste SIEMPRE la lista completa, no sólo el par que se ha movido.
-   * Después del primer guardado todos los ítems tienen posición explícita, así
-   * que no queda ninguna mezcla ambigua de "unos colocados y otros heredando el
-   * orden global" que pudiera reordenarse sola al cambiar el catálogo de zona.
+   * Ocultar y recolocar son decisiones distintas, y sólo la segunda congela el
+   * orden.
+   *
+   *  - Mover (`pinOrder: true`): se persiste la lista COMPLETA con posiciones,
+   *    no sólo el par movido. El anfitrión ha tomado el control del orden de su
+   *    guía; lo que llegue nuevo a la zona se añade detrás (el servidor ordena
+   *    primero lo colocado a mano y luego el resto en orden global).
+   *  - Ocultar sin haber movido nada: `order` va vacío. Antes también mandaba la
+   *    lista completa, así que ocultar UN ítem fijaba la posición de todos los
+   *    demás y ese piso dejaba de seguir el orden global de la zona para
+   *    siempre. Ocultar es el caso raro; el orden global debe seguir mandando.
+   *  - Ocultar después de haber movido: se conserva ese orden manual.
    */
-  const persist = async (next: OrderableItem[]) => {
-    setItems(next); // optimista
+  const persist = async (next: OrderableItem[], { pinOrder }: { pinOrder: boolean }) => {
+    // El estado local tiene que reflejar si hay orden manual, o el siguiente
+    // "ocultar" mandaría `order: []` y desharía lo que se acaba de colocar.
+    const saved = pinOrder ? next.map((i, idx) => ({ ...i, order_override: idx })) : next;
+    setItems(saved); // optimista
     setSaving(true);
     setError(null);
     try {
@@ -94,8 +111,8 @@ export default function ApartmentItemOrder({
         method: 'PUT',
         body: JSON.stringify({
           item_type: itemType,
-          order: next.map(i => i.id),
-          hidden: next.filter(i => isOn(i.is_hidden)).map(i => i.id),
+          order: pinOrder ? saved.map(i => i.id) : [],
+          hidden: saved.filter(i => isOn(i.is_hidden)).map(i => i.id),
         }),
       });
       onSaved?.();
@@ -112,11 +129,14 @@ export default function ApartmentItemOrder({
     if (target < 0 || target >= items.length) return;
     const next = [...items];
     [next[index], next[target]] = [next[target], next[index]];
-    persist(next);
+    persist(next, { pinOrder: true });
   };
 
   const toggleHidden = (id: string) => {
-    persist(items.map(i => (i.id === id ? { ...i, is_hidden: isOn(i.is_hidden) ? 0 : 1 } : i)));
+    persist(
+      items.map(i => (i.id === id ? { ...i, is_hidden: isOn(i.is_hidden) ? 0 : 1 } : i)),
+      { pinOrder: items.some(i => i.order_override != null) },
+    );
   };
 
   /** Vuelve al orden global de la zona: se borran todos los overrides. */
@@ -188,6 +208,15 @@ export default function ApartmentItemOrder({
                         vendido a otro. */}
                     {isOn(item.is_promoted) && <Chip size="small" color="secondary" label="Promocionado" />}
                     {isOn(item.is_featured) && <Chip size="small" color="warning" label="Destacado" />}
+                    {isOn(item.is_bookable) && <Chip size="small" color="primary" variant="outlined" label="Reservable" />}
+                    {/* Sin coordenadas el ítem se vende desde su carrusel pero no
+                        aparece en el mapa. Decirlo aquí es más barato que que el
+                        anfitrión lo descubra mirando la guía y no lo encuentre. */}
+                    {itemType === 'poi' && item.latitude == null && (
+                      <Tooltip title="Sin coordenadas: se puede reservar, pero no sale en el mapa de Explorar.">
+                        <Chip size="small" variant="outlined" label="Sin mapa" />
+                      </Tooltip>
+                    )}
                   </Box>
                   {item.subtitle && (
                     <Typography variant="caption" color="text.secondary" noWrap>{item.subtitle}</Typography>
