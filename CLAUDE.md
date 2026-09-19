@@ -305,8 +305,11 @@ privacidad de la cabecera (el pie no se renderiza en Explorar ni en Chat).
   tiene que ser HTML indexable y pesar poco, no una SPA. Dev port **5177** (`npm run dev:tv-landing`).
 - **El contenido vive en `index.html`** (textos, colores de marca y saludos como `data-*`);
   `src/*.ts` solo pone comportamiento. Si falta un elemento que el TS espera, falla al arrancar.
-- **Cero peticiones a terceros**: fuentes autoalojadas (`@fontsource-variable`, como `apps/tv`),
-  nada de Google Fonts ni analítica externa. Es coherente con el producto (privacy-first).
+- **Cero peticiones a terceros desde el código**: fuentes autoalojadas (`@fontsource-variable`,
+  como `apps/tv`), nada de Google Fonts ni analítica externa. Es coherente con el producto
+  (privacy-first). Ojo: en tv.visualtastes.com el borde de Cloudflare inyecta el beacon de Web
+  Analytics (activado en toda la zona visualtastes.com, también en guide/admin/menu): no viene del
+  código y no sale en `pages.dev`, pero al medir «peticiones externas» en el dominio real aparece.
 - **Comparte dominio con la app de la TV**: `src/tv-app.ts` decide en el navegador si la URL es de
   una pantalla (`/<slug>`, `/#<código>`) y, si lo es, sustituye el documento por la app de la TV en
   la misma URL (ver §2). No lo toques sin releer ese apartado.
