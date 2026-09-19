@@ -44,6 +44,41 @@ const classify = (seg) => {
   return null;
 };
 
+// ---------------------------------------------------------------------------
+// tv.visualtastes.com = landing + app de la TV en UN solo despliegue (proyecto visualtaste-tv).
+// `pages deploy` sustituye el sitio ENTERO: subir apps/tv/dist (o apps/tv-landing/dist) suelto a
+// ese proyecto borra la otra mitad. Hay que combinarlas con scripts/build-tv-site.mjs y subir
+// dist-tv-site. Esta guarda NO se salta con VT_ALLOW_DIRTY_DEPLOY (es otro problema);
+// VT_ALLOW_TV_ALONE=1 sí.
+// ---------------------------------------------------------------------------
+const TV_SITE_PROJECT = 'visualtaste-tv';
+const TV_ALONE_OVERRIDE = 'VT_ALLOW_TV_ALONE=1';
+
+const normPath = (p) =>
+  p.replace(/^["']|["']$/g, '').replace(/\\/g, '/').replace(/^\.\//, '').replace(/\/+$/, '');
+
+/** Carpeta, si el comando sube SOLO la TV o SOLO la landing a visualtaste-tv; si no, null. */
+const soloTvDeploy = (command) => {
+  let cwd = '';
+  for (const raw of splitSegments(command)) {
+    const cd = raw.match(/^cd\s+(\S+)/);
+    if (cd) {
+      cwd = normPath(cd[1]);
+      continue;
+    }
+    // `VAR=x VAR2=y npx wrangler …`: se ignoran las asignaciones de entorno iniciales.
+    const s = stripRunner(raw.replace(/^(?:[A-Za-z_][A-Za-z0-9_]*=\S*\s+)+/, ''));
+    const m = s.match(/^wrangler\s+pages\s+deploy\s+("[^"]+"|'[^']+'|\S+)/);
+    if (!m) continue;
+    const project = (s.match(/--project-name[=\s]+["']?([^\s"']+)/) || [])[1];
+    if (project !== TV_SITE_PROJECT) continue;
+    const dir = normPath(m[1]);
+    const full = normPath(cwd ? `${cwd}/${dir}` : dir);
+    if (/(^|\/)apps\/tv(-landing)?\/dist$/.test(full)) return full;
+  }
+  return null;
+};
+
 const emit = (permissionDecision, permissionDecisionReason) => {
   process.stdout.write(
     JSON.stringify({
@@ -74,6 +109,31 @@ const main = async () => {
   if (payload?.tool_name !== 'Bash') process.exit(0);
   const command = payload?.tool_input?.command;
   if (typeof command !== 'string' || !command.trim()) process.exit(0);
+
+  if (!command.includes(TV_ALONE_OVERRIDE)) {
+    let solo = null;
+    try {
+      solo = soloTvDeploy(command);
+    } catch {
+      solo = null; // esta guarda nunca debe romper un comando por un fallo propio
+    }
+    if (solo) {
+      emit(
+        'deny',
+        [
+          `BLOQUEADO por .claude/hooks/pre-deploy-guard.mjs: despliegue suelto en ${TV_SITE_PROJECT}.`,
+          ``,
+          `El proyecto ${TV_SITE_PROJECT} sirve la landing Y la app de la TV desde UN solo despliegue`,
+          `(tv.visualtastes.com). Subir ${solo} solo sustituye el sitio entero y borra la otra mitad.`,
+          ``,
+          `Qué hacer: combínalas y sube el resultado.`,
+          `  node scripts/build-tv-site.mjs      (usa apps/tv/dist y apps/tv-landing/dist; --shell <carpeta> para otra copia de la TV)`,
+          `  npx wrangler pages deploy dist-tv-site --project-name=${TV_SITE_PROJECT} --branch main`,
+          `Solo si de verdad quieres subir una sola (p. ej. restaurar producción tal como estaba): prefija el comando con ${TV_ALONE_OVERRIDE}`,
+        ].join('\n')
+      );
+    }
+  }
 
   if (command.includes(OVERRIDE)) process.exit(0); // override explícito del usuario
 

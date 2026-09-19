@@ -12,13 +12,17 @@ import '@fontsource-variable/playfair-display/wght-italic.css'
 import './styles/landing.css'
 
 import { initLanguages } from './languages'
-import { redirectLegacyTvLinks } from './legacy'
 import { initMenu } from './menu'
+import { mountTvAppIfNeeded } from './tv-app'
 import { initTvDemo } from './tv-demo'
 
-// Primero: un enlace heredado de la app de la TV (/#código, /<slug>) no pinta nada aquí.
-if (!redirectLegacyTvLinks()) {
+void (async () => {
+  // Primero: si la URL es de una pantalla (/<slug>, /#<código>), la app de la TV toma la página y la
+  // landing no arranca (ver src/tv-app.ts).
+  if (await mountTvAppIfNeeded()) return
+
+  document.documentElement.classList.remove('tv-link') // la landing estaba oculta a la espera de decidir
   initMenu()
   initTvDemo()
   initLanguages()
-}
+})()

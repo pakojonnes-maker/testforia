@@ -5,6 +5,15 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <meta name="color-scheme" content="light" />
   <meta name="theme-color" content="#F8F3E9" />
+  <script>
+    /* ¿Es una pantalla (/<slug> o /#<código>) y no la landing? Se oculta la landing hasta que
+       src/tv-app.ts sustituya el documento por la app de la TV, para que no parpadee. Si el script
+       no llega a cargar, la CSS la muestra igualmente a los 4 s. */
+    (function () {
+      var p = location.pathname;
+      if ((p !== '/' && p !== '/index.html') || location.hash.length > 1) document.documentElement.className += ' tv-link';
+    })();
+  </script>
   <title>VisualTaste TV — La pantalla de bienvenida para alojamientos del Mediterráneo</title>
   <meta name="description" content="VisualTaste TV convierte la tele del salón en la recepción de tu alojamiento: WiFi con QR, hora de salida y lo mejor de los alrededores, en 13 idiomas." />
   <link rel="canonical" href="https://tv.visualtastes.com/" />
@@ -310,14 +319,6 @@
   </div>
 </section>
 
-<!-- ============ PRUEBA (marcador) ============ -->
-<section class="sec proof steps-band" aria-label="Testimonio">
-  <figure class="wrap proof-fig">
-    <blockquote>[Testimonio de un property manager: en dos frases, qué cambió en la llegada de sus huéspedes desde que la tele los recibe]</blockquote>
-    <figcaption>[Nombre · Empresa · N.º de alojamientos]</figcaption>
-  </figure>
-</section>
-
 <!-- ============ PREGUNTAS ============ -->
 <section class="sec faq-band" id="preguntas" aria-labelledby="t-faq">
   <div class="wrap">
@@ -362,7 +363,6 @@
       <h2 class="h2" id="t-cta">Recibe a tus huéspedes como se <em>merecen.</em></h2>
       <p class="lead">Cuéntanos cuántos alojamientos gestionas y te enseñamos cómo se vería VisualTaste TV en el tuyo.</p>
       <div class="cta-row"><a class="btn btn-c" href="#demo">Pedir una demo</a></div>
-      <p class="fine">[Destino del botón: email, WhatsApp o calendario de reservas]</p>
     </div>
     <div class="cta-arch"><img loading="lazy" decoding="async" src="/img/eat.webp" alt="Un arco de piedra cubierto de buganvilla que enmarca el mar"></div>
   </div>

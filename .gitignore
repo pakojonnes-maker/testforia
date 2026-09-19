@@ -17,6 +17,7 @@ node_modules/
 
 # Builds (Vite/Node/web)
 dist/
+dist-tv-site/
 build/
 out/
 .next/

@@ -16,8 +16,7 @@ caché → verificar → push**. Saltarse un paso es cómo se rompió producció
 | client | `npx wrangler pages deploy apps/client/dist --project-name=visualtaste` | carta digital |
 | admin | `npx wrangler pages deploy apps/admin/dist --project-name=visualtasteadmin` | panel |
 | guide | `npx wrangler pages deploy apps/guide/dist --project-name=visualtastes-guide` | guidebook |
-| tv | `npx wrangler pages deploy apps/tv/dist --project-name=visualtaste-tv` | TV (demo/fuente del APK) |
-| tv-landing | `npx wrangler pages deploy apps/tv-landing/dist --project-name=visualtaste-tv-landing` | landing de venta (tv.visualtastes.com). Proyecto ya creado (producción = rama `main`); nunca a `visualtaste-tv`, que es la app de la TV |
+| tv + landing | `node scripts/build-tv-site.mjs` y luego `npx wrangler pages deploy dist-tv-site --project-name=visualtaste-tv --branch main` | tv.visualtastes.com: la landing en la raíz y la app de la TV en `/<slug>` y `/#<código>`. **Siempre juntas**: subir una sola borra la otra (el hook lo bloquea). Ver CLAUDE.md §2 |
 
 Si el usuario no lo ha dicho, **pregúntale cuál** antes de tocar nada. "Despliega" no
 significa "despliega todo".

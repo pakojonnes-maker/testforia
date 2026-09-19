@@ -212,11 +212,6 @@ body{margin:0;background:#F8F3E9}
 .trk i{display:block;height:100%;border-radius:99px;background:var(--mar)}
 .dash .fine{margin-top:22px}
 
-/* ============ PRUEBA (marcador) ============ */
-.proof-fig{max-width:880px;padding:clamp(28px,4cqw,56px);border:2px dashed rgba(12,42,55,.28);border-radius:28px;text-align:center}
-.proof blockquote{font:italic 500 clamp(1.3rem,2.2cqw,1.9rem)/1.4 var(--ff-d);color:var(--tinta-3)}
-.proof figcaption{margin-top:18px;font-weight:600;font-size:.9rem;color:var(--tinta-3)}
-
 /* ============ PREGUNTAS ============ */
 .faq-band{background:var(--arena)}
 .faq-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:clamp(28px,4cqw,56px) clamp(32px,6cqw,96px);margin-top:clamp(32px,4.5cqw,60px)}
@@ -287,6 +282,11 @@ html{-webkit-text-size-adjust:100%;text-size-adjust:100%}
 .m-date:empty,.m-time:empty{visibility:hidden}
 @container page (min-width:981px){.menu-panel{display:none}}
 @media (prefers-reduced-motion:reduce){.page *{transition:none!important}}
+
+/* URL de pantalla (/<slug>, /#<código>): la landing se oculta hasta que src/tv-app.ts decide (ver el
+   script del <head> en index.html). Si el script no llega a cargar, a los 4 s se muestra igualmente. */
+html.tv-link body{visibility:hidden;animation:tv-link-failsafe 0s 4s forwards}
+@keyframes tv-link-failsafe{to{visibility:visible}}
 
 /* Tema de la tele por defecto (marca Terracota). src/lib/theme.ts lo recalcula al elegir otro color. */
 .screen{--tv-accent:#e07a5f;--tv-accent-ink:#ffffff;--tv-halo:rgba(224, 122, 95, 0.3);--tv-glow:rgba(224, 122, 95, 0.45);--tv-surface:#44464a;--tv-surface-raised:#56575a;--tv-line:rgba(255,255,255,0.14)}

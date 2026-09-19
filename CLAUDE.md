@@ -98,8 +98,8 @@ Repo raíz
   | `visualtaste` | `apps/client/dist` | visualtastes.com, www, menu.visualtastes.com |
   | `visualtasteadmin` | `apps/admin/dist` | admin.visualtastes.com |
   | `visualtastes-guide` | `apps/guide/dist` | guide.visualtastes.com |
-  | `visualtaste-tv` | `apps/tv/dist` | visualtaste-tv.pages.dev (`tv.visualtastes.com` está aquí hasta que se mueva a la landing, ver abajo) |
-  | `visualtaste-tv-landing` | `apps/tv-landing/dist` | visualtaste-tv-landing.pages.dev (`tv.visualtastes.com` **pendiente de mover** desde `visualtaste-tv`, ver abajo) |
+  | `visualtaste-tv` | **`dist-tv-site`: landing + app de la TV combinadas** (ver abajo) | tv.visualtastes.com, visualtaste-tv.pages.dev |
+  | `visualtaste-tv-landing` | `apps/tv-landing/dist` (solo la landing) | visualtaste-tv-landing.pages.dev — ya no se usa; se puede borrar |
 
   **`apps/tv` (VisualTaste TV)**: pantalla de bienvenida para TVs de alojamientos
   (WiFi, guía, alrededores). En producción real (Android TV vía APK) el shell debe
@@ -109,16 +109,20 @@ Repo raíz
   de un apartamento turístico es poco fiable justo al arrancar). Solo los DATOS
   (`/guide/tv/config/:pairingCode`) deben ir siempre por red.
 
-  **`apps/tv-landing`** (landing de venta de VisualTaste TV, para property managers): sitio
-  estático para `tv.visualtastes.com`, en su propio proyecto de Pages `visualtaste-tv-landing`
-  (creado y desplegado el 2026-09-19; **pendiente de mover el dominio**: wrangler no gestiona
-  dominios de Pages ni la API crea el DNS, así que se hace a mano en el dashboard, quitándolo
-  de `visualtaste-tv`).
-  La app de la TV **se queda en `visualtaste-tv`** (visualtaste-tv.pages.dev, ya en
-  `ALLOWED_ORIGINS`): `apps/tv/dist` va siempre ahí y `apps/tv-landing/dist` siempre al otro
-  proyecto. Los enlaces heredados (los QR del admin `/#<código>` y el modo demo `/<slug>`)
-  llegan a la landing y `src/legacy.ts` los reenvía a la app; por eso el proyecto de la
-  landing NO debe tener `404.html` (sin él, Pages sirve `index.html` para cualquier ruta).
+  **`visualtaste-tv` sirve DOS apps desde UN despliegue** (un `pages deploy` sustituye el sitio
+  entero): la landing de venta (`apps/tv-landing`) en la raíz de tv.visualtastes.com y la app de
+  la TV (`apps/tv`) en `/<slug>` (modo demo) y `/#<código>` (los QR de emparejamiento del admin),
+  en la MISMA URL. La landing decide en el navegador (`src/tv-app.ts`) y, si la URL es de una
+  pantalla, sustituye el documento por el `index.html` de la TV, que el build combinado deja en
+  `/tv-shell/`. Se despliega **siempre combinado**: `node scripts/build-tv-site.mjs`
+  (→ `dist-tv-site`) y `npx wrangler pages deploy dist-tv-site --project-name=visualtaste-tv
+  --branch main`. Subir `apps/tv/dist` o `apps/tv-landing/dist` sueltos a ese proyecto borra la
+  otra mitad: el hook `pre-deploy-guard` lo bloquea (`VT_ALLOW_TV_ALONE=1` para saltarlo a
+  propósito, p. ej. para restaurar). `--shell <carpeta>` combina con otra copia de la TV: el
+  `apps/tv/dist` por defecto sale de compilar la copia de trabajo, con lo que otra sesión lleve
+  a medias. El sitio no debe tener `404.html`: sin él, Pages contesta a cualquier ruta con
+  `index.html`, que es como llegan los slugs a la landing. La API no cambia: el origen sigue
+  siendo `https://tv.visualtastes.com` (ya en `ALLOWED_ORIGINS`).
 
 ---
 
@@ -303,6 +307,9 @@ privacidad de la cabecera (el pie no se renderiza en Explorar ni en Chat).
   `src/*.ts` solo pone comportamiento. Si falta un elemento que el TS espera, falla al arrancar.
 - **Cero peticiones a terceros**: fuentes autoalojadas (`@fontsource-variable`, como `apps/tv`),
   nada de Google Fonts ni analítica externa. Es coherente con el producto (privacy-first).
+- **Comparte dominio con la app de la TV**: `src/tv-app.ts` decide en el navegador si la URL es de
+  una pantalla (`/<slug>`, `/#<código>`) y, si lo es, sustituye el documento por la app de la TV en
+  la misma URL (ver §2). No lo toques sin releer ese apartado.
 - **Sin iconos** (ni pictogramas, ni emoji, ni banderas): decisión de diseño de Francisco.
 - `public/img/` es una **copia** de `apps/tv/src/assets/tiles/` y `src/lib/theme.ts` copia el
   `buildTheme` de `apps/tv`: no se importan para no acoplarse a una app con cambios en curso.
@@ -369,8 +376,8 @@ npx wrangler d1 execute restaurant-menu-saas --remote --command="SELECT ..."    
 npx wrangler pages deploy apps/client/dist --project-name=visualtaste
 npx wrangler pages deploy apps/admin/dist  --project-name=visualtasteadmin
 npx wrangler pages deploy apps/guide/dist  --project-name=visualtastes-guide
-npx wrangler pages deploy apps/tv/dist     --project-name=visualtaste-tv
-npx wrangler pages deploy apps/tv-landing/dist --project-name=visualtaste-tv-landing
+node scripts/build-tv-site.mjs      # landing + app de la TV → dist-tv-site (ver §2; --shell <carpeta> para otra copia de la TV)
+npx wrangler pages deploy dist-tv-site --project-name=visualtaste-tv --branch main   # SIEMPRE combinadas: una sola borra la otra
 
 # --- Demos para agencias (ver §10 y la skill /demo) ---
 node scripts/demo-seed/seed.mjs <clave>   # ficha JSON → seed.sql + teardown.sql + assets.ps1
