@@ -1,0 +1,4 @@
+User-agent: *
+Allow: /
+
+Sitemap: https://tv.visualtastes.com/sitemap.xml

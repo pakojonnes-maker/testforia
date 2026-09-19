@@ -17,6 +17,7 @@ caché → verificar → push**. Saltarse un paso es cómo se rompió producció
 | admin | `npx wrangler pages deploy apps/admin/dist --project-name=visualtasteadmin` | panel |
 | guide | `npx wrangler pages deploy apps/guide/dist --project-name=visualtastes-guide` | guidebook |
 | tv | `npx wrangler pages deploy apps/tv/dist --project-name=visualtaste-tv` | TV (demo/fuente del APK) |
+| tv-landing | `npx wrangler pages deploy apps/tv-landing/dist --project-name=visualtaste-tv-landing` | landing de venta (tv.visualtastes.com). El proyecto se crea antes con `npx wrangler pages project create visualtaste-tv-landing --production-branch main`; nunca a `visualtaste-tv` (es la app de la TV) |
 
 Si el usuario no lo ha dicho, **pregúntale cuál** antes de tocar nada. "Despliega" no
 significa "despliega todo".

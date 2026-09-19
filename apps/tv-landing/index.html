@@ -1,0 +1,401 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="color-scheme" content="light" />
+  <meta name="theme-color" content="#F8F3E9" />
+  <title>VisualTaste TV — La pantalla de bienvenida para alojamientos del Mediterráneo</title>
+  <meta name="description" content="VisualTaste TV convierte la tele del salón en la recepción de tu alojamiento: WiFi con QR, hora de salida y lo mejor de los alrededores, en 13 idiomas." />
+  <link rel="canonical" href="https://tv.visualtastes.com/" />
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+  <link rel="preload" as="image" href="/img/background.webp" type="image/webp" />
+  <meta property="og:type" content="website" />
+  <meta property="og:locale" content="es_ES" />
+  <meta property="og:site_name" content="VisualTaste TV" />
+  <meta property="og:title" content="VisualTaste TV — La bienvenida empieza en la tele" />
+  <meta property="og:description" content="VisualTaste TV convierte la tele del salón en la recepción de tu alojamiento: WiFi con QR, hora de salida y lo mejor de los alrededores, en 13 idiomas." />
+  <meta property="og:url" content="https://tv.visualtastes.com/" />
+  <meta property="og:image" content="https://tv.visualtastes.com/og.jpg" />
+  <meta property="og:image:width" content="1200" />
+  <meta property="og:image:height" content="630" />
+  <meta name="twitter:card" content="summary_large_image" />
+  <!-- Sin hoja de estilos remota a propósito: las fuentes se importan desde
+       node_modules en src/main.ts y viajan dentro del bundle (RGPD: no se avisa
+       a Google de cada visita; y una hoja remota bloquea el primer pintado). -->
+</head>
+<body>
+<div class="page">
+<a class="skip" href="#contenido">Saltar al contenido</a>
+
+<header class="nav">
+  <div class="nav-in">
+    <a class="mark" href="#inicio" aria-label="VisualTaste TV, ir al inicio">VisualTaste <small>TV</small></a>
+    <nav class="nav-links" aria-label="Principal">
+      <a href="#pantalla">La pantalla</a>
+      <a href="#como-funciona">Cómo funciona</a>
+      <a href="#idiomas">Idiomas</a>
+      <a href="#preguntas">Preguntas</a>
+    </nav>
+    <div class="nav-cta">
+      <a class="btn btn-p btn-sm" href="#demo">Pedir una demo</a>
+      <button class="menu-btn" type="button" aria-expanded="false" aria-controls="menu-panel" data-menu-toggle>Menú</button>
+    </div>
+  </div>
+  <div class="menu-panel" id="menu-panel" hidden>
+    <a href="#pantalla">La pantalla</a>
+    <a href="#como-funciona">Cómo funciona</a>
+    <a href="#idiomas">Idiomas</a>
+    <a href="#preguntas">Preguntas</a>
+    <a class="btn btn-p" href="#demo">Pedir una demo</a>
+  </div>
+</header>
+
+<main id="contenido">
+
+<!-- ============ PORTADA ============ -->
+<section class="hero" id="inicio" aria-labelledby="t-hero">
+  <div class="wrap hero-grid">
+    <div class="hero-copy">
+      <p class="label">Pantalla de bienvenida · alojamientos del Mediterráneo</p>
+      <h1 class="h1" id="t-hero">La bienvenida empieza en la <em>tele.</em></h1>
+      <p class="lead">VisualTaste TV convierte la pantalla del salón en la recepción de tu alojamiento: el WiFi con un QR, la hora de salida y lo mejor de los alrededores, en el idioma de cada huésped.</p>
+      <div class="cta-row">
+        <a class="btn btn-p" href="#demo">Pedir una demo</a>
+        <a class="link" href="#como-funciona">Ver cómo funciona</a>
+      </div>
+      <ul class="facts">
+        <li><b>13</b><span>idiomas, árabe incluido</span></li>
+        <li><b>0</b><span>apps que instalar</span></li>
+        <li><b>1</b><span>sola guía, en el móvil y en la tele</span></li>
+      </ul>
+    </div>
+
+    <div class="hero-tv">
+      <div class="tv-stage">
+        <div class="tv-arch" aria-hidden="true"></div>
+        <div class="tv-sun" aria-hidden="true"></div>
+        <div class="tv">
+          <div class="screen" data-tv-screen>
+            <div class="m-wall" aria-hidden="true"></div>
+            <div class="m-safe">
+              <div class="m-head" aria-hidden="true">
+                <div class="m-brand"><span class="m-logo">A</span><span class="m-ink m-name">Casa Azahar</span></div>
+                <span class="m-ink m-date" data-clock-date></span>
+                <span class="m-ink m-time" data-clock-time></span>
+              </div>
+              <div class="m-grid">
+                <button type="button" class="tile t-info" data-tile="info" data-title="Normas de la casa" data-desc="Guías rápidas con las normas y todo lo que siempre se pregunta." aria-label="Normas de la casa">
+                  <img class="cover" src="/img/info.webp" alt="">
+                  <span class="veil"></span>
+                  <span class="m-stack"><span class="m-v">Normas de la casa</span><span class="m-l">Guías Rápidas</span></span>
+                </button>
+                <button type="button" class="tile t-wifi" data-tile="wifi" data-title="WiFi de la casa" data-desc="El QR está en el inicio: se apunta con la cámara y se conecta solo, sin dictar la clave." aria-label="WiFi de la casa">
+                  <img class="cover" src="/img/wifi.webp" alt="">
+                  <span class="veil"></span>
+                  <span class="m-wifi">
+                    <span class="m-qr"><svg viewBox="0 0 25 25" aria-hidden="true"><path d="M0 0h1v1h-1zM1 0h1v1h-1zM2 0h1v1h-1zM3 0h1v1h-1zM4 0h1v1h-1zM5 0h1v1h-1zM6 0h1v1h-1zM9 0h1v1h-1zM10 0h1v1h-1zM12 0h1v1h-1zM13 0h1v1h-1zM14 0h1v1h-1zM16 0h1v1h-1zM18 0h1v1h-1zM19 0h1v1h-1zM20 0h1v1h-1zM21 0h1v1h-1zM22 0h1v1h-1zM23 0h1v1h-1zM24 0h1v1h-1zM0 1h1v1h-1zM6 1h1v1h-1zM8 1h1v1h-1zM10 1h1v1h-1zM11 1h1v1h-1zM15 1h1v1h-1zM18 1h1v1h-1zM24 1h1v1h-1zM0 2h1v1h-1zM2 2h1v1h-1zM3 2h1v1h-1zM4 2h1v1h-1zM6 2h1v1h-1zM8 2h1v1h-1zM10 2h1v1h-1zM15 2h1v1h-1zM18 2h1v1h-1zM20 2h1v1h-1zM21 2h1v1h-1zM22 2h1v1h-1zM24 2h1v1h-1zM0 3h1v1h-1zM2 3h1v1h-1zM3 3h1v1h-1zM4 3h1v1h-1zM6 3h1v1h-1zM8 3h1v1h-1zM12 3h1v1h-1zM13 3h1v1h-1zM14 3h1v1h-1zM16 3h1v1h-1zM18 3h1v1h-1zM20 3h1v1h-1zM21 3h1v1h-1zM22 3h1v1h-1zM24 3h1v1h-1zM0 4h1v1h-1zM2 4h1v1h-1zM3 4h1v1h-1zM4 4h1v1h-1zM6 4h1v1h-1zM10 4h1v1h-1zM11 4h1v1h-1zM12 4h1v1h-1zM15 4h1v1h-1zM16 4h1v1h-1zM18 4h1v1h-1zM20 4h1v1h-1zM21 4h1v1h-1zM22 4h1v1h-1zM24 4h1v1h-1zM0 5h1v1h-1zM6 5h1v1h-1zM10 5h1v1h-1zM11 5h1v1h-1zM12 5h1v1h-1zM15 5h1v1h-1zM16 5h1v1h-1zM18 5h1v1h-1zM24 5h1v1h-1zM0 6h1v1h-1zM1 6h1v1h-1zM2 6h1v1h-1zM3 6h1v1h-1zM4 6h1v1h-1zM5 6h1v1h-1zM6 6h1v1h-1zM8 6h1v1h-1zM10 6h1v1h-1zM12 6h1v1h-1zM14 6h1v1h-1zM16 6h1v1h-1zM18 6h1v1h-1zM19 6h1v1h-1zM20 6h1v1h-1zM21 6h1v1h-1zM22 6h1v1h-1zM23 6h1v1h-1zM24 6h1v1h-1zM9 7h1v1h-1zM10 7h1v1h-1zM11 7h1v1h-1zM12 7h1v1h-1zM0 8h1v1h-1zM3 8h1v1h-1zM4 8h1v1h-1zM6 8h1v1h-1zM7 8h1v1h-1zM8 8h1v1h-1zM11 8h1v1h-1zM12 8h1v1h-1zM13 8h1v1h-1zM14 8h1v1h-1zM15 8h1v1h-1zM16 8h1v1h-1zM19 8h1v1h-1zM21 8h1v1h-1zM23 8h1v1h-1zM24 8h1v1h-1zM0 9h1v1h-1zM3 9h1v1h-1zM4 9h1v1h-1zM8 9h1v1h-1zM11 9h1v1h-1zM12 9h1v1h-1zM13 9h1v1h-1zM16 9h1v1h-1zM17 9h1v1h-1zM18 9h1v1h-1zM19 9h1v1h-1zM21 9h1v1h-1zM23 9h1v1h-1zM0 10h1v1h-1zM1 10h1v1h-1zM2 10h1v1h-1zM4 10h1v1h-1zM5 10h1v1h-1zM6 10h1v1h-1zM10 10h1v1h-1zM12 10h1v1h-1zM13 10h1v1h-1zM17 10h1v1h-1zM18 10h1v1h-1zM20 10h1v1h-1zM21 10h1v1h-1zM23 10h1v1h-1zM24 10h1v1h-1zM0 11h1v1h-1zM4 11h1v1h-1zM13 11h1v1h-1zM14 11h1v1h-1zM16 11h1v1h-1zM18 11h1v1h-1zM20 11h1v1h-1zM24 11h1v1h-1zM2 12h1v1h-1zM5 12h1v1h-1zM6 12h1v1h-1zM7 12h1v1h-1zM9 12h1v1h-1zM15 12h1v1h-1zM16 12h1v1h-1zM17 12h1v1h-1zM19 12h1v1h-1zM21 12h1v1h-1zM22 12h1v1h-1zM23 12h1v1h-1zM24 12h1v1h-1zM0 13h1v1h-1zM1 13h1v1h-1zM4 13h1v1h-1zM5 13h1v1h-1zM7 13h1v1h-1zM9 13h1v1h-1zM10 13h1v1h-1zM11 13h1v1h-1zM13 13h1v1h-1zM14 13h1v1h-1zM15 13h1v1h-1zM18 13h1v1h-1zM19 13h1v1h-1zM20 13h1v1h-1zM21 13h1v1h-1zM23 13h1v1h-1zM0 14h1v1h-1zM2 14h1v1h-1zM4 14h1v1h-1zM5 14h1v1h-1zM6 14h1v1h-1zM7 14h1v1h-1zM8 14h1v1h-1zM9 14h1v1h-1zM11 14h1v1h-1zM12 14h1v1h-1zM13 14h1v1h-1zM16 14h1v1h-1zM19 14h1v1h-1zM21 14h1v1h-1zM22 14h1v1h-1zM23 14h1v1h-1zM1 15h1v1h-1zM2 15h1v1h-1zM4 15h1v1h-1zM7 15h1v1h-1zM8 15h1v1h-1zM9 15h1v1h-1zM11 15h1v1h-1zM12 15h1v1h-1zM13 15h1v1h-1zM14 15h1v1h-1zM17 15h1v1h-1zM18 15h1v1h-1zM19 15h1v1h-1zM20 15h1v1h-1zM21 15h1v1h-1zM23 15h1v1h-1zM24 15h1v1h-1zM2 16h1v1h-1zM3 16h1v1h-1zM4 16h1v1h-1zM6 16h1v1h-1zM10 16h1v1h-1zM14 16h1v1h-1zM16 16h1v1h-1zM17 16h1v1h-1zM18 16h1v1h-1zM19 16h1v1h-1zM20 16h1v1h-1zM22 16h1v1h-1zM23 16h1v1h-1zM9 17h1v1h-1zM11 17h1v1h-1zM16 17h1v1h-1zM20 17h1v1h-1zM21 17h1v1h-1zM22 17h1v1h-1zM24 17h1v1h-1zM0 18h1v1h-1zM1 18h1v1h-1zM2 18h1v1h-1zM3 18h1v1h-1zM4 18h1v1h-1zM5 18h1v1h-1zM6 18h1v1h-1zM8 18h1v1h-1zM11 18h1v1h-1zM12 18h1v1h-1zM13 18h1v1h-1zM15 18h1v1h-1zM16 18h1v1h-1zM18 18h1v1h-1zM20 18h1v1h-1zM21 18h1v1h-1zM23 18h1v1h-1zM0 19h1v1h-1zM6 19h1v1h-1zM8 19h1v1h-1zM9 19h1v1h-1zM10 19h1v1h-1zM11 19h1v1h-1zM15 19h1v1h-1zM16 19h1v1h-1zM20 19h1v1h-1zM21 19h1v1h-1zM22 19h1v1h-1zM23 19h1v1h-1zM24 19h1v1h-1zM0 20h1v1h-1zM2 20h1v1h-1zM3 20h1v1h-1zM4 20h1v1h-1zM6 20h1v1h-1zM8 20h1v1h-1zM13 20h1v1h-1zM16 20h1v1h-1zM17 20h1v1h-1zM18 20h1v1h-1zM19 20h1v1h-1zM20 20h1v1h-1zM22 20h1v1h-1zM23 20h1v1h-1zM24 20h1v1h-1zM0 21h1v1h-1zM2 21h1v1h-1zM3 21h1v1h-1zM4 21h1v1h-1zM6 21h1v1h-1zM8 21h1v1h-1zM12 21h1v1h-1zM14 21h1v1h-1zM15 21h1v1h-1zM16 21h1v1h-1zM17 21h1v1h-1zM18 21h1v1h-1zM19 21h1v1h-1zM20 21h1v1h-1zM24 21h1v1h-1zM0 22h1v1h-1zM2 22h1v1h-1zM3 22h1v1h-1zM4 22h1v1h-1zM6 22h1v1h-1zM8 22h1v1h-1zM9 22h1v1h-1zM10 22h1v1h-1zM11 22h1v1h-1zM12 22h1v1h-1zM16 22h1v1h-1zM17 22h1v1h-1zM19 22h1v1h-1zM20 22h1v1h-1zM21 22h1v1h-1zM22 22h1v1h-1zM23 22h1v1h-1zM24 22h1v1h-1zM0 23h1v1h-1zM6 23h1v1h-1zM9 23h1v1h-1zM11 23h1v1h-1zM13 23h1v1h-1zM14 23h1v1h-1zM15 23h1v1h-1zM17 23h1v1h-1zM18 23h1v1h-1zM19 23h1v1h-1zM21 23h1v1h-1zM22 23h1v1h-1zM23 23h1v1h-1zM24 23h1v1h-1zM0 24h1v1h-1zM1 24h1v1h-1zM2 24h1v1h-1zM3 24h1v1h-1zM4 24h1v1h-1zM5 24h1v1h-1zM6 24h1v1h-1zM9 24h1v1h-1zM10 24h1v1h-1zM12 24h1v1h-1zM16 24h1v1h-1zM17 24h1v1h-1zM18 24h1v1h-1zM20 24h1v1h-1zM23 24h1v1h-1z" fill="#0C2A37"></path></svg></span>
+                    <span class="m-wt">WiFi de la casa</span>
+                    <span class="m-hint">Apunta la cámara del móvil: se conecta solo.</span>
+                    <span class="m-cred"><span><i>Red</i>CasaAzahar_5G</span><span><i>Clave</i>SolyMar2026</span></span>
+                  </span>
+                </button>
+                <button type="button" class="tile t-eat is-focus" data-tile="eat" data-title="Dónde comer" data-desc="Tus restaurantes de confianza. La carta se lleva al móvil con un QR." aria-label="Dónde comer">
+                  <img class="cover" src="/img/eat.webp" alt="">
+                  <span class="veil"></span>
+                  <span class="m-lbl">Dónde comer</span>
+                </button>
+                <button type="button" class="tile t-do" data-tile="do" data-title="Qué hacer" data-desc="Calas, rutas y planes, cada uno con su descripción. Si hay teléfono, un QR para escribir por WhatsApp." aria-label="Qué hacer">
+                  <img class="cover" src="/img/do.webp" alt="">
+                  <span class="veil"></span>
+                  <span class="m-lbl">Qué hacer</span>
+                </button>
+                <button type="button" class="tile t-lang" data-tile="lang" data-title="Idioma" data-desc="El huésped cambia de idioma desde la propia pantalla, entre 13." aria-label="Idioma: Español">
+                  <img class="cover" src="/img/lang.webp" alt="">
+                  <span class="veil veil-f"></span>
+                  <span class="m-c"><i>Idioma</i><b>Español</b></span>
+                </button>
+                <button type="button" class="tile t-stay" data-tile="stay" data-title="Tu estancia" data-desc="Hora de entrada y de salida, siempre a mano." aria-label="Tu estancia: entrada 16:00, salida 11:00">
+                  <img class="cover" src="/img/stay.webp" alt="">
+                  <span class="veil veil-f"></span>
+                  <span class="m-c"><b>16:00 · 11:00</b></span>
+                </button>
+                <button type="button" class="tile t-store" data-tile="store" data-title="Tienda" data-desc="Los productos y extras que ofreces, presentados como merecen." aria-label="Tienda">
+                  <img class="cover" src="/img/store.webp" alt="">
+                  <span class="veil"></span>
+                  <span class="m-lbl">Tienda</span>
+                </button>
+                <button type="button" class="tile t-code" data-tile="code" data-title="Código de entrada" data-desc="El dato que más se mira y peor se teclea, en grande." aria-label="Código de entrada">
+                  <span class="m-code"><i>Código de entrada</i><b>4821</b></span>
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="cap">
+        <p class="cap-k">En pantalla</p>
+        <p class="cap-t" data-cap-title>Dónde comer</p>
+        <p class="cap-d" data-cap-desc>Tus restaurantes de confianza. La carta se lleva al móvil con un QR.</p>
+      </div>
+      <div class="brand">
+        <p class="cap-k">El color de tu marca · <b data-brand-name>Terracota</b></p>
+        <div class="swatches">
+          <button type="button" class="sw on" data-brand="terracota" data-name="Terracota" data-brand-color="#C8613F" data-accent="#E07A5F" style="background:#E07A5F" aria-label="Color de marca: Terracota" aria-pressed="true"></button>
+          <button type="button" class="sw" data-brand="mar" data-name="Mar" data-brand-color="#128099" data-accent="#34C2C9" style="background:#34C2C9" aria-label="Color de marca: Mar" aria-pressed="false"></button>
+          <button type="button" class="sw" data-brand="oliva" data-name="Oliva" data-brand-color="#6F7D45" data-accent="#A8B56F" style="background:#A8B56F" aria-label="Color de marca: Oliva" aria-pressed="false"></button>
+          <button type="button" class="sw" data-brand="buganvilla" data-name="Buganvilla" data-brand-color="#A62B66" data-accent="#E0679B" style="background:#E0679B" aria-label="Color de marca: Buganvilla" aria-pressed="false"></button>
+          <button type="button" class="sw" data-brand="arena" data-name="Arena" data-brand-color="#9A8455" data-accent="#B99F62" style="background:#B99F62" aria-label="Color de marca: Arena" aria-pressed="false"></button>
+        </div>
+      </div>
+      <p class="fine">Ejemplo con datos ficticios. La pantalla se recorre sola hasta que tocas una tesela.</p>
+    </div>
+  </div>
+  <svg class="wave" viewBox="0 0 1440 80" preserveAspectRatio="none" aria-hidden="true"><path d="M0 46 C 160 8 320 8 480 40 S 800 84 960 48 S 1280 6 1440 40 V80 H0 Z" fill="#EEDFC5"></path></svg>
+</section>
+
+<!-- ============ ANTES DE QUE PREGUNTEN ============ -->
+<section class="sec qa-band" aria-labelledby="t-qa">
+  <div class="wrap qa">
+    <div class="qa-intro">
+      <p class="label">Antes de que pregunten</p>
+      <h2 class="h2" id="t-qa">Tus huéspedes hacen siempre las mismas <em>cuatro preguntas.</em></h2>
+      <p class="lead">La tele las responde antes de que te escriban a las once de la noche.</p>
+    </div>
+    <ol class="qa-list">
+      <li class="qa-row">
+        <span class="qa-n">01</span>
+        <p class="qa-q">«¿Cuál es la clave del WiFi?»</p>
+        <p class="qa-a"><b>En la tele</b><span>El QR está en el inicio: se apunta con la cámara y se conecta solo.</span></p>
+      </li>
+      <li class="qa-row">
+        <span class="qa-n">02</span>
+        <p class="qa-q">«¿A qué hora es la salida?»</p>
+        <p class="qa-a"><b>En la tele</b><span>Entrada y salida, a la vista en «Tu estancia».</span></p>
+      </li>
+      <li class="qa-row">
+        <span class="qa-n">03</span>
+        <p class="qa-q">«¿Cuál era el código de la puerta?»</p>
+        <p class="qa-a"><b>En la tele</b><span>El código de entrada, en grande, sin buscar un mensaje antiguo.</span></p>
+      </li>
+      <li class="qa-row">
+        <span class="qa-n">04</span>
+        <p class="qa-q">«¿Dónde cenamos hoy?»</p>
+        <p class="qa-a"><b>En la tele</b><span>Tus restaurantes de confianza, con la carta en el móvil por QR.</span></p>
+      </li>
+    </ol>
+  </div>
+</section>
+
+<!-- ============ LA PANTALLA ============ -->
+<section class="sec" id="pantalla" aria-labelledby="t-pan">
+  <div class="wrap">
+    <div class="sec-head c">
+      <p class="label">La pantalla</p>
+      <h2 class="h2" id="t-pan">Lo mejor de tu costa, legible desde el <em>sofá.</em></h2>
+      <p class="lead" style="margin-top:22px">El inicio es un mosaico: cada destino, una foto grande y un solo título. Todo a la vista desde el primer segundo, sin menús que buscar.</p>
+    </div>
+    <div class="arches">
+      <article class="arch-card">
+        <div class="arch"><img loading="lazy" decoding="async" src="/img/eat.webp" alt="Un plato de gambas con limón, un arco de piedra y el mar al fondo" style="object-position:46% 50%"></div>
+        <h3 class="h3">Dónde comer</h3>
+        <p>Tus restaurantes de confianza. La carta se lleva al móvil con un QR.</p>
+      </article>
+      <article class="arch-card">
+        <div class="arch"><img loading="lazy" decoding="async" src="/img/do.webp" alt="Una cala de aguas turquesa al atardecer con dos tumbonas en la arena" style="object-position:64% 50%"></div>
+        <h3 class="h3">Qué hacer</h3>
+        <p>Calas, rutas y planes, cada uno con su descripción. Si hay teléfono, un QR para escribir por WhatsApp.</p>
+      </article>
+      <article class="arch-card">
+        <div class="arch"><img loading="lazy" decoding="async" src="/img/store.webp" alt="Aceite de oliva y aceitunas sobre una mesa de madera, en una terraza con vistas al mar" style="object-position:60% 50%"></div>
+        <h3 class="h3">Tienda</h3>
+        <p>Los productos y extras que ofreces, presentados como merecen.</p>
+      </article>
+    </div>
+  </div>
+</section>
+
+<!-- ============ CÓMO FUNCIONA ============ -->
+<section class="sec steps-band" id="como-funciona" aria-labelledby="t-how">
+  <div class="wrap">
+    <div class="sec-head">
+      <p class="label">Cómo funciona</p>
+      <h2 class="h2" id="t-how">Tres pasos y la tele ya <em>recibe.</em></h2>
+    </div>
+    <ol class="steps">
+      <li class="step">
+        <span class="step-n">1</span>
+        <h3 class="h3">Cuéntalo una vez</h3>
+        <p>Rellena la guía de tu alojamiento en el panel: WiFi, normas, entrada y salida, y tus recomendaciones. Si ya usas la guía digital de VisualTaste, la tele la aprovecha tal cual.</p>
+      </li>
+      <li class="step">
+        <span class="step-n">2</span>
+        <h3 class="h3">Empareja la pantalla</h3>
+        <p>Genera un código en el panel y la tele queda vinculada a ese alojamiento.</p>
+        <p class="code-chip"><span>Código de emparejamiento · ejemplo</span><b>H7K4P2</b></p>
+      </li>
+      <li class="step">
+        <span class="step-n">3</span>
+        <h3 class="h3">Y a recibir</h3>
+        <p>Lo que cambies en el panel se refleja en la pantalla. No tienes que volver a tocar la tele.</p>
+      </li>
+    </ol>
+  </div>
+</section>
+
+<!-- ============ FRANJA DE FOTO ============ -->
+<section class="band" aria-labelledby="t-band">
+  <div>
+    <h2 class="h2" id="t-band" style="margin-top:0">Tus huéspedes eligieron el Mediterráneo. Que la primera pantalla que vean también <em>lo sea.</em></h2>
+    <div class="cta-row"><a class="btn btn-c" href="#demo">Pedir una demo</a></div>
+  </div>
+</section>
+
+<!-- ============ IDIOMAS ============ -->
+<section class="sec lang" id="idiomas" aria-labelledby="t-lang">
+  <svg class="wave-top" viewBox="0 0 1440 80" preserveAspectRatio="none" aria-hidden="true"><path d="M0 0 H1440 V38 C 1280 74 1120 74 960 38 S 640 2 480 38 S 160 74 0 38 Z" fill="#F8F3E9"></path></svg>
+  <div class="wrap lang-grid">
+    <div>
+      <p class="label">13 idiomas</p>
+      <h2 class="h2" id="t-lang">Cada huésped, en su <em>idioma.</em></h2>
+      <p class="lead">El huésped elige el idioma desde la propia pantalla y todo cambia con él: los rótulos, las guías y tus recomendaciones.</p>
+      <ul class="chips">
+        <li><button type="button" class="chip on" data-lang="es" data-greeting="Bienvenidos" data-dir="ltr" aria-pressed="true">Español</button></li>
+        <li><button type="button" class="chip" data-lang="en" data-greeting="Welcome" data-dir="ltr" aria-pressed="false">English</button></li>
+        <li><button type="button" class="chip" data-lang="fr" data-greeting="Bienvenue" data-dir="ltr" aria-pressed="false">Français</button></li>
+        <li><button type="button" class="chip" data-lang="de" data-greeting="Willkommen" data-dir="ltr" aria-pressed="false">Deutsch</button></li>
+        <li><button type="button" class="chip" data-lang="it" data-greeting="Benvenuti" data-dir="ltr" aria-pressed="false">Italiano</button></li>
+        <li><button type="button" class="chip" data-lang="pt" data-greeting="Bem-vindos" data-dir="ltr" aria-pressed="false">Português</button></li>
+        <li><button type="button" class="chip" data-lang="ca" data-greeting="Benvinguts" data-dir="ltr" aria-pressed="false">Català</button></li>
+        <li><button type="button" class="chip" data-lang="ar" data-greeting="أهلاً وسهلاً" data-dir="rtl" aria-pressed="false">العربية</button></li>
+        <li><button type="button" class="chip" data-lang="ru" data-greeting="Добро пожаловать" data-dir="ltr" aria-pressed="false">Русский</button></li>
+        <li><button type="button" class="chip" data-lang="uk" data-greeting="Ласкаво просимо" data-dir="ltr" aria-pressed="false">Українська</button></li>
+        <li><button type="button" class="chip" data-lang="zh" data-greeting="欢迎光临" data-dir="ltr" aria-pressed="false">中文</button></li>
+        <li><button type="button" class="chip" data-lang="ja" data-greeting="ようこそ" data-dir="ltr" aria-pressed="false">日本語</button></li>
+        <li><button type="button" class="chip" data-lang="ko" data-greeting="환영합니다" data-dir="ltr" aria-pressed="false">한국어</button></li>
+      </ul>
+    </div>
+    <div>
+      <p class="greet" id="greet" dir="ltr" lang="es">Bienvenidos</p>
+      <p class="greet-name" id="greet-name">Español</p>
+      <p class="fine">El árabe se lee de derecha a izquierda, y la pantalla lo respeta.</p>
+    </div>
+  </div>
+</section>
+
+<!-- ============ MEDIR ============ -->
+<section class="sec" aria-labelledby="t-med">
+  <div class="wrap measure-grid">
+    <div class="measure-copy">
+      <p class="label">Lo que mira tu huésped</p>
+      <h2 class="h2" id="t-med">Mide la pantalla, no a tus <em>huéspedes.</em></h2>
+      <p class="lead">El panel te dice cuántas veces se muestra la pantalla, qué secciones se abren y qué recomendaciones despiertan interés. Cada evento guarda solo qué se abrió, en qué pantalla y en qué idioma: nada que identifique a quien mira.</p>
+    </div>
+    <figure class="dash" aria-label="Ilustración del panel de estadísticas de la pantalla">
+      <figcaption class="dash-h"><span class="dash-t">Pantalla TV</span><span class="dash-s">Últimos 7 días</span></figcaption>
+      <div class="dash-chart" aria-hidden="true">
+        <i style="height:38%"></i><i style="height:52%"></i><i style="height:44%"></i><i style="height:66%"></i><i style="height:74%"></i><i class="hi" style="height:96%"></i><i style="height:84%"></i>
+      </div>
+      <div class="dash-days" aria-hidden="true"><span>L</span><span>M</span><span>X</span><span>J</span><span>V</span><span>S</span><span>D</span></div>
+      <ul class="dash-rows">
+        <li><span>Pantalla mostrada</span><span class="trk"><i style="width:92%"></i></span></li>
+        <li><span>Secciones abiertas</span><span class="trk"><i style="width:74%"></i></span></li>
+        <li><span>WiFi consultado</span><span class="trk"><i style="width:58%"></i></span></li>
+        <li><span>Recomendaciones vistas</span><span class="trk"><i style="width:46%"></i></span></li>
+        <li><span>QR de carta y de reserva mostrados</span><span class="trk"><i style="width:31%"></i></span></li>
+      </ul>
+      <p class="fine">Ilustración del panel. Las cifras reales aparecen en tu panel al empezar a medir.</p>
+    </figure>
+  </div>
+</section>
+
+<!-- ============ PRUEBA (marcador) ============ -->
+<section class="sec proof steps-band" aria-label="Testimonio">
+  <figure class="wrap proof-fig">
+    <blockquote>[Testimonio de un property manager: en dos frases, qué cambió en la llegada de sus huéspedes desde que la tele los recibe]</blockquote>
+    <figcaption>[Nombre · Empresa · N.º de alojamientos]</figcaption>
+  </figure>
+</section>
+
+<!-- ============ PREGUNTAS ============ -->
+<section class="sec faq-band" id="preguntas" aria-labelledby="t-faq">
+  <div class="wrap">
+    <div class="sec-head">
+      <p class="label">Preguntas</p>
+      <h2 class="h2" id="t-faq">Lo que suele preguntar quien gestiona <em>alojamientos.</em></h2>
+    </div>
+    <div class="faq-grid">
+      <div class="faq-item">
+        <h3 class="faq-q">¿En qué televisores funciona?</h3>
+        <p class="faq-a">Hoy, en televisores con Android TV, como los Philips o los TCL. Si la tuya es de otra plataforma, cuéntanoslo y lo estudiamos.</p>
+      </div>
+      <div class="faq-item">
+        <h3 class="faq-q">¿Tienen que instalar algo los huéspedes?</h3>
+        <p class="faq-a">Nada. Se maneja con el mando de la tele. Para llevarse una carta, una dirección o el WiFi al móvil, basta con escanear un QR con la cámara.</p>
+      </div>
+      <div class="faq-item">
+        <h3 class="faq-q">¿Quién actualiza el contenido?</h3>
+        <p class="faq-a">Tú, desde el panel de VisualTaste. Es la misma guía digital del alojamiento: lo que cambias ahí se refleja en la pantalla.</p>
+      </div>
+      <div class="faq-item">
+        <h3 class="faq-q">¿Necesita internet?</h3>
+        <p class="faq-a">Sí: el contenido llega por internet, y por eso lo que cambias en el panel aparece en la pantalla sin que tengas que ir a tocar la tele.</p>
+      </div>
+      <div class="faq-item">
+        <h3 class="faq-q">¿Cuánto cuesta?</h3>
+        <p class="faq-a">Depende de cuántos alojamientos y pantallas tengas. Cuéntanos tu caso en la demo y te lo decimos.</p>
+      </div>
+      <div class="faq-item">
+        <h3 class="faq-q">¿Qué datos se guardan?</h3>
+        <p class="faq-a">La pantalla no pide datos ni tiene cuentas. Cada evento anota solo qué se abrió, en qué pantalla y en qué idioma.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ CIERRE ============ -->
+<section class="sec cta" id="demo" aria-labelledby="t-cta">
+  <div class="wrap cta-grid">
+    <div>
+      <p class="label">Pedir una demo</p>
+      <h2 class="h2" id="t-cta">Recibe a tus huéspedes como se <em>merecen.</em></h2>
+      <p class="lead">Cuéntanos cuántos alojamientos gestionas y te enseñamos cómo se vería VisualTaste TV en el tuyo.</p>
+      <div class="cta-row"><a class="btn btn-c" href="#demo">Pedir una demo</a></div>
+      <p class="fine">[Destino del botón: email, WhatsApp o calendario de reservas]</p>
+    </div>
+    <div class="cta-arch"><img loading="lazy" decoding="async" src="/img/eat.webp" alt="Un arco de piedra cubierto de buganvilla que enmarca el mar"></div>
+  </div>
+</section>
+
+</main>
+
+<footer class="foot">
+  <svg class="azulejo" width="100%" height="56" aria-hidden="true">
+    <defs>
+      <pattern id="azu" width="56" height="56" patternUnits="userSpaceOnUse">
+        <rect width="56" height="56" fill="#F8F3E9"></rect>
+        <rect class="az-line" x="1" y="1" width="54" height="54"></rect>
+        <path d="M28 6 C31 17 39 25 50 28 C39 31 31 39 28 50 C25 39 17 31 6 28 C17 25 25 17 28 6 Z" fill="#128099"></path>
+        <circle cx="28" cy="28" r="5" fill="#F0B04B"></circle>
+        <circle cx="0" cy="0" r="7" fill="#B04E2B"></circle>
+        <circle cx="56" cy="0" r="7" fill="#B04E2B"></circle>
+        <circle cx="0" cy="56" r="7" fill="#B04E2B"></circle>
+        <circle cx="56" cy="56" r="7" fill="#B04E2B"></circle>
+      </pattern>
+    </defs>
+    <rect width="100%" height="56" fill="url(#azu)"></rect>
+  </svg>
+  <div class="wrap foot-in">
+    <div>
+      <p class="foot-mark">VisualTaste <small>TV</small></p>
+      <p class="foot-p">La pantalla de bienvenida de VisualTaste, la plataforma de carta digital y guía del alojamiento para restaurantes y alojamientos.</p>
+    </div>
+    <p class="foot-c">© 2026 VisualTaste · <a href="#inicio">Volver arriba</a></p>
+  </div>
+</footer>
+
+</div>
+<script type="module" src="/src/main.ts"></script>
+</body>
+</html>

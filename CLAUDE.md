@@ -78,7 +78,8 @@ Repo raíz
 │   ├── admin/   ← Panel de gestión (React 18 + Tailwind + MUI)
 │   ├── client/  ← Carta digital "Gravy" (React 19 + Emotion, NO Tailwind)
 │   ├── guide/   ← Guidebook (React 19 + Tailwind v4 + Leaflet)
-│   └── tv/      ← VisualTaste TV (React 19 + Tailwind v4, 10-foot UI + mando)
+│   ├── tv/      ← VisualTaste TV (React 19 + Tailwind v4, 10-foot UI + mando)
+│   └── tv-landing/ ← Landing de venta de VisualTaste TV (HTML + TS sin framework, CSS propio)
 └── packages/
     ├── api/     ← @visualtaste/api (cliente API compartido, build con tsup)
     └── ui/      ← componentes UI compartidos
@@ -91,13 +92,14 @@ Repo raíz
 - **R2:** `mediabucket`, binding `R2_BUCKET` (imágenes/vídeos de menús).
 - **KV:** `GUIDE_CACHE` (`89c3875...`), caché del guidebook (TTL ~15 min).
 - **Workers AI:** binding `AI` (asistente del guidebook).
-- **Pages (4 proyectos, rama `main`):**
+- **Pages (4 proyectos + la landing por crear, rama `main`):**
   | Proyecto | Build dir | Dominios |
   |---|---|---|
   | `visualtaste` | `apps/client/dist` | visualtastes.com, www, menu.visualtastes.com |
   | `visualtasteadmin` | `apps/admin/dist` | admin.visualtastes.com |
   | `visualtastes-guide` | `apps/guide/dist` | guide.visualtastes.com |
-  | `visualtaste-tv` | `apps/tv/dist` | visualtaste-tv.pages.dev (dominio `tv.visualtastes.com` pendiente de añadir a mano desde el dashboard) |
+  | `visualtaste-tv` | `apps/tv/dist` | visualtaste-tv.pages.dev (`tv.visualtastes.com` está aquí hasta que se mueva a la landing, ver abajo) |
+  | `visualtaste-tv-landing` | `apps/tv-landing/dist` | tv.visualtastes.com — **proyecto aún sin crear y dominio sin mover** (ver abajo) |
 
   **`apps/tv` (VisualTaste TV)**: pantalla de bienvenida para TVs de alojamientos
   (WiFi, guía, alrededores). En producción real (Android TV vía APK) el shell debe
@@ -106,6 +108,16 @@ Repo raíz
   al APK, NO de dónde la TV descarga el shell en caliente en cada encendido (el WiFi
   de un apartamento turístico es poco fiable justo al arrancar). Solo los DATOS
   (`/guide/tv/config/:pairingCode`) deben ir siempre por red.
+
+  **`apps/tv-landing`** (landing de venta de VisualTaste TV, para property managers): sitio
+  estático para `tv.visualtastes.com`, en su propio proyecto de Pages `visualtaste-tv-landing`
+  (**pendiente de crear y de mover el dominio**: wrangler no gestiona dominios de Pages ni la
+  API crea el DNS, así que se hace a mano en el dashboard, quitándolo de `visualtaste-tv`).
+  La app de la TV **se queda en `visualtaste-tv`** (visualtaste-tv.pages.dev, ya en
+  `ALLOWED_ORIGINS`): `apps/tv/dist` va siempre ahí y `apps/tv-landing/dist` siempre al otro
+  proyecto. Los enlaces heredados (los QR del admin `/#<código>` y el modo demo `/<slug>`)
+  llegan a la landing y `src/legacy.ts` los reenvía a la app; por eso el proyecto de la
+  landing NO debe tener `404.html` (sin él, Pages sirve `index.html` para cualquier ruta).
 
 ---
 
@@ -284,6 +296,19 @@ privacidad de la cabecera (el pie no se renderiza en Explorar ni en Chat).
 
 ### Reglas frontend comunes (de las rules existentes)
 - **TypeScript estricto**: interfaces para props y respuestas de API. Evita `any`.
+### `apps/tv-landing` — Landing de VisualTaste TV
+- **HTML + TypeScript sin framework** (Vite 7). CSS propio en `src/styles/landing.css`, con
+  container queries sobre `.page`: **ni Tailwind, ni Emotion, ni React**. Es una página de venta:
+  tiene que ser HTML indexable y pesar poco, no una SPA. Dev port **5177** (`npm run dev:tv-landing`).
+- **El contenido vive en `index.html`** (textos, colores de marca y saludos como `data-*`);
+  `src/*.ts` solo pone comportamiento. Si falta un elemento que el TS espera, falla al arrancar.
+- **Cero peticiones a terceros**: fuentes autoalojadas (`@fontsource-variable`, como `apps/tv`),
+  nada de Google Fonts ni analítica externa. Es coherente con el producto (privacy-first).
+- **Sin iconos** (ni pictogramas, ni emoji, ni banderas): decisión de diseño de Francisco.
+- `public/img/` es una **copia** de `apps/tv/src/assets/tiles/` y `src/lib/theme.ts` copia el
+  `buildTheme` de `apps/tv`: no se importan para no acoplarse a una app con cambios en curso.
+- Build: `tsc --noEmit && vite build`.
+
 - `useMemo`/`useCallback` para cálculos caros y estabilidad de referencias.
 - Virtualiza/pagina listas >50 ítems. `React.lazy` + `Suspense` para rutas.
 - Componentes funcionales (arrow), uno por archivo, named exports.
@@ -313,12 +338,14 @@ npm run dev:guide      # guidebook (puerto 5175)
 npm run dev:tv         # VisualTaste TV (puerto 5176)
 
 # --- Build ---
+npm run dev:tv-landing # landing de venta de la TV (puerto 5177)
 npm run build:admin    # → apps/admin/dist
 npm run build:client   # → apps/client/dist
 npm run build:guide    # → apps/guide/dist
 npm run build:tv       # → apps/tv/dist
 
 # --- Tests (worker, node puro, sin framework) ---
+npm run build:tv-landing # → apps/tv-landing/dist
 npm test               # las 3 suites
 npm run test:authz     # scoping multi-tenant (workerAuthz.js)
 npm run test:auth      # login/JWT (workerAuthentication.js)
@@ -344,11 +371,13 @@ npx wrangler pages deploy apps/guide/dist  --project-name=visualtastes-guide
 npx wrangler pages deploy apps/tv/dist     --project-name=visualtaste-tv
 
 # --- Demos para agencias (ver §10 y la skill /demo) ---
+npx wrangler pages deploy apps/tv-landing/dist --project-name=visualtaste-tv-landing   # el proyecto hay que crearlo antes (§2)
 node scripts/demo-seed/seed.mjs <clave>   # ficha JSON → seed.sql + teardown.sql + assets.ps1
 ```
 
 Puertos de dev previstos (según CORS de `worker.js`): client `5173`, admin `5174`,
-guide `5175`, tv `5176`. admin/client no fijan `port` en su `vite.config` → puede que
+guide `5175`, tv `5176` (tv-landing `5177`, sin API: no necesita CORS). admin/client no
+fijan `port` en su `vite.config` → puede que
 necesites `-- --port 5174` para el admin y evitar colisión con el 5173.
 
 El frontend habla con el backend vía `VITE_API_URL` (URL del worker). Configurada en

@@ -27,6 +27,12 @@
       "port": 5176
     },
     {
+      "name": "tv-landing",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["--prefix", "apps/tv-landing", "run", "dev"],
+      "port": 5177
+    },
+    {
       "_comment": "Segunda instancia del guide para sesiones paralelas, igual que worker-verify. El 5185 SÍ está en ALLOWED_ORIGINS (workerCors.js), así que habla con el worker con normalidad.",
       "name": "guide-verify",
       "runtimeExecutable": "npm",
