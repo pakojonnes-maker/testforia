@@ -111,8 +111,9 @@ Repo raíz
 
   **`apps/tv-landing`** (landing de venta de VisualTaste TV, para property managers): sitio
   estático para `tv.visualtastes.com`, en su propio proyecto de Pages `visualtaste-tv-landing`
-  (**pendiente de crear y de mover el dominio**: wrangler no gestiona dominios de Pages ni la
-  API crea el DNS, así que se hace a mano en el dashboard, quitándolo de `visualtaste-tv`).
+  (creado y desplegado el 2026-09-19; **pendiente de mover el dominio**: wrangler no gestiona
+  dominios de Pages ni la API crea el DNS, así que se hace a mano en el dashboard, quitándolo
+  de `visualtaste-tv`).
   La app de la TV **se queda en `visualtaste-tv`** (visualtaste-tv.pages.dev, ya en
   `ALLOWED_ORIGINS`): `apps/tv/dist` va siempre ahí y `apps/tv-landing/dist` siempre al otro
   proyecto. Los enlaces heredados (los QR del admin `/#<código>` y el modo demo `/<slug>`)
@@ -294,8 +295,6 @@ privacidad de la cabecera (el pie no se renderiza en Explorar ni en Chat).
   el APK. Nunca asumas red disponible en el arranque.
 - Build: `tsc -b && vite build`.
 
-### Reglas frontend comunes (de las rules existentes)
-- **TypeScript estricto**: interfaces para props y respuestas de API. Evita `any`.
 ### `apps/tv-landing` — Landing de VisualTaste TV
 - **HTML + TypeScript sin framework** (Vite 7). CSS propio en `src/styles/landing.css`, con
   container queries sobre `.page`: **ni Tailwind, ni Emotion, ni React**. Es una página de venta:
@@ -309,6 +308,8 @@ privacidad de la cabecera (el pie no se renderiza en Explorar ni en Chat).
   `buildTheme` de `apps/tv`: no se importan para no acoplarse a una app con cambios en curso.
 - Build: `tsc --noEmit && vite build`.
 
+### Reglas frontend comunes (de las rules existentes)
+- **TypeScript estricto**: interfaces para props y respuestas de API. Evita `any`.
 - `useMemo`/`useCallback` para cálculos caros y estabilidad de referencias.
 - Virtualiza/pagina listas >50 ítems. `React.lazy` + `Suspense` para rutas.
 - Componentes funcionales (arrow), uno por archivo, named exports.
@@ -336,16 +337,16 @@ npm run dev:admin      # panel admin
 npm run dev:client     # carta digital
 npm run dev:guide      # guidebook (puerto 5175)
 npm run dev:tv         # VisualTaste TV (puerto 5176)
+npm run dev:tv-landing # landing de venta de la TV (puerto 5177)
 
 # --- Build ---
-npm run dev:tv-landing # landing de venta de la TV (puerto 5177)
 npm run build:admin    # → apps/admin/dist
 npm run build:client   # → apps/client/dist
 npm run build:guide    # → apps/guide/dist
 npm run build:tv       # → apps/tv/dist
+npm run build:tv-landing # → apps/tv-landing/dist
 
 # --- Tests (worker, node puro, sin framework) ---
-npm run build:tv-landing # → apps/tv-landing/dist
 npm test               # las 3 suites
 npm run test:authz     # scoping multi-tenant (workerAuthz.js)
 npm run test:auth      # login/JWT (workerAuthentication.js)
@@ -369,9 +370,9 @@ npx wrangler pages deploy apps/client/dist --project-name=visualtaste
 npx wrangler pages deploy apps/admin/dist  --project-name=visualtasteadmin
 npx wrangler pages deploy apps/guide/dist  --project-name=visualtastes-guide
 npx wrangler pages deploy apps/tv/dist     --project-name=visualtaste-tv
+npx wrangler pages deploy apps/tv-landing/dist --project-name=visualtaste-tv-landing
 
 # --- Demos para agencias (ver §10 y la skill /demo) ---
-npx wrangler pages deploy apps/tv-landing/dist --project-name=visualtaste-tv-landing
 node scripts/demo-seed/seed.mjs <clave>   # ficha JSON → seed.sql + teardown.sql + assets.ps1
 ```
 
