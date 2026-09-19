@@ -92,14 +92,14 @@ Repo raíz
 - **R2:** `mediabucket`, binding `R2_BUCKET` (imágenes/vídeos de menús).
 - **KV:** `GUIDE_CACHE` (`89c3875...`), caché del guidebook (TTL ~15 min).
 - **Workers AI:** binding `AI` (asistente del guidebook).
-- **Pages (4 proyectos + la landing por crear, rama `main`):**
+- **Pages (5 proyectos, rama `main`):**
   | Proyecto | Build dir | Dominios |
   |---|---|---|
   | `visualtaste` | `apps/client/dist` | visualtastes.com, www, menu.visualtastes.com |
   | `visualtasteadmin` | `apps/admin/dist` | admin.visualtastes.com |
   | `visualtastes-guide` | `apps/guide/dist` | guide.visualtastes.com |
   | `visualtaste-tv` | `apps/tv/dist` | visualtaste-tv.pages.dev (`tv.visualtastes.com` está aquí hasta que se mueva a la landing, ver abajo) |
-  | `visualtaste-tv-landing` | `apps/tv-landing/dist` | tv.visualtastes.com — **proyecto aún sin crear y dominio sin mover** (ver abajo) |
+  | `visualtaste-tv-landing` | `apps/tv-landing/dist` | visualtaste-tv-landing.pages.dev (`tv.visualtastes.com` **pendiente de mover** desde `visualtaste-tv`, ver abajo) |
 
   **`apps/tv` (VisualTaste TV)**: pantalla de bienvenida para TVs de alojamientos
   (WiFi, guía, alrededores). En producción real (Android TV vía APK) el shell debe
@@ -371,7 +371,7 @@ npx wrangler pages deploy apps/guide/dist  --project-name=visualtastes-guide
 npx wrangler pages deploy apps/tv/dist     --project-name=visualtaste-tv
 
 # --- Demos para agencias (ver §10 y la skill /demo) ---
-npx wrangler pages deploy apps/tv-landing/dist --project-name=visualtaste-tv-landing   # el proyecto hay que crearlo antes (§2)
+npx wrangler pages deploy apps/tv-landing/dist --project-name=visualtaste-tv-landing
 node scripts/demo-seed/seed.mjs <clave>   # ficha JSON → seed.sql + teardown.sql + assets.ps1
 ```
 
