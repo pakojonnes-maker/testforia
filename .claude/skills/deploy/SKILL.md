@@ -48,6 +48,17 @@ encaje). Mira `git log` para el tono. La migración D1 que necesite el código v
 **mismo commit o lote** — nunca código desplegado que dependa de una migración sin
 commitear.
 
+**Ficheros compartidos con otras sesiones** (`CLAUDE.md`, `package.json`,
+`.claude/launch.json`…): commitea solo tus líneas. `git add -p` es interactivo y aquí no
+sirve, y **no uses `git apply --cached --unidiff-zero` con hunks sueltos**: sin contexto,
+Git coloca las inserciones según la numeración de la copia de trabajo, y si hay un hunk
+ajeno antes, tus líneas quedan desplazadas en el commit (pasó con `CLAUDE.md`, sep-2026:
+una sección entera partió una lista por la mitad). Hazlo así: construye el fichero que
+quieres commitear (la copia de trabajo menos los hunks ajenos), mételo en el índice con
+`git update-index --cacheinfo <modo>,$(git hash-object -w <fichero>),<ruta>` y comprueba
+que `git diff -- <ruta>` solo enseña lo ajeno. Sin subir todavía, no reescribas commits que
+un despliegue ya registró (Pages guarda el hash): corrige con otro commit.
+
 ## 4. Migración ANTES que código
 
 Si el deploy depende de columnas/tablas nuevas: aplica la migración a remoto **primero**
