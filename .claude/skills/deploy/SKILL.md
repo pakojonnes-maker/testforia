@@ -58,6 +58,18 @@ Si el deploy depende de columnas/tablas nuevas: aplica la migración a remoto **
 El comando de la tabla del paso 0. Si el hook bloquea, la respuesta correcta es
 commitear, no `VT_ALLOW_DIRTY_DEPLOY=1`.
 
+**La única excepción real** (pasa a menudo: varias sesiones sobre la misma carpeta):
+lo sucio es de OTRA sesión y está a medias. Commitearlo sería publicar trabajo ajeno
+sin terminar bajo tu commit, así que ahí sí va el override — pero antes demuestra que
+esos ficheros no pueden llegar a producción por ninguno de los artefactos que
+despliegas, y dilo en la respuesta:
+
+- worker → `wrangler.toml` tiene `main = "worker.js"` y **ningún** `[site]`/`assets`,
+  así que sube solo el grafo de imports de `worker.js`. Ficheros sueltos de `apps/*`
+  o `.md` no entran. Compruébalo, no lo asumas: si alguien añade `assets`, cambia.
+- Pages → cada proyecto sube su `dist`, que sale de su propia app.
+- Y avisa igualmente al usuario de qué ficheros ajenos hay, citándolos por nombre.
+
 ## 6. Invalidar la caché KV si cambió la FORMA de la respuesta del guide
 
 Desplegar **no** invalida `guide:{slug}:{lang}:v{version}`. Si añadiste/cambiaste campos
@@ -68,8 +80,20 @@ afectado:
 npx wrangler kv key put --namespace-id=89c387501e00410b9d4f0d80dc563bf2 "ver:apt:<slug>" "$(date +%s%3N)" --remote
 ```
 
-Slugs reales hoy: `paloma-park-benalmadena`, `piso-playa-burriana-2b`,
-`atico-balcon-europa`.
+**No copies una lista de slugs de aquí.** Desde la migración `0089` cada slug lleva un
+sufijo aleatorio (`paloma-park-benalmadena-9ffdb397`), y esta skill llegó a tener tres
+slugs sin sufijo: bumpear `ver:apt:paloma-park-benalmadena` no falla, escribe una clave
+que no lee nadie y te deja creyendo que invalidaste la caché. Pregúntaselos a la base:
+
+```bash
+npx wrangler d1 execute restaurant-menu-saas --remote --json --command="SELECT slug FROM guide_apartments WHERE is_active = 1"
+```
+
+Atajo: si sólo quieres comprobar la forma nueva sin bumpear nada, pide un idioma que
+nadie haya cacheado todavía (`?lang=fr`) — es otra clave de KV, así que sale `MISS`.
+Y recuerda que la entrada caduca sola a las 24 h (`expirationTtl: 86400`): si desde el
+deploy ha pasado más de un día, el bump ya no hace falta — verifica el CONTENIDO y
+decide, no bumpees por ritual.
 
 ## 7. Verificar con datos reales
 

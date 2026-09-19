@@ -2,15 +2,20 @@
 -- BDschemaFinal.sql — ESQUEMA REAL DE PRODUCCION
 -- =====================================================
 -- Base de datos D1: restaurant-menu-saas (7e8d1efe-2a54-4849-9a06-4c47152392bd)
--- Exportado el 2026-09-10 desde la BD en produccion, tras aplicar la
--- migracion 0093 (tres ranuras mas para las teselas de VisualTaste TV):
---   · guide_tv_tile_images recreada para ampliar el CHECK de `slot` de cinco
---     a ocho valores: eat, do, store, info, lang, stay, wifi, background.
---     SQLite no deja alterar un CHECK, asi que la tabla se recrea y se copia.
---     OJO: sin BEGIN TRANSACTION/COMMIT en el fichero — D1 remoto los rechaza
---     (ya envuelve el fichero en su transaccion) aunque el SQLite local si los
---     acepte. Que una migracion pase en local NO prueba que pase en remoto.
--- 87 tablas.
+-- Exportado el 2026-09-19 desde la BD en produccion, tras aplicar la
+-- migracion 0094 (una sola capa de overrides por apartamento):
+--   · guide_apartment_items sustituye a guide_apartment_pois y a
+--     guide_apartment_item_order, que se BORRAN. La primera era una lista de
+--     inclusion con interruptor todo-o-nada (workerGuide.js contaba sus filas
+--     y, con una sola, dejaba de servir el catalogo de la zona), asi que un
+--     piso con 2 filas enseñaba 2 de los 12 sitios de su zona.
+--   · Ahora una fila solo puede OCULTAR o RECOLOCAR, y guarda ademas la
+--     distancia desde ese piso. order_override NULL = hereda el orden global;
+--     nunca poner DEFAULT 0, que fue lo que anulaba order_index.
+--   · item_type vale poi | store_item | restaurant. No hay 'experience':
+--     lugares y experiencias son la misma tabla desde 0059, y dos tipos
+--     permitian dos filas contradictorias para el mismo guide_pois.id.
+-- 86 tablas (eran 87: dos fuera, una nueva).
 --
 -- NO editar a mano. Para regenerar:
 --   npx wrangler d1 export restaurant-menu-saas --remote --no-data --output BDschemaFinal.sql
@@ -1013,16 +1018,6 @@ CREATE TABLE guide_section_views (
   FOREIGN KEY (session_id) REFERENCES guide_sessions(id),
   FOREIGN KEY (apartment_id) REFERENCES guide_apartments(id)
 );
-CREATE TABLE guide_apartment_pois (
-  apartment_id TEXT NOT NULL,
-  poi_id       TEXT NOT NULL,
-  order_override INTEGER DEFAULT 0,
-  is_hidden    BOOLEAN DEFAULT FALSE,
-  created_at   TIMESTAMP DEFAULT CURRENT_TIMESTAMP, travel_time_text TEXT, travel_mode      TEXT, distance_text    TEXT,
-  PRIMARY KEY (apartment_id, poi_id),
-  FOREIGN KEY (apartment_id) REFERENCES guide_apartments(id) ON DELETE CASCADE,
-  FOREIGN KEY (poi_id) REFERENCES guide_pois(id) ON DELETE CASCADE
-);
 CREATE TABLE guide_info_steps (
   id                  TEXT PRIMARY KEY,
   apartment_info_id   TEXT NOT NULL,
@@ -1233,17 +1228,6 @@ CREATE TABLE IF NOT EXISTS "guide_coupons" (
   created_at      TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   FOREIGN KEY (poi_id) REFERENCES guide_pois(id)
 );
-CREATE TABLE guide_apartment_item_order (
-  apartment_id   TEXT NOT NULL,
-  item_type      TEXT NOT NULL,           -- 'experience' | 'store_item' | 'restaurant'
-  item_id        TEXT NOT NULL,           -- guide_pois.id | guide_store_items.id | restaurants.id
-  order_override INTEGER,                 -- NULL = hereda el order_index global
-  is_hidden      BOOLEAN DEFAULT FALSE,
-  created_at     TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-  modified_at    TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-  PRIMARY KEY (apartment_id, item_type, item_id),
-  FOREIGN KEY (apartment_id) REFERENCES guide_apartments(id) ON DELETE CASCADE
-);
 CREATE TABLE IF NOT EXISTS "guide_tv_tile_images" (
   apartment_id  TEXT NOT NULL,
   -- Mismas claves que TileSlot en apps/tv/src/lib/tileImages.ts y que
@@ -1257,6 +1241,22 @@ CREATE TABLE IF NOT EXISTS "guide_tv_tile_images" (
   updated_at    TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY (apartment_id, slot),
   FOREIGN KEY (apartment_id) REFERENCES guide_apartments(id) ON DELETE CASCADE
+);
+CREATE TABLE guide_apartment_items (
+    apartment_id     TEXT NOT NULL,
+    item_type        TEXT NOT NULL,   -- 'poi' | 'store_item' | 'restaurant'
+    item_id          TEXT NOT NULL,   -- guide_pois.id | guide_store_items.id | restaurants.id
+    is_hidden        BOOLEAN DEFAULT FALSE,
+    order_override   INTEGER,         -- NULL = hereda el order_index global. NUNCA poner DEFAULT 0.
+    -- Distancia/tiempo desde ESTE apartamento. NULL = usar el valor de zona
+    -- que lleve el propio ítem.
+    travel_time_text TEXT,
+    travel_mode      TEXT,            -- walk|drive|bike
+    distance_text    TEXT,
+    created_at       TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    modified_at      TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (apartment_id, item_type, item_id),
+    FOREIGN KEY (apartment_id) REFERENCES guide_apartments(id) ON DELETE CASCADE
 );
 CREATE INDEX idx_dishes_restaurant ON dishes(restaurant_id);
 CREATE INDEX idx_sections_restaurant ON sections(restaurant_id);
@@ -1321,7 +1321,6 @@ CREATE INDEX idx_guide_agency_staff_user ON guide_agency_staff(user_id);
 CREATE INDEX idx_guide_sessions_fingerprint ON guide_sessions(device_fingerprint, apartment_id);
 CREATE INDEX idx_guide_section_views_apt ON guide_section_views(apartment_id, section, created_at);
 CREATE INDEX idx_guide_section_views_session ON guide_section_views(session_id);
-CREATE INDEX idx_guide_apt_pois_apt ON guide_apartment_pois(apartment_id, is_hidden, order_override);
 CREATE INDEX idx_guide_info_steps ON guide_info_steps(apartment_info_id, step_number);
 CREATE INDEX idx_guide_step_media ON guide_info_step_media(step_id, order_index);
 CREATE INDEX idx_guide_pois_zone_active ON guide_pois(zone_id, is_active, order_index);
@@ -1370,5 +1369,5 @@ CREATE INDEX idx_guide_pois_promoted
   ON guide_pois(zone_id, is_bookable, promotion_rank);
 CREATE INDEX idx_guide_store_items_promoted
   ON guide_store_items(is_active, promotion_rank);
-CREATE INDEX idx_guide_apt_item_order
-  ON guide_apartment_item_order(apartment_id, item_type, is_hidden);
+CREATE INDEX idx_guide_apt_items_lookup
+    ON guide_apartment_items(apartment_id, item_type, is_hidden);
