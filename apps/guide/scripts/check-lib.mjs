@@ -47,6 +47,14 @@ eq(L.paragraphs('1. Solo una línea numerada'), [{ head: null, body: '1. Solo un
 eq(L.paragraphs('  \n\n  '), [], 'solo espacios');
 eq(L.paragraphs(undefined), [], 'undefined');
 
+console.log('— Importes del pedido');
+const nb = (s) => s.replace(/\u00a0|\u202f/g, ' ');
+eq(nb(L.formatMoney(38, 'EUR', 'es')), '38 €', 'entero: sin decimales');
+eq(nb(L.formatMoney(38.5, 'EUR', 'es')), '38,50 €', 'con decimales: dos, con la coma española');
+eq(nb(L.formatMoney(38.5, 'EUR', 'en')), '€38.50', 'en inglés, el símbolo delante y el punto');
+eq(L.formatMoney(12, 'ZZZZ', 'es'), '12.00 ZZZZ', 'moneda desconocida: no rompe');
+eq(nb(L.formatMoney(9.9, '', 'de')), '9,90 €', 'sin moneda: euros');
+
 console.log('— Tamaño del código');
 eq([L.codeSize('4821'), L.codeSize('48291'), L.codeSize('482913'), L.codeSize('4829135'), L.codeSize('48291357'), L.codeSize('48 29')], ['', 's', 's', 'xs', 'xs', ''], '4 caben grandes; 5–6 medianas; 7–8 pequeñas');
 

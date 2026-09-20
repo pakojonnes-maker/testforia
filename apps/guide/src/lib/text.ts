@@ -23,6 +23,24 @@ export function paragraphs(content: string | null | undefined): Paragraph[] {
     .filter(p => p.head || p.body);
 }
 
+/**
+ * Un importe con el formato de la moneda y del idioma: «38 €» y no «38,00 €» si es entero. Si el navegador no
+ * conoce la moneda o el idioma, cae a «38.00 €» en vez de romper el pedido.
+ */
+export function formatMoney(amount: number, currency: string, lang: string): string {
+  const whole = Number.isInteger(amount);
+  try {
+    return new Intl.NumberFormat(lang, {
+      style: 'currency',
+      currency: currency || 'EUR',
+      minimumFractionDigits: whole ? 0 : 2,
+      maximumFractionDigits: 2,
+    }).format(amount);
+  } catch {
+    return `${amount.toFixed(2)} ${!currency || currency === 'EUR' ? '€' : currency}`;
+  }
+}
+
 /** Tamaño del código de entrada según su longitud: 4 cifras caben grandes; 6 u 8 no. */
 export function codeSize(code: string): '' | 's' | 'xs' {
   const n = code.replace(/\s/g, '').length;

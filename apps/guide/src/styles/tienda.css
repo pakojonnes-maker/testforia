@@ -1,0 +1,104 @@
+/* =========================================================
+   PARTE 6 — Tienda: rejilla de productos con contador, tarjetas de experiencias, la tarjeta oscura del pedido
+   que se despliega y los avisos del pedido. Los colores de la agencia entran solo por --g-*; nada de marca
+   escrito a mano (salvo el rojo del aviso de error, que es el de «algo ha fallado», no el de ninguna marca).
+   (.g-sub, .g-disc y .g-empty-page vienen de comer.css.)
+   ========================================================= */
+@layer components {
+  /* Cabeceras de grupo. */
+  .g-sub2 { margin: 34px 20px 14px; }
+  .g-sub2 .g-h3 { font-size: 22px; }
+  .g-sub2 .g-p { margin-top: 8px; font-size: 14.5px; }
+
+  /* ---------- productos: dos columnas ---------- */
+  .g-prods { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 26px 12px; margin: 0 20px; }
+  .g-prod { display: flex; flex-direction: column; min-width: 0; }
+  .g-prod .g-ph { position: relative; aspect-ratio: 1 / 1; overflow: hidden; border-radius: 24px; background: var(--g-arena); }
+  .g-prod .g-ph img { width: 100%; height: 100%; object-fit: cover; }
+  .g-prod .g-ph.g-noph { display: grid; place-items: end center; }
+  .g-prod .g-ph.g-noph i { font: italic 700 96px/1 var(--g-ff-head); color: var(--g-text); opacity: 0.9; transform: translateY(16%); }
+  .g-prod .g-ph .g-badge { position: absolute; inset-inline-start: 10px; inset-block-start: 10px; }
+  .g-prod .g-h3 { margin-top: 12px; font-size: 17px; }
+  .g-prod .g-price { margin: 4px 0 12px; font: 700 15px/1.2 var(--g-ff-body); color: var(--g-text); font-variant-numeric: tabular-nums; }
+  .g-prod .g-meta { margin: -6px 0 12px; font-size: 12.5px; }
+  .g-clamp2 { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; line-clamp: 2; overflow: hidden; unicode-bidi: plaintext; }
+  .g-prod > .g-pill { margin-top: auto; width: 100%; padding: 0 10px; white-space: normal; line-height: 1.2; }
+  /* Con unidades pedidas, el botón pasa a ser − n +. */
+  .g-stepq {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    width: 100%;
+    min-height: 48px;
+    margin-top: auto;
+    padding: 0 2px;
+    border-radius: 999px;
+    box-shadow: inset 0 0 0 1.5px var(--g-fill);
+  }
+  .g-stepq button { width: 44px; height: 44px; border-radius: 50%; display: grid; place-items: center; font: 600 22px/1 var(--g-ff-body); color: var(--g-text); cursor: pointer; }
+  .g-stepq b { font: 700 16px/1 var(--g-ff-body); font-variant-numeric: tabular-nums; }
+
+  /* ---------- experiencias ---------- */
+  .g-exps { display: grid; grid-template-columns: minmax(0, 1fr); gap: 14px; margin: 0 20px; }
+  .g-exp { display: grid; overflow: hidden; border-radius: 24px; background: var(--g-card); box-shadow: 0 0 0 1px rgba(12, 42, 55, 0.1); }
+  .g-exp .g-ph { position: relative; height: 170px; overflow: hidden; background: var(--g-arena); }
+  .g-exp .g-ph img { width: 100%; height: 100%; object-fit: cover; }
+  .g-exp .g-ph.g-noph { display: grid; place-items: end center; }
+  .g-exp .g-ph.g-noph i { font: italic 700 130px/1 var(--g-ff-head); color: var(--g-text); opacity: 0.9; transform: translateY(16%); }
+  .g-exp .g-ph .g-badge { position: absolute; inset-inline-start: 14px; inset-block-start: 14px; }
+  .g-exp-in { display: grid; gap: 6px; padding: 16px 18px 18px; }
+  .g-exp-in .g-p { font-size: 14px; line-height: 1.45; unicode-bidi: plaintext; }
+  .g-exp-in .g-disc { margin: 0; }
+  .g-exp-row { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; margin-top: 6px; }
+  .g-exp-price { display: grid; gap: 2px; }
+  .g-exp-price s { font: 500 12.5px/1 var(--g-ff-body); color: var(--g-ink3); }
+  .g-exp-price b { font: 700 15px/1.2 var(--g-ff-body); color: var(--g-text); white-space: nowrap; }
+  .g-exp-row .g-pill { flex: 1 1 170px; padding: 9px 14px; white-space: normal; line-height: 1.2; }
+
+  /* ---------- el pedido: tarjeta oscura fija sobre la barra inferior ---------- */
+  .g-cart-space { height: 130px; }
+  .g-cartwrap {
+    position: fixed;
+    inset-inline: 0;
+    bottom: calc(var(--g-nav-h) + 12px);
+    z-index: 55;
+    width: 100%;
+    max-width: 480px;
+    margin-inline: auto;
+    padding-inline: 14px;
+    pointer-events: none;
+  }
+  .g-cartwrap > * { pointer-events: auto; animation: g-rise 0.25s ease; }
+  .g-cartc { overflow: hidden; border-radius: 28px; background: var(--g-ink); color: var(--g-cal); box-shadow: 0 16px 28px -14px rgba(12, 42, 55, 0.7); }
+  .g-cartc .lines { max-height: 40dvh; overflow-y: auto; overscroll-behavior: contain; padding: 4px 18px 0; }
+  .g-cl { display: flex; align-items: center; gap: 12px; min-height: 72px; border-bottom: 1px solid rgba(248, 243, 233, 0.14); }
+  .g-cl > div:first-child { flex: 1; min-width: 0; display: grid; gap: 4px; }
+  .g-cl b { font: 600 15.5px/1.25 var(--g-ff-body); overflow-wrap: anywhere; }
+  .g-cl span { font: 500 13px/1 var(--g-ff-body); color: rgba(248, 243, 233, 0.72); font-variant-numeric: tabular-nums; }
+  .g-qty { flex: none; display: flex; align-items: center; }
+  .g-qty button { width: 44px; height: 44px; border-radius: 50%; display: grid; place-items: center; box-shadow: inset 0 0 0 1.5px rgba(248, 243, 233, 0.36); font: 600 20px/1 var(--g-ff-body); color: var(--g-cal); cursor: pointer; }
+  .g-qty b { min-width: 30px; text-align: center; font: 700 16px/1 var(--g-ff-body); font-variant-numeric: tabular-nums; }
+  .g-cartc .bar { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 12px; padding-inline-start: 20px; }
+  .g-cart-tog { flex: 1; min-width: 0; display: grid; gap: 4px; align-content: center; min-height: 44px; text-align: start; color: inherit; }
+  .g-cart-tog b { font: 700 16px/1.1 var(--g-ff-body); }
+  .g-cart-tog span { font: 700 14.5px/1 var(--g-ff-body); color: var(--g-accent-on-ink); font-variant-numeric: tabular-nums; }
+  .g-cartc .g-pill { background: var(--g-cal); color: var(--g-ink); white-space: normal; line-height: 1.15; min-height: 54px; padding: 6px 18px; max-width: 178px; }
+  @media (max-width: 359px) {
+    .g-cartc .g-pill { max-width: 142px; padding: 6px 12px; font-size: 13.5px; }
+    .g-cartc .bar { gap: 8px; padding-inline-start: 16px; }
+  }
+
+  /* ---------- avisos del pedido ---------- */
+  .g-notice {
+    position: relative;
+    padding: 18px 20px;
+    border-radius: 24px;
+    background: var(--g-card);
+    box-shadow: 0 0 0 1px rgba(12, 42, 55, 0.12), 0 14px 26px -16px rgba(12, 42, 55, 0.5);
+    text-align: center;
+    font: 500 15px/1.5 var(--g-ff-body);
+    color: var(--g-ink);
+  }
+  .g-notice.err { background: #FBE7DF; color: #6E1F0C; box-shadow: 0 0 0 1px rgba(110, 31, 12, 0.28); }
+  .g-notice .g-pill { width: 100%; margin-top: 14px; white-space: normal; line-height: 1.2; padding: 10px 18px; }
+}
