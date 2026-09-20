@@ -144,6 +144,8 @@ export interface GuideTheme {
   fill2: string;
   /** El primario usado como texto sobre papel: etiquetas, precios, numerales, enlaces. */
   text: string;
+  /** El primario como subrayado, indicador, punto o anillo de foco sobre papel: 3:1, no 4,5. */
+  mark: string;
   /** Fondo suave: fila de idioma activa, caja del código, aviso de consentimiento. */
   soft: string;
   /** El secundario como fondo (tesela WiFi, tesela «mar», distintivo «Reservable») y su texto. */
@@ -190,6 +192,7 @@ export function deriveTheme(colors: AgencyColors | null | undefined): GuideTheme
     secondEdge: edge(second.bg),
     accentEdge: edge(accent.bg),
     text: asText(brand, soft),
+    mark: asMark(brand),
     soft,
     second: second.bg,
     onSecond: second.on,

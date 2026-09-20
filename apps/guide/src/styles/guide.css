@@ -22,6 +22,8 @@
   --g-ink2: #33505C;
   --g-ink3: #4A5D66;
   --g-card: #FFFDF8;
+  /* Alto de la barra inferior fija: lo que reservan Lugares, la tienda y el pie para no quedar tapados. */
+  --g-nav-h: calc(64px + env(safe-area-inset-bottom, 0px));
 
   /* De la agencia (valores del diseño hasta que llegan los datos) */
   --g-brand: #C8613F;
@@ -32,6 +34,7 @@
   --g-second-edge: transparent;
   --g-accent-edge: transparent;
   --g-text: #95523D;
+  --g-mark: #C8613F;
   --g-soft: #F2E0D3;
   --g-second: #06415C;
   --g-on-second: #FFFFFF;
@@ -78,7 +81,7 @@
   }
   .guide-app :where(input) { font: inherit; color: inherit; }
   .guide-app :focus-visible {
-    outline: 3px solid var(--g-fill);
+    outline: 3px solid var(--g-mark);
     outline-offset: 2px;
   }
   .guide-app [hidden] { display: none !important; }
@@ -251,7 +254,7 @@
     margin-inline: auto;
     display: grid;
     grid-template-columns: repeat(5, minmax(0, 1fr));
-    height: calc(64px + env(safe-area-inset-bottom, 0px));
+    height: var(--g-nav-h);
     padding-bottom: env(safe-area-inset-bottom, 0px);
     background: rgba(248, 243, 233, 0.97);
     border-top: 1px solid rgba(12, 42, 55, 0.13);
@@ -276,7 +279,7 @@
     height: 3px;
     margin-inline-start: -15px;
     border-radius: 0 0 3px 3px;
-    background: var(--g-fill);
+    background: var(--g-mark);
   }
   @media (max-width: 359px) {
     .g-navb { font-size: 11px; letter-spacing: -0.01em; }
@@ -289,7 +292,7 @@
     display: grid;
     gap: 6px;
     justify-items: center;
-    padding: 18px 20px calc(22px + 64px + env(safe-area-inset-bottom, 0px));
+    padding: 18px 20px calc(22px + var(--g-nav-h));
     text-align: center;
     background: var(--g-ink);
     color: rgba(248, 243, 233, 0.84);
@@ -377,7 +380,7 @@
     inset-inline-start: 0;
     width: 46%;
     border-radius: 4px;
-    background: var(--g-fill);
+    background: var(--g-mark);
     animation: g-slide 1.4s ease-in-out infinite;
   }
   .g-404 { margin-top: 26px; font: italic 700 132px/1 var(--g-ff-head); letter-spacing: -0.03em; color: var(--g-arena2); }

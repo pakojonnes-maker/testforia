@@ -36,10 +36,12 @@ interface BottomSheetProps {
   header?: React.ReactNode;
   /** Etiqueta accesible del tirador (el componente es genérico y no conoce el idioma). */
   toggleLabel?: string;
+  /** Px que `full` deja libres arriba: la barra flotante de encima. Sin ellos la hoja la tapaba y el tirador quedaba inalcanzable. */
+  topReserve?: number;
   children: React.ReactNode;
 }
 
-export default function BottomSheet({ snap, onSnapChange, peekHeight, header, toggleLabel, children }: BottomSheetProps) {
+export default function BottomSheet({ snap, onSnapChange, peekHeight, header, toggleLabel, topReserve = 0, children }: BottomSheetProps) {
   const sheetRef = useRef<HTMLDivElement>(null);
   const listRef = useRef<HTMLDivElement>(null);
   const [containerHeight, setContainerHeight] = useState(0);
@@ -58,13 +60,13 @@ export default function BottomSheet({ snap, onSnapChange, peekHeight, header, to
   }, []);
 
   const snapPx = useMemo(() => {
-    const half = Math.round(containerHeight * 0.5);
+    const half = Math.max(Math.round(containerHeight * 0.5), peekHeight);
     return {
       peek: Math.min(peekHeight, containerHeight || peekHeight),
-      half: Math.max(half, peekHeight),
-      full: containerHeight,
+      half,
+      full: Math.max(containerHeight - topReserve, half),
     };
-  }, [containerHeight, peekHeight]);
+  }, [containerHeight, peekHeight, topReserve]);
 
   const translateFor = (s: SheetSnap) => containerHeight - (snapPx[s] || 0);
 
@@ -104,23 +106,23 @@ export default function BottomSheet({ snap, onSnapChange, peekHeight, header, to
   // when it would just repeat the settle animation endDrag already started
   // (which would override its velocity-matched duration with a generic one).
   const hasPositionedRef = useRef(false);
-  const appliedRef = useRef<{ snap: SheetSnap; peek: number; height: number } | null>(null);
+  const appliedRef = useRef<{ snap: SheetSnap; peek: number; height: number; top: number } | null>(null);
   useEffect(() => {
     if (dragRef.current.active || !containerHeight) return;
     const a = appliedRef.current;
-    if (a && a.snap === snap && a.peek === peekHeight && a.height === containerHeight) return;
+    if (a && a.snap === snap && a.peek === peekHeight && a.height === containerHeight && a.top === topReserve) return;
     // The very first time we have a real containerHeight, snap the sheet to its
     // starting position INSTANTLY (no transition) instead of animating into
     // place from translateY(0): that's "fully expanded", so the sheet would
     // visibly cover the whole map for a beat on every mount.
     applyTransform(translateFor(snap), hasPositionedRef.current ? 260 : 0);
-    appliedRef.current = { snap, peek: peekHeight, height: containerHeight };
+    appliedRef.current = { snap, peek: peekHeight, height: containerHeight, top: topReserve };
     hasPositionedRef.current = true;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [snap, containerHeight, peekHeight]);
+  }, [snap, containerHeight, peekHeight, topReserve]);
 
   const clampTranslate = (ty: number) => {
-    const min = 0; // fully expanded (full)
+    const min = translateFor('full'); // fully expanded (full)
     const max = Math.max(0, containerHeight - snapPx.peek); // fully collapsed (peek)
     if (ty < min) return min + (ty - min) * OVERDRAG_RESISTANCE;
     if (ty > max) return max + (ty - max) * OVERDRAG_RESISTANCE;
@@ -198,7 +200,7 @@ export default function BottomSheet({ snap, onSnapChange, peekHeight, header, to
       : nearestSnap(d.currentTy);
 
     const target = translateFor(next);
-    appliedRef.current = { snap: next, peek: peekHeight, height: containerHeight };
+    appliedRef.current = { snap: next, peek: peekHeight, height: containerHeight, top: topReserve };
     onSnapChange(next);
     applyTransform(target, durationFor(Math.abs(target - d.currentTy), velocity));
   };
@@ -269,7 +271,7 @@ export default function BottomSheet({ snap, onSnapChange, peekHeight, header, to
     <div
       ref={sheetRef}
       data-no-tab-swipe
-      className="absolute inset-x-0 bottom-0 h-full flex flex-col bg-background border-t border-on-background/10 shadow-[0_-8px_24px_rgba(0,0,0,0.10)]"
+      className="g-xsheet"
       style={{ willChange: 'transform' }}
     >
       <div
@@ -280,21 +282,21 @@ export default function BottomSheet({ snap, onSnapChange, peekHeight, header, to
         onPointerUp={endDrag}
         onPointerCancel={endDrag}
         onClickCapture={onClickCapture}
-        className="shrink-0 flex flex-col"
+        className="g-xtop"
       >
-        {/* min-h-11 = los 44px de área táctil mínima alrededor de un tirador
-            que se ve: la barra de 40x4px anterior era un pelo decorativo
-            (aria-hidden, no pulsable) al que había que apuntar. Si cambia esta
-            altura hay que actualizar SHEET_HANDLE_CHROME_PX en
+        {/* .g-xhandle mide 44px de alto (min-height): el área táctil mínima alrededor de un
+            tirador que se ve. Si cambia esta altura hay que actualizar SHEET_HANDLE_CHROME_PX en
             ExploreSection.tsx, que mide el peek contra ella. */}
         <button
           type="button"
           onClick={cycleSnap}
           aria-label={toggleLabel}
           aria-expanded={snap !== 'peek'}
-          className="w-full flex items-center justify-center min-h-11 cursor-grab active:cursor-grabbing"
+          className="g-xhandle"
         >
-          <span className="w-12 h-1.5 rounded-full bg-on-background/25" />
+          <span className="g-handle-bar" />
+          {/* Con la hoja abajo, el tirador dice qué hacer con él; en cuanto se abre ya no hace falta. */}
+          {snap === 'peek' && toggleLabel && <span className="g-xhint">{toggleLabel}</span>}
         </button>
         {header}
       </div>

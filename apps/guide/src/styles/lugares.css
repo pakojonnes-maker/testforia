@@ -1,0 +1,280 @@
+/* =========================================================
+   PARTE 4 — Lugares: el mapa, la barra flotante (búsqueda, filtros, conmutadores), la hoja de tres
+   alturas con su lista, la búsqueda a pantalla completa y la ficha de un lugar.
+   Los colores de la agencia entran solo por --g-*; nada de marca escrito a mano.
+   ========================================================= */
+@layer components {
+  /* ---------- barra flotante sobre el mapa ---------- */
+  /* pointer-events:none en todo lo que es hueco: el mapa sigue pudiendo arrastrarse y hacer zoom a través del
+     margen transparente; solo las piezas que se pulsan lo recuperan. */
+  .g-mtop-wrap { position: absolute; inset: 0 0 auto 0; z-index: 20; padding: 14px 16px 10px; pointer-events: none; }
+  .g-mtop { display: grid; gap: 10px; pointer-events: none; }
+  .g-mtop .g-search2,
+  .g-mtop .g-lang,
+  .g-mtop .g-tog,
+  .g-mtop .g-chips,
+  .g-mrow2 > .g-chip { pointer-events: auto; }
+  .g-mrow { display: flex; align-items: center; gap: 8px; }
+  .g-mrow2 { display: flex; align-items: center; justify-content: center; flex-wrap: wrap; gap: 8px; pointer-events: none; }
+  .g-search2 {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    min-height: 58px;
+    padding: 0 6px 0 22px;
+    border-radius: 999px;
+    background: var(--g-cal);
+    box-shadow: 0 10px 22px -12px rgba(12, 42, 55, 0.5), 0 0 0 1px rgba(12, 42, 55, 0.1);
+  }
+  [dir="rtl"] .g-search2 { padding: 0 22px 0 6px; }
+  .g-where { flex: 1; min-width: 0; display: grid; gap: 3px; padding: 6px 0; }
+  .g-where span { font: 700 11px/1 var(--g-ff-label); letter-spacing: 0.14em; text-transform: uppercase; color: var(--g-ink); }
+  .g-where b { font: 600 16px/1.15 var(--g-ff-body); color: var(--g-ink2); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  [dir="rtl"] .g-where span { letter-spacing: 0; text-transform: none; font-size: 12px; }
+  .g-tune {
+    flex: none;
+    display: inline-flex;
+    align-items: center;
+    min-height: 44px;
+    padding: 0 18px;
+    border-radius: 999px;
+    background: var(--g-cal2);
+    box-shadow: inset 0 0 0 1px rgba(12, 42, 55, 0.14);
+    font: 600 14px/1 var(--g-ff-body);
+    color: var(--g-ink);
+    cursor: pointer;
+  }
+  .g-tune.on { background: var(--g-fill); color: var(--g-on-fill); box-shadow: inset 0 0 0 1px var(--g-fill-edge); }
+  .g-mrow .g-lang.s { min-height: 58px; box-shadow: 0 10px 22px -12px rgba(12, 42, 55, 0.5); }
+
+  /* Los dos conmutadores: cursiva de titular con un subrayado — el del primario y el del acento. */
+  .g-tog {
+    display: flex;
+    align-items: center;
+    gap: 26px;
+    padding: 0 24px;
+    border-radius: 999px;
+    background: rgba(248, 243, 233, 0.9);
+    box-shadow: 0 8px 18px -12px rgba(12, 42, 55, 0.5), 0 0 0 1px rgba(12, 42, 55, 0.08);
+  }
+  .g-tog button { position: relative; min-height: 46px; font: italic 700 19px/1 var(--g-ff-head); color: var(--g-ink3); cursor: pointer; }
+  .g-tog button.on { color: var(--g-ink); }
+  .g-tog button.on::after { content: ""; position: absolute; inset-inline: 0; bottom: 7px; height: 3px; border-radius: 3px; background: var(--g-mark); }
+  .g-tog button.on.gold::after { background: var(--g-accent-mark); }
+
+  /* Chips de categoría (al pulsar «Filtros»): carril que se desliza de lado a lado. */
+  .g-chips { display: flex; gap: 8px; margin: 0 -16px; padding: 2px 16px 6px; overflow-x: auto; overflow-y: hidden; overscroll-behavior-x: contain; }
+
+  /* ---------- hoja de tres alturas ---------- */
+  .g-explore-main { padding-bottom: var(--g-nav-h); }
+  .g-xsheet {
+    position: absolute;
+    inset-inline: 0;
+    bottom: 0;
+    z-index: 10;
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+    padding-inline: 20px;
+    overflow: hidden;
+    border-radius: 28px 28px 0 0;
+    background: var(--g-cal);
+    box-shadow: 0 -14px 34px -18px rgba(12, 42, 55, 0.5);
+  }
+  .g-xtop { flex: none; display: flex; flex-direction: column; }
+  /* 44px: el área táctil mínima. ExploreSection.SHEET_HANDLE_CHROME_PX mide el peek contra este número. */
+  .g-xhandle { width: 100%; min-height: 44px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 7px; cursor: grab; }
+  .g-xhandle:active { cursor: grabbing; }
+  .g-handle-bar { width: 40px; height: 4px; border-radius: 4px; background: rgba(12, 42, 55, 0.24); }
+  .g-xhint { font: 500 12.5px/1 var(--g-ff-body); color: var(--g-ink3); }
+  .g-sheet-h { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; padding-bottom: 12px; }
+  .g-sheet-h .g-h2 { font-size: 22px; min-width: 0; }
+  .g-sheet-h .g-meta { flex: none; white-space: nowrap; }
+  .g-peekrow { display: flex; align-items: flex-start; gap: 8px; }
+  .g-peekrow .g-poi2 { flex: 1; min-width: 0; }
+  .g-peekrow .g-back { flex: none; margin-top: 4px; }
+  .g-plist { padding-bottom: 16px; }
+  .g-empty-sheet { margin: 0 0 14px; padding: 20px 18px; gap: 10px; }
+  .g-empty-sheet p { font-size: 14.5px; }
+
+  /* ---------- una fila (y la tarjeta compacta del lugar elegido) ---------- */
+  .g-poi2 {
+    display: grid;
+    grid-template-columns: 84px minmax(0, 1fr);
+    gap: 16px;
+    width: 100%;
+    padding: 14px 0;
+    border-top: 1px solid rgba(12, 42, 55, 0.12);
+    text-align: start;
+  }
+  .g-poi2.sel { margin: 0 -20px; width: calc(100% + 40px); padding-inline: 20px; background: var(--g-soft); }
+  .g-poi2 .g-ph {
+    position: relative;
+    width: 84px;
+    height: 96px;
+    margin: 4px 0 0 4px;
+    overflow: hidden;
+    border-radius: 999px 999px 0 0;
+    outline: 2px solid var(--g-arena2);
+    outline-offset: 4px;
+    background: var(--g-arena);
+  }
+  [dir="rtl"] .g-poi2 .g-ph { margin: 4px 4px 0 0; }
+  .g-poi2 .g-ph img { width: 100%; height: 100%; object-fit: cover; }
+  .g-poi2 .g-ph.g-noph { display: grid; place-items: end center; }
+  .g-poi2 .g-ph.g-noph i { font: italic 700 60px/1 var(--g-ff-head); color: var(--g-text); opacity: 0.9; transform: translateY(16%); }
+  .g-pb { display: block; min-width: 0; }
+  .g-poi2 .g-kd { font-size: 10.5px; }
+  .g-poi2 .g-h3 { display: block; margin-top: 3px; font-size: 19px; }
+  .g-poi2 .g-meta { display: block; margin-top: 5px; font-size: 12.5px; }
+  .g-poi2 .g-badges { margin-top: 6px; }
+  .g-poi2.peek { grid-template-columns: 66px minmax(0, 1fr); padding: 6px 0 0; border-top: 0; }
+  .g-poi2.peek .g-ph { width: 66px; height: 80px; }
+  .g-poi2.peek .g-ph.g-noph i { font-size: 50px; }
+  /* El número que une la fila con su chincheta. */
+  .g-nn {
+    display: inline-grid;
+    place-items: center;
+    width: 20px;
+    height: 20px;
+    margin-inline-end: 7px;
+    border-radius: 50%;
+    background: var(--g-fill);
+    color: var(--g-on-fill);
+    box-shadow: inset 0 0 0 1px var(--g-fill-edge);
+    font: 700 11px/1 var(--g-ff-head);
+    font-style: normal;
+    font-variant-numeric: lining-nums;
+    letter-spacing: 0;
+    vertical-align: 0.5px;
+  }
+
+  /* ---------- chinchetas del mapa ---------- */
+  .vt-poi-pin-wrapper { background: none; border: 0; }
+  /* El foco de teclado va sobre la propia chincheta (círculo o píldora), no en el rectángulo del icono. */
+  .vt-poi-pin-wrapper:focus-visible { outline: 0; }
+  .vt-poi-pin-wrapper:focus-visible .vt-poi-pin { box-shadow: 0 0 0 3px var(--g-cal), 0 0 0 6px var(--g-mark); }
+  .vt-poi-pin {
+    display: grid;
+    place-items: center;
+    width: 100%;
+    height: 100%;
+    border-radius: 50%;
+    background: var(--g-cal);
+    box-shadow: 0 0 0 2px rgba(12, 42, 55, 0.22), 0 6px 12px -6px rgba(12, 42, 55, 0.5);
+    font: 700 15px/1 var(--g-ff-head);
+    color: var(--g-ink);
+  }
+  .vt-poi-pin-label { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-variant-numeric: lining-nums; }
+  .vt-poi-pin--paid { background: var(--g-accent); color: var(--g-on-accent); box-shadow: 0 0 0 2px rgba(12, 42, 55, 0.22), 0 6px 12px -6px rgba(12, 42, 55, 0.5), inset 0 0 0 1px var(--g-accent-edge); }
+  .vt-poi-pin--price { padding: 0 10px; border-radius: 999px; font: 700 13px/1 var(--g-ff-body); letter-spacing: 0.01em; }
+  .vt-poi-pin--selected {
+    background: var(--g-fill);
+    color: var(--g-on-fill);
+    box-shadow: 0 0 0 3px #fff, 0 0 0 8px color-mix(in srgb, var(--g-mark) 34%, transparent), 0 10px 18px -8px rgba(12, 42, 55, 0.6);
+    font-size: 17px;
+  }
+  .vt-poi-pin--selected.vt-poi-pin--price { font-size: 14px; }
+  .vt-home { display: block; filter: drop-shadow(0 4px 6px rgba(12, 42, 55, 0.35)); }
+  .vt-home path { fill: var(--g-ink); }
+  .vt-home circle { fill: var(--g-accent-on-ink); }
+
+  /* ---------- búsqueda a pantalla completa ---------- */
+  .g-srow {
+    position: sticky;
+    top: 0;
+    z-index: 3;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 14px 16px 12px;
+    border-bottom: 1px solid rgba(12, 42, 55, 0.12);
+    background: var(--g-cal);
+  }
+  .g-sinput {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    align-items: center;
+    min-height: 52px;
+    padding: 0 20px;
+    border-radius: 999px;
+    background: var(--g-card);
+    box-shadow: inset 0 0 0 1.5px rgba(12, 42, 55, 0.28);
+  }
+  .g-sinput:focus-within { box-shadow: inset 0 0 0 2px var(--g-mark); }
+  .g-sinput input { width: 100%; min-width: 0; border: 0; background: none; outline: 0; padding: 0; font: 500 16px/1.2 var(--g-ff-body); color: var(--g-ink); }
+  .g-sinput input::placeholder { color: var(--g-ink3); opacity: 1; }
+  .g-ssec { padding: 24px 20px 0; }
+  .g-ssec + .g-ssec { margin-top: 8px; }
+  .g-ssec > .g-kd { margin-bottom: 6px; }
+  .g-ssec-empty { padding: 14px 0; }
+  .g-city {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    width: 100%;
+    min-height: 66px;
+    border-bottom: 1px solid rgba(12, 42, 55, 0.12);
+  }
+  .g-city .nm { display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; min-width: 0; }
+  .g-city b { font: 700 23px/1.15 var(--g-ff-head); letter-spacing: -0.01em; color: var(--g-ink); }
+  .g-city.on b { color: var(--g-text); }
+  .g-city em { font: 600 12.5px/1 var(--g-ff-body); font-style: normal; color: var(--g-text); }
+  .g-city small { flex: none; font: 500 13px/1 var(--g-ff-body); color: var(--g-ink3); }
+  .g-place { display: flex; align-items: center; width: 100%; min-height: 58px; border-bottom: 1px solid rgba(12, 42, 55, 0.12); font: 600 16.5px/1.3 var(--g-ff-body); color: var(--g-ink); }
+
+  /* ---------- ficha de un lugar ---------- */
+  .g-lugar-head { margin: 32px 20px 0; }
+  .g-lugar-head .g-badges { margin: 0; }
+  .g-lugar-head .g-h1 { margin-top: 8px; }
+  .g-stats { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); margin: 24px 20px 0; border-block: 1px solid rgba(12, 42, 55, 0.13); }
+  .g-stats.one { grid-template-columns: minmax(0, 1fr); }
+  .g-stat { display: grid; gap: 6px; padding: 16px 0; }
+  .g-stat + .g-stat { padding-inline-start: 20px; border-inline-start: 1px solid rgba(12, 42, 55, 0.13); }
+  .g-stat b { font: 700 24px/1.1 var(--g-ff-head); letter-spacing: -0.01em; overflow-wrap: anywhere; }
+  .g-stat span { font: 500 13px/1.3 var(--g-ff-body); color: var(--g-ink3); }
+  /* plaintext: la descripción es texto del anfitrión; si no está traducida al idioma de la interfaz, se orienta y se alinea por su propio contenido. */
+  .g-desc { margin: 22px 20px 0; font: 400 16.5px/1.7 var(--g-ff-body); color: var(--g-ink2); white-space: pre-line; overflow-wrap: break-word; unicode-bidi: plaintext; }
+  .g-actions {
+    position: sticky;
+    bottom: 0;
+    z-index: 3;
+    display: flex;
+    gap: 10px;
+    margin-top: 30px;
+    padding: 16px 20px calc(22px + env(safe-area-inset-bottom, 0px));
+    background: linear-gradient(to top, var(--g-cal) 72%, transparent);
+  }
+  .g-actions .g-pill { flex: 1; min-height: 54px; padding: 0 12px; font-size: 15px; white-space: normal; line-height: 1.2; }
+}
+
+/* =========================================================
+   Lo que pinta Leaflet (leaflet.css entra SIN capa, así que estas reglas van también sin capa y acotadas
+   a .vt-map: una regla en una capa pierde contra cualquiera sin capa, con independencia de la especificidad).
+   ========================================================= */
+.vt-map.leaflet-container { background: var(--g-arena); font: 500 12px/1.4 var(--g-ff-body); }
+/* Los mosaicos de OpenStreetMap traen verdes y naranjas saturados que pelean con el papel: se apagan y se
+   calientan hacia la arena. Solo el color; el trazado y los rótulos siguen siendo legibles. */
+.vt-map .leaflet-tile-pane { filter: sepia(0.3) saturate(0.72) contrast(0.94) brightness(1.03); }
+.vt-map .leaflet-control-attribution { background: rgba(248, 243, 233, 0.86); color: var(--g-ink3); font: 500 10px/1.5 var(--g-ff-body); }
+.vt-map .leaflet-control-attribution a { color: var(--g-text); }
+.vt-map .leaflet-tooltip.vt-pinlbl {
+  padding: 8px 14px;
+  border: 0;
+  border-radius: 14px;
+  background: var(--g-card);
+  box-shadow: 0 8px 18px -8px rgba(12, 42, 55, 0.5), 0 0 0 1px rgba(12, 42, 55, 0.1);
+  color: var(--g-ink);
+  font: 700 14px/1.1 var(--g-ff-head);
+  white-space: nowrap;
+  max-width: 72vw;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.vt-map .leaflet-tooltip.vt-pinlbl::before { display: none; }
+.vt-map .vt-pinlbl b { font-weight: 700; }
+.vt-map .vt-pinlbl small { display: block; margin-top: 3px; font: 500 11.5px/1 var(--g-ff-body); color: var(--g-ink3); }

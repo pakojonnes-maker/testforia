@@ -196,9 +196,12 @@
     overflow-y: auto;
     overscroll-behavior: contain;
     background: var(--g-cal);
-    padding-bottom: calc(40px + env(safe-area-inset-bottom, 0px));
     animation: g-rise 0.3s ease;
   }
+  /* Aire al final del desplazamiento. Es un margen y no un padding a propósito: un elemento sticky no puede
+     salir de la caja de contenido de su contenedor, y con padding la barra de acciones se quedaba 40 px por
+     encima del borde, con el contenido pasando por debajo. La barra (.g-bottom, .g-actions) ya lleva el suyo. */
+  .g-full > :last-child:not(.g-bottom):not(.g-actions) { margin-bottom: calc(40px + env(safe-area-inset-bottom, 0px)); }
   .g-mhead {
     position: sticky;
     top: 0;
@@ -269,7 +272,7 @@
   .g-seq-ph.g-noph { display: none; }
   .g-check { display: grid; gap: 10px; margin-top: 6px; }
   .g-check li { position: relative; padding-inline-start: 24px; font: 500 15.5px/1.5 var(--g-ff-body); color: var(--g-ink); }
-  .g-check li::before { content: ""; position: absolute; inset-inline-start: 2px; top: 0.6em; width: 9px; height: 9px; border-radius: 50%; background: var(--g-fill); }
+  .g-check li::before { content: ""; position: absolute; inset-inline-start: 2px; top: 0.6em; width: 9px; height: 9px; border-radius: 50%; background: var(--g-mark); }
 
   /* ---------- bienvenida: hoja con el arco que asoma ---------- */
   .g-wsheet {

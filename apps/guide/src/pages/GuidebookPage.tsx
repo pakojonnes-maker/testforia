@@ -22,6 +22,7 @@ import { getTranslation, ACTIVE_LANGUAGES, isRtl } from '../lib/i18n';
 import type { GuidePoi, CitySummary, ZoneSummary, CtaActionType, GuideRestaurant } from '../lib/types';
 import '../styles/guide.css';
 import '../styles/casa.css';
+import '../styles/lugares.css';
 import '@fontsource-variable/montserrat/index.css';
 import '@fontsource-variable/playfair-display/index.css';
 import '@fontsource-variable/playfair-display/wght-italic.css';
@@ -396,7 +397,7 @@ export default function GuidebookPage() {
         className={isChatTab
           ? "flex-1 min-h-0 flex flex-col w-full max-w-container-max mx-auto px-margin-mobile md:px-margin-desktop pt-16 pb-16 md:pb-6"
           : isExploreTab
-          ? "relative flex-1 min-h-0 overflow-hidden pb-16 md:pb-0"
+          ? "g-explore-main relative flex-1 min-h-0 overflow-hidden"
           : activeTab === 'info'
           ? "w-full"
           : "w-full max-w-container-max mx-auto px-margin-mobile md:px-margin-desktop py-8 flex flex-col gap-12"}

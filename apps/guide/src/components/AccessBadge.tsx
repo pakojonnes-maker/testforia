@@ -1,10 +1,9 @@
-import React from 'react';
 import { getTranslation } from '../lib/i18n';
 
-// `guide_pois` es una tabla única: sitios que se visitan (gratis o con entrada) y
-// experiencias reservables conviven en ella. Sin una marca visible, en la pestaña
-// "Ubicaciones" una cala gratuita, un museo con entrada y un tour de pago se ven
-// exactamente igual. Esto centraliza esa marca para tarjetas, ficha y mapa.
+// `guide_pois` es una tabla única: sitios que se visitan (gratis o con entrada) y experiencias reservables
+// conviven en ella. Sin una marca visible, en Lugares una cala gratuita, un museo con entrada y un tour de
+// pago se ven exactamente igual. Esto centraliza esa marca para filas, ficha y mapa. Sin iconos: el acceso
+// se distingue por la forma del distintivo (contorno = gratis, relleno de acento = de pago) y por su texto.
 export type AccessType = 'free' | 'paid' | 'mixed';
 
 export interface AccessInfo {
@@ -27,37 +26,31 @@ export function getAccessLabel(item: AccessInfo, lang: string): string {
 interface AccessBadgeProps {
   item: AccessInfo;
   lang: string;
-  /** `overlay` va encima de la foto; `inline` dentro del cuerpo de la tarjeta. */
-  variant?: 'overlay' | 'inline';
-  /** Rotación del sello (1/2/3) para que una fila de tarjetas no parezca calcada. */
-  stamp?: 1 | 2 | 3;
+  /** Sobre una foto: fondo opaco para que se lea. */
+  overlay?: boolean;
 }
 
-export default function AccessBadge({ item, lang, variant = 'overlay', stamp = 1 }: AccessBadgeProps) {
-  const free = isFreeAccess(item);
-  const label = getAccessLabel(item, lang);
-
-  const tone = free
-    ? 'bg-crisp-white/95 text-primary'
-    : 'bg-primary text-on-primary';
-  const stampClass = variant === 'overlay' ? `stamped-badge-${stamp}` : '';
-
+export default function AccessBadge({ item, lang, overlay = false }: AccessBadgeProps) {
   return (
-    <span className={`inline-flex items-center gap-1 ${stampClass} ${tone} font-mono-badge text-mono-badge px-2 py-1 uppercase border border-on-background/10 whitespace-nowrap`}>
-      <span className="material-symbols-outlined text-[14px] leading-none">
-        {free ? 'lock_open_right' : 'confirmation_number'}
-      </span>
-      {label}
+    <span className={`g-badge ${isFreeAccess(item) ? 'free' : 'paid'}${overlay ? ' ov' : ''}`}>
+      <bdi>{getAccessLabel(item, lang)}</bdi>
     </span>
   );
 }
 
 /** Chip aparte: distingue una experiencia reservable de un sitio que solo se visita. */
-export function BookableBadge({ lang, variant = 'overlay' }: { lang: string; variant?: 'overlay' | 'inline' }) {
-  return (
-    <span className={`inline-flex items-center gap-1 ${variant === 'overlay' ? 'stamped-badge-2' : ''} bg-secondary text-crisp-white font-mono-badge text-mono-badge px-2 py-1 uppercase border border-on-background/10 whitespace-nowrap`}>
-      <span className="material-symbols-outlined text-[14px] leading-none">event_available</span>
-      {getTranslation('access_bookable', lang)}
-    </span>
-  );
+export function BookableBadge({ lang }: { lang: string }) {
+  return <span className="g-badge book">{getTranslation('access_bookable', lang)}</span>;
+}
+
+/** «4,6 / 5»: la nota de Google, con la coma o el punto de cada idioma. */
+export function RatingBadge({ rating, lang }: { rating: number; lang: string }) {
+  let text: string;
+  try {
+    text = new Intl.NumberFormat(lang, { minimumFractionDigits: 1, maximumFractionDigits: 1 }).format(rating);
+  } catch {
+    text = rating.toFixed(1);
+  }
+  // dir="ltr": «4,6 / 5» es una expresión numérica y en un párrafo RTL la barra la volvía «5 / 4,6».
+  return <span className="g-badge rate" dir="ltr">{text} / 5</span>;
 }

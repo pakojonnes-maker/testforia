@@ -1,41 +1,8 @@
-// src/lib/poiCategories.ts — helpers for the Explore map tab (pins, chip order,
+// src/lib/poiCategories.ts — helpers for the Explore map tab (chip order,
 // search normalization, straight-line distance for POIs outside the home zone).
 //
-// Kept separate from i18n.ts: this file has no translated strings, just icons/
+// Kept separate from i18n.ts: this file has no translated strings, just
 // ordering/geometry, and i18n.ts is already large.
-
-// Material Symbols Outlined name per `category` value. Covers both the
-// canonical Spanish labels used by the admin (GuidePoisPage.tsx CATEGORIES)
-// and the loose English slugs some older seeds used (see i18n.ts
-// CATEGORY_LABELS, which normalizes the same two sets for display text).
-// Matched case-insensitively — see getCategoryIcon below.
-const CATEGORY_ICON: Record<string, string> = {
-  // Canonical (apps/admin/src/pages/guide/GuidePoisPage.tsx CATEGORIES)
-  cultura: 'museum',
-  playas: 'beach_access',
-  naturaleza: 'forest',
-  actividades: 'local_activity',
-  compras: 'shopping_bag',
-  restaurantes: 'restaurant',
-  otro: 'place',
-  // Loose slugs still present in older seed data
-  viewpoint: 'landscape',
-  monument: 'account_balance',
-  beach: 'beach_access',
-  water_sport: 'surfing',
-  adventure: 'hiking',
-  class: 'school',
-  park: 'park',
-  marina: 'sailing',
-  transporte: 'directions_bus',
-  bienestar: 'spa',
-};
-
-/** Material Symbols icon name for a raw `category` value, with a generic pin as fallback. */
-export function getCategoryIcon(raw?: string | null): string {
-  if (!raw) return 'place';
-  return CATEGORY_ICON[raw.trim().toLowerCase()] ?? 'place';
-}
 
 // Order the category chip rail should follow when more than one category is
 // present. Anything not listed here (a category not yet mapped above) sorts

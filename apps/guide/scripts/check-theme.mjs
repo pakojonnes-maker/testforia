@@ -65,6 +65,7 @@ for (const [name, colors] of Object.entries(AGENCIES)) {
     accent: T.contrast(t.onAccent, t.accent),
     ink: T.contrast(t.accentOnInk, T.INK),
     mark: T.contrast(t.accentMark, T.PAPER),
+    brandMark: T.contrast(t.mark, T.PAPER),
   };
   console.log('  ' + name.padEnd(26) + r2(c.fill).padEnd(9) + r2(c.textSoft).padEnd(12) + r2(c.second).padEnd(11) + r2(c.accent).padEnd(8) + r2(c.ink).padEnd(14) + r2(c.mark));
   ok(c.fill >= 4.5, `${name}: texto sobre el relleno de marca ${r2(c.fill)} < 4,5`);
@@ -74,7 +75,8 @@ for (const [name, colors] of Object.entries(AGENCIES)) {
   ok(c.accent >= 4.5, `${name}: texto sobre el distintivo de acento ${r2(c.accent)} < 4,5`);
   ok(c.ink >= 4.5, `${name}: acento como texto sobre tinta ${r2(c.ink)} < 4,5`);
   ok(c.mark >= 3, `${name}: marca de acento sobre el papel ${r2(c.mark)} < 3`);
-  for (const k of ['brand', 'fill', 'onFill', 'text', 'soft', 'second', 'onSecond', 'accent', 'onAccent', 'accentMark', 'accentOnInk']) {
+  ok(c.brandMark >= 3, `${name}: marca del primario sobre el papel ${r2(c.brandMark)} < 3`);
+  for (const k of ['brand', 'fill', 'onFill', 'text', 'mark', 'soft', 'second', 'onSecond', 'accent', 'onAccent', 'accentMark', 'accentOnInk']) {
     ok(/^#[0-9A-F]{6}$/.test(t[k]), `${name}: ${k} no es un #RRGGBB válido (${t[k]})`);
   }
 }
@@ -92,7 +94,7 @@ ok(noSecond.second !== T.deriveTheme({}).second, 'sin secundario, la tesela debe
 // ---------------------------------------------------------------- variables
 console.log('— Variables CSS');
 const vars = T.allVars({ primary_color: '#1a4fd8', secondary_color: '#F7D08A', accent_color: '#E8734A', headline_font: null, body_font: null, label_font: null });
-for (const k of ['--g-brand', '--g-fill', '--g-on-fill', '--g-text', '--g-soft', '--g-second', '--g-on-second', '--g-accent', '--g-on-accent', '--g-accent-mark', '--g-accent-on-ink', '--g-ff-head', '--g-ff-body', '--g-ff-label', '--color-primary', '--brand-primary', '--font-headline-md']) {
+for (const k of ['--g-brand', '--g-fill', '--g-on-fill', '--g-text', '--g-mark', '--g-soft', '--g-second', '--g-on-second', '--g-accent', '--g-on-accent', '--g-accent-mark', '--g-accent-on-ink', '--g-ff-head', '--g-ff-body', '--g-ff-label', '--color-primary', '--brand-primary', '--font-headline-md']) {
   ok(typeof vars[k] === 'string' && vars[k].length > 0, `falta la variable ${k}`);
 }
 ok(vars['--g-brand'] === '#1A4FD8', `--g-brand debería ser el primario de la BD (${vars['--g-brand']})`);
