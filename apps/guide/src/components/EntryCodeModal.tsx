@@ -1,7 +1,9 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { getTranslation } from '../lib/i18n';
-import { isRealImage } from './MediaPlaceholder';
+import { codeSize } from '../lib/text';
 import useDismissableLayer from '../hooks/useDismissableLayer';
+import PhotoFigure from './PhotoFigure';
+import Layer from './Layer';
 
 interface EntryCodeModalProps {
   code: string;
@@ -13,13 +15,10 @@ interface EntryCodeModalProps {
   onClose: () => void;
 }
 
-// Mismo lenguaje visual que PoiDetailModal (foto hero + cuerpo + acción), pero
-// la foto es opcional aquí: la mayoría de apartamentos no tendrán portada
-// configurada para el código de entrada, así que cae a un panel de icono en
-// vez de dejar un hueco vacío.
+// El código de entrada en grande, dónde recogerlo y cómo llegar. La foto es opcional: la mayoría de pisos
+// no tienen portada configurada para el código, y entonces la hoja empieza directamente por el código.
 export default function EntryCodeModal({ code, pickupInstructions, latitude, longitude, image, lang, onClose }: EntryCodeModalProps) {
   const [copied, setCopied] = useState(false);
-
   useDismissableLayer(true, onClose);
 
   const copyCode = () => {
@@ -34,67 +33,44 @@ export default function EntryCodeModal({ code, pickupInstructions, latitude, lon
   const hasLocation = latitude != null && longitude != null;
 
   return (
-    <div
-      className="fixed inset-0 z-[60] flex flex-col bg-on-background/60 animate-[fadeIn_0.2s_ease]"
-      onClick={onClose}
-    >
-      <div
-        className="relative flex flex-col w-full h-full md:h-auto md:max-h-[90vh] md:w-[90vw] md:max-w-lg md:mx-auto md:my-auto overflow-hidden bg-surface-container-lowest border border-on-background/10"
-        onClick={e => e.stopPropagation()}
-      >
-        <div className="relative h-48 md:h-56 w-full shrink-0 bg-primary/10">
-          {isRealImage(image) ? (
-            <img src={image as string} alt={getTranslation('door_code_title', lang)} className="w-full h-full object-cover" />
-          ) : (
-            <div className="w-full h-full flex items-center justify-center">
-              <span className="material-symbols-outlined text-primary text-5xl" style={{ fontVariationSettings: "'FILL' 1" }}>door_front</span>
-            </div>
-          )}
-          <div className="absolute inset-0 bg-gradient-to-t from-on-background/70 via-transparent to-transparent" />
-          <button
-            onClick={onClose}
-            className="absolute top-4 right-4 w-10 h-10 flex items-center justify-center bg-on-background/40 text-crisp-white hover:bg-on-background/60 transition-colors"
-          >
-            <span className="material-symbols-outlined">close</span>
-          </button>
+    <Layer lang={lang}>
+      <div className="g-scrim" onClick={onClose} />
+      <div className="g-full" role="dialog" aria-modal="true" aria-label={getTranslation('door_code_title', lang)}>
+        <div className="g-mhead">
+          <span className="g-kd">{getTranslation('door_code_title', lang)}</span>
+          <button type="button" className="g-close" onClick={onClose}>{getTranslation('close', lang)}</button>
         </div>
 
-        <div className="p-6 flex flex-col gap-6 overflow-y-auto">
-          <div>
-            <p className="font-label-caps text-label-caps text-primary uppercase mb-2">{getTranslation('door_code_title', lang)}</p>
-            <div className="flex items-center justify-between bg-primary/5 border border-primary/25 p-4">
-              <span className="font-mono-badge text-[24px] text-on-background tracking-widest">{code}</span>
-              <button
-                onClick={copyCode}
-                className="p-2 hover:bg-primary/10 transition-colors flex items-center gap-1"
-                aria-label={getTranslation('copy_btn', lang)}
-              >
-                {copied && <span className="font-label-sm text-label-sm text-primary">{getTranslation('copied', lang)}</span>}
-                <span className="material-symbols-outlined text-primary text-[20px]">{copied ? 'check' : 'content_copy'}</span>
-              </button>
-            </div>
+        <PhotoFigure className="g-arch g-arch-m" src={image} alt="" name="" omitIfMissing />
+
+        <div className="g-when" style={{ marginTop: 28 }}>
+          <div className="g-codebox">
+            <span className={`g-code2 ${codeSize(code)}`} dir="ltr">{code}</span>
+            <button type="button" className="g-pill fill" onClick={copyCode}>
+              {copied ? getTranslation('copied', lang) : getTranslation('copy_btn', lang)}
+            </button>
           </div>
-
-          {pickupInstructions && (
-            <div>
-              <p className="font-label-caps text-label-caps text-secondary uppercase mb-2">{getTranslation('entry_code_pickup_title', lang)}</p>
-              <p className="font-body-md text-body-md text-on-surface-variant whitespace-pre-wrap leading-relaxed">{pickupInstructions}</p>
-            </div>
-          )}
         </div>
+
+        {pickupInstructions && (
+          <div className="g-when">
+            <span className="g-kd">{getTranslation('entry_code_pickup_title', lang)}</span>
+            <p className="g-p g-prewrap">{pickupInstructions}</p>
+          </div>
+        )}
 
         {hasLocation && (
-          <div className="p-6 pt-0 mt-auto shrink-0">
+          <div className="g-bottom">
             <button
-              onClick={() => window.open(`https://www.google.com/maps/dir/?api=1&destination=${latitude},${longitude}`, '_blank')}
-              className="w-full py-3 bg-primary text-on-primary font-label-caps text-label-caps uppercase hover:bg-primary-container transition-colors flex items-center justify-center gap-2"
+              type="button"
+              className="g-pill fill"
+              onClick={() => window.open(`https://www.google.com/maps/dir/?api=1&destination=${latitude},${longitude}`, '_blank', 'noopener,noreferrer')}
             >
-              <span className="material-symbols-outlined text-[18px]">directions</span>
               {getTranslation('directions', lang)}
             </button>
           </div>
         )}
       </div>
-    </div>
+    </Layer>
   );
 }

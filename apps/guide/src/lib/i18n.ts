@@ -35,15 +35,19 @@ export const UI_STRINGS: Record<string, Record<string, string>> = {
   language_title: { es: 'Idioma', en: 'Language', fr: 'Langue', de: 'Sprache', it: 'Lingua', pt: 'Idioma', ca: 'Idioma', ar: 'اللغة', ru: 'Язык', uk: 'Мова', zh: '语言', ja: '言語', ko: '언어' },
   back: { es: 'Volver', en: 'Back', fr: 'Retour', de: 'Zurück', it: 'Indietro', pt: 'Voltar', ca: 'Tornar', ar: 'رجوع', ru: 'Назад', uk: 'Назад', zh: '返回', ja: '戻る', ko: '뒤로' },
   footer_credit: { es: 'Guía creada con VisualTaste', en: 'Guide made with VisualTaste', fr: 'Guide créé avec VisualTaste', de: 'Guide erstellt mit VisualTaste', it: 'Guida creata con VisualTaste', pt: 'Guia criado com VisualTaste', ca: 'Guia creada amb VisualTaste', ar: 'دليل من إنشاء VisualTaste', ru: 'Гид создан с помощью VisualTaste', uk: 'Гід створено за допомогою VisualTaste', zh: '由 VisualTaste 制作的指南', ja: 'VisualTaste で作成されたガイド', ko: 'VisualTaste로 만든 가이드' },
+  // Casa
+  wifi_title: { es: 'WiFi', en: 'Wi-Fi', fr: 'Wi-Fi', de: 'WLAN', it: 'Wi-Fi', pt: 'Wi-Fi', ca: 'Wi-Fi', ar: 'الواي فاي', ru: 'Wi-Fi', uk: 'Wi-Fi', zh: 'Wi-Fi', ja: 'Wi-Fi', ko: 'Wi-Fi' },
+  call: { es: 'Llamar', en: 'Call', fr: 'Appeler', de: 'Anrufen', it: 'Chiama', pt: 'Ligar', ca: 'Truca', ar: 'اتصال', ru: 'Позвонить', uk: 'Подзвонити', zh: '拨打', ja: '電話する', ko: '전화' },
+  view_store: { es: 'Ver tienda', en: 'View store', fr: 'Voir la boutique', de: 'Zum Shop', it: 'Vai al negozio', pt: 'Ver loja', ca: 'Veure la botiga', ar: 'عرض المتجر', ru: 'Открыть магазин', uk: 'Відкрити магазин', zh: '进入商店', ja: 'ストアを見る', ko: '스토어 보기' },
 
   // WelcomeHero
-  view_address: { es: 'Ver Dirección', en: 'View Address', fr: "Voir l'adresse", de: 'Adresse ansehen', it: 'Vedi indirizzo', pt: 'Ver morada', ca: 'Veure adreça', ar: 'عرض العنوان', ru: 'Показать адрес', uk: 'Показати адресу', zh: '查看地址', ja: '住所を見る', ko: '주소 보기' },
+  view_address: { es: 'Ver dirección', en: 'View Address', fr: "Voir l'adresse", de: 'Adresse ansehen', it: 'Vedi indirizzo', pt: 'Ver morada', ca: 'Veure adreça', ar: 'عرض العنوان', ru: 'Показать адрес', uk: 'Показати адресу', zh: '查看地址', ja: '住所を見る', ko: '주소 보기' },
 
   // InfoSection
-  door_code_title: { es: 'Código de Entrada', en: 'Entry Code', fr: "Code d'accès", de: 'Zugangscode', it: "Codice d'ingresso", pt: 'Código de entrada', ca: "Codi d'entrada", ar: 'رمز الدخول', ru: 'Код входа', uk: 'Код входу', zh: '门禁密码', ja: '入口コード', ko: '출입 코드' },
+  door_code_title: { es: 'Código de entrada', en: 'Entry Code', fr: "Code d'accès", de: 'Zugangscode', it: "Codice d'ingresso", pt: 'Código de entrada', ca: "Codi d'entrada", ar: 'رمز الدخول', ru: 'Код входа', uk: 'Код входу', zh: '门禁密码', ja: '入口コード', ko: '출입 코드' },
   entry_code_pickup_title: { es: 'Dónde recogerlo', en: 'Where to find it', fr: 'Où le récupérer', de: 'Wo du ihn findest', it: 'Dove ritirarlo', pt: 'Onde encontrar', ca: 'On recollir-lo', ar: 'أين تجده', ru: 'Где его получить', uk: 'Де його отримати', zh: '在哪里领取', ja: '受け取り場所', ko: '수령 위치' },
   phones_title: { es: 'Teléfonos', en: 'Phone Numbers', fr: 'Numéros de téléphone', de: 'Telefonnummern', it: 'Numeri di telefono', pt: 'Números de telefone', ca: 'Telèfons', ar: 'أرقام الهاتف', ru: 'Телефоны', uk: 'Телефони', zh: '电话号码', ja: '電話番号', ko: '전화번호' },
-  quick_guides: { es: 'Guías Rápidas', en: 'Quick Guides', fr: 'Guides rapides', de: 'Kurzanleitungen', it: 'Guide rapide', pt: 'Guias rápidos', ca: 'Guies ràpides', ar: 'أدلة سريعة', ru: 'Краткие инструкции', uk: 'Короткі інструкції', zh: '快速指南', ja: 'クイックガイド', ko: '빠른 안내' },
+  quick_guides: { es: 'Guías rápidas', en: 'Quick Guides', fr: 'Guides rapides', de: 'Kurzanleitungen', it: 'Guide rapide', pt: 'Guias rápidos', ca: 'Guies ràpides', ar: 'أدلة سريعة', ru: 'Краткие инструкции', uk: 'Короткі інструкції', zh: '快速指南', ja: 'クイックガイド', ko: '빠른 안내' },
   connectivity: { es: 'Conectividad', en: 'Connectivity', fr: 'Connectivité', de: 'Konnektivität', it: 'Connettività', pt: 'Conectividade', ca: 'Connectivitat', ar: 'الاتصال', ru: 'Подключение', uk: 'Підключення', zh: '网络连接', ja: '接続', ko: '연결' },
   network_password_label: { es: 'Red / Contraseña', en: 'Network / Password', fr: 'Réseau / Mot de passe', de: 'Netzwerk / Passwort', it: 'Rete / Password', pt: 'Rede / Senha', ca: 'Xarxa / Contrasenya', ar: 'الشبكة / كلمة المرور', ru: 'Сеть / Пароль', uk: 'Мережа / Пароль', zh: '网络 / 密码', ja: 'ネットワーク／パスワード', ko: '네트워크 / 비밀번호' },
 
@@ -132,7 +136,7 @@ export const UI_STRINGS: Record<string, Record<string, string>> = {
   explore_drag_hint: { es: 'Desliza para ver la lista', en: 'Swipe up to see the list', fr: 'Glissez pour voir la liste', de: 'Wische nach oben für die Liste', it: "Scorri per vedere l'elenco", pt: 'Deslize para ver a lista', ca: 'Llisca per veure la llista', ar: 'مرر للأعلى لعرض القائمة', ru: 'Проведите вверх, чтобы увидеть список', uk: 'Проведіть вгору, щоб побачити список', zh: '向上滑动查看列表', ja: '上にスワイプしてリストを表示', ko: '위로 스와이프해서 목록 보기' },
 
   // ServicesSection — {zone} placeholder replaced via .replace('{zone}', ...)
-  exclusive_promotions: { es: 'Promociones Exclusivas', en: 'Exclusive Deals', fr: 'Offres exclusives', de: 'Exklusive Angebote', it: 'Offerte esclusive', pt: 'Ofertas exclusivas', ca: 'Promocions exclusives', ar: 'عروض حصرية', ru: 'Эксклюзивные предложения', uk: 'Ексклюзивні пропозиції', zh: '专属优惠', ja: '限定オファー', ko: '독점 혜택' },
+  exclusive_promotions: { es: 'Promociones exclusivas', en: 'Exclusive Deals', fr: 'Offres exclusives', de: 'Exklusive Angebote', it: 'Offerte esclusive', pt: 'Ofertas exclusivas', ca: 'Promocions exclusives', ar: 'عروض حصرية', ru: 'Эксклюзивные предложения', uk: 'Ексклюзивні пропозиції', zh: '专属优惠', ja: '限定オファー', ko: '독점 혜택' },
   services_subtitle: {
     es: 'Descubre ofertas y actividades seleccionadas especialmente para tu estancia en {zone}.',
     en: 'Discover offers and activities selected especially for your stay in {zone}.',

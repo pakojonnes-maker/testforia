@@ -1,6 +1,6 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { useMemo } from 'react';
 import { getTranslation, getCategoryLabel } from '../lib/i18n';
-import MediaPlaceholder, { isRealImage } from './MediaPlaceholder';
+import PhotoFigure from './PhotoFigure';
 
 type TabKey = 'info' | 'discover' | 'restaurants' | 'services' | 'chat';
 type ItemKind = 'restaurant' | 'experience' | 'product';
@@ -16,9 +16,9 @@ interface StoreItem {
   id: string; name: string; category: string; price_display: string; cover_image_url?: string | null; is_featured: boolean; is_promoted?: boolean;
 }
 
-interface CarouselItem {
+interface RailItem {
   id: string; kind: ItemKind; name: string; subtitle: string; image?: string | null; price?: string; tab: TabKey;
-  /** Puesto de pago: abre el carrusel, que es el sitio más visible de la guía. */
+  /** Puesto de pago: abre el carril, que es el sitio más visible de la guía. */
   promoted?: boolean;
 }
 
@@ -31,15 +31,12 @@ interface FeaturedCarouselProps {
   onIntent: (type: ItemKind, id: string, action: string) => void;
 }
 
-const ROTATE_MS = 6000;
-
-// "Para ti" (Stitch home carousel): rotating banner mixing recommended
-// experiences, store products, and featured restaurants — a click takes the
-// guest straight to the tab that item lives in (Tienda/Restaurantes), same
-// pattern ChatIASection already uses for its suggestion chips.
+// «Para ti»: un carril de arcos que mezcla experiencias destacadas, productos de la tienda y restaurantes
+// destacados. Tocar uno lleva a la pestaña donde vive. Antes era un carrusel que rotaba solo cada 6 s; un
+// carril que el huésped desliza a su ritmo no se mueve mientras lee y no necesita botones de punto.
 export default function FeaturedCarousel({ restaurants, experiences, storeItems, lang, onNavigateTab, onIntent }: FeaturedCarouselProps) {
-  const items: CarouselItem[] = useMemo(() => {
-    const list: CarouselItem[] = [];
+  const items: RailItem[] = useMemo(() => {
+    const list: RailItem[] = [];
     experiences.filter(e => e.is_featured || e.is_promoted).forEach(e => list.push({
       id: `experience-${e.id}`, kind: 'experience', name: e.name,
       subtitle: getCategoryLabel(e.category, lang), image: e.cover_image_url,
@@ -50,8 +47,8 @@ export default function FeaturedCarousel({ restaurants, experiences, storeItems,
       subtitle: getCategoryLabel(i.category, lang), image: i.cover_image_url,
       price: i.price_display, tab: 'services', promoted: i.is_promoted,
     }));
-    // `guide_zone_restaurants.tier` solo admite 'basic'|'featured' — igual que en
-    // RestaurantsSection.tsx, no comparar nunca contra 'premium'.
+    // `guide_zone_restaurants.tier` solo admite 'basic'|'featured' — igual que en RestaurantsSection.tsx,
+    // no comparar nunca contra 'premium'.
     restaurants.filter(r => r.tier === 'featured' || r.is_promoted).forEach(r => list.push({
       id: `restaurant-${r.id}`, kind: 'restaurant', name: r.name,
       subtitle: r.cuisine_type
@@ -59,39 +56,12 @@ export default function FeaturedCarousel({ restaurants, experiences, storeItems,
         : getTranslation('category_restaurants', lang),
       image: r.cover_image, tab: 'restaurants', promoted: r.is_promoted,
     }));
-    // La lista se arma por tipo (experiencias, productos, restaurantes), así que
-    // sin esto un puesto pagado de restaurante quedaría detrás de cualquier
-    // experiencia destacada. Array.prototype.sort es estable en ES2019+, así que
-    // dentro de cada grupo se conserva el orden que ya trae el backend.
+    // La lista se arma por tipo, así que sin esto un puesto pagado de restaurante quedaría detrás de
+    // cualquier experiencia destacada. sort es estable: dentro de cada grupo se conserva el orden del backend.
     return list.sort((a, b) => Number(!!b.promoted) - Number(!!a.promoted));
   }, [restaurants, experiences, storeItems, lang]);
 
-  const [index, setIndex] = useState(0);
-  const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
-
-  // Si cambia el número de slides (p.ej. cambio de idioma recarga los datos),
-  // el índice activo puede quedar fuera de rango.
-  useEffect(() => {
-    setIndex(0);
-  }, [items.length]);
-
-  useEffect(() => {
-    if (items.length < 2) return;
-    timerRef.current = setInterval(() => {
-      setIndex(i => (i + 1) % items.length);
-    }, ROTATE_MS);
-    return () => { if (timerRef.current) clearInterval(timerRef.current); };
-  }, [items.length]);
-
   if (items.length === 0) return null;
-
-  const goTo = (i: number) => {
-    setIndex(i);
-    if (timerRef.current) clearInterval(timerRef.current);
-    if (items.length > 1) {
-      timerRef.current = setInterval(() => setIndex(x => (x + 1) % items.length), ROTATE_MS);
-    }
-  };
 
   const KIND_LABEL: Record<ItemKind, string> = {
     restaurant: getTranslation('tab_restaurants', lang),
@@ -99,64 +69,24 @@ export default function FeaturedCarousel({ restaurants, experiences, storeItems,
     product: getTranslation('tab_services', lang),
   };
 
-  const handleSelect = (item: CarouselItem) => {
+  const handleSelect = (item: RailItem) => {
     onIntent(item.kind, item.id.replace(`${item.kind}-`, ''), 'click_home_carousel');
     onNavigateTab(item.tab);
   };
 
   return (
-    <section className="flex flex-col gap-stack-md">
-      <h2 className="font-label-caps text-label-caps text-secondary uppercase tracking-widest">
-        {getTranslation('recommended_for_you', lang)}
-      </h2>
-
-      <div className="relative w-full aspect-[4/3] md:aspect-[21/9] overflow-hidden border border-on-background/10 bg-surface-variant">
-        {items.map((item, i) => (
-          <button
-            key={item.id}
-            onClick={() => handleSelect(item)}
-            className="absolute inset-0 w-full h-full text-left transition-opacity duration-700 ease-in-out"
-            style={{ opacity: i === index ? 1 : 0, pointerEvents: i === index ? 'auto' : 'none' }}
-            aria-hidden={i !== index}
-            tabIndex={i === index ? 0 : -1}
-          >
-            {isRealImage(item.image) ? (
-              <img src={item.image!} alt={item.name} className="w-full h-full object-cover" />
-            ) : (
-              <MediaPlaceholder label={item.name} />
-            )}
-            <div className="absolute inset-0 bg-gradient-to-t from-on-background/85 via-on-background/15 to-transparent" />
-            <div className="absolute bottom-0 left-0 right-0 p-5 md:p-8 flex items-end justify-between gap-4">
-              <div className="min-w-0">
-                <span className="font-label-caps text-label-caps text-crisp-white/80 uppercase tracking-widest">
-                  {KIND_LABEL[item.kind]} · {item.subtitle}
-                </span>
-                <h3 className="font-headline-md text-headline-md md:text-display-lg text-crisp-white line-clamp-1">
-                  {item.name}
-                </h3>
-              </div>
-              {item.price && (
-                <span className="shrink-0 stamped-badge-1 bg-tertiary-fixed-dim text-on-tertiary-fixed font-mono-badge text-mono-badge px-2.5 py-1.5 border border-on-background/20 uppercase">
-                  {item.price}
-                </span>
-              )}
-            </div>
+    <section className="g-sec g-sec-rail">
+      <h2 className="g-h2">{getTranslation('recommended_for_you', lang)}</h2>
+      <div className="g-rail hide-scrollbar">
+        {items.map(item => (
+          <button key={item.id} type="button" className="g-rc" onClick={() => handleSelect(item)}>
+            <PhotoFigure className="g-fig" src={item.image} alt="" name={item.name} />
+            <span className="g-h3">{item.name}</span>
+            <span className="g-meta">{KIND_LABEL[item.kind]} · {item.subtitle}</span>
+            {item.price && <span className="g-rprice">{item.price}</span>}
           </button>
         ))}
       </div>
-
-      {items.length > 1 && (
-        <div className="flex items-center justify-center gap-2">
-          {items.map((item, i) => (
-            <button
-              key={item.id}
-              onClick={() => goTo(i)}
-              aria-label={item.name}
-              className={`h-1.5 transition-all ${i === index ? 'w-6 bg-primary' : 'w-1.5 bg-on-background/20'}`}
-            />
-          ))}
-        </div>
-      )}
     </section>
   );
 }

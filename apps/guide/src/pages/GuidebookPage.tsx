@@ -21,6 +21,7 @@ import WelcomeModal, { WelcomeModalData } from '../components/WelcomeModal';
 import { getTranslation, ACTIVE_LANGUAGES, isRtl } from '../lib/i18n';
 import type { GuidePoi, CitySummary, ZoneSummary, CtaActionType, GuideRestaurant } from '../lib/types';
 import '../styles/guide.css';
+import '../styles/casa.css';
 import '@fontsource-variable/montserrat/index.css';
 import '@fontsource-variable/playfair-display/index.css';
 import '@fontsource-variable/playfair-display/wght-italic.css';
@@ -354,7 +355,7 @@ export default function GuidebookPage() {
   // mismo hueco dejaba una banda vacía enorme antes del título en vez de
   // "arriba del todo" — así que en esas dos el selector va integrado en la
   // misma fila que su título (ver RestaurantsSection/ServicesSection).
-  const showFloatingLangCorner = activeTab === 'info' || isChatTab;
+  const showFloatingLangCorner = isChatTab;
 
   // min-h-screen deja crecer la página más allá del viewport, que es lo que
   // queremos en las pestañas normales (contenido largo, footer al final). En
@@ -397,14 +398,14 @@ export default function GuidebookPage() {
           : isExploreTab
           ? "relative flex-1 min-h-0 overflow-hidden pb-16 md:pb-0"
           : activeTab === 'info'
-          ? "w-full max-w-container-max mx-auto px-margin-mobile md:px-margin-desktop pt-20 pb-8 flex flex-col gap-12"
+          ? "w-full"
           : "w-full max-w-container-max mx-auto px-margin-mobile md:px-margin-desktop py-8 flex flex-col gap-12"}
         onTouchStart={handleTouchStart}
         onTouchMove={handleTouchMove}
         onTouchEnd={handleTouchEnd}
       >
         {activeTab === 'info' && (
-          <div className={`flex flex-col gap-12 ${tabAnimClass}`}>
+          <div className={tabAnimClass}>
             <WelcomeHero
               apartmentName={apartment.name}
               address={apartment.address}
@@ -412,6 +413,7 @@ export default function GuidebookPage() {
               agencyLogoUrl={agency.logo_url}
               agencyName={agency.name}
               currentLang={lang}
+              onLanguageChange={handleLanguageChange}
             />
             <InfoSection infoItems={apartment.info} phones={apartment.phones} lang={lang} />
             <FeaturedCarousel
@@ -424,6 +426,7 @@ export default function GuidebookPage() {
             />
             <ProductBillboard
               storeItems={store_items || []}
+              lang={lang}
               onNavigateTab={setActiveTab}
               onIntent={(type, id, action) => logIntent(type, id, action)}
             />

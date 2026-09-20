@@ -140,6 +140,8 @@ export interface GuideTheme {
   /** Relleno de botones, pines y burbuja del huésped, y el texto que lleva encima. */
   fill: string;
   onFill: string;
+  /** Segundo extremo de un degradado del relleno: se aleja del color del texto, así el contraste no baja en ningún punto. */
+  fill2: string;
   /** El primario usado como texto sobre papel: etiquetas, precios, numerales, enlaces. */
   text: string;
   /** Fondo suave: fila de idioma activa, caja del código, aviso de consentimiento. */
@@ -183,6 +185,7 @@ export function deriveTheme(colors: AgencyColors | null | undefined): GuideTheme
     brand,
     fill: fill.bg,
     onFill: fill.on,
+    fill2: mix(fill.on === WHITE ? INK : WHITE, fill.bg, 0.16),
     fillEdge: edge(fill.bg),
     secondEdge: edge(second.bg),
     accentEdge: edge(accent.bg),

@@ -14,6 +14,7 @@ export function colorVars(theme: GuideTheme): Record<string, string> {
     '--g-brand': theme.brand,
     '--g-fill': theme.fill,
     '--g-on-fill': theme.onFill,
+    '--g-fill-2': theme.fill2,
     '--g-fill-edge': theme.fillEdge,
     '--g-second-edge': theme.secondEdge,
     '--g-accent-edge': theme.accentEdge,

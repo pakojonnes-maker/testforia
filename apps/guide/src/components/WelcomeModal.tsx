@@ -1,7 +1,9 @@
-import { useEffect } from 'react';
+import { useState } from 'react';
 import { buildWhatsAppUrl } from '../lib/api';
 import { getTranslation } from '../lib/i18n';
 import useDismissableLayer from '../hooks/useDismissableLayer';
+import { isRealImage } from './MediaPlaceholder';
+import Layer from './Layer';
 
 export interface WelcomeModalData {
   image_url: string | null;
@@ -19,8 +21,12 @@ interface WelcomeModalProps {
   lang: string;
 }
 
+// La bienvenida del anfitrión: una hoja desde abajo con la foto en un arco que asoma por encima del borde.
+// «Cerrar» está siempre, aparte de la acción. Si la foto no carga, la hoja sigue siendo válida sin ella.
 export default function WelcomeModal({ welcome, onClose, lang }: WelcomeModalProps) {
   useDismissableLayer(true, onClose);
+  const [imageFailed, setImageFailed] = useState(false);
+  const showImage = isRealImage(welcome.image_url) && !imageFailed;
 
   const actionHref = (() => {
     if (!welcome.action_enabled || !welcome.action_data) return null;
@@ -30,53 +36,31 @@ export default function WelcomeModal({ welcome, onClose, lang }: WelcomeModalPro
   })();
 
   return (
-    <div
-      className="fixed inset-0 z-[60] flex items-end md:items-center justify-center bg-on-background/60 animate-[fadeIn_0.2s_ease]"
-      onClick={onClose}
-    >
-      <div
-        className="relative w-full md:max-w-sm md:mx-4 bg-surface-container-lowest border border-on-background/10 overflow-hidden"
-        onClick={e => e.stopPropagation()}
-      >
-        {/* Close button — always available, independent of the action button below */}
-        <button
-          onClick={onClose}
-          aria-label={getTranslation('close', lang)}
-          className="absolute top-3 right-3 z-10 w-9 h-9 flex items-center justify-center bg-on-background/40 text-crisp-white hover:bg-on-background/60 transition-colors"
-        >
-          <span className="material-symbols-outlined text-[20px]">close</span>
-        </button>
-
-        {welcome.image_url && (
-          <div className="w-full h-48 md:h-56 overflow-hidden">
-            <img src={welcome.image_url} alt="" className="w-full h-full object-cover" />
-          </div>
+    <Layer lang={lang}>
+      <div className="g-scrim" onClick={onClose} />
+      <div className={`g-wsheet${showImage ? '' : ' noimg'}`} role="dialog" aria-modal="true" aria-label={welcome.title}>
+        <button type="button" className="g-close" onClick={onClose}>{getTranslation('close', lang)}</button>
+        {showImage && (
+          <figure className="g-warch">
+            <img src={welcome.image_url as string} alt="" onError={() => setImageFailed(true)} />
+          </figure>
         )}
-
-        <div className="p-6 text-center">
-          <h2 className="font-headline-md text-headline-md text-on-background mb-2">{welcome.title}</h2>
-          {welcome.body && (
-            <p className="font-body-md text-body-md text-on-surface-variant whitespace-pre-line mb-5">
-              {welcome.body}
-            </p>
-          )}
-
+        <div className="g-wcontent">
+          <h2 className="g-h2">{welcome.title}</h2>
+          {welcome.body && <p className="g-p">{welcome.body}</p>}
           {actionHref && (
             <a
+              className="g-pill fill"
               href={actionHref}
               target={welcome.action_type === 'URL' ? '_blank' : undefined}
               rel="noopener noreferrer"
               onClick={onClose}
-              className="block w-full py-3 text-crisp-white font-label-caps text-label-caps uppercase transition-colors"
-              style={{ backgroundColor: 'var(--brand-primary)' }}
             >
               {welcome.action_label || getTranslation('show_more', lang)}
             </a>
           )}
         </div>
-
-        <div className="pb-[env(safe-area-inset-bottom,16px)] md:pb-0" />
       </div>
-    </div>
+    </Layer>
   );
 }
