@@ -1,0 +1,51 @@
+/* =========================================================
+   PARTE 5 — Comer: titular con el idioma, chips por cocina, tarjetas verticales con foto en arco y la hoja
+   «Reservar mesa». Los colores de la agencia entran solo por --g-*; nada de marca escrito a mano.
+   (.g-sub y .g-disc los reutiliza la tienda.)
+   ========================================================= */
+@layer components {
+  /* Subtítulo y divulgación comercial bajo el titular. */
+  .g-sub { margin: 8px 20px 0; }
+  .g-disc { margin: 10px 20px 0; font: 500 12.5px/1.45 var(--g-ff-body); color: var(--g-ink3); }
+  .g-empty-page { margin: 30px 20px 0; }
+
+  /* Chips por tipo de cocina: carril que se desliza de lado a lado (el hueco de abajo es para su sombra). */
+  .g-filters { display: flex; gap: 8px; margin-top: 16px; padding: 2px 20px 8px; overflow-x: auto; overflow-y: hidden; overscroll-behavior-x: contain; }
+
+  /* Tarjetas verticales. */
+  .g-cards { display: grid; gap: 52px; margin-top: 22px; }
+  .g-card .g-arch { margin: 10px 30px 0; height: 260px; }
+  .g-card .g-arch.g-noph i { font-size: 150px; }
+  .g-card-body { display: grid; gap: 4px; margin: 34px 20px 0; }
+  .g-eyebrow { font: 600 11.5px/1.3 var(--g-ff-label); letter-spacing: 0.14em; text-transform: uppercase; color: var(--g-text); }
+  [dir="rtl"] .g-eyebrow { letter-spacing: 0; font-size: 12.5px; text-transform: none; }
+  .g-card-body .g-h2 { font-size: 30px; }
+  .g-card-body .g-p { margin-top: 6px; }
+  /* plaintext: la descripción es texto del anfitrión; si no está traducida al idioma de la interfaz, se orienta y se alinea por su propio contenido. */
+  .g-clamp { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 3; line-clamp: 3; overflow: hidden; unicode-bidi: plaintext; }
+  .g-btns { display: flex; gap: 10px; margin-top: 18px; }
+  .g-btns .g-pill { flex: 1; min-height: 52px; padding: 0 12px; font-size: 15px; white-space: normal; line-height: 1.2; }
+  .g-card-body .g-pill.wide { width: 100%; min-height: 52px; margin-top: 10px; font-size: 15px; color: var(--g-text); }
+
+  /* Hoja «Reservar mesa»: la misma caja que la del idioma, con un canal por fila. */
+  .g-rsheet { padding-top: 10px; padding-bottom: calc(30px + env(safe-area-inset-bottom, 0px)); }
+  .g-rhead { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; padding: 6px 20px 18px; border-bottom: 1px solid rgba(12, 42, 55, 0.12); }
+  .g-rtitle { min-width: 0; }
+  .g-rhead .g-k,
+  .g-chan .g-k { color: var(--g-ink3); }
+  .g-rhead .g-h2 { margin-top: 6px; font-size: 26px; }
+  .g-chan {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 14px;
+    width: 100%;
+    min-height: 78px;
+    padding: 0 20px;
+    border-bottom: 1px solid rgba(12, 42, 55, 0.12);
+    color: var(--g-ink);
+    text-decoration: none;
+  }
+  .g-chan > div { display: grid; gap: 5px; min-width: 0; }
+  .g-chan b { font: 600 19px/1.2 var(--g-ff-body); letter-spacing: 0.01em; color: var(--g-ink); font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+}
