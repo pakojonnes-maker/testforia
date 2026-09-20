@@ -278,12 +278,22 @@ privacidad de la cabecera (el pie no se renderiza en Explorar ni en Chat).
 
 ### `apps/guide` — Guidebook
 - **React 19** + Vite 7 + TypeScript.
-- **Styling: Tailwind CSS v4** (`@tailwindcss/vite`, `tailwind.config.js`).
+- **Styling: hojas propias en `src/styles/`** (`guide.css` es el sistema; `casa`, `lugares`, `comer`,
+  `tienda`, `conserje` y `legal.css`, una por pestaña), con clases `.g-*` dentro de `@layer components`.
+  Tailwind v4 (`@tailwindcss/vite`, sin `tailwind.config.js`) solo para maquetación suelta.
+- **Color y tipografía SOLO por `var(--g-*)`** (`--g-fill`, `--g-text`, `--g-mark`, `--g-second`, `--g-accent`,
+  `--g-ff-head/body/label`…): las calcula `src/theme/` desde `agency.*` de la BD (`useAgencyTheme`) con el
+  contraste garantizado (`npm run test:theme`). **Nunca un color de marca escrito a mano**: solo son fijos el
+  papel, la tinta y la arena. `--g-mark` (no `--g-fill`) para subrayados, indicadores y foco sobre el papel.
+  Sin iconos ni emoji en toda la app: es una decisión de diseño.
+- Trampas de CSS: un estilo SIN capa gana a uno en `@layer` (leaflet.css entra sin capa: sus overrides, en
+  `lugares.css`, van sin capa y bajo `.vt-map`); un `position: sticky` no sale de la caja de contenido de su
+  padre (por eso `.g-full` no lleva padding-bottom); texto del anfitrión con números en RTL → `<bdi>` o
+  `unicode-bidi: plaintext`.
 - Mapas: **Leaflet + react-leaflet**. Dev port fijo: **5175**.
-- Tema en `apps/guide/src/theme/` y `apps/admin/src/theme/guideTheme.ts`.
-- `InfoSection.tsx` renderiza `apartment_info.content` como **texto plano**
-  (`whitespace-pre-wrap`, sin parser de markdown): un `**negrita**` en la BD sale con
-  los asteriscos literales.
+- Las opciones de color y fuente que ofrece el admin salen de `apps/admin/src/theme/guideTheme.ts`.
+- El contenido de una guía (`apartment_info.content`) es **texto plano**: `lib/text.ts` lo parte en
+  párrafos y títulos numerados, sin parser de markdown (un `**negrita**` sale con los asteriscos literales).
 - Build: `tsc -b && vite build`.
 
 ### `apps/tv` — VisualTaste TV

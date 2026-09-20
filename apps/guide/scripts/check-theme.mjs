@@ -94,7 +94,7 @@ ok(noSecond.second !== T.deriveTheme({}).second, 'sin secundario, la tesela debe
 // ---------------------------------------------------------------- variables
 console.log('— Variables CSS');
 const vars = T.allVars({ primary_color: '#1a4fd8', secondary_color: '#F7D08A', accent_color: '#E8734A', headline_font: null, body_font: null, label_font: null });
-for (const k of ['--g-brand', '--g-fill', '--g-on-fill', '--g-text', '--g-mark', '--g-soft', '--g-second', '--g-on-second', '--g-accent', '--g-on-accent', '--g-accent-mark', '--g-accent-on-ink', '--g-ff-head', '--g-ff-body', '--g-ff-label', '--color-primary', '--brand-primary', '--font-headline-md']) {
+for (const k of ['--g-brand', '--g-fill', '--g-on-fill', '--g-text', '--g-mark', '--g-soft', '--g-second', '--g-on-second', '--g-accent', '--g-on-accent', '--g-accent-mark', '--g-accent-on-ink', '--g-ff-head', '--g-ff-body', '--g-ff-label']) {
   ok(typeof vars[k] === 'string' && vars[k].length > 0, `falta la variable ${k}`);
 }
 ok(vars['--g-brand'] === '#1A4FD8', `--g-brand debería ser el primario de la BD (${vars['--g-brand']})`);

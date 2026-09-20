@@ -1,5 +1,5 @@
 import { useState, type ReactNode } from 'react';
-import { isRealImage } from './MediaPlaceholder';
+import { isRealImage } from '../lib/media';
 
 interface PhotoFigureProps {
   /** Clase de la forma: g-arch, g-fig, g-ph… Con o sin foto, la forma es la misma. */

@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { buildWhatsAppUrl } from '../lib/api';
 import { getTranslation } from '../lib/i18n';
 import useDismissableLayer from '../hooks/useDismissableLayer';
-import { isRealImage } from './MediaPlaceholder';
+import { isRealImage } from '../lib/media';
 import Layer from './Layer';
 
 export interface WelcomeModalData {

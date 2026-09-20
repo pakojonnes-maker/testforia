@@ -40,36 +40,8 @@ export function fontVars(agency: AgencyFonts | null | undefined): Record<string,
   };
 }
 
-/**
- * Puente para los componentes que aún usan los tokens del sistema anterior (index.css, Tailwind
- * `bg-primary`, `font-headline-md`…). Se va vaciando parte a parte y desaparece en la última.
- */
-const LEGACY_FONT_TOKENS: Record<FontRole, string[]> = {
-  headline: ['--font-display-xl', '--font-display-lg', '--font-headline-lg', '--font-headline-lg-mobile', '--font-headline-md', '--font-headline-sm'],
-  body: ['--font-body-md', '--font-body-lg'],
-  label: ['--font-label-lg', '--font-label-md', '--font-label-sm', '--font-label-caps'],
-};
-
-export function legacyVars(theme: GuideTheme, agency: AgencyFonts | null | undefined): Record<string, string> {
-  const fonts = resolveFonts(agency);
-  const vars: Record<string, string> = {
-    '--brand-primary': theme.fill,
-    '--brand-secondary': theme.second,
-    '--color-terracotta': theme.fill,
-    '--color-deep-sea': theme.second,
-    '--color-primary': theme.fill,
-    '--color-on-primary': theme.onFill,
-    '--color-accent-gold': theme.accent,
-  };
-  (Object.keys(LEGACY_FONT_TOKENS) as FontRole[]).forEach(role => {
-    const stack = fontStack(role, fonts[role]);
-    LEGACY_FONT_TOKENS[role].forEach(token => { vars[token] = stack; });
-  });
-  return vars;
-}
-
 /** Todo lo que se escribe en <html> para una agencia. */
 export function allVars(agency: GuideAgency | null | undefined): Record<string, string> {
   const theme = deriveTheme(agency);
-  return { ...colorVars(theme), ...fontVars(agency), ...legacyVars(theme, agency) };
+  return { ...colorVars(theme), ...fontVars(agency) };
 }

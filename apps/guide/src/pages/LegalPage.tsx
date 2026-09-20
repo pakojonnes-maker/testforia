@@ -2,7 +2,12 @@ import { useEffect, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { LEGAL_IDENTITY, SUBPROCESSORS, hasPendingFields, formattedLastUpdated } from '../lib/legalIdentity';
 import { getConsent, setConsent, type ConsentState } from '../lib/consent';
-import { isRtl } from '../lib/i18n';
+import { useAgencyTheme } from '../theme/useAgencyTheme';
+import '../styles/guide.css';
+import '../styles/legal.css';
+import '@fontsource-variable/montserrat/index.css';
+import '@fontsource-variable/playfair-display/index.css';
+import '@fontsource-variable/playfair-display/wght-italic.css';
 
 // Página legal del guidebook: privacidad + aviso legal + panel para cambiar de
 // idea sobre el consentimiento.
@@ -24,6 +29,8 @@ const T = {
     pending:
       'Este documento todavía no está listo para publicarse: faltan la razón social, el NIF y el domicilio del responsable (art. 10 LSSI y art. 13 RGPD). Complétalos en apps/guide/src/lib/legalIdentity.ts.',
     back: 'Volver',
+    purposeLabel: 'Finalidad',
+    locationLabel: 'Ubicación',
     consentTitle: 'Recordarte entre visitas',
     consentGranted: 'Está activado: guardamos un identificador aleatorio en tu dispositivo. Puedes desactivarlo cuando quieras.',
     consentDenied: 'Está desactivado. No hay nada guardado en tu dispositivo.',
@@ -84,6 +91,7 @@ const T = {
           'Por defecto no guardamos NADA en tu dispositivo, y por eso esta guía no te recibe con un aviso de cookies: las estadísticas de uso se calculan en nuestro servidor sin dejarte nada puesto. Lo de abajo solo existe si tú lo activas.',
         ],
         table: {
+          codeFirst: true,
           head: ['Nombre', 'Para qué', 'Duración'],
           rows: [
             ['vt_guide_consent', 'Recordar que activaste (o no) el recuerdo entre visitas. Solo se escribe si tocas los botones de abajo.', '12 meses'],
@@ -140,6 +148,8 @@ const T = {
     pending:
       'This document is not ready to publish yet: the legal name, tax ID and registered address are missing (art. 10 LSSI and art. 13 GDPR). Fill them in at apps/guide/src/lib/legalIdentity.ts.',
     back: 'Back',
+    purposeLabel: 'Purpose',
+    locationLabel: 'Location',
     consentTitle: 'Remembering you between visits',
     consentGranted: 'Switched on: we keep a random identifier on your device. You can switch it off whenever you like.',
     consentDenied: 'Switched off. Nothing is stored on your device.',
@@ -194,6 +204,7 @@ const T = {
           'By default we store NOTHING on your device, which is why this guide does not greet you with a cookie notice: usage statistics are computed on our server without leaving anything behind. What follows only exists if you switch it on.',
         ],
         table: {
+          codeFirst: true,
           head: ['Name', 'Purpose', 'Duration'],
           rows: [
             ['vt_guide_consent', 'Remembering your analytics choice. Strictly necessary.', '12 months'],
@@ -263,15 +274,19 @@ export default function LegalPage() {
   const lang = pick(rawLang);
   const t = T[lang];
   const [consent, setConsentState] = useState<ConsentState>('unset');
+  // Esta página no depende de ningún piso, así que no hay agencia: los colores y las tipografías del diseño.
+  // El idioma es el del TEXTO (es o en; el resto cae a inglés), no el del navegador: un documento en inglés
+  // dentro de una página RTL se pintaba con la puntuación descolocada.
+  useAgencyTheme(null, lang);
 
   useEffect(() => {
     setConsentState(getConsent());
   }, []);
 
   useEffect(() => {
-    document.documentElement.dir = isRtl(rawLang) ? 'rtl' : 'ltr';
+    document.documentElement.dir = 'ltr';
     document.title = `${t.title} — ${LEGAL_IDENTITY.brand}`;
-  }, [rawLang, t.title]);
+  }, [t.title]);
 
   const change = (state: 'granted' | 'denied') => {
     setConsent(state);
@@ -279,125 +294,73 @@ export default function LegalPage() {
   };
 
   return (
-    <div className="min-h-screen bg-surface text-on-surface px-5 py-10">
-      <div className="max-w-3xl mx-auto flex flex-col gap-8">
-        <header>
-          <button
-            onClick={() => window.history.back()}
-            className="font-label-md text-label-md text-primary uppercase tracking-wide mb-6 hover:opacity-70 transition-opacity"
-          >
-            ← {t.back}
-          </button>
-          <h1 className="font-display-md text-display-md text-on-background">{t.title}</h1>
-          <p className="font-body-sm text-body-sm text-on-surface-variant mt-2">
-            {t.updated}: {formattedLastUpdated(lang)}
-          </p>
-        </header>
+    <div className="guide-app g-app g-legal" dir="ltr" lang={lang}>
+      <header className="g-legal-h">
+        <button type="button" className="g-back" onClick={() => window.history.back()}>{t.back}</button>
+        <h1 className="g-h1">{t.title}</h1>
+        <p className="g-meta">{t.updated}: {formattedLastUpdated(lang)}</p>
+      </header>
 
-        {hasPendingFields() && (
-          <div className="border border-error/60 bg-error/10 p-4 font-body-sm text-body-sm">{t.pending}</div>
-        )}
+      {hasPendingFields() && <div className="g-legal-warn" role="alert">{t.pending}</div>}
 
-        {/* Panel para cambiar de idea. El art. 7.3 RGPD exige que retirar el
-            consentimiento sea tan fácil como darlo, y hasta ahora en el guidebook
-            no había forma alguna de hacerlo. */}
-        <section className="border border-on-background/15 p-5">
-          <h2 className="font-label-caps text-label-caps text-primary uppercase mb-2">{t.consentTitle}</h2>
-          <p className="font-body-md text-body-md text-on-surface mb-4">
-            {consent === 'granted' ? t.consentGranted : consent === 'denied' ? t.consentDenied : t.consentUnset}
-          </p>
-          <div className="flex gap-3 flex-wrap">
-            {consent !== 'denied' && (
-              <button
-                onClick={() => change('denied')}
-                className="py-2.5 px-5 font-label-md text-label-md uppercase tracking-wide border border-on-background/25 hover:border-on-background/50 transition-colors"
-              >
-                {t.revoke}
-              </button>
-            )}
-            {consent !== 'granted' && (
-              <button
-                onClick={() => change('granted')}
-                className="py-2.5 px-5 font-label-md text-label-md uppercase tracking-wide bg-primary text-on-primary hover:bg-primary-container transition-colors"
-              >
-                {t.grant}
-              </button>
-            )}
-          </div>
+      {/* Panel para cambiar de idea. El art. 7.3 RGPD exige que retirar el
+          consentimiento sea tan fácil como darlo, y hasta ahora en el guidebook
+          no había forma alguna de hacerlo. */}
+      <section className="g-consent">
+        <h2 className="g-h3">{t.consentTitle}</h2>
+        <p aria-live="polite">
+          {consent === 'granted' ? t.consentGranted : consent === 'denied' ? t.consentDenied : t.consentUnset}
+        </p>
+        <div className="g-btns">
+          {consent === 'granted' ? (
+            <button type="button" className="g-pill line" onClick={() => change('denied')}>{t.revoke}</button>
+          ) : (
+            <button type="button" className="g-pill fill" onClick={() => change('granted')}>{t.grant}</button>
+          )}
+        </div>
+      </section>
+
+      {t.sections.map((section) => (
+        <section key={section.h} className="g-lsec">
+          <h2 className="g-h2">{section.h}</h2>
+
+          {'p' in section && section.p?.map((paragraph, i) => <p key={i}>{interpolate(paragraph)}</p>)}
+
+          {/* Una fila de tabla = una tarjeta: su primera columna es el título (o el nombre del dato guardado
+              en el dispositivo, en monoespaciado) y cada columna restante lleva su rótulo. */}
+          {'table' in section && section.table && (
+            <div className="g-tcards">
+              {section.table.rows.map((row, i) => (
+                <div key={i} className="g-tcard">
+                  <div>
+                    {(section.table as { codeFirst?: boolean }).codeFirst ? <code>{row[0]}</code> : <h3 className="g-h3">{row[0]}</h3>}
+                  </div>
+                  {row.slice(1).map((cell, j) => (
+                    <div key={j}>
+                      <span>{section.table.head[j + 1]}</span>
+                      <p>{cell}</p>
+                    </div>
+                  ))}
+                </div>
+              ))}
+            </div>
+          )}
+
+          {'providers' in section && section.providers && (
+            <div className="g-tcards">
+              {SUBPROCESSORS.map((s) => (
+                <div key={s.name} className="g-tcard">
+                  <div><h3 className="g-h3">{s.name}</h3></div>
+                  <div><span>{t.purposeLabel}</span><p>{lang === 'es' ? s.purposeEs : s.purposeEn}</p></div>
+                  <div><span>{t.locationLabel}</span><p>{s.location}</p></div>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {'after' in section && section.after?.map((paragraph, i) => <p key={i}>{interpolate(paragraph)}</p>)}
         </section>
-
-        {t.sections.map((section) => (
-          <section key={section.h} className="flex flex-col gap-3">
-            <h2 className="font-headline-sm text-headline-sm text-on-background">{section.h}</h2>
-
-            {'p' in section &&
-              section.p?.map((paragraph, i) => (
-                <p key={i} className="font-body-md text-body-md text-on-surface-variant leading-relaxed">
-                  {interpolate(paragraph)}
-                </p>
-              ))}
-
-            {'table' in section && section.table && (
-              <div className="overflow-x-auto">
-                <table className="w-full min-w-[36rem] border-collapse font-body-sm text-body-sm">
-                  <thead>
-                    <tr>
-                      {section.table.head.map((h) => (
-                        <th
-                          key={h}
-                          className="border border-on-background/15 bg-surface-container-low p-2.5 text-left text-on-background font-semibold"
-                        >
-                          {h}
-                        </th>
-                      ))}
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {section.table.rows.map((row, i) => (
-                      <tr key={i}>
-                        {row.map((cell, j) => (
-                          <td key={j} className="border border-on-background/15 p-2.5 align-top text-on-surface-variant">
-                            {cell}
-                          </td>
-                        ))}
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            )}
-
-            {'providers' in section && section.providers && (
-              <div className="overflow-x-auto">
-                <table className="w-full min-w-[36rem] border-collapse font-body-sm text-body-sm">
-                  <tbody>
-                    {SUBPROCESSORS.map((s) => (
-                      <tr key={s.name}>
-                        <td className="border border-on-background/15 p-2.5 text-on-background font-semibold align-top">
-                          {s.name}
-                        </td>
-                        <td className="border border-on-background/15 p-2.5 text-on-surface-variant align-top">
-                          {lang === 'es' ? s.purposeEs : s.purposeEn}
-                        </td>
-                        <td className="border border-on-background/15 p-2.5 text-on-surface-variant align-top whitespace-nowrap">
-                          {s.location}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            )}
-
-            {'after' in section &&
-              section.after?.map((paragraph, i) => (
-                <p key={i} className="font-body-md text-body-md text-on-surface-variant leading-relaxed">
-                  {interpolate(paragraph)}
-                </p>
-              ))}
-          </section>
-        ))}
-      </div>
+      ))}
     </div>
   );
 }

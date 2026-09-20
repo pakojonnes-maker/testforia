@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { getTranslation } from '../lib/i18n';
 import { parseWifi } from '../lib/wifi';
 import { codeSize } from '../lib/text';
-import { isRealImage } from './MediaPlaceholder';
+import { isRealImage } from '../lib/media';
 import { ArchGlyph } from './GuideStates';
 import EntryCodeModal from './EntryCodeModal';
 import PhonesModal, { PhoneEntry } from './PhonesModal';

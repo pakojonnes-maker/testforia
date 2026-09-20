@@ -1,6 +1,6 @@
 import { useMemo } from 'react';
 import { getTranslation } from '../lib/i18n';
-import { isRealImage } from './MediaPlaceholder';
+import { isRealImage } from '../lib/media';
 
 type TabKey = 'info' | 'discover' | 'restaurants' | 'services' | 'chat';
 

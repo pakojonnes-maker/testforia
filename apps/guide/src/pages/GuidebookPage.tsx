@@ -380,9 +380,7 @@ export default function GuidebookPage() {
           ? "g-chat-main flex-1 min-h-0 flex flex-col w-full"
           : isExploreTab
           ? "g-explore-main relative flex-1 min-h-0 overflow-hidden"
-          : activeTab === 'info' || activeTab === 'restaurants' || activeTab === 'services'
-          ? "w-full"
-          : "w-full max-w-container-max mx-auto px-margin-mobile md:px-margin-desktop py-8 flex flex-col gap-12"}
+          : "w-full"}
         onTouchStart={handleTouchStart}
         onTouchMove={handleTouchMove}
         onTouchEnd={handleTouchEnd}

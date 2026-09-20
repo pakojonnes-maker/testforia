@@ -1,0 +1,50 @@
+/* =========================================================
+   PARTE 8 — Privacidad y aviso legal: cabecera, tarjeta de consentimiento, secciones de texto y las tablas
+   convertidas en tarjetas apiladas (una tabla de cuatro columnas no cabe en un móvil). Sin agencia: los colores
+   y tipografías son los del diseño, por --g-*.
+   ========================================================= */
+@layer components {
+  .g-legal { min-height: 100vh; padding-bottom: 56px; }
+  .g-legal-h { padding: 14px 20px 0; }
+  .g-legal-h .g-h1 { margin-top: 14px; font-size: 34px; }
+  .g-legal-h .g-meta { margin-top: 12px; }
+  /* Aviso de que faltan datos legales por completar (solo mientras legalIdentity.ts tenga campos pendientes). */
+  .g-legal-warn {
+    margin: 22px 20px 0;
+    padding: 18px 20px;
+    border-radius: 24px;
+    background: #FBE7DF;
+    color: #6E1F0C;
+    box-shadow: 0 0 0 1px rgba(110, 31, 12, 0.28);
+    font: 500 15px/1.5 var(--g-ff-body);
+    overflow-wrap: anywhere;
+  }
+
+  /* Tarjeta para cambiar de idea (art. 7.3 RGPD: retirar el consentimiento debe ser tan fácil como darlo). */
+  .g-consent {
+    margin: 26px 20px 0;
+    padding: 22px 20px;
+    border-radius: 26px;
+    background: var(--g-soft);
+    box-shadow: inset 0 0 0 1.5px color-mix(in srgb, var(--g-mark) 30%, transparent);
+  }
+  .g-consent .g-h3 { font-size: 22px; }
+  .g-consent p { margin-top: 10px; font: 400 15.5px/1.6 var(--g-ff-body); color: var(--g-ink2); }
+  .g-consent .g-btns { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 18px; }
+  .g-consent .g-btns .g-pill { flex: 1 1 200px; min-height: 50px; padding: 0 20px; white-space: normal; line-height: 1.2; }
+
+  .g-lsec { display: grid; gap: 14px; margin: 38px 20px 0; }
+  .g-lsec .g-h2 { font-size: 25px; }
+  .g-lsec p { font: 400 15.5px/1.7 var(--g-ff-body); color: var(--g-ink2); overflow-wrap: anywhere; }
+
+  /* Una fila de tabla = una tarjeta: arriba su nombre, debajo cada columna con su rótulo. */
+  .g-tcards { display: grid; gap: 12px; }
+  .g-tcard { display: grid; gap: 0; overflow: hidden; border-radius: 22px; background: var(--g-card); box-shadow: inset 0 0 0 1px rgba(12, 42, 55, 0.12); }
+  .g-tcard > div { display: grid; gap: 5px; padding: 14px 18px; }
+  .g-tcard > div + div { border-top: 1px solid rgba(12, 42, 55, 0.1); }
+  .g-tcard > div:first-child { background: var(--g-cal2); }
+  .g-tcard .g-h3 { font-size: 19px; }
+  .g-tcard span { font: 600 11px/1.2 var(--g-ff-label); letter-spacing: 0.13em; text-transform: uppercase; color: var(--g-ink3); }
+  .g-tcard p { font: 400 14.5px/1.55 var(--g-ff-body); color: var(--g-ink2); overflow-wrap: anywhere; }
+  .g-tcard code { font: 600 13.5px/1.3 var(--g-ff-body); color: var(--g-ink); overflow-wrap: anywhere; }
+}
