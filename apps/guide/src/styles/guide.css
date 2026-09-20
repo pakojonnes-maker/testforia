@@ -1,0 +1,229 @@
+/* =========================================================
+   GUÍA DEL HUÉSPED — sistema visual (diseño «App de la guía del huésped»).
+
+   Papel cálido, tinta, arcos con contorno, píldoras y CERO iconos. Lo que cambia por agencia son TRES
+   colores (primario, secundario, acento) y TRES tipografías (titulares, cuerpo, etiquetas): llegan de la
+   BD, los calcula src/theme/ y useAgencyTheme() los escribe como variables en <html>. Aquí no hay ningún
+   color de marca escrito a mano: solo --g-* (y el papel, la tinta y la arena, que son fijos).
+
+   Los valores de :root son los del diseño y sirven hasta que llegan los datos de la agencia;
+   scripts/check-theme.mjs comprueba que coinciden con lo que calcula src/theme/.
+   Las reglas viven en capas (base / components) para que las utilidades de Tailwind sigan pudiendo
+   afinar la maquetación de una pieza, y para no pisar a los componentes que aún no se han migrado.
+   ========================================================= */
+
+:root {
+  /* Fijos: papel, tinta, arena, tarjeta */
+  --g-cal: #F8F3E9;
+  --g-cal2: #F1E9D8;
+  --g-arena: #EEDFC5;
+  --g-arena2: #DCC59B;
+  --g-ink: #0C2A37;
+  --g-ink2: #33505C;
+  --g-ink3: #4A5D66;
+  --g-card: #FFFDF8;
+
+  /* De la agencia (valores del diseño hasta que llegan los datos) */
+  --g-brand: #C8613F;
+  --g-fill: #B55C3E;
+  --g-on-fill: #FFFFFF;
+  --g-fill-edge: transparent;
+  --g-second-edge: transparent;
+  --g-accent-edge: transparent;
+  --g-text: #95523D;
+  --g-soft: #F2E0D3;
+  --g-second: #06415C;
+  --g-on-second: #FFFFFF;
+  --g-accent: #F0B04B;
+  --g-on-accent: #0C2A37;
+  --g-accent-mark: #AB8745;
+  --g-accent-on-ink: #F0B04B;
+
+  /* Tipografías: una pila por rol */
+  --g-ff-head: "Playfair Display Variable", "Playfair Display", "Noto Naskh Arabic", "Geeza Pro", "Segoe UI", Tahoma, Georgia, "Times New Roman", serif;
+  --g-ff-body: "Montserrat Variable", "Montserrat", "Noto Naskh Arabic", "Geeza Pro", "Segoe UI", Tahoma, system-ui, -apple-system, "Segoe UI", sans-serif;
+  --g-ff-label: "Montserrat Variable", "Montserrat", "Noto Naskh Arabic", "Geeza Pro", "Segoe UI", Tahoma, system-ui, -apple-system, "Segoe UI", sans-serif;
+}
+
+@layer base {
+  html,
+  body {
+    background: var(--g-cal);
+  }
+
+  .guide-app {
+    font: 400 15px/1.5 var(--g-ff-body);
+    color: var(--g-ink);
+    background: var(--g-cal);
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+    text-align: start;
+  }
+  .guide-app :where(h1, h2, h3, h4, p, ul, ol, figure) { margin: 0; padding: 0; }
+  .guide-app :where(ul, ol) { list-style: none; }
+  .guide-app :where(a) { color: inherit; text-decoration: none; }
+  .guide-app :where(img) { display: block; max-width: 100%; }
+  .guide-app :where(button) {
+    font: inherit;
+    color: inherit;
+    background: none;
+    border: 0;
+    padding: 0;
+    margin: 0;
+    cursor: pointer;
+    text-align: start;
+    -webkit-appearance: none;
+    appearance: none;
+  }
+  .guide-app :where(input) { font: inherit; color: inherit; }
+  .guide-app :focus-visible {
+    outline: 3px solid var(--g-fill);
+    outline-offset: 2px;
+  }
+  .guide-app [hidden] { display: none !important; }
+
+  /* «Reducir movimiento»: todo pasa a corte directo. */
+  @media (prefers-reduced-motion: reduce) {
+    .guide-app *,
+    .guide-app *::before,
+    .guide-app *::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+      scroll-behavior: auto !important;
+    }
+  }
+}
+
+@layer components {
+  /* ---------- tipografía ---------- */
+  .g-h1 { font: 700 36px/1.04 var(--g-ff-head); letter-spacing: -0.022em; color: var(--g-ink); text-wrap: balance; overflow-wrap: break-word; hyphens: auto; }
+  .g-h2 { font: 700 27px/1.1 var(--g-ff-head); letter-spacing: -0.016em; color: var(--g-ink); text-wrap: balance; overflow-wrap: break-word; hyphens: auto; }
+  .g-h3 { font: 700 20px/1.15 var(--g-ff-head); letter-spacing: -0.01em; color: var(--g-ink); overflow-wrap: break-word; hyphens: auto; }
+  [dir="rtl"] .g-h1,
+  [dir="rtl"] .g-h2,
+  [dir="rtl"] .g-h3 { letter-spacing: 0; line-height: 1.3; }
+  .g-p { font: 400 15px/1.6 var(--g-ff-body); color: var(--g-ink2); text-wrap: pretty; }
+  .g-meta { font: 500 13px/1.4 var(--g-ff-body); color: var(--g-ink3); }
+  /* Etiqueta en mayúsculas: tipografía del rol «etiquetas». .g-kd sobre papel; .g-k sobre una tesela de color. */
+  .g-kd,
+  .g-k {
+    display: block;
+    font: 600 11.5px/1.2 var(--g-ff-label);
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+  }
+  .g-kd { color: var(--g-text); }
+  .g-kd.mute { color: var(--g-ink3); }
+  .g-k { color: color-mix(in srgb, currentColor 68%, transparent); }
+  [dir="rtl"] .g-kd,
+  [dir="rtl"] .g-k { letter-spacing: 0; font-size: 12.5px; text-transform: none; }
+
+  /* ---------- botones y acciones ---------- */
+  .g-pill {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 44px;
+    padding: 0 20px;
+    border-radius: 999px;
+    font: 600 14px/1 var(--g-ff-body);
+    letter-spacing: 0.01em;
+    white-space: nowrap;
+    text-align: center;
+    text-decoration: none;
+    cursor: pointer;
+  }
+  .g-pill.fill { background: var(--g-fill); color: var(--g-on-fill); box-shadow: inset 0 0 0 1.5px var(--g-fill-edge); }
+  .g-pill.line { border: 1.5px solid currentColor; color: var(--g-ink); }
+  .g-pill.light { background: var(--g-cal); color: var(--g-ink); }
+  .g-pill.ghost { border: 1.5px solid color-mix(in srgb, currentColor 60%, transparent); }
+  /* Sobre la tesela del secundario y sobre la del primario: el botón se invierte para que siempre contraste. */
+  .g-pill.inv { background: var(--g-on-second); color: var(--g-second); }
+  .g-pill.inv-fill { background: var(--g-on-fill); color: var(--g-fill); }
+  .g-pill.dis,
+  .g-pill[aria-disabled="true"] { opacity: 0.42; pointer-events: none; }
+  .g-link,
+  .g-go,
+  .g-back {
+    display: inline-flex;
+    align-items: center;
+    min-height: 44px;
+    font: 600 15px/1 var(--g-ff-body);
+    color: var(--g-ink);
+    text-decoration: underline;
+    text-decoration-color: var(--g-accent-mark);
+    text-decoration-thickness: 3px;
+    text-underline-offset: 7px;
+    cursor: pointer;
+  }
+  .g-go { flex: none; min-height: 0; }
+  .g-back { padding: 0 4px; }
+  .g-close,
+  .g-lang {
+    flex: none;
+    display: inline-flex;
+    align-items: center;
+    min-height: 44px;
+    padding: 0 18px;
+    border: 1.5px solid rgba(12, 42, 55, 0.28);
+    border-radius: 999px;
+    background: rgba(248, 243, 233, 0.94);
+    font: 600 13.5px/1 var(--g-ff-body);
+    color: var(--g-ink);
+    cursor: pointer;
+  }
+  .g-lang.s { min-width: 52px; justify-content: center; padding: 0 12px; }
+
+  /* ---------- chips y distintivos ---------- */
+  .g-chip {
+    flex: none;
+    display: inline-flex;
+    align-items: center;
+    min-height: 44px;
+    padding: 0 16px;
+    border-radius: 999px;
+    background: var(--g-cal);
+    box-shadow: 0 6px 14px -8px rgba(12, 42, 55, 0.5), 0 0 0 1px rgba(12, 42, 55, 0.14);
+    font: 600 14px/1 var(--g-ff-body);
+    color: var(--g-ink);
+    white-space: nowrap;
+    cursor: pointer;
+  }
+  .g-chip.on { background: var(--g-fill); color: var(--g-on-fill); box-shadow: 0 6px 14px -8px rgba(12, 42, 55, 0.5); }
+  .g-badges { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+  .g-badge {
+    display: inline-flex;
+    align-items: center;
+    min-height: 26px;
+    padding: 0 10px;
+    border-radius: 999px;
+    font: 700 12px/1 var(--g-ff-body);
+    letter-spacing: 0.01em;
+    white-space: nowrap;
+  }
+  .g-badge.free { box-shadow: inset 0 0 0 1.5px var(--g-text); color: var(--g-text); }
+  .g-badge.paid { background: var(--g-accent); color: var(--g-on-accent); box-shadow: inset 0 0 0 1px var(--g-accent-edge); }
+  .g-badge.book { background: var(--g-second); color: var(--g-on-second); box-shadow: inset 0 0 0 1px var(--g-second-edge); }
+  .g-badge.rate { background: var(--g-cal2); color: var(--g-ink); box-shadow: inset 0 0 0 1px rgba(12, 42, 55, 0.14); }
+  .g-badge.tag { background: var(--g-ink); color: var(--g-cal); }
+  .g-badge.ov { background: var(--g-cal); color: var(--g-ink); box-shadow: none; }
+  .g-badge.ov.paid { background: var(--g-accent); color: var(--g-on-accent); }
+
+  /* ---------- hojas ---------- */
+  .g-scrim { position: fixed; inset: 0; z-index: 60; background: rgba(12, 42, 55, 0.6); animation: g-fade 0.2s ease; }
+  .g-handle { width: 40px; height: 4px; margin: 0 auto 14px; border-radius: 4px; background: rgba(12, 42, 55, 0.24); }
+
+  /* ---------- utilidades ---------- */
+  .sr {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+    white-space: nowrap;
+  }
+}
+
+@keyframes g-fade { from { opacity: 0; } to { opacity: 1; } }
+@keyframes g-rise { from { transform: translateY(24px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }

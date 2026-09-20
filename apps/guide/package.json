@@ -6,7 +6,8 @@
   "scripts": {
     "dev": "vite --port 5175",
     "build": "tsc -b && vite build",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "test:theme": "node scripts/check-theme.mjs"
   },
   "dependencies": {
     "@fontsource-variable/montserrat": "^5.3.0",

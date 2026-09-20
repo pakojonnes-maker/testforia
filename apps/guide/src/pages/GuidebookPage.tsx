@@ -18,6 +18,11 @@ import ChatIASection from '../components/ChatIASection';
 import WelcomeModal, { WelcomeModalData } from '../components/WelcomeModal';
 import { getTranslation, ACTIVE_LANGUAGES, isRtl } from '../lib/i18n';
 import type { GuidePoi, CitySummary, ZoneSummary, CtaActionType, GuideRestaurant } from '../lib/types';
+import '../styles/guide.css';
+import '@fontsource-variable/montserrat/index.css';
+import '@fontsource-variable/playfair-display/index.css';
+import '@fontsource-variable/playfair-display/wght-italic.css';
+import { useAgencyTheme } from '../theme/useAgencyTheme';
 
 // Types
 interface GuidebookData {
@@ -224,116 +229,9 @@ export default function GuidebookPage() {
     };
   }, [lang]);
 
-  // Handle agency theming
-  //
-  // Antes esto solo fijaba --brand-primary/--brand-secondary, que casi ningún
-  // componente lee (solo CTAButton, WelcomeModal y el pie de página). El resto
-  // de la interfaz — cabeceras, pestañas, tarjetas, botones — usa las clases
-  // de Tailwind text-terracotta/bg-deep-sea/etc, que resuelven a los tokens
-  // --color-terracotta/--color-deep-sea definidos en el @theme de index.css.
-  // Sobrescribir esos mismos tokens en runtime es lo que hace que "cambiar el
-  // color en Diseño" se note de verdad en la guía, no solo en 2-3 sitios.
-  //
-  // Desde el rediseño "Modern Mediterranean Editorial" (ago 2026), terracotta/
-  // deep-sea son alias de primary (Azul Cobalto) / "Mar Profundo" — se siguen
-  // sobrescribiendo con esos mismos nombres para no tocar cada componente.
-  // Tres roles independientes, uno por familia tipográfica del sistema
-  // (index.css @theme): titular/display, cuerpo, y label en mayúsculas.
-  // Antes había un solo grupo "headline" y otro "body+label" juntos, y
-  // faltaban --font-headline-sm y --font-label-md en sus listas — un olvido
-  // que no se notaba porque font_family pisaba los 3 roles con la misma
-  // fuente de todas formas.
-  const HEADLINE_FONT_TOKENS = ['--font-display-xl', '--font-display-lg', '--font-headline-lg', '--font-headline-lg-mobile', '--font-headline-md', '--font-headline-sm'];
-  const BODY_FONT_TOKENS = ['--font-body-md', '--font-body-lg'];
-  const LABEL_FONT_TOKENS = ['--font-label-lg', '--font-label-md', '--font-label-sm', '--font-label-caps'];
-
-  // Fuentes curadas seleccionables desde Diseño > Tipografía (admin). El
-  // valor por defecto de cada rol (Newsreader/Inter/Archivo Narrow) ya viene
-  // precargado en index.html y no necesita este mapa — solo las alternativas
-  // se cargan bajo demanda, para no meter 7 familias de más en cada guía que
-  // no las usa.
-  const GOOGLE_FONT_QUERY: Record<string, string> = {
-    'Playfair Display': 'Playfair+Display:ital,wght@0,400..900;1,400..900',
-    'Lora': 'Lora:ital,wght@0,400..700;1,400..700',
-    'Fraunces': 'Fraunces:ital,opsz,wght@0,9..144,100..900;1,9..144,100..900',
-    'Work Sans': 'Work+Sans:wght@300..900',
-    'Nunito Sans': 'Nunito+Sans:wght@300..900',
-    'Poppins': 'Poppins:wght@300;400;500;600;700',
-    'Oswald': 'Oswald:wght@300..700',
-    'Barlow Condensed': 'Barlow+Condensed:wght@300;400;500;600;700',
-  };
-
-  useEffect(() => {
-    const root = document.documentElement.style;
-    if (data?.agency?.primary_color) {
-      root.setProperty('--brand-primary', data.agency.primary_color);
-      root.setProperty('--brand-secondary', data.agency.secondary_color || data.agency.primary_color);
-      root.setProperty('--color-terracotta', data.agency.primary_color);
-      root.setProperty('--color-deep-sea', data.agency.secondary_color || data.agency.primary_color);
-      // --color-primary es el token que de verdad leen border-primary/bg-primary/
-      // text-primary (77 usos en apps/guide/src, contra solo 5 de -terracotta) —
-      // sin esta línea la mayoría de la interfaz (líneas divisorias incluidas)
-      // se queda en el azul cobalto por defecto pase lo que pase en Diseño.
-      root.setProperty('--color-primary', data.agency.primary_color);
-    } else {
-      root.setProperty('--brand-primary', 'var(--mar-azul)');
-      root.setProperty('--brand-secondary', 'var(--mar-profundo)');
-      root.setProperty('--color-terracotta', '#0038AE');
-      root.setProperty('--color-deep-sea', '#001550');
-      root.setProperty('--color-primary', '#0038AE');
-    }
-    root.setProperty('--color-accent-gold', data?.agency?.accent_color || '#F7BE29');
-
-    // Tinta la barra de estado del navegador/PWA en móvil con el mismo color.
-    document.querySelector('meta[name="theme-color"]')
-      ?.setAttribute('content', data?.agency?.primary_color || '#0038AE');
-
-    // Cada rol (headline/body/label) se sobrescribe por separado: elegir una
-    // fuente de titulares para la agencia ya NO pisa el cuerpo ni los labels,
-    // y viceversa. Antes un único font_family se aplicaba a los 3 grupos de
-    // tokens a la vez, así que un valor "de fábrica" en el selector del admin
-    // (ver GuideDesignPage.tsx) bastaba para aplastar Newsreader/Archivo
-    // Narrow en todas las guías sin que nadie lo hubiera elegido.
-    //
-    // Sin fuente de agencia en un rol NO se fuerza nada a mano: se quita la
-    // sobrescritura de ese grupo para que vuelvan los valores del @theme.
-    const roles: Array<{ font: string | null | undefined; tokens: string[]; generic: string }> = [
-      { font: data?.agency?.headline_font, tokens: HEADLINE_FONT_TOKENS, generic: 'serif' },
-      { font: data?.agency?.body_font, tokens: BODY_FONT_TOKENS, generic: 'sans-serif' },
-      { font: data?.agency?.label_font, tokens: LABEL_FONT_TOKENS, generic: 'sans-serif' },
-    ];
-    for (const { font, tokens, generic } of roles) {
-      for (const token of tokens) {
-        if (font) root.setProperty(token, `'${font}', ${generic}`);
-        else root.removeProperty(token);
-      }
-    }
-
-    // Carga bajo demanda del webfont real para roles con una fuente distinta
-    // del default (que ya viene precargada en index.html) — sin esto, elegir
-    // "Playfair Display" en el admin fija la variable CSS pero el navegador
-    // no tiene el archivo de fuente y cae al fallback del sistema, el mismo
-    // bug que arrastraba Montserrat.
-    const customFamilies = Array.from(new Set(
-      roles.map(r => r.font).filter((f): f is string => !!f && !!GOOGLE_FONT_QUERY[f])
-    ));
-    const linkId = 'agency-custom-fonts';
-    const existingLink = document.getElementById(linkId) as HTMLLinkElement | null;
-    if (customFamilies.length > 0) {
-      const href = `https://fonts.googleapis.com/css2?${customFamilies.map(f => `family=${GOOGLE_FONT_QUERY[f]}`).join('&')}&display=swap`;
-      if (existingLink) {
-        if (existingLink.href !== href) existingLink.href = href;
-      } else {
-        const link = document.createElement('link');
-        link.id = linkId;
-        link.rel = 'stylesheet';
-        link.href = href;
-        document.head.appendChild(link);
-      }
-    } else if (existingLink) {
-      existingLink.remove();
-    }
-  }, [data?.agency]);
+  // Tema de la agencia: los tres colores y las tres tipografías salen de la BD (agency.*), con los valores
+  // del diseño cuando faltan. Toda la lógica vive en src/theme/; aquí solo se engancha.
+  useAgencyTheme(data?.agency, lang);
 
   // Track session
   //
@@ -481,7 +379,7 @@ export default function GuidebookPage() {
   const rootHeightClass = isChatTab ? 'h-screen overflow-hidden' : isExploreTab ? 'h-dvh overflow-hidden' : 'min-h-screen';
 
   return (
-    <div className={`guide-app font-body-md text-on-surface bg-background relative flex flex-col ${rootHeightClass}`}>
+    <div className={`guide-app font-body-md text-on-surface bg-background relative flex flex-col ${rootHeightClass}`} dir={isRtl(lang) ? 'rtl' : 'ltr'} lang={lang}>
       <div className="film-grain" />
       {showWelcome && data.welcome_modal && (
         <WelcomeModal welcome={data.welcome_modal} onClose={() => setShowWelcome(false)} lang={lang} />
