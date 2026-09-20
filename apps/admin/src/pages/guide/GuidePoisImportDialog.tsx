@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { apiClient } from '../../lib/apiClient';
 import {
   Box, Typography, Alert, Button, CircularProgress,
@@ -42,6 +42,14 @@ interface PreviewResult {
   photo_preview_url?: string | null;
   /** Derivado del priceLevel de Google; null cuando Google no dice nada. */
   access_type?: 'free' | 'paid' | null;
+  /**
+   * Sólo modo restaurante: lo que Google devuelve más allá de los campos elegibles
+   * (google_types, google_primary_type, business_status, price_level, google_raw). No es
+   * contenido del host, así que se manda siempre, sin pasar por el diff campo a campo.
+   */
+  import_meta?: Record<string, unknown> | null;
+  /** Sólo modo restaurante: 'permanently_closed' | 'temporarily_closed' | 'not_food'. */
+  warnings?: string[];
   fields?: FieldDiff[];
 }
 
@@ -107,7 +115,13 @@ interface TranslateSummary {
 // Debe coincidir con MAX_ENTITIES_PER_REQUEST en workerGuideTranslate.js.
 const MAX_TRANSLATE_BATCH = 25;
 
-function defaultActionFor(status: PreviewStatus): RowAction {
+function defaultActionFor(status: PreviewStatus, restaurantMode = false, r?: PreviewResult): RowAction {
+  // En modo restaurante tres casos se dejan en "Descartar" aunque la ficha sea nueva: ya es
+  // cliente de VisualTaste (se vincula desde "Vincular restaurante", no se duplica), cerrado
+  // definitivamente, o Google no lo considera un sitio de comida. Se puede cambiar a mano.
+  if (restaurantMode && r && (r.client_restaurant || r.warnings?.some(w => w === 'permanently_closed' || w === 'not_food'))) {
+    return 'skip';
+  }
   if (status === 'new') return 'create';
   if (status === 'existing') return 'update';
   // 'likely_duplicate' se deja en "Descartar" por defecto a propósito: es una
@@ -116,13 +130,13 @@ function defaultActionFor(status: PreviewStatus): RowAction {
   return 'skip';
 }
 
-function buildRow(r: PreviewResult): ImportRow {
+function buildRow(r: PreviewResult, restaurantMode = false): ImportRow {
   const selectedFields: Record<string, boolean> = {};
   (r.fields || []).forEach(f => { selectedFields[f.key] = f.defaultChecked; });
-  return { ...r, action: defaultActionFor(r.status), selectedFields, outcome: 'idle' };
+  return { ...r, action: defaultActionFor(r.status, restaurantMode, r), selectedFields, outcome: 'idle' };
 }
 
-function buildPayload(row: ImportRow, zoneId: string): Record<string, unknown> {
+function buildPayload(row: ImportRow, zoneId: string, restaurantMode = false): Record<string, unknown> {
   const payload: Record<string, unknown> = {
     zone_id: zoneId,
     google_place_id: row.place_id,
@@ -140,8 +154,22 @@ function buildPayload(row: ImportRow, zoneId: string): Record<string, unknown> {
       payload[f.key] = f.googleValue;
     }
   });
+  if (restaurantMode) {
+    // Datos de Google (no contenido del host): se reescriben siempre, también al actualizar.
+    Object.assign(payload, row.import_meta || {});
+    // createPOI exige categoría: aunque el admin desmarque el campo, un restaurante nuevo
+    // siempre nace como "Restaurantes".
+    if (row.action === 'create' && !payload.category) payload.category = 'Restaurantes';
+  }
   return payload;
 }
+
+// Avisos del modo restaurante (workerGuideImport.js → restaurantWarnings).
+const RESTAURANT_WARNING_META: Record<string, { label: string; color: 'error' | 'warning' }> = {
+  permanently_closed: { label: 'Cerrado definitivamente en Google', color: 'error' },
+  temporarily_closed: { label: 'Cerrado temporalmente en Google', color: 'warning' },
+  not_food: { label: 'Google no lo ve como un restaurante', color: 'warning' },
+};
 
 interface Zone {
   id: string;
@@ -154,11 +182,23 @@ interface GuidePoisImportDialogProps {
   zones: Zone[];
   defaultZoneId: string;
   onImported: () => void;
+  /**
+   * 'restaurant' = botón "Importar de Google" de Restaurantes por zona: la ficha se crea como
+   * restaurante (categoría "Restaurantes", tipo de cocina) y se guardan los datos que
+   * devuelve Google. Por defecto 'poi': el comportamiento de siempre.
+   */
+  mode?: 'poi' | 'restaurant';
 }
 
-export default function GuidePoisImportDialog({ open, onClose, zones, defaultZoneId, onImported }: GuidePoisImportDialogProps) {
+export default function GuidePoisImportDialog({ open, onClose, zones, defaultZoneId, onImported, mode = 'poi' }: GuidePoisImportDialogProps) {
+  const restaurantMode = mode === 'restaurant';
+  const noun = restaurantMode ? 'restaurantes' : 'POIs';
   const [phase, setPhase] = useState<'input' | 'review'>('input');
   const [zoneId, setZoneId] = useState(defaultZoneId);
+  // El diálogo se monta antes de que la pantalla haya cargado sus zonas, así que la zona por
+  // defecto llega DESPUÉS del primer render: sin esto se queda vacía y pide elegirla a mano.
+  // Sólo se re-sincroniza al abrir (o si la zona de la pantalla cambia), no mientras se edita.
+  useEffect(() => { if (open) setZoneId(defaultZoneId); }, [open, defaultZoneId]);
   const [urlsText, setUrlsText] = useState('');
   const [loading, setLoading] = useState(false);
   const [importing, setImporting] = useState(false);
@@ -195,10 +235,10 @@ export default function GuidePoisImportDialog({ open, onClose, zones, defaultZon
     try {
       const response = await apiClient.request('/guide/admin/import/places/preview', {
         method: 'POST',
-        body: JSON.stringify({ urls, zone_id: zoneId }),
+        body: JSON.stringify({ urls, zone_id: zoneId, ...(restaurantMode ? { mode: 'restaurant' } : {}) }),
       });
       if (response.success) {
-        setRows((response.results as PreviewResult[]).map(buildRow));
+        setRows((response.results as PreviewResult[]).map(r => buildRow(r, restaurantMode)));
         setSummary(null);
         setPhase('review');
       } else {
@@ -271,7 +311,7 @@ export default function GuidePoisImportDialog({ open, onClose, zones, defaultZon
 
       setRows(prev => prev.map((r, idx) => idx === i ? { ...r, outcome: 'importing' } : r));
       try {
-        const payload = buildPayload(row, zoneId);
+        const payload = buildPayload(row, zoneId, restaurantMode);
         if (row.action === 'create') {
           const response = await apiClient.request('/guide/admin/pois', { method: 'POST', body: JSON.stringify(payload) });
           if (response?.id) importedIds.push(response.id as string);
@@ -303,7 +343,7 @@ export default function GuidePoisImportDialog({ open, onClose, zones, defaultZon
 
   return (
     <Dialog open={open} onClose={handleClose} maxWidth="lg" fullWidth>
-      <DialogTitle>Importar POIs desde Google Maps</DialogTitle>
+      <DialogTitle>{restaurantMode ? 'Importar restaurantes desde Google Maps' : 'Importar POIs desde Google Maps'}</DialogTitle>
       <DialogContent dividers>
         {phase === 'input' && (
           <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
@@ -311,6 +351,10 @@ export default function GuidePoisImportDialog({ open, onClose, zones, defaultZon
               Pega una o varias URLs de Google Maps (una por línea) — enlace largo de escritorio, enlace
               corto de móvil (maps.app.goo.gl), o directamente el nombre del sitio. Las fotos de Google
               solo se muestran aquí para identificar el lugar: nunca se guardan en VisualTaste.
+              {restaurantMode && (
+                <> Cada restaurante se guarda con todo lo que devuelve Google (horarios, atributos,
+                tipo de cocina…) y, como no lleva foto, súbela después desde «Editar».</>
+              )}
             </Alert>
             <FormControl fullWidth size="small">
               <InputLabel>Zona</InputLabel>
@@ -359,12 +403,12 @@ export default function GuidePoisImportDialog({ open, onClose, zones, defaultZon
                   : 'success'
               }>
                 {translationSummary.error
-                  ? `Los POIs se guardaron, pero la traducción falló: ${translationSummary.error}`
+                  ? `Los ${noun} se guardaron, pero la traducción falló: ${translationSummary.error}`
                   : <>
-                      Traducción: {translationSummary.translated} POIs traducidos
+                      Traducción: {translationSummary.translated} {noun} traducidos
                       {translationSummary.upToDate > 0 ? `, ${translationSummary.upToDate} ya estaban al día` : ''}
                       {translationSummary.failed > 0 ? `, ${translationSummary.failed} sin traducir` : ''}.
-                      {translationSummary.budgetExhausted && ' Se alcanzó el límite diario de IA — vuelve a lanzarlo mañana para los que falten (los POIs ya están guardados).'}
+                      {translationSummary.budgetExhausted && ' Se alcanzó el límite diario de IA — vuelve a lanzarlo mañana para los que falten (los ' + noun + ' ya están guardados).'}
                       {translationSummary.usage?.budget_tracked && (
                         <Typography variant="caption" color="text.secondary" component="div" sx={{ mt: 0.5 }}>
                           Coste: {Math.round(translationSummary.neuronsSpent)} neuronas ·
@@ -423,6 +467,21 @@ export default function GuidePoisImportDialog({ open, onClose, zones, defaultZon
                           sx={{ mt: 0.5 }}
                         />
                       )}
+                      {restaurantMode && row.client_restaurant && (
+                        // Fuera del chip: dentro se recorta con «…» y es justo lo importante.
+                        <Typography variant="caption" color="text.secondary" component="div" sx={{ mt: 0.5 }}>
+                          No lo importes: vincúlalo con «Vincular restaurante» para que salga con su carta en vídeo.
+                        </Typography>
+                      )}
+                      {(row.warnings || []).map(w => RESTAURANT_WARNING_META[w] && (
+                        <Chip
+                          key={w}
+                          size="small"
+                          label={RESTAURANT_WARNING_META[w].label}
+                          color={RESTAURANT_WARNING_META[w].color}
+                          sx={{ mt: 0.5, mr: 0.5 }}
+                        />
+                      ))}
                     </Box>
 
                     {!isTerminalError && (

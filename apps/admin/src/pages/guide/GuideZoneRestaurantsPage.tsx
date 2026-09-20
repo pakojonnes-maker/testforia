@@ -8,6 +8,10 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '../../contexts/AuthContext';
 import { apiClient } from '../../lib/apiClient';
+import GuidePoisImportDialog from './GuidePoisImportDialog';
+import GuideCatalogFormDialog from '../../components/guide/GuideCatalogFormDialog';
+import { isTrue, displayName } from '../../components/guide/catalogTypes';
+import type { CatalogItem } from '../../components/guide/catalogTypes';
 import {
   Box, Typography, Paper, Alert, Button, CircularProgress,
   Dialog, DialogTitle, DialogContent, DialogActions,
@@ -21,6 +25,10 @@ import {
   Star as StarIcon,
   ArrowUpward as ArrowUpIcon,
   ArrowDownward as ArrowDownIcon,
+  Edit as EditIcon,
+  TravelExplore as TravelExploreIcon,
+  Visibility as VisibleIcon,
+  VisibilityOff as HiddenIcon,
 } from '@mui/icons-material';
 
 interface Zone {
@@ -44,6 +52,20 @@ interface RestaurantOption {
   slug: string;
 }
 
+// Un restaurante traído de Google es una fila de guide_pois (categoría "Restaurantes"): el
+// mismo ítem del catálogo que editan las experiencias, con los datos de Google al lado.
+type GoogleRestaurant = CatalogItem & {
+  business_status?: string | null;
+  google_rating?: number | null;
+  google_rating_count?: number | null;
+};
+
+const BUSINESS_STATUS_LABEL: Record<string, string> = {
+  CLOSED_PERMANENTLY: 'Cerrado definitivamente',
+  CLOSED_TEMPORARILY: 'Cerrado temporalmente',
+  FUTURE_OPENING: 'Aún no ha abierto',
+};
+
 export default function GuideZoneRestaurantsPage() {
   const { user } = useAuth();
 
@@ -61,6 +83,15 @@ export default function GuideZoneRestaurantsPage() {
   const [tier, setTier] = useState<'basic' | 'featured'>('basic');
   const [saving, setSaving] = useState(false);
   const [reordering, setReordering] = useState(false);
+  // Tipo de cocina: alimenta el filtro de la pestaña Restaurantes de la guía.
+  const [cuisine, setCuisine] = useState('');
+  const [editingLink, setEditingLink] = useState<ZoneRestaurant | null>(null);
+  const [editCuisine, setEditCuisine] = useState('');
+  const [savingCuisine, setSavingCuisine] = useState(false);
+  // Restaurantes importados de Google en la zona (guide_pois, categoría "Restaurantes").
+  const [imported, setImported] = useState<GoogleRestaurant[]>([]);
+  const [importOpen, setImportOpen] = useState(false);
+  const [editingImported, setEditingImported] = useState<GoogleRestaurant | null>(null);
 
   useEffect(() => {
     if (!user?.is_superadmin) return;
@@ -83,6 +114,17 @@ export default function GuideZoneRestaurantsPage() {
     try {
       const res = await apiClient.request(`/guide/admin/zone-restaurants?zone_id=${selectedZone}`);
       setLinks(res.restaurants || []);
+      // Los lugares de la zona (también los ocultos), quedándonos con los restaurantes. En su
+      // propio try: si esto falla, la lista de clientes de arriba se sigue viendo.
+      try {
+        const pois = await apiClient.request(`/guide/admin/pois?zone_id=${selectedZone}&kind=place&include_inactive=1`);
+        setImported((pois.pois || []).filter(
+          (p: GoogleRestaurant) => (p.category || '').trim().toLowerCase() === 'restaurantes'
+        ));
+      } catch (err: any) {
+        setImported([]);
+        setError(err.message || 'Error al cargar los restaurantes importados de Google');
+      }
     } catch (err: any) {
       setError(err.message || 'Error al cargar restaurantes de la zona');
     } finally {
@@ -107,6 +149,7 @@ export default function GuideZoneRestaurantsPage() {
     setSearchOptions([]);
     setSearchQuery('');
     setTier('basic');
+    setCuisine('');
     setDialogOpen(true);
   };
 
@@ -133,7 +176,12 @@ export default function GuideZoneRestaurantsPage() {
     try {
       await apiClient.request('/guide/admin/zone-restaurants', {
         method: 'POST',
-        body: JSON.stringify({ zone_id: selectedZone, restaurant_id: selectedRestaurant.id, tier }),
+        // Sin cocina se omite (undefined no viaja en el JSON): el backend sólo
+        // toca cuisine_type_override si el campo llega.
+        body: JSON.stringify({
+          zone_id: selectedZone, restaurant_id: selectedRestaurant.id, tier,
+          cuisine_type_override: cuisine.trim() || undefined,
+        }),
       });
       setDialogOpen(false);
       await loadLinks();
@@ -141,6 +189,48 @@ export default function GuideZoneRestaurantsPage() {
       setError(err.message || 'Error al vincular el restaurante');
     } finally {
       setSaving(false);
+    }
+  };
+
+  // Las cocinas que ya usa esta zona, como sugerencias: el filtro de la guía agrupa
+  // por el texto (sin distinguir mayúsculas), así que reutilizar la grafía evita
+  // que "Marisco" y "Mariscos" acaben como dos pestañas distintas.
+  const cuisineOptions = Array.from(
+    new Set(links.map(l => l.cuisine_type_override?.trim()).filter((c): c is string => !!c))
+  ).sort((a, b) => a.localeCompare(b));
+
+  const handleSaveCuisine = async () => {
+    if (!editingLink) return;
+    setSavingCuisine(true);
+    setError(null);
+    try {
+      // Reenvía tier y order_override tal cual (el upsert los exige); '' borra la cocina.
+      await apiClient.request('/guide/admin/zone-restaurants', {
+        method: 'POST',
+        body: JSON.stringify({
+          zone_id: editingLink.zone_id, restaurant_id: editingLink.restaurant_id,
+          tier: editingLink.tier, order_override: editingLink.order_override,
+          cuisine_type_override: editCuisine.trim(),
+        }),
+      });
+      setEditingLink(null);
+      await loadLinks();
+    } catch (err: any) {
+      setError(err.message || 'Error al guardar el tipo de cocina');
+    } finally {
+      setSavingCuisine(false);
+    }
+  };
+
+  // Destacar / ocultar un restaurante importado: es un PUT a su fila de guide_pois (el mismo
+  // endpoint que el catálogo), que además invalida la caché de la guía de la zona.
+  const handleToggleImported = async (poi: GoogleRestaurant, patch: { is_active?: boolean; is_featured?: boolean }) => {
+    setError(null);
+    try {
+      await apiClient.request(`/guide/admin/pois/${poi.id}`, { method: 'PUT', body: JSON.stringify(patch) });
+      await loadLinks();
+    } catch (err: any) {
+      setError(err.message || 'Error al actualizar el restaurante');
     }
   };
 
@@ -214,7 +304,7 @@ export default function GuideZoneRestaurantsPage() {
           <Box>
             <Typography variant="h4" fontWeight={700}>Restaurantes por zona</Typography>
             <Typography variant="body2" color="text.secondary">
-              Qué restaurantes aparecen en la guía y en las recomendaciones de la IA (Superadmin)
+              Qué restaurantes aparecen en la guía: clientes de VisualTaste y los importados de Google (Superadmin)
             </Typography>
           </Box>
         </Box>
@@ -225,6 +315,9 @@ export default function GuideZoneRestaurantsPage() {
               {zones.map(z => <MenuItem key={z.id} value={z.id}>{z.name}</MenuItem>)}
             </Select>
           </FormControl>
+          <Button variant="outlined" startIcon={<TravelExploreIcon />} onClick={() => setImportOpen(true)} disabled={!selectedZone}>
+            Importar de Google
+          </Button>
           <Button variant="contained" startIcon={<AddIcon />} onClick={handleOpenDialog} disabled={!selectedZone}>
             Vincular restaurante
           </Button>
@@ -240,8 +333,9 @@ export default function GuideZoneRestaurantsPage() {
       ) : links.length === 0 ? (
         <Paper sx={{ p: 4, textAlign: 'center' }}>
           <Typography color="text.secondary">
-            Ningún restaurante vinculado a esta zona todavía. La pestaña "Restaurantes" de la guía y
-            las recomendaciones de la IA se ven vacías hasta que vincules al menos uno aquí.
+            {imported.length === 0
+              ? 'Ningún restaurante en esta zona todavía. La pestaña "Restaurantes" de la guía se ve vacía hasta que vincules un cliente o importes uno de Google.'
+              : 'Ningún cliente de VisualTaste vinculado a esta zona (los importados de Google están debajo).'}
           </Typography>
         </Paper>
       ) : (
@@ -274,6 +368,12 @@ export default function GuideZoneRestaurantsPage() {
                     >
                       <ArrowDownIcon fontSize="small" />
                     </IconButton>
+                    <IconButton
+                      size="small" title="Tipo de cocina (filtro de la guía)"
+                      onClick={() => { setEditingLink(link); setEditCuisine(link.cuisine_type_override || ''); }}
+                    >
+                      <EditIcon fontSize="small" />
+                    </IconButton>
                     <IconButton size="small" color="error" onClick={() => handleUnlink(link)}>
                       <DeleteIcon fontSize="small" />
                     </IconButton>
@@ -282,12 +382,89 @@ export default function GuideZoneRestaurantsPage() {
               >
                 <ListItemText
                   primary={link.restaurant_name}
-                  secondary={link.cuisine_type_override || undefined}
+                  secondary={link.cuisine_type_override
+                    ? `Cocina: ${link.cuisine_type_override}`
+                    : 'Sin tipo de cocina: solo sale en «Todos» del filtro de la guía'}
                 />
               </ListItem>
             ))}
           </List>
         </Paper>
+      )}
+
+      {!loading && (
+        <Box sx={{ mt: 4 }}>
+          <Typography variant="h6" fontWeight={700}>Importados de Google</Typography>
+          <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+            Restaurantes que no son clientes de VisualTaste. Salen en la pestaña «Restaurantes» de la guía
+            (sin carta en vídeo, con «Reservar» y «Cómo llegar») y no en Explorar. Los datos de Google no
+            traen foto: súbela desde «Editar».
+          </Typography>
+          {imported.length === 0 ? (
+            <Paper variant="outlined" sx={{ p: 3, textAlign: 'center' }}>
+              <Typography color="text.secondary">
+                Ninguno todavía. Pulsa «Importar de Google» y pega la URL de Google Maps o el nombre del sitio.
+              </Typography>
+            </Paper>
+          ) : (
+            <Paper variant="outlined">
+              <List disablePadding>
+                {imported.map((poi, idx) => {
+                  const cuisine = poi.subcategory || poi.service_subcategory;
+                  return (
+                    <ListItem
+                      key={poi.id}
+                      divider={idx < imported.length - 1}
+                      sx={{ opacity: isTrue(poi.is_active) ? 1 : 0.55 }}
+                      secondaryAction={
+                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                          {poi.business_status && poi.business_status !== 'OPERATIONAL' && (
+                            <Chip
+                              size="small" color="error" variant="outlined"
+                              label={BUSINESS_STATUS_LABEL[poi.business_status] || poi.business_status}
+                            />
+                          )}
+                          <Chip
+                            icon={<StarIcon sx={{ fontSize: 16 }} />}
+                            label={isTrue(poi.is_featured) ? 'Destacado' : 'Básico'}
+                            size="small"
+                            color={isTrue(poi.is_featured) ? 'warning' : 'default'}
+                            variant={isTrue(poi.is_featured) ? 'filled' : 'outlined'}
+                            onClick={() => handleToggleImported(poi, { is_featured: !isTrue(poi.is_featured) })}
+                            sx={{ cursor: 'pointer' }}
+                          />
+                          <IconButton
+                            size="small" title="Editar (foto, teléfono, WhatsApp, cocina…)"
+                            onClick={() => setEditingImported(poi)}
+                          >
+                            <EditIcon fontSize="small" />
+                          </IconButton>
+                          <IconButton
+                            size="small"
+                            title={isTrue(poi.is_active) ? 'Ocultar de la guía' : 'Volver a mostrar'}
+                            onClick={() => handleToggleImported(poi, { is_active: !isTrue(poi.is_active) })}
+                          >
+                            {isTrue(poi.is_active) ? <VisibleIcon fontSize="small" /> : <HiddenIcon fontSize="small" />}
+                          </IconButton>
+                        </Box>
+                      }
+                    >
+                      <ListItemText
+                        primary={displayName(poi)}
+                        secondary={[
+                          cuisine ? `Cocina: ${cuisine}` : 'Sin tipo de cocina',
+                          poi.google_rating ? `★ ${poi.google_rating} (${poi.google_rating_count ?? '—'})` : null,
+                          poi.cover_image_url || poi.media_url ? null : 'Sin foto',
+                          isTrue(poi.is_active) ? null : 'Oculto en la guía',
+                        ].filter(Boolean).join(' · ')}
+                      />
+                    </ListItem>
+                  );
+                })}
+              </List>
+            </Paper>
+          )}
+        </Box>
       )}
 
       <Dialog open={dialogOpen} onClose={() => !saving && setDialogOpen(false)} maxWidth="sm" fullWidth>
@@ -305,6 +482,18 @@ export default function GuideZoneRestaurantsPage() {
             )}
             noOptionsText={searchQuery.trim() ? 'Sin resultados para esa búsqueda' : 'Escribe para buscar'}
           />
+          <Autocomplete
+            freeSolo
+            options={cuisineOptions}
+            inputValue={cuisine}
+            onInputChange={(_, v) => setCuisine(v)}
+            renderInput={(params) => (
+              <TextField
+                {...params} label="Tipo de cocina (opcional)" size="small"
+                helperText="Es el filtro de la pestaña Restaurantes de la guía. Escríbelo igual en todos los de la misma cocina."
+              />
+            )}
+          />
           <FormControl fullWidth size="small">
             <InputLabel>Destacado</InputLabel>
             <Select value={tier} label="Destacado" onChange={e => setTier(e.target.value as 'basic' | 'featured')}>
@@ -320,6 +509,50 @@ export default function GuideZoneRestaurantsPage() {
           </Button>
         </DialogActions>
       </Dialog>
+
+      <Dialog open={editingLink !== null} onClose={() => !savingCuisine && setEditingLink(null)} maxWidth="xs" fullWidth>
+        <DialogTitle>Tipo de cocina</DialogTitle>
+        <DialogContent dividers sx={{ display: 'flex', flexDirection: 'column', gap: 2, pt: 2 }}>
+          <Typography variant="body2" color="text.secondary">{editingLink?.restaurant_name}</Typography>
+          <Autocomplete
+            freeSolo
+            options={cuisineOptions}
+            inputValue={editCuisine}
+            onInputChange={(_, v) => setEditCuisine(v)}
+            renderInput={(params) => (
+              <TextField
+                {...params} label="Tipo de cocina" size="small" autoFocus
+                helperText="Es el filtro de la pestaña Restaurantes de la guía. Vacío: solo sale en «Todos»."
+              />
+            )}
+          />
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setEditingLink(null)} disabled={savingCuisine}>Cancelar</Button>
+          <Button variant="contained" onClick={handleSaveCuisine} disabled={savingCuisine}>
+            {savingCuisine ? <CircularProgress size={20} /> : 'Guardar'}
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      <GuidePoisImportDialog
+        open={importOpen}
+        onClose={() => setImportOpen(false)}
+        zones={zones}
+        defaultZoneId={selectedZone}
+        onImported={() => loadLinks()}
+        mode="restaurant"
+      />
+
+      <GuideCatalogFormDialog
+        open={editingImported !== null}
+        zones={zones}
+        item={editingImported}
+        initialKind="place"
+        defaultZoneId={selectedZone}
+        onClose={() => setEditingImported(null)}
+        onSaved={() => { loadLinks(); }}
+      />
     </Box>
   );
 }

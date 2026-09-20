@@ -119,6 +119,17 @@ export default function GuideCatalogFormDialog({
         next.secondary_action_data = 'El CTA secundario necesita un destino, o quítalo';
       }
     }
+    if (isRestaurant) {
+      if (form.action_type === 'WHATSAPP') {
+        const digits = (form.action_data || '').replace(/\D/g, '');
+        if (digits.length < 8 || digits.length > 15) {
+          next.restaurant_whatsapp = 'Número no válido: usa el formato internacional, p. ej. +34600111222';
+        }
+      }
+      if (form.booking_url?.trim() && !/^https?:\/\//i.test(form.booking_url.trim())) {
+        next.restaurant_booking_url = 'Debe empezar por http:// o https://';
+      }
+    }
     const hasLat = form.latitude !== undefined && form.latitude !== null && !Number.isNaN(form.latitude);
     const hasLng = form.longitude !== undefined && form.longitude !== null && !Number.isNaN(form.longitude);
     if (hasLat !== hasLng) {
@@ -207,6 +218,19 @@ export default function GuideCatalogFormDialog({
         });
       }
 
+      // Restaurantes: van DESPUÉS de lo anterior para que manden. Un lugar normal no manda
+      // estos campos y se conservan como estén. La acción se reenvía tal cual está, así que
+      // un restaurante con otro tipo de acción (p. ej. una URL heredada de una experiencia)
+      // no la pierde por abrir y guardar el formulario.
+      if (isRestaurant) {
+        Object.assign(payload, {
+          booking_url: form.booking_url ?? '',
+          action_type: form.action_type ?? '',
+          action_data: form.action_data ?? '',
+          action_prefilled_message: form.action_type === 'WHATSAPP' ? (form.action_prefilled_message ?? '') : '',
+        });
+      }
+
       if (itemId) {
         await apiClient.request(`/guide/admin/pois/${itemId}`, {
           method: 'PUT',
@@ -259,6 +283,10 @@ export default function GuideCatalogFormDialog({
   };
 
   const experience = kind === 'experience';
+  // Un restaurante (p. ej. importado de Google) es un lugar de categoría "Restaurantes": en la
+  // guía sale en la pestaña Restaurantes, y su botón «Reservar» se arma con su teléfono + el
+  // WhatsApp (acción principal de tipo WHATSAPP) + el enlace de reserva online (booking_url).
+  const isRestaurant = !experience && (form.category || '').trim().toLowerCase() === 'restaurantes';
   const converting = editing && kind !== originalKind;
 
   return (
@@ -345,7 +373,9 @@ export default function GuideCatalogFormDialog({
           </Grid>
           <Grid item xs={6} md={2}>
             <TextField
-              fullWidth size="small" label="Subcategoría"
+              fullWidth size="small"
+              label={isRestaurant ? 'Tipo de cocina' : 'Subcategoría'}
+              helperText={isRestaurant ? 'Filtro de la pestaña Restaurantes' : undefined}
               value={form.subcategory || ''}
               onChange={e => set({ subcategory: e.target.value })}
             />
@@ -575,6 +605,39 @@ export default function GuideCatalogFormDialog({
               desde su propia ficha.
             </Typography>
           </Grid>
+
+          {/* ---------- Reservas (sólo restaurantes) ---------- */}
+          {isRestaurant && (
+            <>
+              <SectionTitle>Reservas — botón «Reservar» de la guía</SectionTitle>
+              <Grid item xs={12} md={6}>
+                <TextField
+                  fullWidth size="small" label="WhatsApp para reservas"
+                  placeholder="+34600111222"
+                  error={!!errors.restaurant_whatsapp}
+                  helperText={errors.restaurant_whatsapp
+                    || 'Con prefijo internacional. Junto al teléfono de arriba, es lo que el huésped elige al tocar «Reservar».'}
+                  value={form.action_type === 'WHATSAPP' ? (form.action_data || '') : ''}
+                  onChange={e => {
+                    const value = e.target.value;
+                    if (value.trim()) set({ action_type: 'WHATSAPP', action_data: value });
+                    // Sólo se vacía si la acción ERA un WhatsApp: no borra otro tipo de acción.
+                    else if (form.action_type === 'WHATSAPP') set({ action_type: '', action_data: '', action_prefilled_message: '' });
+                  }}
+                />
+              </Grid>
+              <Grid item xs={12} md={6}>
+                <TextField
+                  fullWidth size="small" label="Enlace de reserva online"
+                  placeholder="https://www.thefork.es/…"
+                  error={!!errors.restaurant_booking_url}
+                  helperText={errors.restaurant_booking_url || 'Opcional. Solo enlaces http(s).'}
+                  value={form.booking_url || ''}
+                  onChange={e => set({ booking_url: e.target.value })}
+                />
+              </Grid>
+            </>
+          )}
 
           {/* ---------- Precio y acceso ---------- */}
           <SectionTitle>Precio y acceso</SectionTitle>
