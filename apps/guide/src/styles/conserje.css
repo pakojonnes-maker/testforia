@@ -1,0 +1,64 @@
+/* =========================================================
+   PARTE 7 — Conserje: cabecera con el idioma, hilo de burbujas, sugerencias, tarjetas de recomendación dentro de
+   la burbuja, escribiendo / cursor, campo de mensaje y el aviso de IA. Los colores de la agencia entran solo por
+   --g-*; nada de marca escrito a mano.
+   ========================================================= */
+@layer components {
+  .g-chat-main { padding-bottom: var(--g-nav-h); }
+  .g-chat { flex: 1; min-height: 0; display: flex; flex-direction: column; overflow: hidden; background: var(--g-cal); }
+  .g-chat-h { flex: none; padding: 14px 20px 12px; border-bottom: 1px solid rgba(12, 42, 55, 0.1); }
+  .g-chat-h .g-row0 { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+  .g-chat-h .g-h1 { font-size: 30px; min-width: 0; }
+
+  /* El hilo: lo único que se desplaza. */
+  .g-thread {
+    flex: 1;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+    padding: 18px 20px 16px;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+  }
+  .g-bub { max-width: 88%; padding: 14px 16px; font: 400 15px/1.5 var(--g-ff-body); text-wrap: pretty; white-space: pre-line; overflow-wrap: anywhere; }
+  .g-bub.a { align-self: flex-start; border-radius: 22px 22px 22px 6px; background: var(--g-card); color: var(--g-ink); box-shadow: 0 0 0 1px rgba(12, 42, 55, 0.1); }
+  .g-bub.u { align-self: flex-end; border-radius: 22px 22px 6px 22px; background: var(--g-fill); color: var(--g-on-fill); font-weight: 500; box-shadow: inset 0 0 0 1px var(--g-fill-edge); }
+  [dir="rtl"] .g-bub.a { border-radius: 22px 22px 6px 22px; }
+  [dir="rtl"] .g-bub.u { border-radius: 22px 22px 22px 6px; }
+
+  /* Sugerencias al empezar: chips con contorno que ocupan todo el ancho que necesitan. */
+  .g-qa { display: flex; flex-wrap: wrap; gap: 8px; }
+  .g-qa .g-chip { box-shadow: inset 0 0 0 1.5px rgba(12, 42, 55, 0.26); background: none; font-weight: 500; font-size: 13.5px; white-space: normal; min-height: 44px; padding-block: 8px; line-height: 1.25; text-align: start; }
+
+  /* Tarjeta de recomendación dentro de la burbuja. */
+  .g-rec { display: grid; grid-template-columns: 64px minmax(0, 1fr); gap: 12px; align-items: center; margin-top: 12px; padding: 10px; border-radius: 18px; background: var(--g-cal2); white-space: normal; }
+  .g-rec .g-ph { position: relative; height: 64px; overflow: hidden; border-radius: 14px; background: var(--g-arena); }
+  .g-rec .g-ph img { width: 100%; height: 100%; object-fit: cover; }
+  .g-rec .g-ph.g-noph { display: grid; place-items: end center; }
+  .g-rec .g-ph.g-noph i { font: italic 700 46px/1 var(--g-ff-head); color: var(--g-text); opacity: 0.9; transform: translateY(16%); }
+  .g-rec-b { min-width: 0; display: grid; gap: 2px; justify-items: start; }
+  .g-rec .g-h3 { font-size: 16px; }
+  .g-rec .g-link { min-height: 30px; font-size: 13.5px; }
+  .g-rec .g-pill { min-height: 40px; margin-top: 6px; padding: 0 14px; font-size: 13.5px; white-space: normal; line-height: 1.2; }
+
+  /* Escribiendo (tres puntos) y cursor mientras llega el texto. */
+  .g-bub.typing { display: flex; align-items: center; gap: 7px; padding: 18px 20px; }
+  .g-bub.typing i { display: block; width: 9px; height: 9px; border-radius: 50%; background: var(--g-mark); animation: g-pulse 1.2s ease-in-out infinite; }
+  .g-bub.typing i:nth-child(2) { animation-delay: 0.18s; }
+  .g-bub.typing i:nth-child(3) { animation-delay: 0.36s; }
+  .g-caret { display: inline-block; width: 2px; height: 1.05em; margin-inline-start: 2px; vertical-align: -0.15em; background: var(--g-mark); animation: g-blink 1s steps(2, start) infinite; }
+
+  /* Campo de mensaje y aviso de IA. */
+  .g-compose { flex: none; display: flex; align-items: center; gap: 10px; padding: 12px 16px 14px; border-top: 1px solid rgba(12, 42, 55, 0.1); background: var(--g-cal); }
+  .g-input { flex: 1; min-width: 0; min-height: 48px; padding: 0 20px; border: 1.5px solid rgba(12, 42, 55, 0.28); border-radius: 999px; background: var(--g-card); font: 400 15px/1 var(--g-ff-body); color: var(--g-ink); }
+  .g-input::placeholder { color: var(--g-ink3); opacity: 1; }
+  .g-input:focus { border-color: var(--g-mark); outline: 0; box-shadow: 0 0 0 1px var(--g-mark); }
+  .g-input.dis,
+  .g-input[aria-disabled="true"] { opacity: 0.6; }
+  .g-compose .g-pill { flex: none; min-height: 48px; padding: 0 22px; }
+  .g-disc2 { flex: none; padding: 0 22px 14px; background: var(--g-cal); text-align: center; font: 500 12px/1.45 var(--g-ff-body); color: var(--g-ink3); }
+}
+
+@keyframes g-pulse { 0%, 80%, 100% { opacity: 0.3; transform: scale(0.85); } 40% { opacity: 1; transform: scale(1); } }
+@keyframes g-blink { to { visibility: hidden; } }

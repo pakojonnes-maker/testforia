@@ -161,6 +161,7 @@ export const UI_STRINGS: Record<string, Record<string, string>> = {
 
   // ChatIASection
   chat_assistant_title: { es: 'Conserje IA', en: 'AI Concierge', fr: 'Concierge IA', de: 'KI-Concierge', it: 'Concierge IA', pt: 'Concierge IA', ca: 'Consergeria IA', ar: 'كونسيرج الذكاء الاصطناعي', ru: 'ИИ-консьерж', uk: 'ІІ-консьєрж', zh: 'AI礼宾', ja: 'AIコンシェルジュ', ko: 'AI 컨시어지' },
+  chat_send: { es: 'Enviar', en: 'Send', fr: 'Envoyer', de: 'Senden', it: 'Invia', pt: 'Enviar', ca: 'Envia', ar: 'إرسال', ru: 'Отправить', uk: 'Надіслати', zh: '发送', ja: '送信', ko: '보내기' },
   chat_placeholder: { es: 'Escribe tu mensaje aquí...', en: 'Type your message here...', fr: 'Écrivez votre message ici...', de: 'Schreibe hier deine Nachricht...', it: 'Scrivi qui il tuo messaggio...', pt: 'Escreva a sua mensagem aqui...', ca: 'Escriu el teu missatge aquí...', ar: 'اكتب رسالتك هنا...', ru: 'Введите сообщение...', uk: 'Введіть повідомлення...', zh: '在此输入您的消息...', ja: 'メッセージを入力してください...', ko: '메시지를 입력하세요...' },
   chat_loading_demo: {
     es: 'El asistente está cargando los datos del apartamento. Por favor inténtalo de nuevo en un momento.',

@@ -1,9 +1,10 @@
-import React, { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, type FormEvent, type ReactNode } from 'react';
 import { getTranslation } from '../lib/i18n';
 import { sendChatMessage, type ChatMessage } from '../lib/api';
 import type { CtaActionType } from '../lib/types';
 import CTAButton from './CTAButton';
-import { isRealImage } from './MediaPlaceholder';
+import PhotoFigure from './PhotoFigure';
+import { LanguageSwitcher } from './Header';
 
 interface Message {
   id: string;
@@ -13,29 +14,28 @@ interface Message {
   recs?: string[];
 }
 
-interface RestaurantRef { id: string; name: string; slug: string; }
-interface PoiRef { id: string; name: string; google_maps_url: string; }
+// Lo justo de cada cosa para pintar su tarjeta de recomendación (el guidebook pasa los objetos completos).
+interface RestaurantRef { id: string; name: string; slug: string | null; cover_image?: string | null; }
+interface PoiRef { id: string; name: string; google_maps_url: string; media?: Array<{ url?: string }>; }
 interface ExperienceRef {
   id: string; name: string; action_type: CtaActionType; action_data: string;
-  prefilled_message: string; cta_label?: string;
+  prefilled_message: string; cta_label?: string; cover_image_url?: string;
 }
-interface StoreItemRef { id: string; name: string; price_display: string; }
-// Solo lo que hace falta para localizar la foto de "Recepción" — mismo patrón
-// que InfoSection.tsx (item.key.toLowerCase() === 'reception', ver migración
-// 0083_guide_info_categories.sql).
-interface InfoItemRef { key: string; media?: Array<{ url?: string }>; }
+interface StoreItemRef { id: string; name: string; price_display: string; cover_image_url?: string | null; }
 
 interface ChatIASectionProps {
   lang: string;
   apartmentId?: string;
   apartmentName?: string;
-  infoItems?: InfoItemRef[];
+  onLanguageChange?: (lang: string) => void;
   restaurants?: RestaurantRef[];
   pois?: PoiRef[];
   experiences?: ExperienceRef[];
   storeItems?: StoreItemRef[];
   buildRestaurantUrl?: (slug: string) => string;
   onNavigateTab?: (tab: 'services' | 'restaurants') => void;
+  /** Los clics en una recomendación cuentan como en su pestaña (guide_affiliate_intents). */
+  onIntent?: (type: 'restaurant' | 'experience', id: string, action: string) => void;
 }
 
 // Centinela que el modelo añade al final de su respuesta para citar hasta 3
@@ -58,84 +58,84 @@ function splitRecs(fullText: string): { display: string; refs: string[] } {
   return { display, refs };
 }
 
-const QUICK_ACTIONS_BY_LANG: Record<string, Array<{ icon: string; text: string }>> = {
+const QUICK_ACTIONS_BY_LANG: Record<string, string[]> = {
   es: [
-    { icon: 'wifi', text: '¿Cuál es la clave del WiFi?' },
-    { icon: 'restaurant', text: 'Recomienda un restaurante' },
-    { icon: 'door_front', text: '¿Cómo es el proceso de salida?' },
-    { icon: 'local_parking', text: '¿Hay aparcamiento?' },
+    '¿Cuál es la clave del WiFi?',
+    'Recomienda un restaurante',
+    '¿Cómo es el proceso de salida?',
+    '¿Hay aparcamiento?',
   ],
   en: [
-    { icon: 'wifi', text: 'What is the WiFi password?' },
-    { icon: 'restaurant', text: 'Recommend a restaurant' },
-    { icon: 'door_front', text: 'What is the checkout process?' },
-    { icon: 'local_parking', text: 'Is there parking?' },
+    'What is the WiFi password?',
+    'Recommend a restaurant',
+    'What is the checkout process?',
+    'Is there parking?',
   ],
   fr: [
-    { icon: 'wifi', text: 'Quel est le mot de passe WiFi?' },
-    { icon: 'restaurant', text: 'Recommande un restaurant' },
-    { icon: 'door_front', text: 'Comment se passe le départ?' },
-    { icon: 'local_parking', text: 'Y a-t-il un parking?' },
+    'Quel est le mot de passe WiFi?',
+    'Recommande un restaurant',
+    'Comment se passe le départ?',
+    'Y a-t-il un parking?',
   ],
   de: [
-    { icon: 'wifi', text: 'Wie lautet das WLAN-Passwort?' },
-    { icon: 'restaurant', text: 'Empfiehl mir ein Restaurant' },
-    { icon: 'door_front', text: 'Wie läuft der Check-out ab?' },
-    { icon: 'local_parking', text: 'Gibt es einen Parkplatz?' },
+    'Wie lautet das WLAN-Passwort?',
+    'Empfiehl mir ein Restaurant',
+    'Wie läuft der Check-out ab?',
+    'Gibt es einen Parkplatz?',
   ],
   it: [
-    { icon: 'wifi', text: 'Qual è la password del WiFi?' },
-    { icon: 'restaurant', text: 'Consigliami un ristorante' },
-    { icon: 'door_front', text: 'Come funziona il check-out?' },
-    { icon: 'local_parking', text: "C'è un parcheggio?" },
+    'Qual è la password del WiFi?',
+    'Consigliami un ristorante',
+    'Come funziona il check-out?',
+    "C'è un parcheggio?",
   ],
   pt: [
-    { icon: 'wifi', text: 'Qual é a palavra-passe do WiFi?' },
-    { icon: 'restaurant', text: 'Recomenda um restaurante' },
-    { icon: 'door_front', text: 'Como funciona o check-out?' },
-    { icon: 'local_parking', text: 'Há estacionamento?' },
+    'Qual é a palavra-passe do WiFi?',
+    'Recomenda um restaurante',
+    'Como funciona o check-out?',
+    'Há estacionamento?',
   ],
   ca: [
-    { icon: 'wifi', text: 'Quina és la contrasenya del WiFi?' },
-    { icon: 'restaurant', text: "Recomana'm un restaurant" },
-    { icon: 'door_front', text: 'Com funciona el check-out?' },
-    { icon: 'local_parking', text: 'Hi ha aparcament?' },
+    'Quina és la contrasenya del WiFi?',
+    "Recomana'm un restaurant",
+    'Com funciona el check-out?',
+    'Hi ha aparcament?',
   ],
   ar: [
-    { icon: 'wifi', text: 'ما هي كلمة مرور الواي فاي؟' },
-    { icon: 'restaurant', text: 'أوصِ بمطعم' },
-    { icon: 'door_front', text: 'كيف تتم عملية المغادرة؟' },
-    { icon: 'local_parking', text: 'هل يوجد موقف سيارات؟' },
+    'ما هي كلمة مرور الواي فاي؟',
+    'أوصِ بمطعم',
+    'كيف تتم عملية المغادرة؟',
+    'هل يوجد موقف سيارات؟',
   ],
   ru: [
-    { icon: 'wifi', text: 'Какой пароль от WiFi?' },
-    { icon: 'restaurant', text: 'Порекомендуй ресторан' },
-    { icon: 'door_front', text: 'Как проходит выезд?' },
-    { icon: 'local_parking', text: 'Есть ли парковка?' },
+    'Какой пароль от WiFi?',
+    'Порекомендуй ресторан',
+    'Как проходит выезд?',
+    'Есть ли парковка?',
   ],
   uk: [
-    { icon: 'wifi', text: 'Який пароль від WiFi?' },
-    { icon: 'restaurant', text: 'Порекомендуй ресторан' },
-    { icon: 'door_front', text: 'Як відбувається виїзд?' },
-    { icon: 'local_parking', text: 'Чи є парковка?' },
+    'Який пароль від WiFi?',
+    'Порекомендуй ресторан',
+    'Як відбувається виїзд?',
+    'Чи є парковка?',
   ],
   zh: [
-    { icon: 'wifi', text: 'WiFi密码是多少？' },
-    { icon: 'restaurant', text: '推荐一家餐厅' },
-    { icon: 'door_front', text: '退房流程是怎样的？' },
-    { icon: 'local_parking', text: '有停车位吗？' },
+    'WiFi密码是多少？',
+    '推荐一家餐厅',
+    '退房流程是怎样的？',
+    '有停车位吗？',
   ],
   ja: [
-    { icon: 'wifi', text: 'WiFiのパスワードは何ですか？' },
-    { icon: 'restaurant', text: 'おすすめのレストランを教えて' },
-    { icon: 'door_front', text: 'チェックアウトの手順は？' },
-    { icon: 'local_parking', text: '駐車場はありますか？' },
+    'WiFiのパスワードは何ですか？',
+    'おすすめのレストランを教えて',
+    'チェックアウトの手順は？',
+    '駐車場はありますか？',
   ],
   ko: [
-    { icon: 'wifi', text: '와이파이 비밀번호가 뭔가요?' },
-    { icon: 'restaurant', text: '레스토랑을 추천해 주세요' },
-    { icon: 'door_front', text: '체크아웃 절차가 어떻게 되나요?' },
-    { icon: 'local_parking', text: '주차 공간이 있나요?' },
+    '와이파이 비밀번호가 뭔가요?',
+    '레스토랑을 추천해 주세요',
+    '체크아웃 절차가 어떻게 되나요?',
+    '주차 공간이 있나요?',
   ],
 };
 
@@ -153,7 +153,8 @@ function getWelcomeMessage(lang: string, name?: string): string {
     it: `Benvenuto${n ? ' — ' + n : ''}! Sono il tuo assistente virtuale. Chiedimi dell'appartamento, del WiFi, del check-out o consigli locali.`,
     pt: `Bem-vindo${n ? ' — ' + n : ''}! Sou o seu assistente virtual. Pergunte-me sobre o apartamento, WiFi, check-out ou recomendações locais.`,
     ca: `Benvingut${n ? ' — ' + n : ''}! Sóc el teu assistent virtual. Pregunta'm sobre l'apartament, el WiFi, el check-out o recomanacions locals.`,
-    ar: `أهلاً بك${n ? ' — ' + n : ''}! أنا مساعدك الافتراضي. اسألني عن الشقة، الواي فاي، تسجيل المغادرة أو التوصيات المحلية.`,
+    // El nombre va entre U+2068 y U+2069 (aislante bidi): un nombre latino dentro de una frase RTL no debe reordenarse.
+    ar: `أهلاً بك${n ? ' — \u2068' + n + '\u2069' : ''}! أنا مساعدك الافتراضي. اسألني عن الشقة، الواي فاي، تسجيل المغادرة أو التوصيات المحلية.`,
     ru: `Добро пожаловать${n ? ' — ' + n : ''}! Я ваш виртуальный ассистент. Спросите меня о квартире, WiFi, выезде или местных рекомендациях.`,
     uk: `Ласкаво просимо${n ? ' — ' + n : ''}! Я ваш віртуальний асистент. Запитайте мене про квартиру, WiFi, виїзд або місцеві рекомендації.`,
     zh: `欢迎${n ? ' — ' + n : ''}！我是您的虚拟助手。您可以问我关于房源、WiFi、退房或当地推荐的问题。`,
@@ -176,7 +177,7 @@ function getUpsellHint(lang: string, itemName: string): string {
     it: `A proposito, hai già visto "${itemName}"? Puoi trovarlo nell'app.`,
     pt: `já agora, já viu "${itemName}"? Pode consultá-lo na app.`,
     ca: `Per cert, ja has vist "${itemName}"? El pots veure a l'app.`,
-    ar: `بالمناسبة، هل رأيت "${itemName}"؟ يمكنك الاطلاع عليه في التطبيق.`,
+    ar: `بالمناسبة، هل رأيت "\u2068${itemName}\u2069"؟ يمكنك الاطلاع عليه في التطبيق.`,
     ru: `Кстати, вы уже видели «${itemName}»? Посмотрите в приложении.`,
     uk: `До речі, ви вже бачили «${itemName}»? Погляньте в застосунку.`,
     zh: `对了，你看过"${itemName}"吗？可以在应用里查看。`,
@@ -186,45 +187,26 @@ function getUpsellHint(lang: string, itemName: string): string {
   return templates[lang] || templates.es;
 }
 
-// Portada del concierge IA — arco a juego con el resto de la app. Antes este
-// hueco solo tenía un icono genérico ("spark") sobre un fondo de color, sin
-// ninguna foto real ("portada" a secas). La foto sale de la propia guía: la
-// categoría "Recepción" del apartamento (info_category 'reception'), que el
-// anfitrión ya sube con imagen desde el admin — no un asset estático nuevo que
-// nadie tendría forma de subir. Sin esa categoría, o si la imagen falla al
-// cargar, cae de vuelta al icono de siempre (mismo patrón que FlagIcon en
-// Header.tsx) en vez de un icono de imagen rota.
-function AiCoverImage({ imageUrl }: { imageUrl?: string }) {
-  const [errored, setErrored] = useState(false);
-
-  if (!imageUrl || errored) {
-    return (
-      <div className="w-20 h-24 arch-mask bg-primary/10 border border-primary/20 flex items-center justify-center mx-auto mb-3">
-        <span className="material-symbols-outlined text-primary text-3xl" style={{ fontVariationSettings: "'FILL' 1" }}>spark</span>
-      </div>
-    );
-  }
-
+// Una tarjeta de recomendación dentro de la burbuja del asistente: foto pequeña en un cuadrado redondeado (o la
+// inicial, si no hay), el nombre y, debajo, lo que se puede hacer con ella.
+function RecCard({ image, name, detail, children }: { image?: string | null; name: string; detail?: string; children?: ReactNode }) {
   return (
-    <div className="w-20 h-24 arch-mask overflow-hidden border border-primary/20 mx-auto mb-3 bg-surface-variant">
-      <img
-        src={imageUrl}
-        alt=""
-        className="w-full h-full object-cover"
-        onError={() => setErrored(true)}
-      />
+    <div className="g-rec">
+      <PhotoFigure className="g-ph" src={image} alt="" name={name} />
+      <div className="g-rec-b">
+        <h3 className="g-h3">{name}</h3>
+        {detail && <p className="g-meta"><bdi>{detail}</bdi></p>}
+        {children}
+      </div>
     </div>
   );
 }
 
 export default function ChatIASection({
-  lang, apartmentId, apartmentName, infoItems = [],
+  lang, apartmentId, apartmentName, onLanguageChange,
   restaurants = [], pois = [], experiences = [], storeItems = [],
-  buildRestaurantUrl, onNavigateTab,
+  buildRestaurantUrl, onNavigateTab, onIntent,
 }: ChatIASectionProps) {
-  const receptionImage = infoItems.find(item => item.key?.toLowerCase() === 'reception')?.media?.[0]?.url;
-  const coverImageUrl = isRealImage(receptionImage) ? receptionImage : undefined;
-
   // El destacado de la bienvenida: producto de Tienda destacado -> si no,
   // restaurante -> si no, nada. Prioriza lo que más vende para el anfitrión.
   // storeItems ya llega ordenado is_featured DESC (workerGuide.js), así que el
@@ -245,14 +227,16 @@ export default function ChatIASection({
   ]);
   const [inputValue, setInputValue] = useState('');
   const [isLoading, setIsLoading] = useState(false);
-  const messagesEndRef = useRef<HTMLDivElement>(null);
+  const threadRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
   const historyRef = useRef<ChatMessage[]>([]);
-  const quickActions = QUICK_ACTIONS_BY_LANG[lang] || QUICK_ACTIONS_BY_LANG.es;
+  const suggestions = QUICK_ACTIONS_BY_LANG[lang] || QUICK_ACTIONS_BY_LANG.es;
 
+  // Se baja la propia conversación, no la página: scrollIntoView movía también a los ancestros.
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    const el = threadRef.current;
+    if (el) el.scrollTo({ top: el.scrollHeight, behavior: 'smooth' });
   }, [messages]);
 
   const handleSend = async (text: string) => {
@@ -301,6 +285,11 @@ export default function ChatIASection({
     );
   };
 
+  const handleSubmit = (e: FormEvent) => {
+    e.preventDefault();
+    handleSend(inputValue);
+  };
+
   // Resuelve una referencia "tipo:id" del centinela contra los datos que el
   // guidebook ya tiene cargados, y devuelve una tarjeta compacta con el CTA
   // real. Best-effort: si el modelo cita un id que no existe (alucinación o
@@ -312,169 +301,124 @@ export default function ChatIASection({
       const item = storeItems.find(i => i.id === id);
       if (!item) return null;
       return (
-        <button
-          key={idx}
-          onClick={() => onNavigateTab?.('services')}
-          className="flex items-center justify-between gap-3 bg-surface-container-low border border-on-background/10 px-4 py-3 text-left hover:border-primary transition-colors w-full"
-        >
-          <span className="font-label-md text-label-md text-on-background">{item.name}</span>
-          <span className="font-mono-badge text-mono-badge text-primary whitespace-nowrap">{item.price_display}</span>
-        </button>
+        <RecCard key={idx} image={item.cover_image_url} name={item.name} detail={item.price_display}>
+          <button type="button" className="g-link" onClick={() => onNavigateTab?.('services')}>{getTranslation('view_store', lang)}</button>
+        </RecCard>
       );
     }
     if (type === 'restaurant') {
       const r = restaurants.find(x => x.id === id);
       if (!r) return null;
       return (
-        <button
-          key={idx}
-          onClick={() => onNavigateTab?.('restaurants')}
-          className="flex items-center justify-between gap-3 bg-surface-container-low border border-on-background/10 px-4 py-3 text-left hover:border-primary transition-colors w-full"
-        >
-          <span className="font-label-md text-label-md text-on-background">{r.name}</span>
-          <span className="material-symbols-outlined text-primary text-[18px]">restaurant</span>
-        </button>
+        <RecCard key={idx} image={r.cover_image} name={r.name}>
+          {r.slug && buildRestaurantUrl ? (
+            // Cliente de VisualTaste: directo a su carta en vídeo (la URL ya lleva la atribución guía → carta).
+            <a
+              className="g-link"
+              href={buildRestaurantUrl(r.slug)}
+              target="_blank"
+              rel="noopener noreferrer"
+              onClick={() => onIntent?.('restaurant', r.id, 'click_menu')}
+            >
+              {getTranslation('view_video_menu', lang)}
+            </a>
+          ) : (
+            <button type="button" className="g-link" onClick={() => onNavigateTab?.('restaurants')}>{getTranslation('tab_restaurants', lang)}</button>
+          )}
+        </RecCard>
       );
     }
     if (type === 'experience') {
       const exp = experiences.find(x => x.id === id);
       if (!exp) return null;
       return (
-        <div key={idx} className="bg-surface-container-low border border-on-background/10 px-4 py-3">
-          <p className="font-label-md text-label-md text-on-background mb-2">{exp.name}</p>
-          <CTAButton experience={exp} lang={lang} onIntent={() => {}} />
-        </div>
+        <RecCard key={idx} image={exp.cover_image_url} name={exp.name}>
+          <CTAButton experience={exp} lang={lang} onIntent={(action) => onIntent?.('experience', exp.id, action)} />
+        </RecCard>
       );
     }
     if (type === 'poi') {
       const poi = pois.find(x => x.id === id);
       if (!poi) return null;
       return (
-        <a
-          key={idx}
-          href={poi.google_maps_url}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="flex items-center justify-between gap-3 bg-surface-container-low border border-on-background/10 px-4 py-3 hover:border-primary transition-colors w-full"
-        >
-          <span className="font-label-md text-label-md text-on-background">{poi.name}</span>
-          <span className="material-symbols-outlined text-primary text-[18px]">location_on</span>
-        </a>
+        <RecCard key={idx} image={poi.media?.[0]?.url} name={poi.name}>
+          <a className="g-link" href={poi.google_maps_url} target="_blank" rel="noopener noreferrer">{getTranslation('directions', lang)}</a>
+        </RecCard>
       );
     }
     return null;
   };
 
+  // Las sugerencias solo se ofrecen al empezar: en cuanto el huésped escribe o toca una, el hilo manda.
+  const showSuggestions = messages.length === 1;
+
   return (
-    <div className="flex flex-col h-full min-h-0 w-full max-w-3xl mx-auto relative bg-surface">
-      {/* AI Header — "AI Concierge" (Stitch): portada en arco, título pequeño en una línea.
-          Antes usaba text-display-lg (36px serif) para un rótulo de una palabra: se
-          rompía en 2 líneas y dominaba el panel entero. */}
-      <div className="text-center mb-6 shrink-0">
-        <AiCoverImage imageUrl={coverImageUrl} />
-        <h2 className="font-label-lg text-label-lg text-primary uppercase tracking-widest whitespace-nowrap">{getTranslation('chat_assistant_title', lang)}</h2>
+    <div className="g-chat">
+      <div className="g-chat-h">
+        <div className="g-row0">
+          <h1 className="g-h1">{getTranslation('chat_assistant_title', lang)}</h1>
+          <LanguageSwitcher lang={lang} onLanguageChange={onLanguageChange} />
+        </div>
       </div>
 
-      {/* Chat History — las burbujas redondeadas son la única excepción del
-          sistema plano en esta pantalla (así lo exportó Stitch: rounded-3xl
-          con borde primary, ver AI Concierge code.html). */}
-      <div
-        className="flex-grow overflow-y-auto flex flex-col gap-6 px-2 mb-6"
-        style={{ scrollbarWidth: 'thin' }}
-      >
-        {messages.map(msg => (
-          // Solo la burbuja, sin avatar — como WhatsApp. Antes cada mensaje llevaba
-          // un icono de 32px (spark/person) indicando quién "habla"; a petición
-          // expresa se quita también en el chat en sí, no solo en la cabecera.
-          <div
-            key={msg.id}
-            className={`flex flex-col gap-2 max-w-[85%] ${msg.sender === 'user' ? 'self-end' : ''}`}
-          >
-            <div
-              className={`p-4 rounded-3xl border text-body-md font-body-md ${
-                msg.sender === 'user'
-                  ? 'bg-primary border-primary text-on-primary rounded-tr-sm'
-                  : 'bg-surface-container-lowest border-primary/20 text-on-surface rounded-tl-sm'
-              }`}
-            >
-              {msg.text || (msg.streaming && (
-                <span className="flex items-center gap-1">
-                  <span className="w-1.5 h-1.5 bg-primary rounded-full animate-bounce [animation-delay:0ms]" />
-                  <span className="w-1.5 h-1.5 bg-primary rounded-full animate-bounce [animation-delay:150ms]" />
-                  <span className="w-1.5 h-1.5 bg-primary rounded-full animate-bounce [animation-delay:300ms]" />
-                </span>
-              ))}
-              {msg.streaming && msg.text && (
-                <span className="inline-block w-0.5 h-4 bg-primary ml-0.5 animate-pulse align-middle" />
-              )}
+      <div className="g-thread" ref={threadRef} role="log" aria-busy={isLoading}>
+        {messages.map(msg => {
+          if (msg.sender === 'user') return <div key={msg.id} className="g-bub u">{msg.text}</div>;
+          // Aún sin texto: tres puntos. Con texto en camino: el texto y un cursor que parpadea.
+          if (msg.streaming && !msg.text) {
+            return (
+              <div key={msg.id} className="g-bub a typing" aria-hidden="true"><i /><i /><i /></div>
+            );
+          }
+          return (
+            <div key={msg.id} className="g-bub a">
+              {msg.text}
+              {msg.streaming && <span className="g-caret" aria-hidden="true" />}
+              {msg.recs && msg.recs.map((ref, i) => renderRec(ref, i))}
             </div>
-
-            {msg.recs && msg.recs.length > 0 && (
-              <div className="flex flex-col gap-2 max-w-full">
-                {msg.recs.map((ref, i) => renderRec(ref, i))}
-              </div>
-            )}
+          );
+        })}
+        {showSuggestions && (
+          <div className="g-qa">
+            {suggestions.map(text => (
+              <button key={text} type="button" className="g-chip" onClick={() => handleSend(text)} disabled={isLoading}>
+                {text}
+              </button>
+            ))}
           </div>
-        ))}
-        <div ref={messagesEndRef} />
+        )}
       </div>
 
-      {/* Input Area */}
-      <div className="shrink-0 bg-surface pb-2">
-        {/* Quick Action Chips — mono-badge en mayúsculas, pill outline (la
-            píldora es la otra excepción explícita de esta pantalla) */}
-        <div className="flex overflow-x-auto gap-2 pb-4 hide-scrollbar">
-          {quickActions.map((action, idx) => (
-            <button
-              key={idx}
-              onClick={() => handleSend(action.text)}
-              disabled={isLoading}
-              className="whitespace-nowrap px-4 py-2 rounded-full border border-on-background/15 bg-surface-container-lowest text-on-surface-variant font-mono-badge text-mono-badge uppercase hover:border-primary hover:text-primary transition-colors flex items-center gap-2 disabled:opacity-40 disabled:cursor-not-allowed"
-            >
-              <span className="material-symbols-outlined text-[16px]">{action.icon}</span>
-              {action.text}
-            </button>
-          ))}
-        </div>
+      <form className="g-compose" onSubmit={handleSubmit}>
+        <label className="sr" htmlFor="g-msg">{getTranslation('chat_placeholder', lang)}</label>
+        <input
+          id="g-msg"
+          ref={inputRef}
+          type="text"
+          className={`g-input${isLoading ? ' dis' : ''}`}
+          enterKeyHint="send"
+          autoComplete="off"
+          placeholder={getTranslation('chat_placeholder', lang)}
+          value={inputValue}
+          onChange={e => setInputValue(e.target.value)}
+          readOnly={isLoading}
+          aria-disabled={isLoading || undefined}
+        />
+        <button type="submit" className="g-pill fill" disabled={isLoading || !inputValue.trim()}>
+          {getTranslation('chat_send', lang)}
+        </button>
+      </form>
 
-        {/* Text Input */}
-        <div className="relative bg-surface-container-low rounded-full p-2 flex items-center transition-colors focus-within:bg-surface-container-lowest focus-within:ring-1 focus-within:ring-primary">
-          <input
-            ref={inputRef}
-            type="text"
-            className="w-full bg-transparent border-none focus:ring-0 font-body-md text-body-md text-on-surface placeholder:text-on-surface-variant/60 px-4 py-3 outline-none"
-            placeholder={getTranslation('chat_placeholder', lang)}
-            value={inputValue}
-            onChange={e => setInputValue(e.target.value)}
-            onKeyDown={e => e.key === 'Enter' && !e.shiftKey && handleSend(inputValue)}
-            disabled={isLoading}
-          />
-          <button
-            onClick={() => handleSend(inputValue)}
-            disabled={isLoading || !inputValue.trim()}
-            className="w-11 h-11 rounded-full bg-primary text-on-primary flex items-center justify-center hover:bg-primary-container transition-colors ml-2 shrink-0 disabled:opacity-40 disabled:cursor-not-allowed"
-          >
-            {isLoading ? (
-              <span className="w-5 h-5 border-2 border-on-primary/40 border-t-on-primary rounded-full animate-spin" />
-            ) : (
-              <span className="material-symbols-outlined">send</span>
-            )}
-          </button>
-        </div>
+      {/* Art. 50.1 del Reglamento (UE) 2024/1689 (AI Act), aplicable desde el
+          2 de agosto de 2026: hay que avisar de forma clara y distinguible de
+          que se está interactuando con una IA. El saludo de bienvenida ya lo
+          decía, pero se pierde en cuanto el huésped hace scroll — este aviso
+          es fijo y siempre visible junto al input.
 
-        {/* Art. 50.1 del Reglamento (UE) 2024/1689 (AI Act), aplicable desde el
-            2 de agosto de 2026: hay que avisar de forma clara y distinguible de
-            que se está interactuando con una IA. El saludo de bienvenida ya lo
-            decía, pero se pierde en cuanto el huésped hace scroll — este aviso
-            es fijo y siempre visible junto al input.
-
-            Va también la advertencia de falibilidad: el asistente sirve códigos
-            de acceso, horarios y recomendaciones, y un error ahí tiene
-            consecuencias reales para el huésped. */}
-        <p className="mt-2 px-2 text-center font-body-sm text-[11px] leading-snug text-on-surface-variant/70">
-          {getTranslation('ai_disclosure', lang)}
-        </p>
-      </div>
+          Va también la advertencia de falibilidad: el asistente sirve códigos
+          de acceso, horarios y recomendaciones, y un error ahí tiene
+          consecuencias reales para el huésped. */}
+      <p className="g-disc2">{getTranslation('ai_disclosure', lang)}</p>
     </div>
   );
 }

@@ -146,7 +146,9 @@
   .g-pill.inv { background: var(--g-on-second); color: var(--g-second); }
   .g-pill.inv-fill { background: var(--g-on-fill); color: var(--g-fill); }
   .g-pill.dis,
-  .g-pill[aria-disabled="true"] { opacity: 0.42; pointer-events: none; }
+  .g-pill[aria-disabled="true"],
+  .g-pill:disabled { opacity: 0.42; pointer-events: none; }
+  .g-chip:disabled { opacity: 0.42; pointer-events: none; }
   .g-link,
   .g-go,
   .g-back {

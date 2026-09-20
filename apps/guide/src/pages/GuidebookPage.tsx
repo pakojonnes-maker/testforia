@@ -8,7 +8,6 @@ const MENU_URL = import.meta.env.VITE_MENU_URL || 'https://menu.visualtastes.com
 import WelcomeHero from '../components/WelcomeHero';
 import FeaturedCarousel from '../components/FeaturedCarousel';
 import ProductBillboard from '../components/ProductBillboard';
-import { LanguageSwitcher } from '../components/Header';
 import GuideFooter from '../components/GuideFooter';
 import { GuideLoading, GuideNotFound } from '../components/GuideStates';
 import BottomNavBar from '../components/BottomNavBar';
@@ -25,6 +24,7 @@ import '../styles/casa.css';
 import '../styles/lugares.css';
 import '../styles/comer.css';
 import '../styles/tienda.css';
+import '../styles/conserje.css';
 import '@fontsource-variable/montserrat/index.css';
 import '@fontsource-variable/playfair-display/index.css';
 import '@fontsource-variable/playfair-display/wght-italic.css';
@@ -350,15 +350,8 @@ export default function GuidebookPage() {
   // pestaña en escritorio (BottomNavBar es md:hidden), pero nadie lo ha pedido,
   // así que no se construye una alternativa sin que haga falta.
   //
-  // El selector de idioma flotando EN LA ESQUINA (position: absolute sobre el
-  // shell, ver más abajo) se queda solo para info y chat: son las dos pestañas
-  // donde arriba del todo hay una foto/portada (el arco del piso, la portada
-  // del concierge) sobre la que tiene sentido "flotar" un círculo. Restaurantes
-  // y Servicios empiezan con un título de texto plano — reservarles ahí el
-  // mismo hueco dejaba una banda vacía enorme antes del título en vez de
-  // "arriba del todo" — así que en esas dos el selector va integrado en la
-  // misma fila que su título (ver RestaurantsSection/ServicesSection).
-  const showFloatingLangCorner = isChatTab;
+  // El selector de idioma va en la fila del título de cada pestaña (Casa, Comer, Tienda, Conserje) y en la
+  // barra flotante de Lugares: ya no hay una esquina flotante propia.
 
   // min-h-screen deja crecer la página más allá del viewport, que es lo que
   // queremos en las pestañas normales (contenido largo, footer al final). En
@@ -374,19 +367,6 @@ export default function GuidebookPage() {
         <WelcomeModal welcome={data.welcome_modal} onClose={() => setShowWelcome(false)} lang={lang} />
       )}
 
-      {/* absolute (no fixed) sobre el shell de la app (el <div className="guide-app
-          ... relative ..."> raíz): en info, donde <main> no tiene altura propia
-          y es la página entera la que hace scroll, esto se desplaza con el
-          contenido en vez de quedarse flotando sobre lo que sea que haya
-          debajo. En chat, el shell raíz es h-screen overflow-hidden y no hace
-          scroll él mismo, así que el efecto ahí sigue siendo "flotando en la
-          esquina" todo el rato, igual que en Explorar. */}
-      {showFloatingLangCorner && (
-        <div className="absolute top-4 end-4 z-50">
-          <LanguageSwitcher lang={lang} onLanguageChange={handleLanguageChange} variant="floating" />
-        </div>
-      )}
-
       {/* El chat y explorar son apps de pantalla completa sin scroll de página
           (el chat con su input fijo cerca del nav inferior, explorar con el
           mapa + bottom sheet) — el resto de pestañas son contenido desplazable
@@ -397,7 +377,7 @@ export default function GuidebookPage() {
           en su propio título, así que su <main> vuelve al py-8 normal. */}
       <main
         className={isChatTab
-          ? "flex-1 min-h-0 flex flex-col w-full max-w-container-max mx-auto px-margin-mobile md:px-margin-desktop pt-16 pb-16 md:pb-6"
+          ? "g-chat-main flex-1 min-h-0 flex flex-col w-full"
           : isExploreTab
           ? "g-explore-main relative flex-1 min-h-0 overflow-hidden"
           : activeTab === 'info' || activeTab === 'restaurants' || activeTab === 'services'
@@ -485,7 +465,7 @@ export default function GuidebookPage() {
               lang={lang}
               apartmentId={data?.apartment?.id}
               apartmentName={data?.apartment?.name}
-              infoItems={apartment.info}
+              onLanguageChange={handleLanguageChange}
               restaurants={restaurants}
               pois={pois}
               experiences={experiences}
@@ -493,6 +473,7 @@ export default function GuidebookPage() {
               buildRestaurantUrl={(restaurantSlug) =>
                 buildMenuUrl(MENU_URL, restaurantSlug, apartment.id, sessionIdRef.current)}
               onNavigateTab={setActiveTab}
+              onIntent={(type, id, action) => logIntent(type, id, action)}
             />
           </div>
         )}
