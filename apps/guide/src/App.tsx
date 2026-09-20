@@ -6,13 +6,10 @@ const GuidebookPage = lazy(() => import('./pages/GuidebookPage'));
 const LandingPage = lazy(() => import('./pages/LandingPage'));
 const LegalPage = lazy(() => import('./pages/LegalPage'));
 
+// Mientras baja el trozo de la página (aún no hay CSS ni textos): papel en blanco, sin literales en ningún
+// idioma. En un instante lo sustituye GuideLoading, ya con el diseño.
 function Loading() {
-  return (
-    <div className="loading-screen">
-      <div className="loading-spinner" />
-      <p style={{ fontSize: '0.9rem', opacity: 0.8 }}>Cargando guidebook...</p>
-    </div>
-  );
+  return <div role="status" aria-busy="true" style={{ position: 'fixed', inset: 0, background: '#F8F3E9' }} />;
 }
 
 export default function App() {

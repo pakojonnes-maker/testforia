@@ -12,6 +12,13 @@ export const ACTIVE_LANGUAGES = ['es', 'en', 'fr', 'de', 'it', 'pt', 'ca', 'ar',
 export const RTL_LANGUAGES = ['ar'];
 export const isRtl = (lang: string) => RTL_LANGUAGES.includes(lang);
 
+// Los 13 idiomas con su nombre en su propia lengua (selector de idioma). Sin banderas: la app no lleva iconos.
+export const LANG_NAMES: Record<string, string> = {
+  es: 'Español', en: 'English', fr: 'Français', de: 'Deutsch', it: 'Italiano',
+  pt: 'Português', ca: 'Català', ar: 'العربية', ru: 'Русский', uk: 'Українська',
+  zh: '中文', ja: '日本語', ko: '한국어',
+};
+
 export const UI_STRINGS: Record<string, Record<string, string>> = {
   // Navigation tabs (Header nav + BottomNavBar)
   tab_info: { es: 'Casa', en: 'Home', fr: 'Accueil', de: 'Zuhause', it: 'Casa', pt: 'Casa', ca: 'Casa', ar: 'الرئيسية', ru: 'Главная', uk: 'Головна', zh: '首页', ja: 'ホーム', ko: '홈' },
@@ -19,6 +26,15 @@ export const UI_STRINGS: Record<string, Record<string, string>> = {
   tab_services: { es: 'Tienda', en: 'Store', fr: 'Boutique', de: 'Shop', it: 'Negozio', pt: 'Loja', ca: 'Botiga', ar: 'المتجر', ru: 'Магазин', uk: 'Магазин', zh: '商店', ja: 'ストア', ko: '스토어' },
   tab_restaurants: { es: 'Restaurantes', en: 'Restaurants', fr: 'Restaurants', de: 'Restaurants', it: 'Ristoranti', pt: 'Restaurantes', ca: 'Restaurants', ar: 'المطاعم', ru: 'Рестораны', uk: 'Ресторани', zh: '餐厅', ja: 'レストラン', ko: '레스토랑' },
   tab_chat: { es: 'Chat IA', en: 'AI Chat', fr: 'Chat IA', de: 'KI-Chat', it: 'Chat IA', pt: 'Chat IA', ca: 'Xat IA', ar: 'محادثة الذكاء الاصطناعي', ru: 'ИИ-чат', uk: 'ІІ-чат', zh: 'AI 聊天', ja: 'AIチャット', ko: 'AI 채팅' },
+
+  // Barra inferior: etiquetas CORTAS (caben en un quinto de 320 px). Las tab_* largas siguen siendo las de los títulos.
+  nav_discover: { es: 'Lugares', en: 'Places', fr: 'Lieux', de: 'Orte', it: 'Luoghi', pt: 'Locais', ca: 'Llocs', ar: 'الأماكن', ru: 'Места', uk: 'Місця', zh: '地点', ja: '場所', ko: '장소' },
+  nav_restaurants: { es: 'Comer', en: 'Dining', fr: 'Manger', de: 'Essen', it: 'Mangiare', pt: 'Comer', ca: 'Menjar', ar: 'المطاعم', ru: 'Еда', uk: 'Їжа', zh: '美食', ja: 'グルメ', ko: '맛집' },
+  nav_chat: { es: 'Conserje', en: 'Concierge', fr: 'Concierge', de: 'Concierge', it: 'Concierge', pt: 'Concierge', ca: 'Conserge', ar: 'المساعد', ru: 'Консьерж', uk: 'Консьєрж', zh: 'AI聊天', ja: 'AIチャット', ko: 'AI 채팅' },
+  nav_label: { es: 'Secciones de la guía', en: 'Guide sections', fr: 'Sections du guide', de: 'Bereiche des Guides', it: 'Sezioni della guida', pt: 'Secções do guia', ca: 'Seccions de la guia', ar: 'أقسام الدليل', ru: 'Разделы гида', uk: 'Розділи гіда', zh: '指南栏目', ja: 'ガイドのセクション', ko: '가이드 섹션' },
+  language_title: { es: 'Idioma', en: 'Language', fr: 'Langue', de: 'Sprache', it: 'Lingua', pt: 'Idioma', ca: 'Idioma', ar: 'اللغة', ru: 'Язык', uk: 'Мова', zh: '语言', ja: '言語', ko: '언어' },
+  back: { es: 'Volver', en: 'Back', fr: 'Retour', de: 'Zurück', it: 'Indietro', pt: 'Voltar', ca: 'Tornar', ar: 'رجوع', ru: 'Назад', uk: 'Назад', zh: '返回', ja: '戻る', ko: '뒤로' },
+  footer_credit: { es: 'Guía creada con VisualTaste', en: 'Guide made with VisualTaste', fr: 'Guide créé avec VisualTaste', de: 'Guide erstellt mit VisualTaste', it: 'Guida creata con VisualTaste', pt: 'Guia criado com VisualTaste', ca: 'Guia creada amb VisualTaste', ar: 'دليل من إنشاء VisualTaste', ru: 'Гид создан с помощью VisualTaste', uk: 'Гід створено за допомогою VisualTaste', zh: '由 VisualTaste 制作的指南', ja: 'VisualTaste で作成されたガイド', ko: 'VisualTaste로 만든 가이드' },
 
   // WelcomeHero
   view_address: { es: 'Ver Dirección', en: 'View Address', fr: "Voir l'adresse", de: 'Adresse ansehen', it: 'Vedi indirizzo', pt: 'Ver morada', ca: 'Veure adreça', ar: 'عرض العنوان', ru: 'Показать адрес', uk: 'Показати адресу', zh: '查看地址', ja: '住所を見る', ko: '주소 보기' },

@@ -1,213 +1,82 @@
-import React, { useEffect, useRef, useState } from 'react';
-import { getTranslation } from '../lib/i18n';
-
-// 13 active languages (see CLAUDE.md §5).
-const LANG_NAMES: Record<string, string> = {
-  es: 'Español', en: 'English', fr: 'Français', de: 'Deutsch', it: 'Italiano',
-  pt: 'Português', ca: 'Català', ar: 'العربية', ru: 'Русский', uk: 'Українська',
-  zh: '中文', ja: '日本語', ko: '한국어',
-};
-
-// Emoji fallback (Unicode flag emoji don't render on Windows — no bundled glyphs — so
-// the primary source is the flag artwork already served for the menu app, see below).
-const FLAG_EMOJI: Record<string, string> = {
-  es: '🇪🇸', en: '🇬🇧', fr: '🇫🇷', de: '🇩🇪', it: '🇮🇹', pt: '🇵🇹', ca: '🏴󠁥󠁳󠁣󠁴󠁿',
-  ar: '🇦🇪', ru: '🇷🇺', uk: '🇺🇦', zh: '🇨🇳', ja: '🇯🇵', ko: '🇰🇷',
-};
-
-// ISO 639-1 language → ISO 3166-1 country code, matching the flag files already
-// served for the menu app (apps/client/src/components/reels/LanguageSwitcher.tsx).
-const FLAG_COUNTRY_CODE: Record<string, string> = {
-  ar: 'ae', ca: 'es-ct', en: 'gb', ja: 'jp', ko: 'kr', uk: 'ua', zh: 'cn',
-};
-
-const API_URL = import.meta.env.VITE_API_URL || 'https://visualtasteworker.franciscotortosaestudios.workers.dev';
-
-function flagUrl(langCode: string): string {
-  const country = FLAG_COUNTRY_CODE[langCode] || langCode;
-  return `${API_URL}/media/System/flags/${country}.svg`;
-}
-
-// Flag files are rectangular (most common convention is 3:2 — width:height),
-// not square. Forcing them into a square box with object-cover crops a
-// visible chunk off every non-square flag; a 3:2 box crops nothing for the
-// vast majority and only trims a sliver on the few that aren't exactly 3:2.
-// La bandera se dibuja a sangre, sin caja de color detrás: antes vivía centrada
-// dentro de un botón blanco (#ffffff sobre el fondo hueso de la página), así que
-// ocupaba ~15% de su propio control y lo que se veía era el parche blanco.
-// `fill` la hace llenar el contenedor — es lo que convierte el botón flotante
-// del mapa en un disco-bandera en vez de un disco blanco con una pegatina.
-function FlagIcon({ lang, width = 24, height = 16, fill = false, className = '' }: {
-  lang: string;
-  width?: number;
-  height?: number;
-  fill?: boolean;
-  className?: string;
-}) {
-  const [errored, setErrored] = useState(false);
-
-  if (errored) {
-    return (
-      <span
-        className={`flex items-center justify-center shrink-0 ${fill ? 'w-full h-full bg-surface-variant' : ''} ${className}`}
-        style={fill ? { fontSize: 22, lineHeight: 1 } : { fontSize: Math.round(height * 1.1), lineHeight: 1, width, height, minWidth: width }}
-      >
-        {FLAG_EMOJI[lang] || '🌐'}
-      </span>
-    );
-  }
-
-  return (
-    <img
-      src={flagUrl(lang)}
-      alt=""
-      className={`object-cover shrink-0 ${fill ? 'w-full h-full' : ''} ${className}`}
-      style={fill ? undefined : { width, height, minWidth: width }}
-      onError={() => setErrored(true)}
-    />
-  );
-}
+import { useState } from 'react';
+import { getTranslation, LANG_NAMES } from '../lib/i18n';
+import useDismissableLayer from '../hooks/useDismissableLayer';
+import Layer from './Layer';
 
 interface LanguageSwitcherProps {
   lang: string;
   onLanguageChange?: (lang: string) => void;
-  /** `bar`: the app header's own control (uppercase code on md+). `floating`: standalone over the map (Explore tab has no header — see GuidebookPage.tsx). */
+  /** `bar`: el nombre del idioma (cabeceras de pestaña). `floating`: solo el código, donde falta sitio (mapa, esquina). */
   variant?: 'bar' | 'floating';
 }
 
+/**
+ * Selector de idioma: una píldora con el idioma actual que abre una hoja con los 13. Sin banderas ni
+ * iconos: cada idioma se muestra con su nombre en su propia lengua y su código. Al final de la hoja va el
+ * enlace a Privacidad y aviso legal, para que se llegue a él desde cualquier pestaña (Lugares y Conserje
+ * no llevan pie).
+ */
 export function LanguageSwitcher({ lang, onLanguageChange, variant = 'bar' }: LanguageSwitcherProps) {
-  const [showLangMenu, setShowLangMenu] = useState(false);
-  const rootRef = useRef<HTMLDivElement>(null);
-
-  // Un desplegable que solo se cerraba eligiendo idioma dejaba al huésped
-  // atrapado si lo abría sin querer (13 entradas tapando media pantalla).
-  useEffect(() => {
-    if (!showLangMenu) return;
-    const onPointerDown = (e: PointerEvent) => {
-      if (!rootRef.current?.contains(e.target as Node)) setShowLangMenu(false);
-    };
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') setShowLangMenu(false);
-    };
-    document.addEventListener('pointerdown', onPointerDown);
-    window.addEventListener('keydown', onKey);
-    return () => {
-      document.removeEventListener('pointerdown', onPointerDown);
-      window.removeEventListener('keydown', onKey);
-    };
-  }, [showLangMenu]);
+  const [open, setOpen] = useState(false);
+  const compact = variant === 'floating';
+  const label = compact ? lang.toUpperCase() : LANG_NAMES[lang] || lang.toUpperCase();
 
   return (
-    <div ref={rootRef} className="relative shrink-0">
+    <>
       <button
-        onClick={() => setShowLangMenu(!showLangMenu)}
-        aria-label="Language"
-        aria-haspopup="true"
-        aria-expanded={showLangMenu}
-        className={
-          variant === 'floating'
-            // Sobre el mapa el disco ES la bandera. El anillo blanco fino la
-            // separa del mapa (mismo recurso que los avatares de Google Maps)
-            // sin volver a meter un fondo blanco debajo.
-            ? 'block w-11 h-11 rounded-full overflow-hidden ring-2 ring-crisp-white/80 shadow-md'
-            : 'flex items-center justify-center h-9 w-9 md:w-auto md:h-auto md:gap-2 md:px-2 md:py-1 text-on-background hover:opacity-70 transition-opacity font-label-caps text-label-caps uppercase'
-        }
+        type="button"
+        className={`g-lang${compact ? ' s' : ''}`}
+        aria-haspopup="dialog"
+        aria-expanded={open}
+        aria-label={`${getTranslation('language_title', lang)}: ${LANG_NAMES[lang] || lang}`}
+        onClick={() => setOpen(true)}
       >
-        {variant === 'floating' ? (
-          <FlagIcon lang={lang} fill />
-        ) : (
-          <>
-            <FlagIcon lang={lang} className="ring-1 ring-on-background/15" />
-            <span className="hidden md:inline">{lang.toUpperCase()}</span>
-            <span className="material-symbols-outlined text-[16px] hidden md:inline">expand_more</span>
-          </>
-        )}
+        {label}
       </button>
-
-      {showLangMenu && (
-        <div className="absolute top-full end-0 mt-2 bg-surface-container-lowest border border-on-background/10 z-50 min-w-[180px] max-w-[calc(100vw-2rem)] max-h-[60vh] overflow-y-auto shadow-lg">
-          {Object.keys(LANG_NAMES).map((code) => (
-            <button
-              key={code}
-              type="button"
-              onClick={() => {
-                if (onLanguageChange) onLanguageChange(code);
-                setShowLangMenu(false);
-              }}
-              className={`w-full flex items-center gap-3 px-4 py-2.5 font-body-md text-body-md text-start hover:bg-warm-sand transition-colors ${code === lang ? 'text-primary' : 'text-on-background'}`}
-            >
-              <FlagIcon lang={code} className="ring-1 ring-on-background/15" />
-              <span className="min-w-0 truncate">{LANG_NAMES[code]}</span>
-            </button>
-          ))}
-        </div>
+      {open && (
+        <LanguageSheet
+          lang={lang}
+          onPick={(code) => {
+            onLanguageChange?.(code);
+            setOpen(false);
+          }}
+          onClose={() => setOpen(false)}
+        />
       )}
-    </div>
+    </>
   );
 }
 
-type TabKey = 'info' | 'discover' | 'restaurants' | 'services' | 'chat';
-
-interface HeaderProps {
-  activeTab: TabKey;
-  onTabChange: (tab: TabKey) => void;
-  lang: string;
-  onLanguageChange?: (lang: string) => void;
-}
-
-const TABS: Array<{ id: TabKey; key: string }> = [
-  { id: 'info', key: 'tab_info' },
-  { id: 'discover', key: 'tab_discover' },
-  { id: 'restaurants', key: 'tab_restaurants' },
-  { id: 'services', key: 'tab_services' },
-  { id: 'chat', key: 'tab_chat' },
-];
-
-export default function Header({ activeTab, onTabChange, lang, onLanguageChange }: HeaderProps) {
+function LanguageSheet({ lang, onPick, onClose }: { lang: string; onPick: (code: string) => void; onClose: () => void }) {
+  useDismissableLayer(true, onClose);
   return (
-    <header className="bg-background sticky top-0 z-40 border-b-2 border-primary">
-      <div className="flex flex-col w-full px-margin-mobile md:px-margin-desktop max-w-container-max mx-auto">
-        <div className="flex justify-between items-center w-full gap-4 py-4 md:py-6">
-          {/* Web Navigation (Hidden on Mobile — BottomNavBar covers mobile tab switching) */}
-          <nav className="hidden md:flex gap-8">
-            {TABS.map(tab => (
-              <button
-                key={tab.id}
-                onClick={() => onTabChange(tab.id)}
-                className={`pb-1 font-label-caps text-label-caps uppercase tracking-widest transition-colors ${
-                  activeTab === tab.id
-                    ? 'text-primary border-b-2 border-primary'
-                    : 'text-secondary hover:text-primary'
-                }`}
-              >
-                {getTranslation(tab.key, lang)}
-              </button>
-            ))}
-          </nav>
-
-          {/* ms-auto: con el masthead (icono+nombre) quitado, este es el único
-              hijo flex visible en móvil (el <nav> de arriba está hidden) —
-              justify-between no tiene nada que enfrentarlo y lo deja pegado a
-              la izquierda. ms-auto lo fija a la derecha pase lo que pase. */}
-          <div className="flex items-center gap-1 shrink-0 ms-auto md:ms-0">
-            {/* Acceso permanente a privacidad y preferencias.
-                Antes solo vivía en el pie, que no se renderiza en las pestañas a
-                pantalla completa (Explorar y Chat): en esas dos no había forma
-                de llegar al aviso legal ni de cambiar de idea sobre el recuerdo
-                entre visitas. Aquí está en todas las pestañas con cabecera, y
-                cuesta un tap desde Explorar. */}
-            <a
-              href={`/legal?lang=${lang}`}
-              aria-label={getTranslation('legal_link', lang)}
-              title={getTranslation('legal_link', lang)}
-              className="w-9 h-9 flex items-center justify-center text-secondary hover:text-primary transition-colors"
+    <Layer lang={lang}>
+      <div className="g-scrim" onClick={onClose} />
+      <div className="g-lsheet" role="dialog" aria-modal="true" aria-label={getTranslation('language_title', lang)}>
+        <div className="g-handle" />
+        <div className="g-titlebar">
+          <h2 className="g-h1">{getTranslation('language_title', lang)}</h2>
+          <button type="button" className="g-close" onClick={onClose}>{getTranslation('close', lang)}</button>
+        </div>
+        <div className="g-langs">
+          {Object.entries(LANG_NAMES).map(([code, name]) => (
+            <button
+              key={code}
+              type="button"
+              lang={code}
+              className={`g-lr${code === lang ? ' on' : ''}`}
+              aria-current={code === lang ? 'true' : undefined}
+              onClick={() => onPick(code)}
             >
-              <span className="material-symbols-outlined text-[20px]">privacy_tip</span>
-            </a>
-            <LanguageSwitcher lang={lang} onLanguageChange={onLanguageChange} variant="bar" />
-          </div>
+              <span>{name}</span>
+              <small>{code.toUpperCase()}</small>
+            </button>
+          ))}
+        </div>
+        <div className="g-lfoot">
+          <a className="g-link" href={`/legal?lang=${lang}`}>{getTranslation('legal_link', lang)}</a>
         </div>
       </div>
-    </header>
+    </Layer>
   );
 }

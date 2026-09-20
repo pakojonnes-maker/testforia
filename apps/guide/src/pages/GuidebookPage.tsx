@@ -9,6 +9,8 @@ import WelcomeHero from '../components/WelcomeHero';
 import FeaturedCarousel from '../components/FeaturedCarousel';
 import ProductBillboard from '../components/ProductBillboard';
 import { LanguageSwitcher } from '../components/Header';
+import GuideFooter from '../components/GuideFooter';
+import { GuideLoading, GuideNotFound } from '../components/GuideStates';
 import BottomNavBar from '../components/BottomNavBar';
 import InfoSection from '../components/InfoSection';
 import ExploreSection from '../components/explore/ExploreSection';
@@ -324,25 +326,9 @@ export default function GuidebookPage() {
     setLang(newLang);
   };
 
-  if (loading) {
-    return (
-      <div className="loading-container">
-        <div className="spinner" />
-        <p style={{ fontSize: '0.9rem', opacity: 0.8, fontWeight: 600 }}>{getTranslation('loading', lang)}</p>
-      </div>
-    );
-  }
+  if (loading) return <GuideLoading lang={lang} />;
 
-  if (error || !data) {
-    return (
-      <div className="loading-container" style={{ background: 'var(--blanco-puro)' }}>
-        <div style={{ fontSize: '4rem', fontWeight: 800, color: 'var(--mar-claro)', lineHeight: 1 }}>404</div>
-        <p style={{ fontSize: '1rem', color: 'var(--gris-texto)', marginTop: 'var(--sp-md)' }}>
-          {error || getTranslation('guidebook_not_found', lang)}
-        </p>
-      </div>
-    );
-  }
+  if (error || !data) return <GuideNotFound lang={lang} />;
 
   const { apartment, zone, agency, pois, restaurants, experiences, store_items } = data;
 
@@ -379,8 +365,7 @@ export default function GuidebookPage() {
   const rootHeightClass = isChatTab ? 'h-screen overflow-hidden' : isExploreTab ? 'h-dvh overflow-hidden' : 'min-h-screen';
 
   return (
-    <div className={`guide-app font-body-md text-on-surface bg-background relative flex flex-col ${rootHeightClass}`} dir={isRtl(lang) ? 'rtl' : 'ltr'} lang={lang}>
-      <div className="film-grain" />
+    <div className={`guide-app g-app relative flex flex-col ${rootHeightClass}`} dir={isRtl(lang) ? 'rtl' : 'ltr'} lang={lang}>
       {showWelcome && data.welcome_modal && (
         <WelcomeModal welcome={data.welcome_modal} onClose={() => setShowWelcome(false)} lang={lang} />
       )}
@@ -509,24 +494,7 @@ export default function GuidebookPage() {
 
       <BottomNavBar activeTab={activeTab} onTabChange={setActiveTab} lang={lang} />
 
-      {!isFullBleed && (
-        <footer style={{
-          textAlign: 'center',
-          padding: 0,
-          marginBottom: '80px', /* space for bottom nav */
-          fontSize: '0.75rem',
-          color: 'var(--gris-medio)'
-        }}>
-          <p>Powered by <a href="https://visualtastes.com" target="_blank" rel="noopener noreferrer" style={{ color: 'var(--brand-primary)', fontWeight: 700 }}>VisualTastes Guidebook</a></p>
-          {/* El acceso a la información legal tiene que estar disponible de forma
-              permanente y directa (art. 10 LSSI), no solo dentro del banner. */}
-          <p style={{ marginTop: '8px' }}>
-            <a href={`/legal?lang=${lang}`} style={{ color: 'inherit', textDecoration: 'underline' }}>
-              {getTranslation('legal_link', lang)}
-            </a>
-          </p>
-        </footer>
-      )}
+      {!isFullBleed && <GuideFooter lang={lang} />}
 
     </div>
   );
