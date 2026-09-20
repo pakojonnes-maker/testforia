@@ -2,20 +2,19 @@
 -- BDschemaFinal.sql — ESQUEMA REAL DE PRODUCCION
 -- =====================================================
 -- Base de datos D1: restaurant-menu-saas (7e8d1efe-2a54-4849-9a06-4c47152392bd)
--- Exportado el 2026-09-19 desde la BD en produccion, tras aplicar la
--- migracion 0094 (una sola capa de overrides por apartamento):
---   · guide_apartment_items sustituye a guide_apartment_pois y a
---     guide_apartment_item_order, que se BORRAN. La primera era una lista de
---     inclusion con interruptor todo-o-nada (workerGuide.js contaba sus filas
---     y, con una sola, dejaba de servir el catalogo de la zona), asi que un
---     piso con 2 filas enseñaba 2 de los 12 sitios de su zona.
---   · Ahora una fila solo puede OCULTAR o RECOLOCAR, y guarda ademas la
---     distancia desde ese piso. order_override NULL = hereda el orden global;
---     nunca poner DEFAULT 0, que fue lo que anulaba order_index.
---   · item_type vale poi | store_item | restaurant. No hay 'experience':
---     lugares y experiencias son la misma tabla desde 0059, y dos tipos
---     permitian dos filas contradictorias para el mismo guide_pois.id.
--- 86 tablas (eran 87: dos fuera, una nueva).
+-- Exportado el 2026-09-20 desde la BD en produccion, tras aplicar la
+-- migracion 0095 (restaurantes traidos de Google):
+--   · guide_pois gana cinco columnas: google_types, google_primary_type,
+--     business_status, price_level y google_raw. Un restaurante de Google es
+--     una fila de guide_pois con category = 'Restaurantes' (la cocina va en
+--     subcategory), no una fila de restaurants.
+--   · google_raw es el JSON de Place Details SIN fotos ni resenas, en UNA sola
+--     columna a proposito: los terminos de Google solo permiten guardar el
+--     place_id sin limite, asi que purgarlo es
+--     UPDATE guide_pois SET google_raw = NULL (no otra migracion).
+-- Antes, 0094 (una sola capa de overrides por apartamento): guide_apartment_items
+-- sustituye a guide_apartment_pois y a guide_apartment_item_order.
+-- 86 tablas (sin cambios).
 --
 -- NO editar a mano. Para regenerar:
 --   npx wrangler d1 export restaurant-menu-saas --remote --no-data --output BDschemaFinal.sql
@@ -930,7 +929,7 @@ CREATE TABLE guide_pois (
   order_index INTEGER DEFAULT 0,
   is_active BOOLEAN DEFAULT TRUE,
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-  modified_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, rating REAL, travel_time_text TEXT, travel_mode TEXT CHECK(travel_mode IN ('walk', 'drive', 'bike')), distance_text TEXT, poi_type    TEXT NOT NULL DEFAULT 'sight', subcategory TEXT, access_type TEXT NOT NULL DEFAULT 'free', address          TEXT, google_place_id  TEXT, what3words        TEXT, rating_count        INTEGER, google_rating       REAL, google_rating_count INTEGER, opening_hours TEXT, phone         TEXT, website_url   TEXT, booking_url   TEXT, duration_text TEXT, price_amount           REAL, price_currency         TEXT DEFAULT 'EUR', price_display          TEXT, original_price_display TEXT, discount_display       TEXT, is_bookable             BOOLEAN DEFAULT FALSE, action_type             TEXT, action_data             TEXT, action_prefilled_message TEXT, commission_type         TEXT, commission_value        REAL DEFAULT 0, badge_type              TEXT, cover_image_url TEXT, is_featured     BOOLEAN DEFAULT FALSE, source          TEXT, external_id     TEXT, google_synced_at TIMESTAMP, promotion_rank INTEGER, promoted_from  TIMESTAMP, promoted_until TIMESTAMP, action_is_affiliate BOOLEAN DEFAULT FALSE, affiliate_network TEXT, affiliate_code TEXT, secondary_action_type TEXT, secondary_action_data TEXT, secondary_action_prefilled_message TEXT,
+  modified_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, rating REAL, travel_time_text TEXT, travel_mode TEXT CHECK(travel_mode IN ('walk', 'drive', 'bike')), distance_text TEXT, poi_type    TEXT NOT NULL DEFAULT 'sight', subcategory TEXT, access_type TEXT NOT NULL DEFAULT 'free', address          TEXT, google_place_id  TEXT, what3words        TEXT, rating_count        INTEGER, google_rating       REAL, google_rating_count INTEGER, opening_hours TEXT, phone         TEXT, website_url   TEXT, booking_url   TEXT, duration_text TEXT, price_amount           REAL, price_currency         TEXT DEFAULT 'EUR', price_display          TEXT, original_price_display TEXT, discount_display       TEXT, is_bookable             BOOLEAN DEFAULT FALSE, action_type             TEXT, action_data             TEXT, action_prefilled_message TEXT, commission_type         TEXT, commission_value        REAL DEFAULT 0, badge_type              TEXT, cover_image_url TEXT, is_featured     BOOLEAN DEFAULT FALSE, source          TEXT, external_id     TEXT, google_synced_at TIMESTAMP, promotion_rank INTEGER, promoted_from  TIMESTAMP, promoted_until TIMESTAMP, action_is_affiliate BOOLEAN DEFAULT FALSE, affiliate_network TEXT, affiliate_code TEXT, secondary_action_type TEXT, secondary_action_data TEXT, secondary_action_prefilled_message TEXT, google_types TEXT, google_primary_type TEXT, business_status TEXT, price_level TEXT, google_raw TEXT,
   FOREIGN KEY (zone_id) REFERENCES guide_zones(id)
 );
 CREATE TABLE guide_poi_media (
