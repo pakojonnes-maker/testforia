@@ -81,6 +81,31 @@ despliegas, y dilo en la respuesta:
 - Pages → cada proyecto sube su `dist`, que sale de su propia app.
 - Y avisa igualmente al usuario de qué ficheros ajenos hay, citándolos por nombre.
 
+**Si lo sucio de otra sesión está en la MISMA app que despliegas** (p. ej. `apps/guide/src`),
+la excepción de arriba NO vale: su `dist` llevaría ese trabajo a medias. Construye y
+despliega desde un worktree limpio (`git worktree add --detach C:/Users/<u>/vtw HEAD`, en una
+ruta CORTA: con la de un scratchpad, un fichero versionado de `.wrangler/state/` supera el límite
+de Windows), con `node_modules` enlazado por junction. Bórralos con
+`[System.IO.Directory]::Delete(<ruta>, $false)` en PowerShell, nunca con `rm -rf` ni `rmdir` de
+Git Bash, que pueden entrar en el `node_modules` real. Commitea ahí, pasa el commit a `main` con
+`git update-ref refs/heads/main <nuevo> <viejo>` + `git restore --source=HEAD --staged --worktree
+-- <tus rutas>` (así no tocas lo ajeno), y sube una rama de vista previa (`--branch <nombre>`) antes
+de producción.
+
+**Justo antes de `pages deploy --branch main` (no antes de una vista previa), comprueba que
+nadie ha desplegado desde que construiste.** Un despliegue de Pages sustituye el sitio ENTERO: si
+construyes sobre una base vieja, borras lo que otra sesión subió entre medias, y no falla nada.
+Pasó el 2026-09-20 con la guía: se perdió ~30 min el rediseño de Restaurantes. Compara:
+
+```bash
+npx wrangler pages deployment list --project-name=<proyecto>   # el último Production debe ser el que había al empezar
+git log <tu base>..main --oneline -- apps/<app>                # y no debe haber commits nuevos de esa app
+```
+
+Si hay algo nuevo, pon tu commit encima de `main` (`git cherry-pick`), reconstruye y vuelve a
+verificar. Prueba de que el resultado es lo que había más lo tuyo: `main` sin tu commit debe dar el
+mismo hash de contenido (`GuidebookPage-<hash>.js`) que el despliegue ajeno.
+
 ## 6. Invalidar la caché KV si cambió la FORMA de la respuesta del guide
 
 Desplegar **no** invalida `guide:{slug}:{lang}:v{version}`. Si añadiste/cambiaste campos
