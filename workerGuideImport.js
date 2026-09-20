@@ -26,6 +26,24 @@
 //  - La foto de preview (Place Photo) es OTRA SKU aparte de coste no
 //    verificado; por eso se pide como mucho una por POI y se falla en
 //    silencio (null) si algo va mal, sin bloquear el resto del preview.
+//
+// Modo restaurante (body.mode === 'restaurant'; botón "Importar de Google" de
+// "Restaurantes por zona"): mismo flujo, pero la ficha se mapea como restaurante
+// (category 'Restaurantes', subcategory = tipo de cocina) y se piden a Google MÁS
+// campos (RESTAURANT_DETAILS_FIELD_MASK: atributos de servicio, horarios por
+// periodos, componentes de dirección...) para guardarlos en guide_pois.google_raw.
+//  - Coste: el tramo de Place Details lo fija el campo MÁS caro de la máscara, y la
+//    de POIs ya lleva editorialSummary (Enterprise + Atmosphere, el más alto). Todo
+//    lo que añade la de restaurantes es de ese tramo o inferior: mismo precio por
+//    llamada y el mismo tope gratuito (comprobado contra la documentación de Google,
+//    2026-09-20).
+//  - Fuera a propósito: reviews / reviewSummary / generativeSummary (contenido de
+//    terceros o generado, con atribución obligatoria), las fotos (sus nombres
+//    caducan y no se pueden guardar; sólo se usan para el preview) y todo lo
+//    dinámico ("abierto ahora").
+//  - Si Google rechaza la máscara ampliada (400: un campo renombrado o retirado en
+//    una versión nueva de la API) se reintenta con la básica y el import sigue
+//    funcionando; el raw deja anotada la máscara usada en _vt.fieldMask.
 // =====================================================
 
 import { verifyJWT, hitRateLimit } from './workerAuthentication.js';
@@ -241,29 +259,67 @@ const PLACE_DETAILS_FIELD_MASK = [
     'editorialSummary', 'photos.name', 'photos.widthPx', 'photos.authorAttributions',
 ].join(',');
 
-/** @throws {Error & {status?: number, body?: string}} si Google responde con error */
-export async function fetchPlaceDetails(env, placeId) {
-    const cacheKey = `gplace:${placeId}:es`;
+// Modo restaurante: la máscara básica MÁS los atributos que Google da de un sitio de
+// comida (mismo tramo de precio, ver la cabecera). regularOpeningHours se pide por
+// subcampos (periods, además del weekdayDescriptions que ya venía) para no traer
+// `openNow`, que es "ahora" y envejece en cuanto se guarda. regularSecondaryOpeningHours
+// (cocina, reparto, terraza) sí lo trae, y placeToRaw lo descarta.
+const RESTAURANT_EXTRA_FIELDS = [
+    'addressComponents', 'plusCode', 'viewport', 'googleMapsLinks', 'timeZone',
+    'accessibilityOptions', 'nationalPhoneNumber', 'priceRange',
+    'regularOpeningHours.periods', 'regularSecondaryOpeningHours',
+    'delivery', 'dineIn', 'takeout', 'curbsidePickup', 'reservable', 'outdoorSeating',
+    'servesBreakfast', 'servesBrunch', 'servesLunch', 'servesDinner', 'servesCoffee',
+    'servesDessert', 'servesBeer', 'servesWine', 'servesCocktails', 'servesVegetarianFood',
+    'goodForChildren', 'goodForGroups', 'goodForWatchingSports', 'menuForChildren',
+    'liveMusic', 'allowsDogs', 'restroom', 'paymentOptions', 'parkingOptions',
+];
+export const RESTAURANT_DETAILS_FIELD_MASK = [PLACE_DETAILS_FIELD_MASK, ...RESTAURANT_EXTRA_FIELDS].join(',');
+
+function requestPlaceDetails(env, placeId, fieldMask) {
+    return fetch(
+        `${GOOGLE_PLACES_BASE}/places/${encodeURIComponent(placeId)}?languageCode=es&regionCode=ES`,
+        {
+            headers: {
+                'X-Goog-Api-Key': env.GOOGLE_PLACES_API_KEY,
+                'X-Goog-FieldMask': fieldMask,
+            },
+            signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
+        }
+    );
+}
+
+/**
+ * @param {{extended?: boolean}} [options] extended = máscara de restaurante.
+ * @throws {Error & {status?: number, body?: string}} si Google responde con error
+ */
+export async function fetchPlaceDetails(env, placeId, { extended = false } = {}) {
+    // La clave lleva la máscara: una ficha pedida con la básica no puede servir de
+    // respuesta a una petición ampliada (le faltarían los atributos), ni al revés.
+    const cacheKey = `gplace:${placeId}:es${extended ? ':rest' : ''}`;
     if (env.GUIDE_CACHE) {
         const cached = await env.GUIDE_CACHE.get(cacheKey, { type: 'json' }).catch(() => null);
         if (cached) return cached;
     }
 
-    const res = await fetch(
-        `${GOOGLE_PLACES_BASE}/places/${encodeURIComponent(placeId)}?languageCode=es&regionCode=ES`,
-        {
-            headers: {
-                'X-Goog-Api-Key': env.GOOGLE_PLACES_API_KEY,
-                'X-Goog-FieldMask': PLACE_DETAILS_FIELD_MASK,
-            },
-            signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
-        }
-    );
+    let res = await requestPlaceDetails(env, placeId, extended ? RESTAURANT_DETAILS_FIELD_MASK : PLACE_DETAILS_FIELD_MASK);
+    let fieldMask = extended ? 'restaurant' : 'basic';
+    if (extended && res.status === 400) {
+        // Un campo de la máscara ampliada que Google haya renombrado o retirado no
+        // debe tumbar el import entero: se reintenta con la básica.
+        const detail = await res.text().catch(() => '');
+        console.warn('[GuideImport] Google rechazó la máscara ampliada (400); reintento con la básica:', detail.slice(0, 300));
+        res = await requestPlaceDetails(env, placeId, PLACE_DETAILS_FIELD_MASK);
+        fieldMask = 'basic';
+    }
     if (!res.ok) {
         const bodyText = await res.text().catch(() => '');
         throw Object.assign(new Error(`Google Places respondió ${res.status}`), { status: res.status, body: bodyText });
     }
     const place = await res.json();
+    // Trazabilidad del raw: con qué máscara se pidió de verdad y cuándo. Clave propia (_vt),
+    // no de Google, para que nunca pueda chocar con un campo que Google añada.
+    place._vt = { fieldMask, fetched_at: new Date().toISOString() };
 
     if (env.GUIDE_CACHE) {
         // Mismo TTL que el resto del guide (workerGuideCache.js) y dentro del
@@ -367,6 +423,76 @@ export function mapPlaceToPoi(place) {
         source: 'google_places',
         _photoName: place.photos?.[0]?.name || null,
     };
+}
+
+// ---------------------------------------------------------------------------
+// Modo restaurante (botón "Importar de Google" de "Restaurantes por zona")
+// ---------------------------------------------------------------------------
+
+// Google antepone en español "Restaurante" (y a veces "de/del/de la...") al tipo de
+// cocina: "Restaurante italiano", "Restaurante de mariscos". Como etiqueta de un
+// filtro de cocina esas palabras sobran.
+const CUISINE_PREFIX = /^restaurante\s+(?:de(?:l|\s+la|\s+los|\s+las)?\s+)?(.+)$/i;
+
+/**
+ * Tipo de cocina legible a partir de primaryTypeDisplayName, que Google ya devuelve
+ * en español (languageCode=es): "Restaurante de mariscos" → "Mariscos", "Cafetería" →
+ * "Cafetería". null si sólo dice "Restaurante" (no aporta nada como filtro). Es la
+ * semilla de guide_pois.subcategory, que el admin puede corregir a mano.
+ */
+export function cuisineFromGoogle(place) {
+    const text = place?.primaryTypeDisplayName?.text?.trim();
+    if (!text || /^restaurante$/i.test(text)) return null;
+    const core = (text.match(CUISINE_PREFIX)?.[1] ?? text).trim();
+    return core ? core.charAt(0).toUpperCase() + core.slice(1) : null;
+}
+
+const FOOD_TYPES = new Set([
+    'food', 'restaurant', 'cafe', 'coffee_shop', 'bar', 'pub', 'wine_bar', 'bakery',
+    'meal_takeaway', 'meal_delivery', 'sandwich_shop', 'ice_cream_shop', 'bar_and_grill',
+]);
+
+/** ¿Google lo considera un sitio de comida o bebida? (para avisar si pegaron un museo). */
+export function isFoodPlace(place) {
+    const types = [place?.primaryType, ...(place?.types || [])].filter(Boolean);
+    return types.some(t => FOOD_TYPES.has(t) || t.endsWith('_restaurant'));
+}
+
+/**
+ * Lo que se guarda en guide_pois.google_raw: la respuesta de Place Details SIN fotos
+ * (sus nombres caducan y los ToS no permiten guardarlas) ni reseñas, y sin `openNow`,
+ * que es un dato de "ahora mismo" y envejece en el instante de guardarlo. Ver la
+ * migración 0095 para el aviso sobre los términos de Google.
+ */
+export function placeToRaw(place) {
+    const { photos, reviews, ...rest } = place || {};
+    return JSON.stringify(rest, (key, value) => (key === 'openNow' ? undefined : value));
+}
+
+/** mapPlaceToPoi + lo que sólo tiene sentido en un restaurante y los metadatos de Google. */
+export function mapPlaceToRestaurant(place) {
+    return {
+        ...mapPlaceToPoi(place),
+        // Se pegue lo que se pegue en "Restaurantes por zona", lo que sale es un
+        // restaurante: aunque Google lo tipifique como hotel o comida para llevar.
+        category: 'Restaurantes',
+        subcategory: cuisineFromGoogle(place),
+        google_types: JSON.stringify(place.types || []),
+        google_primary_type: place.primaryType || null,
+        business_status: place.businessStatus || null,
+        price_level: place.priceLevel || null,
+        google_raw: placeToRaw(place),
+        _isFood: isFoodPlace(place), // sólo para el aviso del diálogo; no se guarda
+    };
+}
+
+/** Avisos que el diálogo enseña junto a la ficha (y que la dejan en "Descartar" por defecto). */
+export function restaurantWarnings(mapped) {
+    const warnings = [];
+    if (mapped.business_status === 'CLOSED_PERMANENTLY') warnings.push('permanently_closed');
+    else if (mapped.business_status === 'CLOSED_TEMPORARILY') warnings.push('temporarily_closed');
+    if (!mapped._isFood) warnings.push('not_food');
+    return warnings;
 }
 
 // ---------------------------------------------------------------------------
@@ -514,8 +640,18 @@ function normalizeForDiff(v) {
     return v === undefined || v === null ? '' : String(v).trim();
 }
 
-export function buildFieldDiff(existingPoi, mapped) {
-    return FIELD_DIFF_SPEC.map(({ key, label }) => {
+// En modo restaurante el tipo de cocina también se ve y se elige en el diff, justo
+// después de la categoría, y se pisa sólo si el admin no tenía ya uno propio (mismo
+// criterio de defaultChecked que el resto de campos).
+const RESTAURANT_FIELD_DIFF_SPEC = [
+    ...FIELD_DIFF_SPEC.slice(0, 3),
+    { key: 'subcategory', label: 'Tipo de cocina' },
+    ...FIELD_DIFF_SPEC.slice(3),
+];
+
+export function buildFieldDiff(existingPoi, mapped, mode = 'poi') {
+    const spec = mode === 'restaurant' ? RESTAURANT_FIELD_DIFF_SPEC : FIELD_DIFF_SPEC;
+    return spec.map(({ key, label }) => {
         const googleValue = mapped[key] ?? null;
         const currentValue = existingPoi ? (existingPoi[key] ?? null) : null;
         const hasCurrentValue = normalizeForDiff(currentValue) !== '';
@@ -536,7 +672,7 @@ export function buildFieldDiff(existingPoi, mapped) {
 // Handler HTTP
 // ---------------------------------------------------------------------------
 
-async function previewOne(env, rawUrl, zone) {
+async function previewOne(env, rawUrl, zone, mode) {
     try {
         const ref = await resolvePlaceRef(env, rawUrl, { biasLat: zone.latitude, biasLng: zone.longitude });
         if (!ref?.placeId) {
@@ -550,10 +686,11 @@ async function previewOne(env, rawUrl, zone) {
             }
         }
 
-        const place = await fetchPlaceDetails(env, ref.placeId);
-        const mapped = mapPlaceToPoi(place);
+        const restaurantMode = mode === 'restaurant';
+        const place = await fetchPlaceDetails(env, ref.placeId, { extended: restaurantMode });
+        const mapped = restaurantMode ? mapPlaceToRestaurant(place) : mapPlaceToPoi(place);
         const match = await matchExistingPoi(env, zone.id, mapped);
-        const fields = buildFieldDiff(match.poiMatch.poi, mapped);
+        const fields = buildFieldDiff(match.poiMatch.poi, mapped, mode);
         const photoPreviewUrl = await fetchPlacePhotoPreviewUrl(env, mapped._photoName);
 
         const status = match.poiMatch.type === 'exact' ? 'existing'
@@ -574,6 +711,20 @@ async function previewOne(env, rawUrl, zone) {
             // no un campo que se elija por separado. Solo se aplica al crear (ver
             // buildPayload en GuidePoisImportDialog) para no pisar lo que ya editó el host.
             access_type: mapped.access_type,
+            // Sólo modo restaurante. import_meta son datos de Google, no contenido del host, así
+            // que se reescriben siempre (también al actualizar) en vez de pasar por el diff campo
+            // a campo. Van fuera de `fields` a propósito: google_raw pesa varios KB y no es algo
+            // que se elija.
+            import_meta: restaurantMode
+                ? {
+                    google_types: mapped.google_types,
+                    google_primary_type: mapped.google_primary_type,
+                    business_status: mapped.business_status,
+                    price_level: mapped.price_level,
+                    google_raw: mapped.google_raw,
+                }
+                : null,
+            warnings: restaurantMode ? restaurantWarnings(mapped) : [],
             fields,
         };
     } catch (err) {
@@ -588,7 +739,10 @@ async function previewPlacesImport(env, body, userId) {
         return errorResponse('google_places_not_configured', 503);
     }
 
-    const { urls, zone_id } = body || {};
+    const { urls, zone_id, mode } = body || {};
+    if (mode !== undefined && mode !== 'poi' && mode !== 'restaurant') {
+        return errorResponse("mode must be 'poi' or 'restaurant'");
+    }
     if (!zone_id) return errorResponse('zone_id is required');
     if (!Array.isArray(urls) || urls.length === 0) return errorResponse('urls must be a non-empty array');
     if (urls.length > MAX_URLS_PER_BATCH) return errorResponse(`Maximum ${MAX_URLS_PER_BATCH} URLs per import batch`);
@@ -605,7 +759,7 @@ async function previewPlacesImport(env, body, userId) {
 
     const results = [];
     for (const rawUrl of urls) {
-        results.push(await previewOne(env, rawUrl, zone));
+        results.push(await previewOne(env, rawUrl, zone, mode));
     }
     return jsonResponse({ success: true, results });
 }

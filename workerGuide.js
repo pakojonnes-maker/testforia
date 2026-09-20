@@ -182,6 +182,190 @@ function resolveExperienceCta(exp, ctx) {
     };
 }
 
+// ============================================
+// Reservar: canales de contacto de un restaurante
+// ============================================
+// Un restaurante cliente los guarda en restaurants.phone + restaurant_details
+// (reservation_phone, whatsapp_number, reservation_url); uno traído de Google
+// (guide_pois, ver workerGuideImport.js) los tiene en phone / booking_url. La guía
+// no debe saber de dónde salen: recibe siempre esta misma forma, ya limpia.
+
+const digitsOf = (value) => String(value ?? '').replace(/\D/g, '');
+
+/**
+ * Sólo http(s). Los enlaces de un restaurante (reserva online, Google Maps) los
+ * escribe el propio restaurante desde su panel y el cliente los abre con
+ * window.open / <a href>: sin este filtro, un `javascript:` guardado ahí se
+ * ejecutaría en el navegador del huésped (XSS almacenado).
+ */
+export function safeHttpUrl(value) {
+    try {
+        const parsed = new URL(String(value ?? '').trim());
+        return parsed.protocol === 'https:' || parsed.protocol === 'http:' ? parsed.href : null;
+    } catch {
+        return null; // vacío o no es una URL
+    }
+}
+
+/**
+ * @param {object} channels
+ * @param {Array<string|null|undefined>} [channels.phones] en orden de preferencia
+ * @param {string|null} [channels.whatsapp]
+ * @param {string|null} [channels.url]
+ * @param {number|boolean|null} [channels.accepts] restaurant_details.accepts_reservations
+ * @returns {{phones: string[], whatsapp: string|null, url: string|null}|null}
+ *   null si no queda ningún canal usable o el restaurante declara que no reserva.
+ *
+ *  - Teléfonos: sin vacíos ni basura ("-", "N/A": menos de 6 dígitos) y sin repetir
+ *    la misma línea escrita de dos maneras ("+34 952 12 34 56" y "952123456"). Se
+ *    comparan los últimos 9 dígitos, que identifican la línea aunque alguien haya
+ *    puesto o no el prefijo de país.
+ *  - WhatsApp va aparte aunque coincida con un teléfono: llamar y escribir son dos
+ *    acciones distintas, y poder elegir entre ellas es justo el punto del botón.
+ *  - URL: sólo http(s). Un campo mal rellenado no debe acabar en un javascript:.
+ */
+export function buildReservation({ phones = [], whatsapp = null, url = null, accepts = null } = {}) {
+    // `=== 0` y no `!accepts`: la columna llega NULL cuando el restaurante no tiene
+    // fila en restaurant_details, y eso significa "no consta", no "no acepta".
+    if (accepts === 0 || accepts === false) return null;
+
+    const seen = new Set();
+    const cleanPhones = [];
+    for (const raw of phones) {
+        const text = String(raw ?? '').trim();
+        const digits = digitsOf(text);
+        if (digits.length < 6) continue;
+        const key = digits.slice(-9);
+        if (seen.has(key)) continue;
+        seen.add(key);
+        cleanPhones.push(text);
+    }
+
+    const waText = String(whatsapp ?? '').trim();
+    const waDigits = digitsOf(waText);
+    const cleanWhatsapp = waDigits.length >= 8 && waDigits.length <= 15 ? waText : null;
+
+    const cleanUrl = safeHttpUrl(url);
+
+    if (cleanPhones.length === 0 && !cleanWhatsapp && !cleanUrl) return null;
+    return { phones: cleanPhones, whatsapp: cleanWhatsapp, url: cleanUrl };
+}
+
+// ============================================
+// Lista de restaurantes: clientes de VisualTaste + restaurantes de Google
+// ============================================
+// La pestaña Restaurantes enseña DOS orígenes en una sola lista:
+//   · clientes: restaurants + guide_zone_restaurants (tienen carta en vídeo y `slug`);
+//   · traídos de Google: filas de guide_pois con category 'Restaurantes' (importador,
+//     migración 0095). No tienen `slug`, así que no hay carta: la guía sólo enseña
+//     "Reservar" y "Cómo llegar".
+// Ambos salen con LA MISMA forma, para que ni la guía, ni la TV (que ya tolera un slug
+// nulo al pintar el QR), ni el chat tengan que distinguir el origen.
+
+/** Restaurante cliente (guide_zone_restaurants ⋈ restaurants) → forma pública. */
+export function mapClientRestaurant(r, mediaOrigin) {
+    return {
+        id: r.id,
+        name: r.name,
+        slug: r.slug,
+        cuisine_type: r.cuisine_type,
+        tier: r.tier,
+        is_promoted: r.is_promoted === 1,
+        cover_image: r.cover_image ? `${mediaOrigin}/media/${r.cover_image}` : null,
+        // Sin lat/long en esta tabla (restaurants vive fuera de guide_pois) —
+        // el botón "Cómo llegar" arma el destino de Google Maps con este texto.
+        address: r.address || null,
+        city: r.city || null,
+        country: r.country || null,
+        phone: r.phone || null,
+        website: r.website || null,
+        description: r.description || '',
+        // Lo que abre el botón "Reservar": teléfonos sin repetir + WhatsApp +
+        // enlace, o null si no hay ninguno o el restaurante no acepta reservas.
+        reservation: buildReservation({
+            phones: [r.reservation_phone, r.phone],
+            whatsapp: r.whatsapp_number,
+            url: r.reservation_url,
+            accepts: r.accepts_reservations,
+        }),
+        // Enlace exacto de Google Maps si el restaurante lo tiene; si no,
+        // "Cómo llegar" cae al texto libre de address/city/country.
+        maps_url: safeHttpUrl(r.google_maps_url),
+    };
+}
+
+/**
+ * Restaurante de Google (fila de guide_pois del catálogo de la zona) → forma pública.
+ *
+ * El canal de reserva sale de los MISMOS campos que el host ya rellena en una
+ * experiencia (acción principal/secundaria: WhatsApp, teléfono o enlace, resuelta con
+ * resolveExperienceCta) más `phone` y `booking_url` — sin columnas nuevas ni un
+ * formulario distinto. Un enlace de afiliado como reserva online queda cubierto por el
+ * aviso de colaboración comercial que ya lleva la pestaña.
+ *
+ * @param {object} row fila del catálogo (ver el SELECT de handleGetGuidebook)
+ * @param {Array<{url: string, type: string, role: string}>} gallery guide_poi_media de la fila
+ * @param {object} ctaContext baseCtaContext (sustitución de marcadores del enlace)
+ */
+export function mapPoiToRestaurant(row, gallery = [], ctaContext = {}) {
+    const cta = resolveExperienceCta(row, { ...ctaContext, affiliateCode: row.affiliate_code });
+    const phones = [row.phone];
+    let whatsapp = null;
+    let url = row.booking_url;
+    if (cta.action_type === 'WHATSAPP') whatsapp = cta.action_data;
+    else if (cta.action_type === 'PHONE') phones.unshift(cta.action_data);
+    else if (cta.action_type === 'URL') url = cta.action_data || url;
+
+    // Foto: la principal de la galería, si no cualquier imagen, si no la portada suelta.
+    const image = gallery.find(m => m.type === 'image' && m.role === 'PRIMARY_IMAGE')
+        || gallery.find(m => m.type === 'image');
+
+    return {
+        id: row.id,
+        name: row.name || row.id,
+        slug: null, // no es cliente de VisualTaste: sin carta en vídeo
+        cuisine_type: row.service_subcategory || null,
+        tier: row.is_featured === 1 ? 'featured' : 'basic',
+        is_promoted: row.is_promoted === 1,
+        cover_image: image?.url || row.cover_image_url || null,
+        address: row.address || null,
+        city: null,
+        country: null,
+        phone: row.phone || null,
+        website: row.website_url || null,
+        description: row.description || '',
+        reservation: buildReservation({ phones, whatsapp, url }),
+        maps_url: safeHttpUrl(row.google_maps_url),
+    };
+}
+
+const NO_RANK = 2147483647;
+
+/**
+ * Una sola lista, ya ordenada. Las reglas son las de las demás listas de la guía (ver
+ * orderClause): promoción de pago vigente → destacado → y, a igualdad, los clientes
+ * ANTES que los de Google (son el producto de VisualTaste; los de Google rellenan el
+ * resto) → el orden que cada origen ya traía de SQL (override del apartamento, orden
+ * manual, nombre), que llega en `position`.
+ *
+ * @param {...Array<{rank: {promoted: boolean, promotionRank: number|null, featured: boolean, source: number, position: number}, item: object}>} lists
+ * @returns {object[]} sólo los items: `rank` es interno y nunca sale en el JSON público
+ *   (promotion_rank es lo que alguien ha pagado).
+ */
+export function mergeRestaurants(...lists) {
+    // La posición de pago sólo cuenta si la promoción está vigente: una caducada con su
+    // rank todavía escrito no debe colarse por delante.
+    const paidRank = (rank) => (rank.promoted ? (rank.promotionRank ?? NO_RANK) : NO_RANK);
+    return lists.flat()
+        .sort((a, b) =>
+            (Number(b.rank.promoted) - Number(a.rank.promoted))
+            || (paidRank(a.rank) - paidRank(b.rank))
+            || (Number(b.rank.featured) - Number(a.rank.featured))
+            || (a.rank.source - b.rank.source)
+            || (a.rank.position - b.rank.position))
+        .map(entry => entry.item);
+}
+
 /**
  * Main handler for guide public routes
  */
@@ -377,6 +561,9 @@ export async function handleGetGuidebook(env, slug, lang, origin, surface = 'gui
                 -- (resolveExperienceCta) para que guía y TV no puedan divergir.
                 p.action_is_affiliate, p.affiliate_code,
                 p.secondary_action_type, p.secondary_action_data, p.secondary_action_prefilled_message,
+                -- Sólo para ordenar los restaurantes de Google junto a los clientes
+                -- (mergeRestaurants); nunca sale en el JSON.
+                p.promotion_rank,
                 -- Distancia: el valor del piso manda; el del POI es el defecto
                 -- de zona (migración 0094).
                 COALESCE(ov.travel_time_text, p.travel_time_text) AS travel_time_text,
@@ -422,18 +609,42 @@ export async function handleGetGuidebook(env, slug, lang, origin, surface = 'gui
         // (no lat/long on this table — restaurants live outside guide_pois, ver
         // BDschemaFinal.sql) alimentan el botón "Cómo Llegar": Google Maps admite
         // texto libre como destination=, no hace falta geocodificar aquí.
+        //
+        // restaurant_details aporta los canales de "Reservar" y el enlace exacto de
+        // Maps. Columnas sueltas y nunca rd.*: esa fila también guarda redeem_pin y
+        // el email de reservas, que no deben salir en un JSON público.
         env.DB.prepare(`
             SELECT
                 r.id, r.name, r.slug, r.address, r.city, r.country,
                 r.phone, r.website, r.description,
-                zr.tier, zr.cuisine_type_override AS cuisine_type,
+                rd.reservation_phone, rd.whatsapp_number, rd.reservation_url,
+                rd.accepts_reservations, rd.google_maps_url,
+                zr.tier, zr.cuisine_type_override AS cuisine_type, zr.promotion_rank,
                 ${promotedExpr('zr')} AS is_promoted,
+                -- Portada: la foto de un plato, y SIEMPRE una imagen. Antes era
+                -- is_primary = 1 LIMIT 1 sin ORDER BY: con un plato primario en vídeo
+                -- salía un .mp4 dentro de un img, y el elegido cambiaba al editar
+                -- platos (y se congelaba en KV). restaurants.cover_image_url no sirve:
+                -- sus valores (upload_assets/cover_*.jpg) no existen en R2 ni en el
+                -- cliente. Orden: subida real (PRIMARY_IMAGE) antes que filas
+                -- sembradas sin role; luego ni el placeholder de 3 KB ni PNG de varios
+                -- MB (el huésped va con datos móviles); luego el plato destacado; y el
+                -- id como desempate estable.
                 (SELECT dm.r2_key FROM dish_media dm
                  JOIN dishes d ON dm.dish_id = d.id
-                 WHERE d.restaurant_id = r.id AND dm.is_primary = 1
+                 WHERE d.restaurant_id = r.id
+                   AND dm.media_type = 'image'
+                   AND (dm.role = 'PRIMARY_IMAGE' OR dm.is_primary = 1)
+                   AND COALESCE(d.status, 'active') <> 'hidden'
+                 ORDER BY
+                   CASE WHEN dm.role = 'PRIMARY_IMAGE' THEN 0 ELSE 1 END,
+                   CASE WHEN dm.file_size BETWEEN 20000 AND 1500000 THEN 0 ELSE 1 END,
+                   COALESCE(d.is_featured, 0) DESC,
+                   dm.order_index, dm.created_at, dm.id
                  LIMIT 1) AS cover_image
             FROM guide_zone_restaurants zr
             JOIN restaurants r ON zr.restaurant_id = r.id AND r.is_active = TRUE
+            LEFT JOIN restaurant_details rd ON rd.restaurant_id = r.id
             LEFT JOIN guide_apartment_items aio
                 ON aio.item_id = r.id AND aio.item_type = 'restaurant' AND aio.apartment_id = ?
             WHERE zr.zone_id = ? AND zr.is_active = TRUE
@@ -645,6 +856,17 @@ export async function handleGetGuidebook(env, slug, lang, origin, surface = 'gui
         subId: `${apartment.slug}-${surface}`,
     };
 
+    // Restaurantes traídos de Google: filas del catálogo con categoría 'Restaurantes' que no
+    // son reservables como experiencia. Salen SÓLO en la lista de restaurantes: Explorar los
+    // excluye (useExploreState) porque ya tienen su pestaña. `position` es su sitio en el
+    // ORDER BY del catálogo, que ya aplica el override del apartamento y el orden manual.
+    const googleRestaurants = catalogRows
+        .filter(r => String(r.category || '').trim().toLowerCase() === 'restaurantes' && r.is_bookable !== 1)
+        .map((row, position) => ({
+            rank: { promoted: row.is_promoted === 1, promotionRank: row.promotion_rank, featured: row.is_featured === 1, source: 1, position },
+            item: mapPoiToRestaurant(row, poiMedia[row.id] || [], baseCtaContext),
+        }));
+
     const processedExperiences = bookableRows.map(exp => {
         const cta = resolveExperienceCta(exp, { ...baseCtaContext, affiliateCode: exp.affiliate_code });
         return {
@@ -837,23 +1059,15 @@ export async function handleGetGuidebook(env, slug, lang, origin, surface = 'gui
             media: poiMedia[poi.id] || [],
             cover_image_url: poi.cover_image_url || null
         })),
-        restaurants: (zoneRestaurants.results || []).map(r => ({
-            id: r.id,
-            name: r.name,
-            slug: r.slug,
-            cuisine_type: r.cuisine_type,
-            tier: r.tier,
-            is_promoted: r.is_promoted === 1,
-            cover_image: r.cover_image ? `${mediaOrigin}/media/${r.cover_image}` : null,
-            // Sin lat/long en esta tabla (restaurants vive fuera de guide_pois) —
-            // el botón "Cómo llegar" arma el destino de Google Maps con este texto.
-            address: r.address || null,
-            city: r.city || null,
-            country: r.country || null,
-            phone: r.phone || null,
-            website: r.website || null,
-            description: r.description || ''
-        })),
+        // Clientes de VisualTaste + restaurantes traídos de Google, en una sola lista ya
+        // ordenada (ver mergeRestaurants).
+        restaurants: mergeRestaurants(
+            (zoneRestaurants.results || []).map((r, position) => ({
+                rank: { promoted: r.is_promoted === 1, promotionRank: r.promotion_rank, featured: r.tier === 'featured', source: 0, position },
+                item: mapClientRestaurant(r, mediaOrigin),
+            })),
+            googleRestaurants
+        ),
         experiences: processedExperiences,
         store_items: (storeItems.results || []).map(item => ({
             id: item.id,

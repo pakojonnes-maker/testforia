@@ -2464,7 +2464,10 @@ async function listPOIs(env, zoneId, options = {}) {
         COALESCE(p.order_index, 2147483647),
         p.id`;
     const result = await env.DB.prepare(query).bind(...params).all();
-    const pois = (result.results || []).map(({ media_r2_key, ...poi }) => ({
+    // google_raw (varios KB por fila de restaurante importado) se descarta aquí: este
+    // listado entrega `p.*` a pantallas de agencia y a un selector que carga la zona
+    // entera, y es dato de Google que el navegador nunca necesita.
+    const pois = (result.results || []).map(({ media_r2_key, google_raw, ...poi }) => ({
         ...poi,
         media_url: media_r2_key ? `${origin}/media/${media_r2_key}` : null,
     }));
@@ -2488,7 +2491,10 @@ const POI_WRITABLE_FIELDS = [
     'commission_type', 'commission_value', 'badge_type',
     // Promoción DE PAGO, distinta de is_featured (ver migración 0091).
     'promotion_rank', 'promoted_from', 'promoted_until',
-    'cover_image_url', 'source', 'external_id', 'order_index', 'google_synced_at'
+    'cover_image_url', 'source', 'external_id', 'order_index', 'google_synced_at',
+    // Lo que devuelve Google al importar un restaurante (migración 0095). google_raw es
+    // el JSON completo de Place Details: NUNCA sale en un listado (ver listPOIs).
+    'google_types', 'google_primary_type', 'business_status', 'price_level', 'google_raw'
 ];
 
 // El formulario manda '' cuando el admin vacía un campo. Guardarlo tal cual
@@ -2818,7 +2824,7 @@ async function listExperiences(env, zoneId, isSuperAdmin, origin = '') {
         COALESCE(e.order_index, 2147483647),
         e.id`;
     const result = await env.DB.prepare(query).bind(...params).all();
-    let experiences = (result.results || []).map(({ media_r2_key, ...exp }) => ({
+    let experiences = (result.results || []).map(({ media_r2_key, google_raw, ...exp }) => ({
         ...exp,
         media_url: media_r2_key ? `${origin}/media/${media_r2_key}` : null,
     }));
@@ -2950,6 +2956,17 @@ async function linkZoneRestaurant(env, data) {
     const vals = [];
     for (const field of ['promotion_rank', 'promoted_from', 'promoted_until']) {
         if (data[field] !== undefined) { sets.push(`${field} = ?`); vals.push(data[field] === '' ? null : data[field]); }
+    }
+    // Tipo de cocina: es lo que la pestaña Restaurantes de la guía usa para armar
+    // su filtro por categorías. Misma regla que la promoción — sólo si viene en el
+    // cuerpo — porque el conmutador de "Destacado" y el reordenado reenvían el
+    // vínculo sin él, y lo dejarían en NULL en cada clic. '' lo borra a propósito.
+    if (data.cuisine_type_override !== undefined) {
+        const cuisine = typeof data.cuisine_type_override === 'string'
+            ? data.cuisine_type_override.trim().slice(0, 60)
+            : '';
+        sets.push('cuisine_type_override = ?');
+        vals.push(cuisine || null);
     }
     if (sets.length > 0) {
         vals.push(data.zone_id, data.restaurant_id);
