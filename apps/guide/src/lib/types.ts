@@ -67,3 +67,47 @@ export interface ZoneSummary {
   cover_image_url: string | null;
   description?: string;
 }
+
+/**
+ * Canales del botón "Reservar" de un restaurante. Llegan YA limpios del worker
+ * (workerGuide.js → buildReservation): sin teléfonos repetidos ni basura, y con
+ * la URL comprobada como http(s). El cliente sólo los pinta.
+ */
+export interface RestaurantReservation {
+  /** Sin duplicados, el preferido primero. */
+  phones: string[];
+  whatsapp: string | null;
+  /** Reserva online. */
+  url: string | null;
+}
+
+/**
+ * Un restaurante de la pestaña Restaurantes (GET /guide/:slug → `restaurants`).
+ *
+ * `reservation` es opcional a propósito: la respuesta se cachea en KV 24 h y un
+ * JSON de antes de que existiera el campo llega sin él — sin canal no hay botón,
+ * en vez de un error.
+ */
+export interface GuideRestaurant {
+  id: string;
+  name: string;
+  /**
+   * Sólo los clientes de VisualTaste tienen carta en vídeo (y por tanto slug). Un restaurante
+   * traído de Google llega con `slug: null`: sin "Ver carta en vídeo", con "Reservar" y
+   * "Cómo llegar".
+   */
+  slug: string | null;
+  /** Texto libre del admin (guide_zone_restaurants.cuisine_type_override): alimenta el filtro. */
+  cuisine_type: string | null;
+  tier: 'basic' | 'featured';
+  is_promoted: boolean;
+  /** Foto de un plato (siempre imagen, nunca vídeo) o null → MediaPlaceholder. */
+  cover_image: string | null;
+  address: string | null;
+  city: string | null;
+  country: string | null;
+  description: string;
+  reservation?: RestaurantReservation | null;
+  /** Enlace exacto de Maps si el restaurante lo tiene; si no, "Cómo llegar" usa el texto. */
+  maps_url?: string | null;
+}

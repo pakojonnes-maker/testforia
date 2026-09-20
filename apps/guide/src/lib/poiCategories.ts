@@ -46,6 +46,16 @@ export const CANONICAL_CATEGORY_ORDER = [
 ];
 
 /**
+ * ¿Es un restaurante? Los restaurantes (clientes de VisualTaste y los importados de
+ * Google, que llegan como POIs de categoría "Restaurantes") viven en su propia pestaña:
+ * Explorar los excluye, tanto de la lista y el mapa como del carril de categorías.
+ * El valor guardado en la BD es el español, sea cual sea el idioma de la interfaz.
+ */
+export function isRestaurantCategory(category?: string | null): boolean {
+  return (category || '').trim().toLowerCase() === 'restaurantes';
+}
+
+/**
  * Diacritic/case-insensitive normalization for the Explore search box, so
  * "malaga" matches "Málaga" and "cordoba" matches "Córdoba" without the guest
  * having to type the accent.

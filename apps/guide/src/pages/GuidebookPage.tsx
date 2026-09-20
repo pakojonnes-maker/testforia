@@ -17,7 +17,7 @@ import ServicesSection from '../components/ServicesSection';
 import ChatIASection from '../components/ChatIASection';
 import WelcomeModal, { WelcomeModalData } from '../components/WelcomeModal';
 import { getTranslation, ACTIVE_LANGUAGES, isRtl } from '../lib/i18n';
-import type { GuidePoi, CitySummary, ZoneSummary, CtaActionType } from '../lib/types';
+import type { GuidePoi, CitySummary, ZoneSummary, CtaActionType, GuideRestaurant } from '../lib/types';
 
 // Types
 interface GuidebookData {
@@ -50,12 +50,7 @@ interface GuidebookData {
     headline_font: string | null; body_font: string | null; label_font: string | null;
   };
   pois: GuidePoi[];
-  restaurants: Array<{
-    id: string; name: string; slug: string; cuisine_type: string;
-    tier: 'basic' | 'featured'; cover_image: string;
-    is_promoted?: boolean;
-    address: string | null; city: string | null; country: string | null;
-  }>;
+  restaurants: GuideRestaurant[];
   experiences: Array<{
     id: string; name: string; description: string; category: string;
     service_subcategory: string | null;

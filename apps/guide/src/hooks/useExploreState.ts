@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { fetchExploreZone } from '../lib/api';
-import { normalizeText, CANONICAL_CATEGORY_ORDER } from '../lib/poiCategories';
+import { normalizeText, isRestaurantCategory, CANONICAL_CATEGORY_ORDER } from '../lib/poiCategories';
 import type { GuidePoi, CitySummary, ZoneSummary } from '../lib/types';
 import type { SheetSnap } from '../components/explore/BottomSheet';
 
@@ -11,6 +11,10 @@ import type { SheetSnap } from '../components/explore/BottomSheet';
 // api.ts: that endpoint returns the zone's UNCURATED full catalog, which
 // would silently drop the host's guide_apartment_items ordering/hiding).
 const zonePoiCache = new Map<string, { pois: GuidePoi[]; cities: CitySummary[]; zone: ZoneSummary }>();
+
+// Referencia estable para "aún sin POIs": un `?? []` suelto crea un array nuevo en cada
+// render y con él invalidaría todo lo que cuelga de zonePois.
+const NO_POIS: GuidePoi[] = [];
 
 export type ZoneStatus = 'idle' | 'loading' | 'error';
 
@@ -80,7 +84,15 @@ export function useExploreState({ apartmentSlug, lang, homeZone, homePois, homeC
   }, [activeZoneSlug, lang, apartmentSlug, isHomeZone, reloadTick]);
 
   const activeZone: ZoneSummary = isHomeZone ? homeZone : (remoteZone?.zone ?? homeZone);
-  const zonePois: GuidePoi[] = isHomeZone ? homePois : (remoteZone?.pois ?? []);
+  const rawZonePois: GuidePoi[] = isHomeZone ? homePois : (remoteZone?.pois ?? NO_POIS);
+  // Los restaurantes (los importados de Google llegan como POIs de categoría
+  // "Restaurantes") viven en su propia pestaña, no en Explorar: ni en la lista, ni en el
+  // mapa, ni como chip. useMemo, no un filter suelto: `categories`, `visiblePois` y el
+  // effect de abajo cuelgan de esta referencia y no deben recalcularse en cada render.
+  const zonePois: GuidePoi[] = useMemo(
+    () => rawZonePois.filter(p => !isRestaurantCategory(p.category)),
+    [rawZonePois],
+  );
 
   // The city picker always prefers the freshest list seen for the ACTIVE
   // zone's own /explore response (every response embeds the full sibling

@@ -6,7 +6,7 @@ type TabKey = 'info' | 'discover' | 'restaurants' | 'services' | 'chat';
 type ItemKind = 'restaurant' | 'experience' | 'product';
 
 interface Restaurant {
-  id: string; name: string; slug: string; cuisine_type: string; tier: string; cover_image: string;
+  id: string; name: string; slug: string | null; cuisine_type: string | null; tier: string; cover_image: string | null;
   is_promoted?: boolean;
 }
 interface Experience {
