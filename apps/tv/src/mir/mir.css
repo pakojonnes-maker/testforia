@@ -44,10 +44,15 @@
   --ink: #0C2A37; --ink-2: #33505C; --ink-3: #4A5D66;
   --paper: #FFFFFF; --line: rgba(12, 42, 55, .12);
   --wall-tint: #FFFFFF; --sun: #F0B04B; --bg: #F8F3E9;
-  /* Los valores reales los inyecta theme.ts según la marca del anfitrión. */
-  --acc: #B04E2B; --acc-ink: #FFFFFF; --acc-text: #B04E2B; --acc-lite: #E8A58C; --acc-text-eve: #8A3E22;
+  /* Los valores reales los inyecta theme.ts según los colores del anfitrión: el relleno de
+     marca para los muros claros (--acc-day…) y el suyo para el de noche (--acc-n…), que
+     elige `.m-noche`. Se llaman distinto de `--acc` a propósito: el estilo en línea ganaría
+     a esa regla. El acento propio de la agencia (--acc2) es para las etiquetas. */
+  --acc: var(--acc-day, #B04E2B); --acc-ink: var(--acc-day-ink, #FFFFFF);
+  --acc-halo: var(--acc-day-halo, rgba(176, 78, 43, .30)); --acc-glow: var(--acc-day-glow, rgba(176, 78, 43, .45));
+  --acc-text: #B04E2B; --acc-lite: #E8A58C; --acc-text-eve: #8A3E22;
   --acc-t: var(--acc-text);
-  --acc-halo: rgba(176, 78, 43, .30); --acc-glow: rgba(176, 78, 43, .45);
+  --acc2: var(--acc); --acc2-ink: var(--acc-ink);
   background: var(--bg);
   color: var(--ink);
   font: 500 30px/1.4 var(--ff-b);
@@ -68,7 +73,9 @@
 .mir.m-tarde { --wall-tint: #FFFFFF; --sun: #F0B04B; }
 .mir.m-atardecer { --wall-tint: #F3C79F; --sun: #E5652E; --glow: rgba(255, 150, 80, .38); --bg: #EBCBA8; --acc-t: var(--acc-text-eve); }
 .mir.m-noche { --wall-tint: #1A3B4E; --sun: #F1E8D0; --glow: rgba(190, 215, 235, .16); --bg: #1A3B4E;
-  --ink: #F8F3E9; --ink-2: #CDD9DE; --ink-3: #A9BDC5; --paper: #12303F; --line: rgba(248, 243, 233, .16); --acc-t: var(--acc-lite); }
+  --ink: #F8F3E9; --ink-2: #CDD9DE; --ink-3: #A9BDC5; --paper: #12303F; --line: rgba(248, 243, 233, .16); --acc-t: var(--acc-lite);
+  --acc: var(--acc-n, var(--acc-day, #B04E2B)); --acc-ink: var(--acc-n-ink, var(--acc-day-ink, #FFFFFF));
+  --acc-halo: var(--acc-n-halo, var(--acc-day-halo, rgba(176, 78, 43, .30))); --acc-glow: var(--acc-n-glow, var(--acc-day-glow, rgba(176, 78, 43, .45))); }
 
 /* ====== FOCO: se anula el general de index.css y cada pieza pone el suyo ====== */
 .mir .focusable { transition: none; will-change: auto; outline: none; }
@@ -209,7 +216,7 @@
 .mir .sheet { background: var(--paper); border-radius: 40px; box-shadow: 0 40px 80px -34px rgba(12, 42, 55, .5), 0 4px 14px rgba(12, 42, 55, .08); }
 .mir.m-noche .sheet { box-shadow: 0 0 0 2px rgba(248, 243, 233, .12), 0 40px 80px -34px rgba(0, 0, 0, .7); }
 .mir .pill { display: inline-flex; align-items: center; height: 52px; padding: 0 24px; border-radius: 999px; background: var(--paper); color: var(--ink-2); font: 600 26px/1 var(--ff-b); box-shadow: inset 0 0 0 2px var(--line); }
-.mir .pill.a { background: var(--acc); color: var(--acc-ink); box-shadow: none; }
+.mir .pill.a { background: var(--acc2); color: var(--acc2-ink); box-shadow: none; }
 .mir .dl { display: grid; grid-template-columns: auto 1fr; gap: 12px 28px; align-items: baseline; }
 .mir .dl dt { font: 700 24px/1.3 var(--ff-b); letter-spacing: .12em; text-transform: uppercase; color: var(--ink-3); }
 .mir .dl dd { font: 600 28px/1.35 var(--ff-b); color: var(--ink); word-break: break-word; }
@@ -236,7 +243,7 @@
 .mir .card .nm { font: 700 38px/1.1 var(--ff-d); margin-top: 22px; color: var(--ink); display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
 .mir .card .sb { font: 600 26px/1.3 var(--ff-b); color: var(--ink-2); margin-top: 8px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .mir .card.off .a::after { content: ""; position: absolute; inset: 0; background: rgba(248, 243, 233, .55); }
-.mir .tag { position: absolute; inset-inline-start: 50%; transform: translateX(-50%); bottom: 24px; padding: 10px 22px; border-radius: 999px; background: var(--acc); color: var(--acc-ink); font: 700 24px/1 var(--ff-b); letter-spacing: .1em; text-transform: uppercase; white-space: nowrap; z-index: 2; }
+.mir .tag { position: absolute; inset-inline-start: 50%; transform: translateX(-50%); bottom: 24px; padding: 10px 22px; border-radius: 999px; background: var(--acc2); color: var(--acc2-ink); font: 700 24px/1 var(--ff-b); letter-spacing: .1em; text-transform: uppercase; white-space: nowrap; z-index: 2; }
 .mir[dir=rtl] .tag { transform: translateX(50%); }
 .mir .empty { position: absolute; inset-inline: 72px; top: 330px; padding: 80px 72px; text-align: center; }
 .mir .empty p { font: 600 46px/1.35 var(--ff-b); color: var(--ink-2); max-width: 26ch; margin: 0 auto; }
