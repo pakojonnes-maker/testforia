@@ -1,0 +1,336 @@
+/* ============================================================
+   MIRADOR — diseño «TV Mediterránea» (sep-2026)
+   ------------------------------------------------------------
+   Todo cuelga de `.mir`: es una capa aparte del CSS de la app clásica
+   (index.css), que sigue funcionando con `?diseno=clasico`. Las medidas están
+   en px del lienzo de 1920×1080, que es como se diseñó (el escenario de
+   MirApp lo escala a la pantalla real).
+
+   Foco: `Focusable` marca `data-focused="true"` y la app clásica le pone su
+   propio anillo (`.focusable[data-focused]` en index.css). Aquí cada pieza
+   dibuja el suyo, así que primero se anula el general (más específico) y
+   luego cada regla lo redefine por debajo.
+   ============================================================ */
+
+@font-face {
+  font-family: "IBM Plex Mono";
+  font-style: normal;
+  font-weight: 500;
+  font-display: swap;
+  src: url("./fonts/ibm-plex-mono-latin-500.woff2") format("woff2");
+}
+@font-face {
+  font-family: "IBM Plex Mono";
+  font-style: normal;
+  font-weight: 600;
+  font-display: swap;
+  src: url("./fonts/ibm-plex-mono-latin-600.woff2") format("woff2");
+}
+
+/* ====== TOKENS ====== */
+.mir {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  --cal: #F8F3E9; --cal-2: #F1E9D8; --arena: #EEDFC5;
+  --tinta: #0C2A37; --tinta-2: #33505C; --tinta-3: #4A5D66;
+  --terra: #B04E2B;
+  --ff-d: "Playfair Display Variable", "Playfair Display", Georgia, "Times New Roman", serif;
+  --ff-b: "Montserrat Variable", "Montserrat", "Segoe UI", system-ui, sans-serif;
+  /* Credenciales y códigos: I/l/1 y O/0 tienen que distinguirse al teclear desde el sofá. */
+  --ff-m: "IBM Plex Mono", ui-monospace, Consolas, "Courier New", monospace;
+  --ff-ar: "Noto Naskh Arabic", "Droid Arabic Naskh", "Segoe UI", Tahoma, sans-serif;
+  --ff-cjk: "Noto Sans JP", "Noto Sans KR", "Noto Sans SC", "Segoe UI", sans-serif;
+  --ink: #0C2A37; --ink-2: #33505C; --ink-3: #4A5D66;
+  --paper: #FFFFFF; --line: rgba(12, 42, 55, .12);
+  --wall-tint: #FFFFFF; --sun: #F0B04B; --bg: #F8F3E9;
+  /* Los valores reales los inyecta theme.ts según la marca del anfitrión. */
+  --acc: #B04E2B; --acc-ink: #FFFFFF; --acc-text: #B04E2B; --acc-lite: #E8A58C; --acc-text-eve: #8A3E22;
+  --acc-t: var(--acc-text);
+  --acc-halo: rgba(176, 78, 43, .30); --acc-glow: rgba(176, 78, 43, .45);
+  background: var(--bg);
+  color: var(--ink);
+  font: 500 30px/1.4 var(--ff-b);
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+.mir-canvas { position: absolute; left: 0; top: 0; width: 1920px; height: 1080px; overflow: hidden; transform-origin: top left; }
+.mir *, .mir *::before, .mir *::after { box-sizing: border-box; scrollbar-width: none; }
+.mir ::-webkit-scrollbar { display: none; }
+.mir :is(h1, h2, h3, p, ul, ol, li, figure, dl, dd) { margin: 0; padding: 0; }
+.mir :is(ul, ol) { list-style: none; }
+.mir img, .mir svg { display: block; }
+.mir[dir=rtl] { --ff-d: "Playfair Display Variable", "Playfair Display", "Noto Naskh Arabic", "Droid Arabic Naskh", Georgia, serif;
+                --ff-b: "Montserrat Variable", "Montserrat", "Noto Naskh Arabic", "Droid Arabic Naskh", system-ui, sans-serif; }
+
+/* ====== LUZ DEL DÍA ====== */
+.mir.m-manana { --wall-tint: #E4F0F5; --sun: #F7DC97; --glow: rgba(255, 236, 190, .40); --bg: #DDE9EE; }
+.mir.m-tarde { --wall-tint: #FFFFFF; --sun: #F0B04B; }
+.mir.m-atardecer { --wall-tint: #F3C79F; --sun: #E5652E; --glow: rgba(255, 150, 80, .38); --bg: #EBCBA8; --acc-t: var(--acc-text-eve); }
+.mir.m-noche { --wall-tint: #1A3B4E; --sun: #F1E8D0; --glow: rgba(190, 215, 235, .16); --bg: #1A3B4E;
+  --ink: #F8F3E9; --ink-2: #CDD9DE; --ink-3: #A9BDC5; --paper: #12303F; --line: rgba(248, 243, 233, .16); --acc-t: var(--acc-lite); }
+
+/* ====== FOCO: se anula el general de index.css y cada pieza pone el suyo ====== */
+.mir .focusable { transition: none; will-change: auto; outline: none; }
+.mir .focusable[data-focused="true"] { transform: none; box-shadow: none; z-index: auto; }
+.mir .ringed[data-focused="true"] {
+  box-shadow: 0 0 0 4px var(--acc), 0 0 0 12px var(--acc-halo), 0 0 24px var(--acc-glow), 0 12px 26px -12px rgba(0, 0, 0, .5);
+}
+
+/* ====== MURO Y SOL ====== */
+.mir .wall { position: absolute; inset: 0; background-color: var(--wall-tint); background-size: auto 132%; background-position: 36% 100%; background-repeat: no-repeat; background-blend-mode: multiply; }
+/* Foto de fondo subida por el anfitrión (Pantalla TV → fondo): es una foto, no una
+   textura de papel, y el texto va directamente encima. El velo, del color del muro de
+   cada luz del día, la deja de fondo sin que se pierda una sola letra. */
+.mir .wall.custom::before { content: ""; position: absolute; inset: 0; background: var(--bg); opacity: .9; }
+.mir .wall::after { content: ""; position: absolute; inset: 0; background: radial-gradient(circle at var(--gx, 1750px) var(--gy, 140px), var(--glow, rgba(255, 214, 140, .42)), rgba(255, 214, 140, 0) 560px); }
+.mir .sun { position: absolute; border-radius: 50%; background: var(--sun); }
+.mir .sun::after { content: ""; position: absolute; inset: -26px; border-radius: 50%; border: 4px solid var(--sun); opacity: .45; }
+
+/* ====== ARCO (portada del inicio) ====== */
+.mir .arch { position: absolute; inset-inline-start: 936px; top: 40px; width: 912px; height: 1040px; border-radius: 456px 456px 0 0; overflow: hidden; background: var(--arena); box-shadow: 0 50px 90px -40px rgba(6, 26, 38, .6); }
+.mir .arch-ring { position: absolute; inset-inline-start: 936px; top: 40px; width: 912px; height: 1040px; border-radius: 456px 456px 0 0; outline: 4px solid var(--sun); outline-offset: 18px; pointer-events: none; }
+/* El fundido es una TRANSICIÓN entre clases, no una animación de entrada: si el
+   reloj de animaciones se para (WebView en segundo plano) la foto anterior se
+   queda, que es un fallo inocuo. Ver CLAUDE.md §4 (apps/tv). */
+.mir .arch .l { position: absolute; inset: 0; opacity: 0; transition: opacity .9s ease; }
+.mir .arch .l.on { opacity: 1; }
+.mir .ph { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; transform-origin: 50% 60%; }
+.mir .arch .l.on .ph { animation: mir-kb 42s ease-in-out infinite alternate; }
+@keyframes mir-kb { from { transform: scale(1.02); } to { transform: scale(1.11) translate3d(-1.2%, -.8%, 0); } }
+.mir .grade { position: absolute; inset: 0; pointer-events: none; }
+.mir.m-manana .arch .grade { background: linear-gradient(180deg, rgba(190, 225, 245, .30), rgba(190, 225, 245, 0) 55%); }
+.mir.m-atardecer .arch .grade { background: linear-gradient(200deg, rgba(240, 110, 40, .34), rgba(240, 110, 40, 0) 62%), linear-gradient(0deg, rgba(80, 30, 20, .22), transparent 40%); }
+.mir.m-noche .arch .grade { background: linear-gradient(180deg, rgba(8, 28, 48, .62), rgba(8, 28, 48, .50)); }
+.mir .arch .shade { position: absolute; inset: 0; border-radius: inherit; pointer-events: none; box-shadow: inset 0 80px 120px -60px rgba(0, 0, 0, .55), inset 0 -60px 80px -50px rgba(0, 0, 0, .30); }
+
+/* ====== COLUMNA IZQUIERDA (inicio) ====== */
+.mir .col { position: absolute; inset-inline-start: 72px; top: 40px; width: 800px; height: 1000px; display: flex; flex-direction: column; }
+.mir .top { display: flex; align-items: center; justify-content: space-between; height: 96px; }
+.mir .brand { display: flex; align-items: center; gap: 20px; min-width: 0; }
+.mir .logo { width: 64px; height: 64px; border-radius: 16px; background: var(--acc); color: var(--acc-ink); display: grid; place-items: center; flex: none; overflow: hidden; }
+.mir .logo svg { width: 38px; height: 38px; }
+.mir .logo.big svg { width: 120px; height: 120px; }
+.mir .logo.photo { background: var(--paper); }
+.mir .logo.photo img { width: 100%; height: 100%; object-fit: cover; }
+.mir .bname { font: 700 34px/1.1 var(--ff-d); color: var(--ink); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 420px; }
+.mir .clk { display: flex; flex-direction: column; align-items: flex-end; line-height: 1; flex: none; }
+.mir .clk .t { font: 700 64px/1 var(--ff-d); font-variant-numeric: lining-nums tabular-nums; color: var(--acc-t); }
+.mir .clk .d { font: 600 24px/1.2 var(--ff-b); color: var(--ink-2); margin-top: 6px; }
+.mir .hero { margin-top: 34px; }
+.mir .hero .hi { font: italic 500 112px/1 var(--ff-d); letter-spacing: -.02em; color: var(--ink); }
+.mir .hero .nm { font: 700 54px/1.1 var(--ff-d); color: var(--acc-t); margin-top: 14px; }
+.mir .hero .zn { font: 600 28px/1.3 var(--ff-b); color: var(--ink-2); margin-top: 8px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+/* El nombre lo escribe el anfitrión y la columna mide 1000 px con el índice y la placa
+   de alto fijo: a 54 px caben ~22 letras en una línea; más largo baja a 38 px y se
+   corta a dos líneas, que es lo que le sobra a la columna (con 42 px la fila 05 del
+   índice acababa pegada a la placa). */
+.mir .hero .nm.l { font-size: 38px; line-height: 1.1; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.mir[dir=rtl] :is(.l, .lbl, .cap, .dl dt, .cred .l, .codebox .l, .tag) { letter-spacing: 0; text-transform: none; }
+.mir[dir=rtl] :is(.chip .l, .cred .l, .lbl) { font-size: 28px; }
+.mir[dir=rtl] .hero .hi { font-style: normal; font-weight: 700; letter-spacing: 0; line-height: 1.25; }
+
+.mir .idx { margin-top: 42px; display: flex; flex-direction: column; }
+.mir .row { display: grid; grid-template-columns: 64px 1fr auto; align-items: center; height: 62px; padding: 0 32px; margin-inline-start: -32px; width: calc(100% + 32px); border-radius: 999px; color: var(--ink); cursor: pointer; }
+.mir .row .n { font: italic 600 28px/1 var(--ff-d); color: var(--acc-t); font-variant-numeric: lining-nums; }
+.mir .row .t { font: 700 42px/1 var(--ff-d); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.mir .row .v { font: 600 28px/1 var(--ff-b); color: var(--ink-2); }
+.mir .row[data-focused="true"] { background: var(--acc); color: var(--acc-ink); box-shadow: 0 0 0 6px var(--acc-halo), 0 16px 32px -16px var(--acc-glow); }
+.mir .row[data-focused="true"] .n, .mir .row[data-focused="true"] .v { color: var(--acc-ink); opacity: .9; }
+.mir[dir=rtl] .row .n { font-style: normal; }
+
+/* ====== PLACA DE WIFI ====== */
+.mir .plaque { background: var(--acc); border-radius: 34px; padding: 8px; box-shadow: 0 28px 40px -28px rgba(6, 26, 38, .6); }
+.mir .col .plaque { margin-top: auto; height: 256px; }
+.mir .plaque .in { background: var(--paper); border-radius: 27px; padding: 20px; display: flex; gap: 28px; align-items: center; color: var(--ink); height: 100%; }
+.mir .plaque[data-focused="true"] { box-shadow: 0 0 0 4px var(--acc), 0 0 0 14px var(--acc-halo), 0 0 26px var(--acc-glow), 0 22px 36px -22px rgba(0, 0, 0, .5); transform: scale(1.025); transition: transform .17s cubic-bezier(.2, .8, .2, 1); }
+.mir .qrbox { background: #fff; border-radius: 18px; padding: 12px; flex: none; }
+.mir .qrbox svg { display: block; }
+.mir .pq-x { min-width: 0; flex: 1; }
+.mir .pq-t { font: 700 44px/1.05 var(--ff-d); color: var(--ink); }
+.mir .pq-h { font: 500 26px/1.35 var(--ff-b); color: var(--ink-2); margin-top: 10px; }
+/* minmax(0, 1fr): sin él la columna de la rejilla crece hasta el ancho del texto y un
+   valor largo se sale de la placa en vez de cortarse. */
+.mir .cred { margin-top: 14px; display: grid; grid-template-columns: minmax(0, 1fr); gap: 8px; }
+.mir .cred .l { font: 700 24px/1.1 var(--ff-b); letter-spacing: .14em; text-transform: uppercase; color: var(--ink-3); }
+.mir .cred .v { font: 600 40px/1.12 var(--ff-m); color: var(--ink); word-break: break-all; }
+/* La placa del inicio mide 256 px y no crece: una credencial larga en varias líneas
+   se salía por arriba y pisaba el índice. Una línea, más pequeña y, si aún no cabe,
+   con puntos suspensivos (las pantallas de WiFi y de reposo sí la parten entera). */
+.mir .col .cred .v { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; word-break: normal; }
+.mir .col .cred .v.m { font-size: 32px; }
+.mir .col .cred .v.s { font-size: 24px; }
+/* Una clave es texto LTR aunque la interfaz sea árabe: sin esto, la puntuación de los
+   extremos («Casa-2026!») se recoloca y el huésped teclea otra clave. */
+.mir[dir=rtl] :is(.cred .v, .crv) { direction: ltr; unicode-bidi: isolate; text-align: right; }
+
+/* ====== REPISA (datos sobre el arco) ====== */
+.mir .sill { position: absolute; inset-inline-start: 976px; bottom: 56px; width: 832px; display: flex; gap: 20px; }
+.mir .chip { flex: 1; border-radius: 26px; padding: 16px 28px 18px; background: var(--paper); box-shadow: 0 22px 36px -22px rgba(6, 26, 38, .7); display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.mir .chip .l { font: 700 24px/1.15 var(--ff-b); letter-spacing: .12em; text-transform: uppercase; color: var(--ink-3); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.mir .chip .v { font: 700 60px/1.05 var(--ff-d); font-variant-numeric: lining-nums tabular-nums; color: var(--ink); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.mir .chip .v.m { font-size: 46px; }
+.mir .chip .v.s { font-size: 34px; }
+.mir .demo { position: absolute; inset-inline-start: 976px; top: 72px; padding: 10px 26px; border-radius: 999px; background: var(--terra); color: #fff; font: 700 26px/1 var(--ff-b); letter-spacing: .1em; text-transform: uppercase; z-index: 3; }
+
+/* ====== CABECERA DE LAS PANTALLAS DE CONTENIDO ====== */
+.mir .hd { position: absolute; inset-inline: 72px; top: 40px; height: 84px; display: flex; align-items: center; justify-content: space-between; }
+.mir .hd .clk { flex-direction: row; align-items: baseline; gap: 28px; }
+.mir .hd .clk .t { font-size: 60px; }
+.mir .hd .clk .d { margin: 0; font-size: 26px; }
+.mir .btn { display: inline-flex; align-items: center; justify-content: center; white-space: nowrap; height: 72px; padding: 0 46px; border-radius: 999px; font: 700 30px/1 var(--ff-b); background: var(--paper); color: var(--ink); box-shadow: 0 14px 26px -18px rgba(6, 26, 38, .6); cursor: pointer; }
+.mir .btn.p { background: var(--acc); color: var(--acc-ink); }
+.mir .btn[data-focused="true"] { box-shadow: 0 0 0 4px var(--acc), 0 0 0 12px var(--acc-halo), 0 0 22px var(--acc-glow), 0 10px 24px -12px rgba(0, 0, 0, .5); transform: scale(1.035); transition: transform .17s cubic-bezier(.2, .8, .2, 1); }
+.mir .h1 { font: 700 88px/1.02 var(--ff-d); letter-spacing: -.02em; color: var(--ink); }
+.mir .h2 { font: 700 72px/1.05 var(--ff-d); letter-spacing: -.015em; color: var(--ink); }
+.mir .lbl { font: 700 24px/1.2 var(--ff-b); letter-spacing: .16em; text-transform: uppercase; color: var(--acc-t); }
+.mir .lbl.g { color: var(--ink-3); }
+.mir .body { font: 500 30px/1.5 var(--ff-b); color: var(--ink-2); }
+.mir .abs { position: absolute; }
+
+/* ====== WIFI PANTALLA COMPLETA ====== */
+.mir .wf { position: absolute; inset-inline-start: 72px; top: 176px; width: 980px; }
+.mir .wf-c { margin-top: 60px; display: flex; flex-direction: column; gap: 46px; }
+.mir .wf-h { margin-top: 64px; max-width: 32ch; }
+.mir .wf-none { margin-top: 56px; padding: 56px 64px; max-width: 1240px; }
+.mir .wf-none p { font: 600 48px/1.3 var(--ff-b); color: var(--ink); }
+.mir .crv { font: 600 76px/1.12 var(--ff-m); color: var(--ink); word-break: break-all; margin-top: 8px; }
+.mir .wq { position: absolute; inset-inline-start: 1148px; top: 150px; width: 700px; height: 930px; border-radius: 350px 350px 0 0; background: var(--acc); padding: 16px 16px 0; box-shadow: 0 50px 90px -40px rgba(6, 26, 38, .6); }
+.mir .wq .in { height: 100%; border-radius: 334px 334px 0 0; background: var(--paper); display: flex; flex-direction: column; align-items: center; padding-top: 170px; }
+.mir .cta { display: inline-flex; align-items: center; height: 76px; padding: 0 44px; border-radius: 999px; background: var(--acc); color: var(--acc-ink); font: 700 30px/1 var(--ff-b); margin-top: 44px; }
+
+/* ====== QR EN FICHAS ====== */
+.mir .qrp { width: 372px; background: var(--acc); border-radius: 32px; padding: 8px; box-shadow: 0 28px 40px -28px rgba(6, 26, 38, .6); flex: none; }
+.mir .qrp .in { background: var(--paper); border-radius: 25px; padding: 22px 20px 24px; display: flex; flex-direction: column; align-items: center; gap: 18px; text-align: center; }
+.mir .qrp .cp { font: 600 26px/1.3 var(--ff-b); color: var(--ink); }
+.mir .qrp .ad { font: 500 24px/1.3 var(--ff-b); color: var(--ink-3); }
+
+/* ====== HOJA, PASTILLAS Y LISTAS DE DATOS ====== */
+.mir .sheet { background: var(--paper); border-radius: 40px; box-shadow: 0 40px 80px -34px rgba(12, 42, 55, .5), 0 4px 14px rgba(12, 42, 55, .08); }
+.mir.m-noche .sheet { box-shadow: 0 0 0 2px rgba(248, 243, 233, .12), 0 40px 80px -34px rgba(0, 0, 0, .7); }
+.mir .pill { display: inline-flex; align-items: center; height: 52px; padding: 0 24px; border-radius: 999px; background: var(--paper); color: var(--ink-2); font: 600 26px/1 var(--ff-b); box-shadow: inset 0 0 0 2px var(--line); }
+.mir .pill.a { background: var(--acc); color: var(--acc-ink); box-shadow: none; }
+.mir .dl { display: grid; grid-template-columns: auto 1fr; gap: 12px 28px; align-items: baseline; }
+.mir .dl dt { font: 700 24px/1.3 var(--ff-b); letter-spacing: .12em; text-transform: uppercase; color: var(--ink-3); }
+.mir .dl dd { font: 600 28px/1.35 var(--ff-b); color: var(--ink); word-break: break-word; }
+
+/* ====== COLECCIONES: tarjetas en arco ====== */
+/* Dos contenedores con scroll anidados (columna y carril) recortan CADA UNO por sus
+   cuatro lados, y el foco sobresale ~56 px de la tarjeta (elevación + anillo +
+   halo + brillo). De ahí el relleno y el margen negativo: el hueco para el foco
+   está DENTRO de cada caja y las tarjetas siguen alineadas con su rótulo. */
+/* El relleno inferior deja que la ÚLTIMA fila también suba hasta el título (sin él el
+   scroll se para en el final del contenido y asoman los pies de la fila anterior). */
+.mir .cbody { position: absolute; inset-inline: 0; padding-inline: 72px; padding-bottom: 200px; top: 250px; bottom: 0; overflow-y: auto; }
+.mir .rw { overflow-x: auto; padding: 72px 72px 60px; margin: -39px -72px -8px; }
+/* La fila siguiente empieza en y=968 (rótulo) en el diseño: asoma justo lo necesario por abajo. */
+.mir .sect + .sect { margin-top: 43px; }
+/* `.rail` también existe en index.css (la app clásica) con overflow-x: auto. Sin este
+   overflow explícito el carril pasa a ser un segundo contenedor con scroll dentro de
+   `.rw` y recorta el anillo de foco por su propia caja. Scrollea SOLO `.rw`. */
+.mir .rail { display: flex; gap: 36px; align-items: flex-start; width: max-content; overflow: visible; }
+.mir .card { width: 360px; flex: none; cursor: pointer; }
+.mir .card .a { position: relative; width: 360px; height: 456px; border-radius: 180px 180px 0 0; overflow: hidden; background: var(--arena); box-shadow: 0 30px 44px -30px rgba(12, 42, 55, .6); }
+.mir .card[data-focused="true"] { transform: translateY(-12px) scale(1.035); transition: transform .17s cubic-bezier(.2, .8, .2, 1); z-index: 3; }
+.mir .card[data-focused="true"] .a { box-shadow: 0 0 0 4px var(--acc), 0 0 0 12px var(--acc-halo), 0 0 24px var(--acc-glow), 0 14px 28px -14px rgba(0, 0, 0, .5); }
+.mir .card .nm { font: 700 38px/1.1 var(--ff-d); margin-top: 22px; color: var(--ink); display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.mir .card .sb { font: 600 26px/1.3 var(--ff-b); color: var(--ink-2); margin-top: 8px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.mir .card.off .a::after { content: ""; position: absolute; inset: 0; background: rgba(248, 243, 233, .55); }
+.mir .tag { position: absolute; inset-inline-start: 50%; transform: translateX(-50%); bottom: 24px; padding: 10px 22px; border-radius: 999px; background: var(--acc); color: var(--acc-ink); font: 700 24px/1 var(--ff-b); letter-spacing: .1em; text-transform: uppercase; white-space: nowrap; z-index: 2; }
+.mir[dir=rtl] .tag { transform: translateX(50%); }
+.mir .empty { position: absolute; inset-inline: 72px; top: 330px; padding: 80px 72px; text-align: center; }
+.mir .empty p { font: 600 46px/1.35 var(--ff-b); color: var(--ink-2); max-width: 26ch; margin: 0 auto; }
+
+/* ====== GUÍAS RÁPIDAS (la casa) ====== */
+/* El relleno izquierdo y superior es sitio para el halo de foco de la píldora, que
+   overflow:hidden recortaría (mismo problema que los carriles de colecciones). */
+.mir .gl { position: absolute; inset-inline-start: 32px; top: 292px; width: 700px; padding-inline-start: 40px; padding-top: 10px; bottom: 0; overflow: hidden; -webkit-mask-image: linear-gradient(180deg, #000 82%, transparent); mask-image: linear-gradient(180deg, #000 82%, transparent); }
+.mir .list { display: flex; flex-direction: column; }
+.mir .li { display: grid; grid-template-columns: 64px 1fr; align-items: center; height: 72px; padding: 0 32px; margin-inline-start: -32px; width: calc(100% + 32px); border-radius: 999px; cursor: pointer; }
+.mir .li .n { font: italic 600 28px/1 var(--ff-d); color: var(--acc-t); }
+.mir .li .t { font: 700 40px/1 var(--ff-d); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.mir .li[data-focused="true"] { background: var(--acc); color: var(--acc-ink); box-shadow: 0 0 0 6px var(--acc-halo), 0 16px 32px -16px var(--acc-glow); }
+.mir .li[data-focused="true"] .n { color: var(--acc-ink); opacity: .9; }
+.mir[dir=rtl] .li .n { font-style: normal; }
+.mir .codebox { border-radius: 30px; background: var(--acc); color: var(--acc-ink); padding: 18px 32px 20px; display: flex; flex-direction: column; gap: 2px; box-shadow: 0 24px 36px -24px rgba(6, 26, 38, .55); }
+.mir .codebox .l { font: 700 24px/1.2 var(--ff-b); letter-spacing: .14em; text-transform: uppercase; opacity: .92; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.mir .codebox .v { font: 700 64px/1.05 var(--ff-d); font-variant-numeric: lining-nums tabular-nums; letter-spacing: .12em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.mir .codebox .v.m { font-size: 46px; letter-spacing: .06em; }
+.mir .codebox .v.s { font-size: 34px; letter-spacing: 0; }
+.mir .gs { position: absolute; inset-inline-start: 812px; top: 150px; width: 1036px; height: 880px; padding: 60px 64px; display: flex; gap: 56px; }
+.mir .gs[data-focused="true"] { box-shadow: 0 0 0 4px var(--acc), 0 0 0 12px var(--acc-halo), 0 40px 80px -34px rgba(12, 42, 55, .5); }
+.mir .gs-main { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.mir .txt { margin-top: 40px; flex: 1; min-height: 0; overflow: hidden; font: 500 34px/1.5 var(--ff-b); color: var(--ink-2); }
+.mir .txt.more { -webkit-mask-image: linear-gradient(180deg, #000 86%, transparent); mask-image: linear-gradient(180deg, #000 86%, transparent); }
+.mir .txt p + p { margin-top: 16px; }
+.mir .parch { position: relative; flex: none; width: 300px; height: 400px; border-radius: 150px 150px 0 0; overflow: hidden; background: var(--arena); box-shadow: 0 40px 60px -36px rgba(12, 42, 55, .6); }
+
+/* ====== FICHA ====== */
+.mir .farch { position: absolute; inset-inline-start: 72px; top: 150px; width: 600px; height: 930px; border-radius: 300px 300px 0 0; overflow: hidden; background: var(--arena); box-shadow: 0 40px 60px -36px rgba(12, 42, 55, .6); }
+.mir .farch::after { content: ""; position: absolute; inset: 0; border-radius: inherit; box-shadow: inset 0 70px 90px -50px rgba(6, 26, 38, .42); pointer-events: none; }
+.mir .farch .l { position: absolute; inset: 0; opacity: 0; transition: opacity .9s ease; }
+.mir .farch .l.on { opacity: 1; }
+.mir .farch .tag { bottom: 76px; }
+.mir .fx { position: absolute; inset-inline-start: 752px; top: 168px; width: 1096px; }
+.mir .fx-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 56px; }
+.mir .fx-main { flex: 1; min-width: 0; }
+.mir .fx-body { max-width: 26ch; }
+.mir .blocks { display: flex; flex-direction: column; gap: 38px; margin-top: 52px; }
+.mir .blocks .lbl { margin-bottom: 16px; }
+.mir .btn.big { height: 80px; padding: 0 56px; font-size: 32px; }
+.mir .facts { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 28px; }
+/* ::first-letter no se aplica a un contenedor flex: el texto va en un span. */
+.mir .pill .fl::first-letter { text-transform: uppercase; }
+.mir .dlr { display: contents; }
+.mir .note { padding: 32px 40px; }
+.mir .note p { font: 600 32px/1.4 var(--ff-b); color: var(--ink-2); }
+.mir .nophoto { position: absolute; inset: 0; background: linear-gradient(150deg, var(--acc) 0%, var(--acc-deep, var(--acc)) 100%); box-shadow: inset 0 0 0 1px rgba(12, 42, 55, .18); }
+
+/* ====== IDIOMA ====== */
+.mir .lgrid { position: absolute; inset-inline: 72px; top: 392px; display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 24px; padding: 20px; margin: -20px; }
+.mir .lt { position: relative; height: 132px; border-radius: 28px; background: var(--paper); display: flex; align-items: center; justify-content: center; font: 700 42px/1 var(--ff-d); color: var(--ink); overflow: hidden; box-shadow: 0 20px 32px -24px rgba(12, 42, 55, .5); cursor: pointer; }
+.mir .lt .az { position: absolute; inset-inline-end: -18px; top: -18px; width: 96px; height: 96px; color: var(--acc); opacity: .16; }
+.mir .lt.cur { background: var(--acc); color: var(--acc-ink); }
+.mir .lt.cur .az { color: #fff; opacity: .22; }
+.mir .lt[data-focused="true"] { box-shadow: 0 0 0 4px var(--acc), 0 0 0 12px var(--acc-halo), 0 0 24px var(--acc-glow), 0 12px 26px -12px rgba(0, 0, 0, .5); transform: scale(1.04); transition: transform .17s cubic-bezier(.2, .8, .2, 1); z-index: 2; }
+.mir .lt.ar { font-family: var(--ff-ar); font-size: 48px; }
+.mir .lt.zh, .mir .lt.ja, .mir .lt.ko { font-family: var(--ff-cjk); font-weight: 700; font-size: 40px; }
+.mir .lt.uk { font-size: 38px; }
+
+/* ====== CARGANDO Y AVISOS ====== */
+.mir .load { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 44px; }
+.mir .load .logo { width: 200px; height: 200px; border-radius: 48px; }
+.mir .load .h1 { font-size: 72px; }
+
+/* ====== REPOSO ====== */
+.mir .rp { position: absolute; inset: 0; overflow: hidden; color: #F8F3E9; z-index: 20; }
+.mir .rp .ph { animation: mir-kb 48s ease-in-out infinite alternate; }
+.mir .rp .v1 { position: absolute; inset: 0; background: linear-gradient(90deg, rgba(6, 26, 38, .72) 0, rgba(6, 26, 38, .45) 42%, rgba(6, 26, 38, 0) 78%), linear-gradient(0deg, rgba(6, 26, 38, .55), rgba(6, 26, 38, 0) 40%); }
+[dir=rtl] .mir .rp .v1, .mir[dir=rtl] .rp .v1 { transform: scaleX(-1); }
+.mir .rp .rb { position: absolute; inset-inline-start: 96px; top: 64px; display: flex; align-items: center; gap: 20px; font: 700 36px/1 var(--ff-d); color: #F8F3E9; }
+.mir .rp .rb .logo { background: #F8F3E9; color: #0C2A37; }
+/* El rótulo de la agencia va sobre una foto oscurecida, no sobre la pared: `.bname` trae
+   la tinta de la pared y sin esto se lee azul oscuro sobre oscuro. */
+.mir .rp .rb .bname { color: #F8F3E9; font-size: 36px; line-height: 1; }
+.mir .rp .rt { position: absolute; inset-inline-start: 96px; }
+.mir .rp .rhi { font: italic 500 88px/1 var(--ff-d); color: rgba(248, 243, 233, .94); }
+.mir[dir=rtl] .rp .rhi { font-style: normal; font-weight: 700; }
+.mir .rp .clkbig { font: 700 300px/.9 var(--ff-d); font-variant-numeric: lining-nums tabular-nums; letter-spacing: -.03em; color: #F8F3E9; text-shadow: 0 6px 40px rgba(6, 26, 38, .5); margin-top: 38px; }
+.mir .rp .dt { font: 600 40px/1.2 var(--ff-b); color: rgba(248, 243, 233, .92); margin-top: 40px; }
+.mir .rp .plaque { position: absolute; inset-inline-start: 96px; top: 270px; width: 1040px; }
+.mir .rp .plaque .in { padding: 34px; gap: 52px; }
+.mir .rp .plaque .pq-t { font-size: 60px; }
+.mir .rp .plaque .cred { margin-top: 30px; gap: 18px; }
+.mir .rp .plaque .cred .l { font-size: 26px; }
+.mir .rp .plaque .cred .v { font-size: 52px; }
+.mir .rp .rname { font: 700 132px/1 var(--ff-d); color: #F8F3E9; margin-top: 34px; letter-spacing: -.02em; }
+.mir .rp .rsub { font: 600 44px/1.2 var(--ff-b); color: rgba(248, 243, 233, .92); margin-top: 24px; }
+.mir .rp .qrp { position: absolute; inset-inline-end: 96px; top: 270px; width: 400px; }
+.mir .rp .slide { animation: mir-in 420ms cubic-bezier(.2, .8, .2, 1); }
+@keyframes mir-in { from { transform: translate3d(0, 14px, 0); } to { transform: none; } }
+
+@media (prefers-reduced-motion: reduce) {
+  .mir .arch .l.on .ph, .mir .rp .ph { animation: none; }
+  .mir .arch .l, .mir .farch .l { transition: none; }
+  .mir .rp .slide { animation: none; }
+}

@@ -313,6 +313,13 @@ privacidad de la cabecera (el pie no se renderiza en Explorar ni en Chat).
   el APK. Nunca asumas red disponible en el arranque.
 - **Texto visible → `src/lib/i18n.ts`** (`getTvString`), nunca literal en el JSX: el tipo
   exige los 13 idiomas. Hasta sep-2026 la TV salía medio en español con el huésped en coreano.
+- **DOS interfaces en el mismo paquete** (21-sep-2026). Lo que ve el huésped es `src/mir/`
+  («Mirador», el diseño «TV Mediterránea»: lienzo fijo 1920×1080, CSS propio bajo `.mir`, sin
+  Tailwind). La anterior (`App.tsx` + `screens/` + `components/`) sigue viva con
+  `?diseno=clasico` y está guardada en la etiqueta git `tv-antes-del-rediseno`: **tocar
+  `screens/HomeScreen.tsx` no cambia nada de lo que se ve**. Comparten `lib/` (datos, mando, i18n,
+  tracking). `?reposo=<s>` cambia los 90 s del salvapantallas (0 lo apaga). Las clases genéricas de
+  `index.css` (`.rail`) se cuelan en `.mir`: al añadir una clase a `mir.css`, búscala allí antes.
 - Build: `tsc -b && vite build`.
 
 ### `apps/tv-landing` — Landing de VisualTaste TV

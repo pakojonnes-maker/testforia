@@ -29,7 +29,7 @@ const TV_STRINGS = {
     ru: 'Правила дома', uk: 'Правила дому', zh: '房屋守则', ja: 'ハウスルール', ko: '하우스 룰',
   },
   quick_guides: {
-    es: 'Guías Rápidas', en: 'Quick Guides', fr: 'Guides rapides', de: 'Kurzanleitungen',
+    es: 'Guías rápidas', en: 'Quick guides', fr: 'Guides rapides', de: 'Kurzanleitungen',
     it: 'Guide rapide', pt: 'Guias rápidos', ca: 'Guies ràpides', ar: 'أدلة سريعة',
     ru: 'Краткие инструкции', uk: 'Короткі інструкції', zh: '快速指南', ja: 'クイックガイド', ko: '빠른 안내',
   },
@@ -468,6 +468,35 @@ const TV_STRINGS = {
     es: 'Datos de ejemplo', en: 'Sample data', fr: "Données d'exemple", de: 'Beispieldaten',
     it: 'Dati di esempio', pt: 'Dados de exemplo', ca: "Dades d'exemple", ar: 'بيانات تجريبية',
     ru: 'Демо-данные', uk: 'Демо-дані', zh: '示例数据', ja: 'サンプルデータ', ko: '샘플 데이터',
+  },
+
+  // ---- Mirador (rediseño sep-2026): saludo del inicio, salida y rótulos de la ficha ----
+  welcome: {
+    es: 'Bienvenidos', en: 'Welcome', fr: 'Bienvenue', de: 'Willkommen', it: 'Benvenuti',
+    pt: 'Bem-vindos', ca: 'Benvinguts', ar: 'أهلاً بكم', ru: 'Добро пожаловать',
+    uk: 'Ласкаво просимо', zh: '欢迎', ja: 'ようこそ', ko: '환영합니다',
+  },
+  // La hora de SALIDA es la única que importa a quien ya está dentro: la de
+  // entrada ya pasó, así que el inicio no la enseña.
+  checkout: {
+    es: 'Salida', en: 'Check-out', fr: 'Départ', de: 'Abreise', it: 'Partenza', pt: 'Saída',
+    ca: 'Sortida', ar: 'المغادرة', ru: 'Выезд', uk: 'Виїзд', zh: '退房', ja: 'チェックアウト', ko: '체크아웃',
+  },
+  address: {
+    es: 'Dirección', en: 'Address', fr: 'Adresse', de: 'Adresse', it: 'Indirizzo', pt: 'Morada',
+    ca: 'Adreça', ar: 'العنوان', ru: 'Адрес', uk: 'Адреса', zh: '地址', ja: '住所', ko: '주소',
+  },
+  phone: {
+    es: 'Teléfono', en: 'Phone', fr: 'Téléphone', de: 'Telefon', it: 'Telefono', pt: 'Telefone',
+    ca: 'Telèfon', ar: 'الهاتف', ru: 'Телефон', uk: 'Телефон', zh: '电话', ja: '電話', ko: '전화',
+  },
+  website: {
+    es: 'Web', en: 'Website', fr: 'Site web', de: 'Website', it: 'Sito web', pt: 'Site',
+    ca: 'Web', ar: 'الموقع', ru: 'Сайт', uk: 'Сайт', zh: '网站', ja: 'ウェブ', ko: '웹사이트',
+  },
+  opening_hours: {
+    es: 'Horario', en: 'Hours', fr: 'Horaires', de: 'Öffnungszeiten', it: 'Orari', pt: 'Horário',
+    ca: 'Horari', ar: 'أوقات العمل', ru: 'Часы работы', uk: 'Години роботи', zh: '营业时间', ja: '営業時間', ko: '영업시간',
   },
 } satisfies Record<string, Translations>
 

@@ -15,11 +15,26 @@ import { createRoot } from 'react-dom/client'
  *
  * Si se vuelve a añadir un enlace remoto aquí o en index.html, se pierden las
  * dos cosas y no lo avisa nada: el fallo sólo se ve con la red mal.
+ *
+ * La cursiva de Playfair es un archivo aparte (el saludo del inicio y los
+ * numerales del índice); IBM Plex Mono, para las claves, va en mir/fonts.
  */
 import '@fontsource-variable/montserrat/index.css'
 import '@fontsource-variable/playfair-display/index.css'
+import '@fontsource-variable/playfair-display/wght-italic.css'
 import './index.css'
 import { App } from './App'
+import { MirApp } from './mir/MirApp'
+
+/**
+ * Dos interfaces en el mismo bundle:
+ *  · «Mirador» (rediseño sep-2026), la de por defecto.
+ *  · La clásica (mosaico de fotos), con `?diseno=clasico`: copia del diseño
+ *    anterior por si hay que volver atrás. Además, la etiqueta git
+ *    `tv-antes-del-rediseno` guarda ese estado (con el trabajo sin commitear).
+ */
+const classic = new URLSearchParams(window.location.search).get('diseno') === 'clasico'
+const Root = classic ? App : MirApp
 
 /**
  * StrictMode SOLO en desarrollo.
@@ -31,6 +46,6 @@ import { App } from './App'
 const root = createRoot(document.getElementById('root')!)
 root.render(
   import.meta.env.DEV
-    ? <StrictMode><App /></StrictMode>
-    : <App />
+    ? <StrictMode><Root /></StrictMode>
+    : <Root />
 )
