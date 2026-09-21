@@ -177,10 +177,16 @@ const T = {
               'For the duration of your visit.',
             ],
             [
-              'Usage analytics',
-              'Random visitor identifier, sections visited, time spent, device type, operating system, browser, language, approximate country and city, and which recommendations you open.',
-              'Your consent (art. 6.1.a). Without it no session is created.',
-              '12 months from your last visit.',
+              'Audience measurement',
+              'Sections visited, time spent, device type, operating system, browser, language, approximate country and city, and which recommendations you open. To avoid counting you twice, your visit is identified by a code computed on our server from your IP address and your browser, mixed with a random value that changes every day and is destroyed: the next day that code can no longer be linked to today’s, not even by us.',
+              'Legitimate interest (art. 6.1.f): aggregate statistics about the service itself, without identifying you and without storing anything on your device.',
+              '12 months, in aggregate form.',
+            ],
+            [
+              'Remembering you between visits (optional)',
+              'A random identifier stored on your device, to know whether you return on another day and to attribute to this accommodation a later visit to a restaurant’s menu.',
+              'Your consent (art. 6.1.a). It is switched off unless you switch it on yourself on this page.',
+              '12 months for identification, 30 days for attribution.',
             ],
             [
               'AI assistant',
@@ -207,7 +213,7 @@ const T = {
           codeFirst: true,
           head: ['Name', 'Purpose', 'Duration'],
           rows: [
-            ['vt_guide_consent', 'Remembering your analytics choice. Strictly necessary.', '12 months'],
+            ['vt_guide_consent', 'Remembering whether you switched “Remembering you between visits” on (or not). It is only written if you press the buttons on this page.', '12 months'],
             ['vt_guide_visitor_id', 'Random visitor identifier. Requires your consent.', '12 months'],
             ['vt_guide_ref', 'Knowing you reached a restaurant menu from this guide. Requires your consent.', '30 days'],
           ],
