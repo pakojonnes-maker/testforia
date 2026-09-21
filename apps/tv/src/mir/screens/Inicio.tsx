@@ -3,11 +3,11 @@ import { Focusable, useFocus } from '../../lib/spatialNav'
 import { wifiQrPayload } from '../../lib/mockData'
 import { languageOption } from '../../lib/languages'
 import { getTvString } from '../../lib/i18n'
-import { DEFAULT_TILE_IMAGES, tileImage, type TileSlot } from '../../lib/tileImages'
+import { DEFAULT_TILE_IMAGES, tileImage, type TileOverrides, type TileSlot } from '../../lib/tileImages'
 import { track } from '../../lib/tracking'
 import type { GuidebookData } from '../../lib/api'
 import type { Collection, CollectionKind } from '../../lib/collections'
-import { Backdrop, Brand, Clock, QrBox } from '../parts'
+import { Backdrop, Brand, Clock, QrBox, useUsableImage } from '../parts'
 import { credSize, doorItem, stayTime, valueSize } from '../stay'
 import type { MirRoute } from '../route'
 
@@ -42,6 +42,20 @@ const CHAPTERS: Chapter[] = [
 
 /** Foco inicial: «Qué hacer», la cala, que es la foto que más luce. */
 export const HOME_DEFAULT_FOCUS = 'row-do'
+
+/** Una de las cuatro fotos del arco; se enseña la del capítulo enfocado. */
+function ArchLayer({ chapter, tiles, on }: { chapter: Chapter; tiles: TileOverrides; on: boolean }) {
+  // Si la del anfitrión no carga (R2 dando 404, red a medias) vale la de serie.
+  const src = useUsableImage(tileImage(chapter.slot, tiles), DEFAULT_TILE_IMAGES[chapter.slot])
+  // El encuadre está compuesto para las fotos de serie; una foto subida
+  // por el anfitrión se centra, que es lo único que se puede asumir.
+  const pos = src === DEFAULT_TILE_IMAGES[chapter.slot] ? chapter.pos : '50% 50%'
+  return (
+    <div className={`l${on ? ' on' : ''}`}>
+      <img className="ph" src={src} alt="" decoding="async" style={{ objectPosition: pos }} />
+    </div>
+  )
+}
 
 interface InicioProps {
   data: GuidebookData
@@ -97,17 +111,9 @@ export function Inicio({ data, collections, lang, rtl, demoMode, initialFocus, o
       <Backdrop image={tileImage('background', tiles)} sun={[1590, -40, 330]} rtl={rtl} />
       <div className="arch-ring" />
       <div className="arch">
-        {CHAPTERS.map(c => {
-          const src = tileImage(c.slot, tiles)
-          // El encuadre está compuesto para las fotos de serie; una foto subida
-          // por el anfitrión se centra, que es lo único que se puede asumir.
-          const pos = src === DEFAULT_TILE_IMAGES[c.slot] ? c.pos : '50% 50%'
-          return (
-            <div key={c.id} className={`l${active === c.id ? ' on' : ''}`}>
-              <img className="ph" src={src} alt="" decoding="async" style={{ objectPosition: pos }} />
-            </div>
-          )
-        })}
+        {CHAPTERS.map(c => (
+          <ArchLayer key={c.id} chapter={c} tiles={tiles} on={active === c.id} />
+        ))}
         <div className="grade" />
         <div className="shade" />
       </div>

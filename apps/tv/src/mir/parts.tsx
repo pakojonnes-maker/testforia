@@ -22,6 +22,42 @@ export function Glyph() {
   )
 }
 
+/** Cuánto se recuerda que una foto no cargó antes de volver a intentarlo. */
+const BAD_IMAGE_MS = 10 * 60_000
+const badImages = new Map<string, number>()
+const isBad = (url: string) => (badImages.get(url) ?? 0) > Date.now()
+
+/**
+ * La foto que de verdad se puede enseñar: la pedida si carga y, si no, `fallback`
+ * (la de serie, que va empaquetada y no puede fallar).
+ *
+ * Las fotos que sube el anfitrión viven en R2 y pueden dar 404: una demo sembrada
+ * sin subir las imágenes, un fichero borrado, la red del apartamento a medias. Sin
+ * este plan B el arco del inicio se quedaba vacío, un hueco liso en lo primero que
+ * ve el huésped. Sirve para `<img>` y para fondos CSS, que no avisan de que
+ * fallan: la comprobación precarga la foto, así que el navegador la reutiliza de
+ * caché cuando el elemento la pide de verdad.
+ *
+ * El fallo se recuerda unos minutos entre pantallas: sin eso, cada pantalla nueva
+ * enseñaba el hueco un instante hasta que la comprobación volvía a fallar. Y sólo
+ * unos minutos, para que un fallo de red pasajero no degrade la tele hasta reiniciarla.
+ */
+export function useUsableImage(wanted: string, fallback: string): string {
+  const [, redraw] = useState(0)
+  useEffect(() => {
+    if (wanted === fallback || isBad(wanted)) return undefined
+    const probe = new Image()
+    let live = true
+    probe.onerror = () => {
+      badImages.set(wanted, Date.now() + BAD_IMAGE_MS)
+      if (live) redraw(n => n + 1)
+    }
+    probe.src = wanted
+    return () => { live = false; probe.onerror = null }
+  }, [wanted, fallback])
+  return wanted !== fallback && isBad(wanted) ? fallback : wanted
+}
+
 /** Sol en el lienzo: `[x, y, tamaño]` en px de 1920×1080, medidos desde el inicio de la línea. */
 export type SunAt = readonly [x: number, y: number, size: number]
 
@@ -32,13 +68,14 @@ export type SunAt = readonly [x: number, y: number, size: number]
 export function Backdrop({ image, sun, rtl }: { image: string; sun: SunAt; rtl: boolean }) {
   const [x, y, size] = sun
   const cx = rtl ? 1920 - (x + size / 2) : x + size / 2
+  const shown = useUsableImage(image, DEFAULT_TILE_IMAGES.background)
   // Una foto que no es la de serie la ha subido el anfitrión: lleva velo (ver `.wall.custom`).
-  const custom = image !== DEFAULT_TILE_IMAGES.background
+  const custom = shown !== DEFAULT_TILE_IMAGES.background
   return (
     <>
       <div
         className={`wall${custom ? ' custom' : ''}`}
-        style={{ backgroundImage: `url(${image})`, '--gx': `${cx}px`, '--gy': `${y + size / 2}px` } as CSSProperties}
+        style={{ backgroundImage: `url(${shown})`, '--gx': `${cx}px`, '--gy': `${y + size / 2}px` } as CSSProperties}
       />
       <div className="sun" style={{ width: size, height: size, insetInlineStart: x, top: y }} />
     </>

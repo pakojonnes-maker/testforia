@@ -1,11 +1,11 @@
 import { useEffect, useMemo, useState } from 'react'
 import { wifiQrPayload } from '../../lib/mockData'
 import { getTvString } from '../../lib/i18n'
-import { tileImage } from '../../lib/tileImages'
+import { DEFAULT_TILE_IMAGES, tileImage, type TileSlot } from '../../lib/tileImages'
 import type { GuidebookData } from '../../lib/api'
 import type { Collection, Entry } from '../../lib/collections'
 import { formatNow, useNow } from '../clock'
-import { Brand, QrBox } from '../parts'
+import { Brand, QrBox, useUsableImage } from '../parts'
 
 /**
  * Reposo: tras un rato sin tocar el mando la tele deja de ser un menú y pasa a ser
@@ -54,7 +54,12 @@ export function Reposo({
   }, [cards.length])
   const card = cards[i % cards.length]
 
-  const photo = card === 'reco' && reco?.image ? reco.image : tileImage(card === 'reco' ? 'eat' : 'do', tiles)
+  // Con la foto subida rota (R2 dando 404) vale la de serie: sin ella el reposo enseñaba de fondo, sin querer, el inicio.
+  const slot: TileSlot = card === 'reco' ? 'eat' : 'do'
+  const photo = useUsableImage(
+    card === 'reco' && reco?.image ? reco.image : tileImage(slot, tiles),
+    DEFAULT_TILE_IMAGES[slot]
+  )
 
   return (
     <div className="rp">
