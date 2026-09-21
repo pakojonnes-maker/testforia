@@ -4,6 +4,7 @@ import { CoverImage } from '../components/CoverImage'
 import { NoPhoto } from '../components/NoPhoto'
 import { bottomVeil } from '../lib/veil'
 import { categoryLabel } from '../lib/categoryVisual'
+import { getTvString } from '../lib/i18n'
 import type { Collection, Entry } from '../lib/collections'
 
 /**
@@ -22,7 +23,7 @@ function EntryCard({
   // "DESTACADOS" no informa de nada: la fila ya lo dice. El distintivo se
   // guarda para lo que SÍ cambia de una tarjeta a otra ("Agotado"), que es
   // justo lo que quedaba enterrado entre tres etiquetas idénticas.
-  const badge = inFeaturedRow && entry.badge === 'Destacado' ? undefined : entry.badge
+  const badge = inFeaturedRow && entry.badge?.kind === 'featured' ? undefined : entry.badge
 
   return (
     <Focusable id={`entry-${entry.id}`} autoFocus={autoFocus} onSelect={onSelect} className="arch-mask">
@@ -56,7 +57,7 @@ function EntryCard({
               className="t-label mb-2 inline-block rounded-full px-3 py-1.5"
               style={{ background: 'var(--tv-accent)', color: 'var(--tv-accent-ink)' }}
             >
-              {badge}
+              {badge.label}
             </span>
           )}
           <div className="t-display clamp-2 tv-card font-bold leading-tight" style={{ color: '#fff' }}>
@@ -87,7 +88,7 @@ interface Section {
  * todo es 'restaurant') colapsa a una fila con `railLabel`: el mismo aspecto
  * que tenía la pantalla antes de que existieran las secciones.
  */
-function buildSections(entries: Entry[], railLabel: string): Section[] {
+function buildSections(entries: Entry[], railLabel: string, lang: string): Section[] {
   const featured = entries.filter(e => e.featured)
   const rest = entries.filter(e => !e.featured)
 
@@ -104,23 +105,24 @@ function buildSections(entries: Entry[], railLabel: string): Section[] {
   }
 
   const sections: Section[] = []
-  if (featured.length > 0) sections.push({ label: 'Destacados', entries: featured, featured: true })
+  if (featured.length > 0) sections.push({ label: getTvString('featured_row', lang), entries: featured, featured: true })
   for (const [key, group] of grouped) {
-    sections.push({ label: key === '_' ? railLabel : categoryLabel(key), entries: group })
+    sections.push({ label: key === '_' ? railLabel : categoryLabel(key, lang), entries: group })
   }
   return sections
 }
 
 interface CollectionScreenProps {
   collection: Collection
+  lang: string
   onOpen: (entry: Entry) => void
 }
 
-export function CollectionScreen({ collection, onOpen }: CollectionScreenProps) {
+export function CollectionScreen({ collection, lang, onOpen }: CollectionScreenProps) {
   const { entries } = collection
   const sections = useMemo(
-    () => buildSections(entries, collection.railLabel),
-    [entries, collection.railLabel]
+    () => buildSections(entries, collection.railLabel, lang),
+    [entries, collection.railLabel, lang]
   )
 
   return (
@@ -147,7 +149,7 @@ export function CollectionScreen({ collection, onOpen }: CollectionScreenProps) 
           className="mt-6 grid flex-1 place-items-center rounded-3xl tv-body"
           style={{ background: 'var(--tv-surface)', color: 'var(--tv-text-dim)' }}
         >
-          Tu anfitrión aún no ha añadido recomendaciones en esta sección.
+          {getTvString('collection_empty', lang)}
         </div>
       ) : (
         <div className="col-scroll focus-gutter-x focus-bleed-x mt-6 min-h-0 flex-1">

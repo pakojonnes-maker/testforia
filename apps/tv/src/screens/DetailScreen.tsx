@@ -5,6 +5,7 @@ import { CoverImage } from '../components/CoverImage'
 import { NoPhoto } from '../components/NoPhoto'
 import { track } from '../lib/tracking'
 import { submitStoreOrder } from '../lib/api'
+import { getTvString } from '../lib/i18n'
 import type { Entry } from '../lib/collections'
 
 /**
@@ -41,8 +42,8 @@ function DetailInfoRow({ text }: { text: string }) {
  * texto no lo repetía. Al quitar la iconografía se pasa a decirlo con palabras,
  * que además se entiende sin depender de que el aparato pinte el emoji.
  */
-function travelModeLabel(mode?: 'walk' | 'drive' | 'bike' | null): string {
-  return mode === 'walk' ? 'A pie' : mode === 'bike' ? 'En bici' : 'En coche'
+function travelModeLabel(mode: 'walk' | 'drive' | 'bike' | null | undefined, lang: string): string {
+  return getTvString(mode === 'walk' ? 'travel_walk' : mode === 'bike' ? 'travel_bike' : 'travel_drive', lang)
 }
 
 /**
@@ -54,7 +55,7 @@ function travelModeLabel(mode?: 'walk' | 'drive' | 'bike' | null): string {
  * el registro sólo se crea cuando el huésped de verdad quiere pedir, no cada
  * vez que alguien mira un producto de pasada.
  */
-function StoreOrderPanel({ entry, apartmentId }: { entry: Entry; apartmentId: string }) {
+function StoreOrderPanel({ entry, apartmentId, lang }: { entry: Entry; apartmentId: string; lang: string }) {
   const [state, setState] = useState<'idle' | 'loading' | 'ready' | 'no_contact' | 'error'>('idle')
   const [qr, setQr] = useState<{ data: string } | null>(null)
 
@@ -79,7 +80,7 @@ function StoreOrderPanel({ entry, apartmentId }: { entry: Entry; apartmentId: st
         className="mt-6 rounded-2xl px-7 py-6 tv-body"
         style={{ background: 'var(--tv-surface)', color: 'var(--tv-text-dim)' }}
       >
-        Producto agotado por ahora.
+        {getTvString('sold_out_detail', lang)}
       </div>
     )
   }
@@ -91,7 +92,7 @@ function StoreOrderPanel({ entry, apartmentId }: { entry: Entry; apartmentId: st
           <BrandedQr data={qr.data} size={176} />
         </div>
         <p className="mt-3 max-w-[230px] text-center tv-meta font-semibold leading-snug" style={{ color: 'var(--tv-text-dim)' }}>
-          Escanea para confirmar tu pedido por WhatsApp
+          {getTvString('order_qr', lang)}
         </p>
       </div>
     )
@@ -101,11 +102,11 @@ function StoreOrderPanel({ entry, apartmentId }: { entry: Entry; apartmentId: st
     return (
       <div className="flex shrink-0 flex-col items-center gap-3 text-center">
         <p className="max-w-[230px] tv-meta font-semibold leading-snug" style={{ color: 'var(--tv-text-dim)' }}>
-          {state === 'no_contact' ? 'Pregunta a tu anfitrión para pedir este producto.' : 'No se ha podido generar el pedido.'}
+          {getTvString(state === 'no_contact' ? 'order_no_contact' : 'order_error', lang)}
         </p>
         <Focusable id="store-order-retry" onSelect={handleOrder} className="w-fit rounded-full">
           <div className="rounded-full px-6 py-3 tv-meta font-bold" style={{ background: 'var(--tv-surface-raised)', color: 'var(--tv-text)' }}>
-            Reintentar
+            {getTvString('order_retry', lang)}
           </div>
         </Focusable>
       </div>
@@ -118,7 +119,7 @@ function StoreOrderPanel({ entry, apartmentId }: { entry: Entry; apartmentId: st
         className="inline-flex items-center gap-3 rounded-full px-8 py-4 tv-body font-bold"
         style={{ background: 'var(--tv-accent)', color: 'var(--tv-accent-ink)' }}
       >
-        {state === 'loading' ? 'Generando pedido…' : 'Pedir por WhatsApp'}
+        {getTvString(state === 'loading' ? 'order_loading' : 'order_whatsapp', lang)}
       </div>
     </Focusable>
   )
@@ -129,10 +130,11 @@ interface DetailScreenProps {
   /** Solo hace falta para la tienda (ver StoreOrderPanel) — el resto de
    *  fichas no llaman al worker. */
   apartmentId: string
+  lang: string
   onBack: () => void
 }
 
-export function DetailScreen({ entry, apartmentId, onBack }: DetailScreenProps) {
+export function DetailScreen({ entry, apartmentId, lang, onBack }: DetailScreenProps) {
   // Un restaurante enseña su carta entera vía QR (Gravy) y no tiene distancia
   // precalculada; un POI/experiencia sí — estas cajas aparecen o no según lo
   // que de verdad haya para ese tipo de ficha, sin distinguir "es restaurante"
@@ -164,7 +166,7 @@ export function DetailScreen({ entry, apartmentId, onBack }: DetailScreenProps) 
                 className="t-label absolute left-6 top-6 rounded-full px-4 py-2"
                 style={{ background: 'var(--tv-accent)', color: 'var(--tv-accent-ink)' }}
               >
-                {entry.badge}
+                {entry.badge.label}
               </span>
             )}
           </div>
@@ -202,9 +204,11 @@ export function DetailScreen({ entry, apartmentId, onBack }: DetailScreenProps) 
               {entry.facts.length > 0 && (
                 <div className="mt-5 flex flex-wrap gap-2.5">
                   {entry.facts.map(fact => (
+                    // Sólo la PRIMERA letra en mayúscula. `capitalize` ponía
+                    // una en cada palabra: "Selección Del Anfitrión".
                     <span
                       key={fact.label}
-                      className="rounded-full px-5 py-2.5 tv-meta font-semibold capitalize"
+                      className="rounded-full px-5 py-2.5 tv-meta font-semibold first-letter:uppercase"
                       style={{ background: 'var(--tv-surface-raised)', color: 'var(--tv-text-dim)' }}
                     >
                       {fact.label}
@@ -217,7 +221,7 @@ export function DetailScreen({ entry, apartmentId, onBack }: DetailScreenProps) 
             {/* QR arriba a la derecha: mismo sitio en todas las fichas, para
                 que el huésped sepa dónde mirar sin leer. Tienda no trae `qr`
                 resuelto — ver StoreOrderPanel arriba. */}
-            {entry.kind === 'store' && <StoreOrderPanel entry={entry} apartmentId={apartmentId} />}
+            {entry.kind === 'store' && <StoreOrderPanel entry={entry} apartmentId={apartmentId} lang={lang} />}
             {entry.qr && (
               <div className="flex shrink-0 flex-col items-center">
                 <div className="rounded-2xl bg-white p-3 shadow-xl">
@@ -238,7 +242,7 @@ export function DetailScreen({ entry, apartmentId, onBack }: DetailScreenProps) 
                     className="mt-2 max-w-[230px] text-center tv-meta leading-snug opacity-70"
                     style={{ color: 'var(--tv-text-dim)' }}
                   >
-                    Publicidad · tu anfitrión puede recibir una comisión
+                    {getTvString('sponsored', lang)}
                   </p>
                 )}
               </div>
@@ -252,12 +256,12 @@ export function DetailScreen({ entry, apartmentId, onBack }: DetailScreenProps) 
               </p>
             ) : (
               <p className="tv-body" style={{ color: 'var(--tv-text-faint)' }}>
-                Una recomendación de tu anfitrión para esta estancia.
+                {getTvString('detail_no_description', lang)}
               </p>
             )}
 
             {hasContact && (
-              <DetailInfoCard title="Datos de contacto">
+              <DetailInfoCard title={getTvString('contact_details', lang)}>
                 {entry.address && <DetailInfoRow text={entry.address} />}
                 {entry.phone && <DetailInfoRow text={entry.phone} />}
                 {entry.website && <DetailInfoRow text={entry.website} />}
@@ -266,11 +270,11 @@ export function DetailScreen({ entry, apartmentId, onBack }: DetailScreenProps) 
             )}
 
             {hasDistance && (
-              <DetailInfoCard title="Distancia y cómo llegar">
+              <DetailInfoCard title={getTvString('getting_there', lang)}>
                 {entry.distanceText && (
                   <DetailInfoRow
                     text={[
-                      travelModeLabel(entry.travelMode),
+                      travelModeLabel(entry.travelMode, lang),
                       entry.distanceText,
                       entry.travelTimeText,
                     ].filter(Boolean).join(' · ')}
@@ -278,7 +282,7 @@ export function DetailScreen({ entry, apartmentId, onBack }: DetailScreenProps) 
                 )}
                 {!entry.distanceText && entry.travelTimeText && (
                   <DetailInfoRow
-                    text={`${travelModeLabel(entry.travelMode)} · ${entry.travelTimeText}`}
+                    text={`${travelModeLabel(entry.travelMode, lang)} · ${entry.travelTimeText}`}
                   />
                 )}
               </DetailInfoCard>
@@ -289,7 +293,7 @@ export function DetailScreen({ entry, apartmentId, onBack }: DetailScreenProps) 
                 className="mt-6 rounded-2xl px-7 py-6 tv-body"
                 style={{ background: 'var(--tv-surface)', color: 'var(--tv-text-dim)' }}
               >
-                Pregunta a tu anfitrión para reservar o pedir indicaciones.
+                {getTvString('ask_host_booking', lang)}
               </div>
             )}
           </div>
@@ -300,7 +304,7 @@ export function DetailScreen({ entry, apartmentId, onBack }: DetailScreenProps) 
                 className="inline-flex items-center gap-3 rounded-full px-9 py-4 tv-body font-bold"
                 style={{ background: 'var(--tv-surface-raised)', color: 'var(--tv-text)' }}
               >
-                <span aria-hidden="true">←</span> Volver
+                <span aria-hidden="true" className="rtl-mirror">←</span> {getTvString('back', lang)}
               </div>
             </Focusable>
           </div>

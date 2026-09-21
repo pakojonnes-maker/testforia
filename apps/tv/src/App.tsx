@@ -16,6 +16,7 @@ import { DEFAULT_LANG, isRtl } from './lib/languages'
 import { densityFor, resolveScreenSize } from './lib/display'
 import { setTrackingContext, track } from './lib/tracking'
 import { tileImage } from './lib/tileImages'
+import { getTvString } from './lib/i18n'
 
 export type Route =
   | { name: 'home' }
@@ -284,32 +285,33 @@ export function App() {
                 sólo taparía la habitación sin resolver nada. */}
             <Paper on={PAPER_ROUTES.has(route.name) || !guide}>
             {!guide ? (
-              <Loading label="Cargando…" />
+              <Loading label={getTvString('loading', lang)} />
             ) : route.name === 'home' ? (
               <HomeScreen data={guide} collections={collections} lang={lang} onNavigate={navigate} />
             ) : route.name === 'collection' ? (
               (() => {
                 const collection = findCollection(collections, route.kind)
-                if (!collection) return <Loading label="Sección no disponible" />
+                if (!collection) return <Loading label={getTvString('section_unavailable', lang)} />
                 return (
                   <CollectionScreen
                     collection={collection}
+                    lang={lang}
                     onOpen={entry => navigate({ name: 'detail', kind: entry.kind, id: entry.id })}
                   />
                 )
               })()
             ) : route.name === 'detail' ? (
               activeEntry
-                ? <DetailScreen entry={activeEntry} apartmentId={guide.apartment.id} onBack={back} />
-                : <Loading label="Ficha no disponible" />
+                ? <DetailScreen entry={activeEntry} apartmentId={guide.apartment.id} lang={lang} onBack={back} />
+                : <Loading label={getTvString('entry_unavailable', lang)} />
             ) : route.name === 'info' ? (
               <InfoScreen data={guide} lang={lang} onOpen={item => navigate({ name: 'info-detail', id: item.id })} />
             ) : route.name === 'info-detail' ? (
               activeInfoItem
-                ? <InfoDetailScreen item={activeInfoItem} onBack={back} />
-                : <Loading label="Apartado no disponible" />
+                ? <InfoDetailScreen item={activeInfoItem} lang={lang} onBack={back} />
+                : <Loading label={getTvString('info_unavailable', lang)} />
             ) : route.name === 'wifi' ? (
-              <WifiScreen data={guide} />
+              <WifiScreen data={guide} lang={lang} />
             ) : (
               <LanguageScreen
                 available={guide.meta?.available_langs}
@@ -330,7 +332,7 @@ export function App() {
                   className="inline-flex items-center gap-3 rounded-full px-8 py-4 tv-body font-bold"
                   style={{ background: 'var(--tv-surface-raised)', color: 'var(--tv-text)' }}
                 >
-                  <span aria-hidden="true">←</span> Volver al inicio
+                  <span aria-hidden="true" className="rtl-mirror">←</span> {getTvString('back_home', lang)}
                 </div>
               </Focusable>
             </div>

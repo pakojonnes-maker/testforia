@@ -116,6 +116,14 @@ body {
 .clamp-4 { -webkit-line-clamp: 4; }
 .clamp-6 { -webkit-line-clamp: 6; }
 
+/* Flecha de "Volver". Unicode NO espeja "←" en texto de derecha a izquierda
+   (sólo paréntesis y similares), así que en árabe seguía apuntando a la
+   izquierda, que en ese sentido de lectura es AVANZAR. */
+[dir="rtl"] .rtl-mirror {
+  display: inline-block;
+  transform: scaleX(-1);
+}
+
 /* ---------- SCROLL Y RECORTE DEL FOCO ----------
 
    OJO con `overflow-y: visible` junto a `overflow-x: auto`: NO hace lo que

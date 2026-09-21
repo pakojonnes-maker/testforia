@@ -1,5 +1,6 @@
 import { Focusable } from '../lib/spatialNav'
 import { orderedLanguages } from '../lib/languages'
+import { getTvString } from '../lib/i18n'
 import { LanguageFlag } from '../components/LanguageFlag'
 
 /**
@@ -23,12 +24,14 @@ export function LanguageScreen({
   return (
     <div className="screen-in flex h-full flex-col">
       <div className="shrink-0 pb-8">
-        <div className="t-label" style={{ color: 'var(--tv-accent)' }}>Idioma</div>
+        {/* En el idioma ACTUAL, no en el que se va a elegir: quien no lo lea se
+            guía por las banderas y los nombres nativos de abajo. */}
+        <div className="t-label" style={{ color: 'var(--tv-accent)' }}>{getTvString('language', current)}</div>
         <h2 className="t-display mt-3 tv-hero font-bold" style={{ color: 'var(--tv-text)' }}>
-          Elige tu idioma
+          {getTvString('choose_language', current)}
         </h2>
         <p className="mt-3 max-w-[52ch] tv-body" style={{ color: 'var(--tv-text-dim)' }}>
-          Toda la pantalla, incluidas las recomendaciones y las normas de la casa.
+          {getTvString('language_hint', current)}
         </p>
       </div>
 

@@ -133,6 +133,7 @@ export function HomeScreen({ data, collections, lang, onNavigate }: HomeScreenPr
           <WifiTile
             id="tile-wifi"
             area="wifi"
+            lang={lang}
             ssid={wifi.ssid || '—'}
             password={wifi.password || '—'}
             image={tileImage('wifi', tiles)}
@@ -153,7 +154,7 @@ export function HomeScreen({ data, collections, lang, onNavigate }: HomeScreenPr
             id="tile-wifi"
             area="wifi"
             image={tileImage('wifi', tiles)}
-            label="Consulta los datos del WiFi con tu anfitrión"
+            label={getTvString('wifi_ask_host', lang)}
             onSelect={() => onNavigate({ name: 'wifi' })}
           />
         )}
@@ -162,9 +163,7 @@ export function HomeScreen({ data, collections, lang, onNavigate }: HomeScreenPr
           id="tile-eat"
           area="eat"
           autoFocus
-          overline={eat?.eyebrow}
-          label={eat?.tile || 'Dónde comer'}
-          count={eat?.entries.length}
+          label={eat?.tile || getTvString('where_to_eat', lang)}
           image={tileImage('eat', tiles)}
           onSelect={() => onNavigate({ name: 'collection', kind: 'eat' })}
         />
@@ -172,9 +171,7 @@ export function HomeScreen({ data, collections, lang, onNavigate }: HomeScreenPr
         <PhotoTile
           id="tile-do"
           area="do"
-          overline={doing?.eyebrow}
-          label={doing?.tile || 'Qué hacer'}
-          count={doing?.entries.length}
+          label={doing?.tile || getTvString('things_to_do', lang)}
           image={tileImage('do', tiles)}
           onSelect={() => onNavigate({ name: 'collection', kind: 'do' })}
         />
@@ -186,7 +183,7 @@ export function HomeScreen({ data, collections, lang, onNavigate }: HomeScreenPr
           image={tileImage('lang', tiles)}
           icon={<LanguageFlag language={language} height={30} />}
           value={language.native}
-          label="Idioma"
+          label={getTvString('language', lang)}
           onSelect={() => onNavigate({ name: 'language' })}
         />
 
@@ -195,20 +192,23 @@ export function HomeScreen({ data, collections, lang, onNavigate }: HomeScreenPr
           area="stay"
           compact
           image={tileImage('stay', tiles)}
-          // Sin ninguna hora NO se pinta un guion: un guion no es un dato, es un
-          // hueco con tipografía. La tesela sigue siendo la puerta a Guías
-          // Rápidas, que es para lo que el huésped la usa.
-          value={checkin && checkout ? `${checkin} · ${checkout}` : checkout || checkin || undefined}
-          label={checkin && checkout ? 'Entrada y salida' : 'Tu estancia'}
+          // Las horas van SOLAS, sin antetítulo ("Entrada y salida" se quitó en
+          // sep-2026): por eso se pasan como `label` y sin `value`, que es lo
+          // que en compacto pinta el rótulo sin nada encima. Sin ninguna hora
+          // NO se pinta un guion —un guion no es un dato, es un hueco con
+          // tipografía—; la tesela sigue siendo la puerta a Guías Rápidas.
+          label={
+            checkin && checkout
+              ? `${checkin} · ${checkout}`
+              : checkout || checkin || getTvString('your_stay', lang)
+          }
           onSelect={() => onNavigate({ name: 'info' })}
         />
 
         <PhotoTile
           id="tile-store"
           area="store"
-          overline={store?.eyebrow}
           label={store?.tile || getTvString('store_title', lang)}
-          count={store?.entries.length}
           image={tileImage('store', tiles)}
           onSelect={() => onNavigate({ name: 'collection', kind: 'store' })}
         />

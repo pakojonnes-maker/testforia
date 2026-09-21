@@ -2,6 +2,7 @@ import { useEffect } from 'react'
 import { BrandedQr } from '../components/BrandedQr'
 import { wifiQrPayload } from '../lib/mockData'
 import { track } from '../lib/tracking'
+import { getTvString } from '../lib/i18n'
 import type { GuidebookData } from '../lib/api'
 
 /**
@@ -27,7 +28,7 @@ function Credential({ label, value }: { label: string; value: string }) {
   )
 }
 
-export function WifiScreen({ data }: { data: GuidebookData }) {
+export function WifiScreen({ data, lang }: { data: GuidebookData; lang: string }) {
   const wifi = data.apartment.wifi
   useEffect(() => { track('wifi_reveal', { screen: 'wifi' }) }, [])
 
@@ -35,19 +36,18 @@ export function WifiScreen({ data }: { data: GuidebookData }) {
     <div className="screen-in flex h-full items-center">
       <div className="grid w-full items-center gap-16" style={{ gridTemplateColumns: '1fr auto' }}>
         <div className="min-w-0">
-          <div className="t-label" style={{ color: 'var(--tv-accent)' }}>Conéctate</div>
-          <h2 className="t-display mt-3 tv-hero font-bold" style={{ color: 'var(--tv-text)' }}>
-            WiFi de la casa
+          {/* Sin antetítulo "Conéctate", igual que la tesela del inicio. */}
+          <h2 className="t-display tv-hero font-bold" style={{ color: 'var(--tv-text)' }}>
+            {getTvString('wifi_title', lang)}
           </h2>
 
           <div className="mt-10 flex flex-col gap-8">
-            <Credential label="Red" value={wifi.ssid || '—'} />
-            <Credential label="Contraseña" value={wifi.password || '—'} />
+            <Credential label={getTvString('wifi_network', lang)} value={wifi.ssid || '—'} />
+            <Credential label={getTvString('wifi_password', lang)} value={wifi.password || '—'} />
           </div>
 
           <p className="mt-10 max-w-[40ch] tv-body" style={{ color: 'var(--tv-text-dim)' }}>
-            Apunta la cámara de tu móvil al código de la derecha y te conectarás
-            automáticamente, sin escribir nada.
+            {getTvString('wifi_screen_hint', lang)}
           </p>
         </div>
 
@@ -66,7 +66,7 @@ export function WifiScreen({ data }: { data: GuidebookData }) {
             className="mt-5 rounded-full px-7 py-3.5 tv-body font-bold"
             style={{ background: 'var(--tv-accent)', color: 'var(--tv-accent-ink)' }}
           >
-            Escanea para conectarte
+            {getTvString('wifi_scan_cta', lang)}
           </div>
         </div>
       </div>

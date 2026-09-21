@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { Focusable } from '../lib/spatialNav'
 import { CoverImage } from '../components/CoverImage'
 import { NoPhoto } from '../components/NoPhoto'
+import { getTvString } from '../lib/i18n'
 import type { GuidebookData } from '../lib/api'
 
 type InfoItem = GuidebookData['apartment']['info'][number]
@@ -31,10 +32,11 @@ function ContentLines({ content }: { content: string }) {
 
 interface InfoDetailScreenProps {
   item: InfoItem
+  lang: string
   onBack: () => void
 }
 
-export function InfoDetailScreen({ item, onBack }: InfoDetailScreenProps) {
+export function InfoDetailScreen({ item, lang, onBack }: InfoDetailScreenProps) {
   // Fotos propias del apartado primero, y sólo si no hay ninguna cae a la de
   // stock de su categoría — la de stock es compartida, no tiene sentido
   // enseñarla como "galería" de este apartamento en concreto.
@@ -49,7 +51,7 @@ export function InfoDetailScreen({ item, onBack }: InfoDetailScreenProps) {
   const gallery = ownPhotos.slice(1)
   const eyebrow = item.category_name && item.category_name !== item.title
     ? item.category_name
-    : 'Información de la casa'
+    : getTvString('house_info', lang)
 
   return (
     <div className="screen-in h-full">
@@ -108,7 +110,7 @@ export function InfoDetailScreen({ item, onBack }: InfoDetailScreenProps) {
               <ContentLines content={item.content} />
             ) : (
               <p className="tv-body" style={{ color: 'var(--tv-text-faint)' }}>
-                Tu anfitrión aún no ha añadido detalles para este apartado.
+                {getTvString('info_no_content', lang)}
               </p>
             )}
           </div>
@@ -119,7 +121,7 @@ export function InfoDetailScreen({ item, onBack }: InfoDetailScreenProps) {
                 className="inline-flex items-center gap-3 rounded-full px-9 py-4 tv-body font-bold"
                 style={{ background: 'var(--tv-surface-raised)', color: 'var(--tv-text)' }}
               >
-                <span aria-hidden="true">←</span> Volver
+                <span aria-hidden="true" className="rtl-mirror">←</span> {getTvString('back', lang)}
               </div>
             </Focusable>
           </div>

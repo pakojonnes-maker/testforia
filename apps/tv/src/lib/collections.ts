@@ -1,5 +1,6 @@
 import type { GuidebookData } from './api'
 import { getTvString } from './i18n'
+import { categoryLabel } from './categoryVisual'
 
 /**
  * Normaliza las tres fuentes de recomendaciones del guidebook (restaurantes,
@@ -42,8 +43,9 @@ export interface Entry {
   /** Fotos adicionales para la galería del detalle, además de `image`. Real
    *  siempre: viene de guide_poi_media o de la portada, nunca inventada. */
   gallery: string[]
-  /** Distintivo sobre la foto (Destacado). */
-  badge?: string
+  /** Distintivo sobre la foto. `kind` existe para decidir sin comparar el
+   *  texto, que ahora cambia con el idioma (ver EntryCard). */
+  badge?: { kind: 'featured' | 'sold_out'; label: string }
   /**
    * El enlace de esta ficha es retribuido (afiliación) o su puesto está
    * pagado. Hay que decirlo donde el huésped lo vea: identificar la publicidad
@@ -82,7 +84,6 @@ export interface Collection {
   /** Etiqueta corta para las teselas del inicio. */
   tile: string
   title: string
-  eyebrow: string
   /** Etiqueta de la fila cuando no hay categorías que agrupar (p.ej. "eat",
    *  donde todo es 'restaurant') — ver buildSections en CollectionScreen. */
   railLabel: string
@@ -107,7 +108,7 @@ function whatsappUrl(phone: string, message?: string): string {
  * El caption dice qué pasa al escanear, no repite la etiqueta del botón: en la
  * TV no hay botón que etiquetar.
  */
-function bookingQr(exp: GuidebookData['experiences'][number]): EntryQr | undefined {
+function bookingQr(exp: GuidebookData['experiences'][number], lang: string): EntryQr | undefined {
   const data = (exp.action_data || '').trim()
   if (!data) return undefined
 
@@ -115,13 +116,13 @@ function bookingQr(exp: GuidebookData['experiences'][number]): EntryQr | undefin
     case 'WHATSAPP':
       return {
         data: whatsappUrl(data, exp.prefilled_message),
-        caption: 'Escanea para reservar por WhatsApp',
+        caption: getTvString('qr_book_whatsapp', lang),
         event: 'booking_qr_shown',
       }
     case 'URL':
       return {
         data,
-        caption: 'Escanea para reservar en tu móvil',
+        caption: getTvString('qr_book_online', lang),
         event: 'booking_qr_shown',
       }
     case 'PHONE':
@@ -129,7 +130,7 @@ function bookingQr(exp: GuidebookData['experiences'][number]): EntryQr | undefin
       // TV es más útil que enseñar los dígitos para que los copie a mano.
       return {
         data: `tel:${data.replace(/[^+\d]/g, '')}`,
-        caption: 'Escanea para llamar y reservar',
+        caption: getTvString('qr_book_call', lang),
         event: 'booking_qr_shown',
       }
     default:
@@ -151,12 +152,12 @@ function photoSet(cover: string | null | undefined, media?: Array<{ url: string 
   return { image: unique[0], gallery: unique.slice(1) }
 }
 
-function buildEat(data: GuidebookData): Entry[] {
+function buildEat(data: GuidebookData, lang: string): Entry[] {
   return data.restaurants.map((r): Entry => ({
     id: r.id,
     kind: 'eat',
     name: r.name,
-    subtitle: r.cuisine_type || 'Restaurante',
+    subtitle: r.cuisine_type || getTvString('restaurant', lang),
     description: r.description || '',
     image: r.cover_image || undefined,
     // Un restaurante delega su fotografía a la carta Gravy (QR abajo): ese es
@@ -167,14 +168,14 @@ function buildEat(data: GuidebookData): Entry[] {
     // la fila de destacados se activaban nunca. Ahora un restaurante destacado
     // sube a su propia fila, igual que una experiencia destacada.
     featured: r.tier === 'featured' || r.is_promoted === true,
-    badge: r.tier === 'featured' ? 'Destacado' : undefined,
+    badge: r.tier === 'featured' ? { kind: 'featured', label: getTvString('featured_badge', lang) } : undefined,
     sponsored: r.is_promoted === true,
     category: 'restaurant',
     // Sin tipo de cocina el antetítulo ya dice 'Restaurante'; repetirlo como
     // chip justo debajo sólo añade ruido.
     facts: [
       ...(r.cuisine_type ? [{ label: r.cuisine_type }] : []),
-      ...(r.tier === 'featured' ? [{ label: 'Selección del anfitrión' }] : []),
+      ...(r.tier === 'featured' ? [{ label: getTvString('host_pick', lang) }] : []),
     ],
     address: [r.address, r.city].filter(Boolean).join(', ') || null,
     phone: r.phone || null,
@@ -185,21 +186,23 @@ function buildEat(data: GuidebookData): Entry[] {
     qr: r.slug
       ? {
           data: `${MENU_URL}/${r.slug}?ref=tv&apt=${encodeURIComponent(data.apartment.id)}`,
-          caption: 'Escanea para ver la carta completa en tu móvil',
+          caption: getTvString('qr_menu', lang),
           event: 'menu_qr_shown',
         }
       : undefined,
   }))
 }
 
-function buildDo(data: GuidebookData): Entry[] {
+function buildDo(data: GuidebookData, lang: string): Entry[] {
   return data.experiences.map((e): Entry => {
     const { image, gallery } = photoSet(e.cover_image_url, e.media)
+    // `category` llega sin traducir de guide_pois (ver categoryVisual.ts).
+    const category = e.category ? categoryLabel(e.category, lang) : ''
     return {
       id: e.id,
       kind: 'do',
       name: e.name,
-      subtitle: e.price_display || e.category || 'Experiencia',
+      subtitle: e.price_display || category || getTvString('experience', lang),
       description: e.description || '',
       image,
       gallery,
@@ -207,7 +210,7 @@ function buildDo(data: GuidebookData): Entry[] {
       // igual que una destacada por criterio del anfitrión; lo que las
       // distingue es el aviso de publicidad, no la posición.
       featured: e.is_featured || e.is_promoted === true,
-      badge: e.is_featured ? 'Destacado' : undefined,
+      badge: e.is_featured ? { kind: 'featured', label: getTvString('featured_badge', lang) } : undefined,
       sponsored: e.cta_source === 'affiliate' || e.is_promoted === true,
       category: e.category,
       subcategory: e.service_subcategory,
@@ -221,10 +224,10 @@ function buildDo(data: GuidebookData): Entry[] {
       // El precio ya es el antetítulo de la ficha (y el pie de la tarjeta), así
       // que no se repite como chip: en el detalle salía dos veces seguidas.
       facts: [
-        ...(e.category ? [{ label: e.category }] : []),
+        ...(category ? [{ label: category }] : []),
         ...(e.duration_text ? [{ label: e.duration_text }] : []),
       ],
-      qr: bookingQr(e),
+      qr: bookingQr(e, lang),
     }
   })
 }
@@ -241,7 +244,7 @@ function buildDo(data: GuidebookData): Entry[] {
  * rejilla (eso crearía un pedido en D1 por cada producto que alguien mira de
  * pasada, sin intención real de comprar).
  */
-function buildStore(data: GuidebookData): Entry[] {
+function buildStore(data: GuidebookData, lang: string): Entry[] {
   return data.store_items.map((item): Entry => ({
     id: item.id,
     kind: 'store',
@@ -251,7 +254,9 @@ function buildStore(data: GuidebookData): Entry[] {
     image: item.cover_image_url || undefined,
     gallery: [],
     featured: item.is_featured === true,
-    badge: !item.in_stock ? 'Agotado' : item.is_featured ? 'Destacado' : undefined,
+    badge: !item.in_stock
+      ? { kind: 'sold_out', label: getTvString('sold_out_badge', lang) }
+      : item.is_featured ? { kind: 'featured', label: getTvString('featured_badge', lang) } : undefined,
     sponsored: item.is_promoted === true,
     // Mismo agrupamiento que ServicesSection.tsx en apps/guide: lo del anfitrión
     // primero, el catálogo de VisualTaste después.
@@ -272,27 +277,24 @@ export function buildCollections(data: GuidebookData, lang: string): Collection[
   return [
     {
       kind: 'eat',
-      tile: 'Dónde comer',
-      title: 'Dónde comer',
-      eyebrow: 'Recomendaciones',
-      railLabel: 'Recomendado por tu anfitrión',
-      entries: buildEat(data),
+      tile: getTvString('where_to_eat', lang),
+      title: getTvString('where_to_eat', lang),
+      railLabel: getTvString('rail_eat', lang),
+      entries: buildEat(data, lang),
     },
     {
       kind: 'do',
-      tile: 'Qué hacer',
-      title: 'Experiencias',
-      eyebrow: 'Qué hacer',
-      railLabel: 'Reservable desde tu móvil',
-      entries: buildDo(data),
+      tile: getTvString('things_to_do', lang),
+      title: getTvString('experiences', lang),
+      railLabel: getTvString('rail_do', lang),
+      entries: buildDo(data, lang),
     },
     {
       kind: 'store',
       tile: getTvString('store_title', lang),
       title: getTvString('store_title', lang),
-      eyebrow: 'Pide a tu anfitrión',
-      railLabel: 'Disponible durante tu estancia',
-      entries: buildStore(data),
+      railLabel: getTvString('rail_store', lang),
+      entries: buildStore(data, lang),
     },
   ]
 }

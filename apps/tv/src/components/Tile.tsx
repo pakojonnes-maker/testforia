@@ -3,6 +3,7 @@ import { Focusable } from '../lib/spatialNav'
 import { CoverImage } from './CoverImage'
 import { NoPhoto } from './NoPhoto'
 import { bottomVeil } from '../lib/veil'
+import { getTvString } from '../lib/i18n'
 
 /**
  * Piezas del mosaico de inicio.
@@ -41,15 +42,20 @@ function Shell({
   )
 }
 
-/** Tesela grande con foto a sangre. Es el "destino" del mosaico. */
+/**
+ * Tesela grande con foto a sangre. Es el "destino" del mosaico.
+ *
+ * Sólo lleva el título. Tenía además antetítulo ("Recomendaciones", "Pide a tu
+ * anfitrión") y contador ("7 recomendaciones"), y se quitaron los dos
+ * (sep-2026): el antetítulo repetía lo que ya dice el título —en "Qué hacer"
+ * literalmente— y el contador no ayuda a elegir, sólo añade una línea que leer
+ * a 3 m.
+ */
 export function PhotoTile({
-  id, area, autoFocus, onSelect, label, overline, image, count,
+  id, area, autoFocus, onSelect, label, image,
 }: BaseProps & {
   label: string
-  overline?: string
   image?: string
-  /** Nº de fichas de la sección: da la sensación de catálogo, no de lista corta. */
-  count?: number
 }) {
   return (
     <Shell id={id} area={area} autoFocus={autoFocus} onSelect={onSelect}
@@ -59,20 +65,13 @@ export function PhotoTile({
         fallback={<NoPhoto />}
       />
 
-      {/* El rótulo de una PhotoTile ocupa unos 170 px (antetítulo, título de
-          48 px y contador) más el relleno de 28. */}
-      <div className="absolute inset-0" style={{ background: bottomVeil(170) }} />
+      {/* El rótulo son 48 px de título más el relleno de 28. Se deja sitio para
+          una segunda línea: en alemán o ruso el título puede partirse en la
+          tesela estrecha de "Qué hacer". */}
+      <div className="absolute inset-0" style={{ background: bottomVeil(120) }} />
 
       <div className="absolute inset-x-0 bottom-0 p-7">
-        {overline && (
-          <div className="t-label mb-2" style={{ color: 'var(--tv-accent)' }}>{overline}</div>
-        )}
         <div className="t-display tv-title font-bold" style={{ color: '#fff' }}>{label}</div>
-        {typeof count === 'number' && count > 0 && (
-          <div className="mt-2 tv-meta font-medium" style={{ color: 'rgba(255,255,255,0.72)' }}>
-            {count} {count === 1 ? 'recomendación' : 'recomendaciones'}
-          </div>
-        )}
       </div>
     </Shell>
   )
@@ -142,10 +141,9 @@ export function PlainTile({
 
       {compact ? (
         <div className="relative flex h-full flex-col items-center justify-center gap-2 px-6 text-center">
-          {/* La etiqueta pasa a ser un antetítulo visible. En compacto sólo se
-              pintaba `value`, y el icono era lo único que insinuaba de qué iba:
-              sin el reloj, "15:00 · 11:00" era un número desnudo. Ahora lo dice
-              el texto, que además es lo que sí se lee a 3 m. */}
+          {/* Con `value`, la etiqueta es un antetítulo visible ("Idioma"). Quien
+              no lo quiera —la tesela de horas, desde sep-2026— pasa el dato
+              como `label` y sin `value`: sale el mismo rótulo, sin antetítulo. */}
           {value && (
             <div className="t-label" style={{ color: inkFaint }}>
               {label}
@@ -224,8 +222,8 @@ export function CodeTile({
  * vive en el inicio con el QR ya escaneable — no detrás de un menú.
  */
 export function WifiTile({
-  id, area, autoFocus, onSelect, ssid, password, qr, image,
-}: BaseProps & { ssid: string; password: string; qr: ReactNode; image?: string }) {
+  id, area, autoFocus, onSelect, ssid, password, qr, image, lang,
+}: BaseProps & { ssid: string; password: string; qr: ReactNode; image?: string; lang: string }) {
   return (
     <Shell id={id} area={area} autoFocus={autoFocus} onSelect={onSelect}
       style={{ background: 'var(--tv-surface-raised)' }}>
@@ -233,10 +231,10 @@ export function WifiTile({
         <>
           <CoverImage src={image} fallback={null} />
           {/* Esta tesela apila mucho: QR, rótulo, instrucción, red y clave. El
-              velo se ata a ese bloque (~470 px) en vez de cubrir la caja
+              velo se ata a ese bloque (~440 px) en vez de cubrir la caja
               entera, así que la foto respira arriba igual que en las teselas
               grandes y el texto sigue protegido donde está. */}
-          <div className="absolute inset-0" style={{ background: bottomVeil(470) }} />
+          <div className="absolute inset-0" style={{ background: bottomVeil(440) }} />
         </>
       )}
       {/* Todo anclado ABAJO, no repartido con justify-between: es lo que deja
@@ -246,24 +244,22 @@ export function WifiTile({
 
         {/* El rótulo va DEBAJO del QR: el QR es lo que se busca con la cámara
             desde el sofá, así que es lo que tiene que estar más alto y libre;
-            el texto lo explica después, no antes. */}
-        <div className="w-full">
-          <div className="t-label" style={{ color: 'var(--tv-accent)' }}>Conéctate</div>
-          <div className="t-display mt-1.5 tv-card font-bold" style={{ color: 'var(--tv-text)' }}>
-            WiFi de la casa
-          </div>
+            el texto lo explica después, no antes. Sin antetítulo ("Conéctate"):
+            el QR y el título ya dicen qué es esto. */}
+        <div className="t-display w-full tv-card font-bold" style={{ color: 'var(--tv-text)' }}>
+          {getTvString('wifi_title', lang)}
         </div>
 
         <div className="w-full">
           <p className="tv-meta leading-snug" style={{ color: 'var(--tv-text-dim)' }}>
-            Apunta la cámara del móvil: se conecta solo.
+            {getTvString('wifi_tile_hint', lang)}
           </p>
           <div
-            className="mt-3 grid gap-2 rounded-xl px-4 py-3 text-left"
+            className="mt-3 grid gap-2 rounded-xl px-4 py-3 text-start"
             style={{ background: 'rgba(0,0,0,0.28)' }}
           >
-            <Credential label="Red" value={ssid} />
-            <Credential label="Clave" value={password} />
+            <Credential label={getTvString('wifi_network', lang)} value={ssid} />
+            <Credential label={getTvString('wifi_key', lang)} value={password} />
           </div>
         </div>
       </div>

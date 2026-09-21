@@ -311,6 +311,8 @@ privacidad de la cabecera (el pie no se renderiza en Explorar ni en Chat).
   fade-in, sin `exit`.
 - Datos siempre por red (`/guide/tv/config/:pairingCode`); el shell va empaquetado en
   el APK. Nunca asumas red disponible en el arranque.
+- **Texto visible → `src/lib/i18n.ts`** (`getTvString`), nunca literal en el JSX: el tipo
+  exige los 13 idiomas. Hasta sep-2026 la TV salía medio en español con el huésped en coreano.
 - Build: `tsc -b && vite build`.
 
 ### `apps/tv-landing` — Landing de VisualTaste TV

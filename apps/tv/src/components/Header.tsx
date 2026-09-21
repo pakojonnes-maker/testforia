@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { CoverImage } from './CoverImage'
+import { getTvString } from '../lib/i18n'
 
 /**
  * Cabecera persistente: 3 secciones — marca, fecha y hora —
@@ -102,7 +103,7 @@ export function Header({ brand, logoUrl, lang, demoMode }: HeaderProps) {
                 className="shrink-0 rounded-full px-5 py-2 tv-meta font-bold uppercase tracking-[0.12em]"
                 style={{ background: 'var(--color-terracotta)', color: '#fff' }}
               >
-                Datos de ejemplo
+                {getTvString('demo_data', lang)}
               </span>
             )}
           </div>
