@@ -6,31 +6,44 @@ import {
   TextField, Select, MenuItem, InputLabel, FormControl, Divider, Grid
 } from '@mui/material';
 import { Save as SaveIcon, Upload as UploadIcon, Palette as PaletteIcon, TextFields as TextIcon, Image as ImageIcon } from '@mui/icons-material';
+import {
+  DEFAULT_FONTS, defaultColor, fontFamilyCss, fontOptions, isLegacyFontTrio, readSavedColors, readSavedFonts,
+  shownFonts, toInputColor,
+  type AgencyDesignRow, type ColorChoices, type ColorRole, type FontChoices, type FontRole
+} from '../../lib/guideDesign';
 
-// Roles del sistema tipográfico del guidebook (apps/guide/src/index.css
-// @theme). El default de cada rol es el que usa el guidebook cuando la
-// agencia no personaliza nada; las alternativas son las mismas que
-// GuidebookPage.tsx sabe cargar bajo demanda (GOOGLE_FONT_QUERY) — si se
-// añade una fuente aquí, hay que añadirla también allí, o se aplicará la
-// variable CSS sin el archivo de fuente real.
-const HEADLINE_FONT_OPTIONS = ['Newsreader', 'Playfair Display', 'Lora', 'Fraunces'];
-const BODY_FONT_OPTIONS = ['Inter', 'Work Sans', 'Nunito Sans', 'Poppins'];
-const LABEL_FONT_OPTIONS = ['Archivo Narrow', 'Oswald', 'Barlow Condensed'];
+// Colores y tipografía del guidebook. Lo que la agencia no personaliza se queda en `null` («Por defecto») y así
+// se guarda: los valores por defecto, las fuentes que la guía sabe renderizar por rol y las reglas para leer lo
+// guardado viven en lib/guideDesign.ts (espejo de apps/guide/src/theme/).
+const COLOR_FIELDS: { role: ColorRole; label: string }[] = [
+  { role: 'primary', label: 'Color Primario' },
+  { role: 'secondary', label: 'Color Secundario' },
+  { role: 'accent', label: 'Color de Acento' },
+];
+
+const FONT_FIELDS: { role: FontRole; label: string; sample: string; variant: 'h5' | 'body1' | 'body2' }[] = [
+  { role: 'headline', label: 'Titulares', sample: 'Ejemplo de Título', variant: 'h5' },
+  { role: 'body', label: 'Cuerpo', sample: 'Así se verá el texto de cuerpo en tus guidebooks.', variant: 'body1' },
+  { role: 'label', label: 'Labels', sample: 'ETIQUETA DE EJEMPLO', variant: 'body2' },
+];
+
+const NO_COLORS: ColorChoices = { primary: null, secondary: null, accent: null };
+const NO_FONTS: FontChoices = { headline: null, body: null, label: null };
 
 export default function GuideDesignPage() {
   const { currentAgency, adminMode } = useAuth();
 
   const [loading, setLoading] = useState(true);
+  // Solo se puede guardar tras leer bien la agencia: con la lectura fallida el formulario está en null y
+  // guardar borraría el diseño real.
+  const [loaded, setLoaded] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
 
-  const [primaryColor, setPrimaryColor] = useState('#1E3A5F');
-  const [secondaryColor, setSecondaryColor] = useState('#C96D4B');
-  const [accentColor, setAccentColor] = useState('#D4A853');
-  const [headlineFont, setHeadlineFont] = useState('Newsreader');
-  const [bodyFont, setBodyFont] = useState('Inter');
-  const [labelFont, setLabelFont] = useState('Archivo Narrow');
+  // null = sin elegir: la guía usa su diseño por defecto.
+  const [colors, setColors] = useState<ColorChoices>(NO_COLORS);
+  const [fonts, setFonts] = useState<FontChoices>(NO_FONTS);
   const [logoUrl, setLogoUrl] = useState('');
 
   useEffect(() => {
@@ -39,16 +52,18 @@ export default function GuideDesignPage() {
     const loadDesign = async () => {
       if (!currentAgency?.id) return;
       setLoading(true);
+      setLoaded(false);
+      setError(null);
       try {
         const response = await apiClient.request(`/guide/admin/agencies/${currentAgency.id}`);
         if (response.success && response.agency) {
-          setPrimaryColor(response.agency.primary_color || '#1E3A5F');
-          setSecondaryColor(response.agency.secondary_color || '#C96D4B');
-          setAccentColor(response.agency.accent_color || '#D4A853');
-          setHeadlineFont(response.agency.headline_font || 'Newsreader');
-          setBodyFont(response.agency.body_font || 'Inter');
-          setLabelFont(response.agency.label_font || 'Archivo Narrow');
-          setLogoUrl(response.agency.logo_url || '');
+          const agency: AgencyDesignRow = response.agency;
+          setColors(readSavedColors(agency));
+          setFonts(readSavedFonts(agency));
+          setLogoUrl(agency.logo_url || '');
+          setLoaded(true);
+        } else {
+          setError('No se pudo cargar el diseño.');
         }
       } catch (err: any) {
         setError(err.message || 'Error al cargar el diseño');
@@ -61,19 +76,21 @@ export default function GuideDesignPage() {
   }, [currentAgency?.id, adminMode]);
 
   const handleSave = async () => {
-    if (!currentAgency?.id) return;
+    if (!currentAgency?.id || !loaded) return;
     setSaving(true);
     setError(null);
     setSuccess(null);
     try {
       const payload = {
         logo_url: logoUrl,
-        primary_color: primaryColor,
-        secondary_color: secondaryColor,
-        accent_color: accentColor,
-        headline_font: headlineFont,
-        body_font: bodyFont,
-        label_font: labelFont
+        // null = sin elegir: se guarda NULL y la guía usa su diseño por defecto. Nunca se escribe un valor
+        // por defecto como si lo hubiera elegido la agencia.
+        primary_color: colors.primary,
+        secondary_color: colors.secondary,
+        accent_color: colors.accent,
+        headline_font: fonts.headline,
+        body_font: fonts.body,
+        label_font: fonts.label
       };
       const response = await apiClient.request(`/guide/admin/agencies/${currentAgency.id}`, {
         method: 'PUT',
@@ -138,6 +155,9 @@ export default function GuideDesignPage() {
     );
   }
 
+  // Lo que la guía pinta con estas elecciones (con el trío antiguo completo, las de por defecto).
+  const shown = shownFonts(fonts);
+
   return (
     <Box sx={{ p: { xs: 2, md: 0 }, maxWidth: 900, mx: 'auto' }}>
       <Box sx={{ mb: 4 }}>
@@ -154,6 +174,7 @@ export default function GuideDesignPage() {
 
       <Alert severity="info" sx={{ mb: 4 }}>
         Los colores se aplican automáticamente al guidebook de todos tus apartamentos.
+        Lo que dejes en «Por defecto» sigue el diseño de VisualTaste; solo se guarda lo que elijas.
       </Alert>
 
       <Grid container spacing={3}>
@@ -165,36 +186,35 @@ export default function GuideDesignPage() {
             </Box>
             <Divider sx={{ mb: 3 }} />
             <Box sx={{ display: 'flex', gap: 3, flexWrap: 'wrap' }}>
-              <Box sx={{ flex: 1, minWidth: 200 }}>
-                <Typography variant="body2" sx={{ mb: 1, fontWeight: 500 }}>Color Primario</Typography>
-                <TextField 
-                  type="color"
-                  value={primaryColor}
-                  onChange={(e) => setPrimaryColor(e.target.value)}
-                  fullWidth
-                  sx={{ '& input': { height: 50, cursor: 'pointer' } }}
-                />
-              </Box>
-              <Box sx={{ flex: 1, minWidth: 200 }}>
-                <Typography variant="body2" sx={{ mb: 1, fontWeight: 500 }}>Color Secundario</Typography>
-                <TextField 
-                  type="color"
-                  value={secondaryColor}
-                  onChange={(e) => setSecondaryColor(e.target.value)}
-                  fullWidth
-                  sx={{ '& input': { height: 50, cursor: 'pointer' } }}
-                />
-              </Box>
-              <Box sx={{ flex: 1, minWidth: 200 }}>
-                <Typography variant="body2" sx={{ mb: 1, fontWeight: 500 }}>Color de Acento</Typography>
-                <TextField 
-                  type="color"
-                  value={accentColor}
-                  onChange={(e) => setAccentColor(e.target.value)}
-                  fullWidth
-                  sx={{ '& input': { height: 50, cursor: 'pointer' } }}
-                />
-              </Box>
+              {COLOR_FIELDS.map(({ role, label }) => {
+                const chosen = colors[role];
+                const fallback = defaultColor(role, colors);
+                return (
+                  <Box key={role} sx={{ flex: 1, minWidth: 200 }}>
+                    <Typography variant="body2" sx={{ mb: 1, fontWeight: 500 }}>{label}</Typography>
+                    <TextField
+                      type="color"
+                      value={toInputColor(chosen ?? fallback.hex)}
+                      onChange={(e) => setColors(prev => ({ ...prev, [role]: e.target.value }))}
+                      inputProps={{ 'aria-label': label }}
+                      fullWidth
+                      sx={{ '& input': { height: 50, cursor: 'pointer' } }}
+                    />
+                    <Box sx={{ mt: 0.5, minHeight: 30, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                      <Typography variant="caption" color="text.secondary">
+                        {chosen
+                          ? chosen.toUpperCase()
+                          : `${fallback.fromPrimary ? 'Derivado del primario' : 'Por defecto'} · ${fallback.hex}`}
+                      </Typography>
+                      {chosen && (
+                        <Button size="small" onClick={() => setColors(prev => ({ ...prev, [role]: null }))}>
+                          Restablecer
+                        </Button>
+                      )}
+                    </Box>
+                  </Box>
+                );
+              })}
             </Box>
           </Paper>
         </Grid>
@@ -207,40 +227,52 @@ export default function GuideDesignPage() {
             </Box>
             <Divider sx={{ mb: 3 }} />
 
-            {([
-              { label: 'Titulares', value: headlineFont, setValue: setHeadlineFont, options: HEADLINE_FONT_OPTIONS, sample: 'Ejemplo de Título', variant: 'h5' as const },
-              { label: 'Cuerpo', value: bodyFont, setValue: setBodyFont, options: BODY_FONT_OPTIONS, sample: 'Así se verá el texto de cuerpo en tus guidebooks.', variant: 'body1' as const },
-              { label: 'Labels', value: labelFont, setValue: setLabelFont, options: LABEL_FONT_OPTIONS, sample: 'ETIQUETA DE EJEMPLO', variant: 'body2' as const },
-            ]).map(role => (
-              <Box key={role.label} sx={{ mb: 3 }}>
-                <FormControl fullWidth sx={{ mb: 1 }}>
-                  <InputLabel id={`font-${role.label}-label`}>{`Fuente — ${role.label}`}</InputLabel>
-                  <Select
-                    labelId={`font-${role.label}-label`}
-                    value={role.value}
-                    label={`Fuente — ${role.label}`}
-                    onChange={(e) => role.setValue(e.target.value)}
-                  >
-                    {role.options.map(font => (
-                      <MenuItem key={font} value={font} style={{ fontFamily: font }}>
-                        {font}
+            {isLegacyFontTrio(fonts) && (
+              <Alert severity="warning" sx={{ mb: 3 }}>
+                Newsreader + Inter + Archivo Narrow juntas eran el diseño por defecto antiguo: la guía las trata
+                como «sin elegir» y usa las de por defecto. Cambia alguna de las tres para que se apliquen.
+              </Alert>
+            )}
+
+            {FONT_FIELDS.map(({ role, label, sample, variant }) => {
+              const value = fonts[role];
+              const fieldLabel = `Fuente — ${label}`;
+              return (
+                <Box key={role} sx={{ mb: 3 }}>
+                  <FormControl fullWidth sx={{ mb: 1 }}>
+                    <InputLabel id={`font-${role}-label`} shrink>{fieldLabel}</InputLabel>
+                    <Select
+                      labelId={`font-${role}-label`}
+                      value={value ?? ''}
+                      label={fieldLabel}
+                      displayEmpty
+                      notched
+                      onChange={(e) => setFonts(prev => ({ ...prev, [role]: e.target.value || null }))}
+                    >
+                      <MenuItem value="" style={{ fontFamily: fontFamilyCss(role, DEFAULT_FONTS[role]) }}>
+                        Por defecto — {DEFAULT_FONTS[role]}
                       </MenuItem>
-                    ))}
-                  </Select>
-                </FormControl>
-                <Box sx={{
-                  p: 1.5,
-                  border: '1px dashed',
-                  borderColor: 'divider',
-                  borderRadius: 1,
-                  bgcolor: 'background.default',
-                }}>
-                  <Typography variant={role.variant} style={{ fontFamily: role.value }}>
-                    {role.sample}
-                  </Typography>
+                      {fontOptions(role, value).map(font => (
+                        <MenuItem key={font} value={font} style={{ fontFamily: fontFamilyCss(role, font) }}>
+                          {font}
+                        </MenuItem>
+                      ))}
+                    </Select>
+                  </FormControl>
+                  <Box sx={{
+                    p: 1.5,
+                    border: '1px dashed',
+                    borderColor: 'divider',
+                    borderRadius: 1,
+                    bgcolor: 'background.default',
+                  }}>
+                    <Typography variant={variant} style={{ fontFamily: fontFamilyCss(role, shown[role]) }}>
+                      {sample}
+                    </Typography>
+                  </Box>
                 </Box>
-              </Box>
-            ))}
+              );
+            })}
           </Paper>
         </Grid>
 
@@ -251,7 +283,7 @@ export default function GuideDesignPage() {
               <Typography variant="h6" fontWeight={600}>Logo de la Agencia</Typography>
             </Box>
             <Divider sx={{ mb: 3 }} />
-            
+
             {logoUrl && (
               <Box sx={{ mb: 3, display: 'flex', justifyContent: 'center', bgcolor: 'background.default', p: 2, borderRadius: 1 }}>
                 <img src={logoUrl} alt="Logo de Agencia" style={{ maxHeight: 100, maxWidth: '100%', objectFit: 'contain' }} />
@@ -277,13 +309,13 @@ export default function GuideDesignPage() {
       </Grid>
 
       <Box sx={{ mt: 4, display: 'flex', justifyContent: 'flex-end' }}>
-        <Button 
-          variant="contained" 
-          color="primary" 
+        <Button
+          variant="contained"
+          color="primary"
           size="large"
           startIcon={saving ? <CircularProgress size={20} color="inherit" /> : <SaveIcon />}
           onClick={handleSave}
-          disabled={saving}
+          disabled={saving || !loaded}
         >
           {saving ? 'Guardando...' : 'Guardar Diseño'}
         </Button>

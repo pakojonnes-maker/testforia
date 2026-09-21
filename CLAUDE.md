@@ -267,7 +267,11 @@ privacidad de la cabecera (el pie no se renderiza en Explorar ni en Chat).
 - Formularios: **react-hook-form + zod** (`@hookform/resolvers`).
 - Charts: `chart.js` + `react-chartjs-2`. Drag&drop: `@dnd-kit`. Iconos: `@mui/icons-material`.
 - QR: `qr-code-styling` (config, no imágenes estáticas). Fechas: `date-fns`.
-- Usa `@visualtaste/api` (workspace). Build: `tsc && vite build` (typecheck bloqueante).
+- Usa `@visualtaste/api` (workspace; compílalo antes: `npm run build -w packages/api`). Build: `tsc && vite build`,
+  pero ese `tsc` **no comprueba nada** (el `tsconfig.json` es de referencias, `files: []`, y no lleva `-b`): el
+  typecheck real es `npx tsc -p tsconfig.app.json --noEmit` (arrastra ~99 errores previos de otras pantallas: mira solo
+  los de tus ficheros). En un worktree nuevo, `npm ci -w apps/admin -w packages/api` primero (35 s) o el build falla
+  por `@tanstack/react-query`.
 
 ### `apps/client` — Carta digital "Gravy"
 - **React 19** + Vite 7 + TypeScript.
