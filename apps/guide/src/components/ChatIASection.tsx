@@ -1,7 +1,8 @@
 import { useState, useRef, useEffect, type FormEvent, type ReactNode } from 'react';
 import { getTranslation } from '../lib/i18n';
 import { sendChatMessage, type ChatMessage } from '../lib/api';
-import type { CtaActionType } from '../lib/types';
+import type { CtaActionType, PoiMedia } from '../lib/types';
+import { experiencePhoto } from '../lib/media';
 import CTAButton from './CTAButton';
 import PhotoFigure from './PhotoFigure';
 import { LanguageSwitcher } from './Header';
@@ -19,7 +20,7 @@ interface RestaurantRef { id: string; name: string; slug: string | null; cover_i
 interface PoiRef { id: string; name: string; google_maps_url: string; media?: Array<{ url?: string }>; }
 interface ExperienceRef {
   id: string; name: string; action_type: CtaActionType; action_data: string;
-  prefilled_message: string; cta_label?: string; cover_image_url?: string;
+  prefilled_message: string; cta_label?: string; cover_image_url?: string; media?: PoiMedia[];
 }
 interface StoreItemRef { id: string; name: string; price_display: string; cover_image_url?: string | null; }
 
@@ -332,7 +333,7 @@ export default function ChatIASection({
       const exp = experiences.find(x => x.id === id);
       if (!exp) return null;
       return (
-        <RecCard key={idx} image={exp.cover_image_url} name={exp.name}>
+        <RecCard key={idx} image={experiencePhoto(exp)} name={exp.name}>
           <CTAButton experience={exp} lang={lang} onIntent={(action) => onIntent?.('experience', exp.id, action)} />
         </RecCard>
       );

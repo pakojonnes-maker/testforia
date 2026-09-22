@@ -17,6 +17,13 @@
  */
 export type CtaActionType = 'URL' | 'WHATSAPP' | 'PHONE' | 'COUPON' | null;
 
+/**
+ * Una fila de guide_poi_media tal y como la manda el worker (loadPoiMedia): la galería de un lugar o de una
+ * experiencia. `type` y `role` son los del CHECK de la tabla (image | video | thumbnail; PRIMARY_IMAGE |
+ * GALLERY_IMAGE | PRIMARY_VIDEO | THUMBNAIL).
+ */
+export interface PoiMedia { id: string; url: string; type: string; role: string }
+
 export interface GuidePoi {
   id: string;
   name: string;
@@ -38,7 +45,7 @@ export interface GuidePoi {
   price_display: string;
   duration_text: string;
   is_bookable: boolean;
-  media: Array<{ id: string; url: string; type: string; role: string }>;
+  media: PoiMedia[];
 }
 
 // A sibling city in the same region as the guest's apartment, for the Explore

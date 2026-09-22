@@ -1,8 +1,9 @@
 import { useEffect, useState } from 'react';
 import { getTranslation, getCategoryLabel, getSubcategoryLabel } from '../lib/i18n';
-import type { CtaActionType } from '../lib/types';
+import type { CtaActionType, PoiMedia } from '../lib/types';
 import { submitStoreOrder } from '../lib/api';
 import { formatMoney } from '../lib/text';
+import { experiencePhoto } from '../lib/media';
 import CTAButton from './CTAButton';
 import PhotoFigure from './PhotoFigure';
 import { LanguageSwitcher } from './Header';
@@ -25,6 +26,7 @@ interface Experience {
   is_promoted?: boolean;
   cta_label: string;
   cover_image_url?: string;
+  media?: PoiMedia[];
   discount_display?: string;
   original_price_display?: string;
   badge_type?: 'discount' | 'courtesy' | 'exclusive' | 'new';
@@ -235,7 +237,7 @@ export default function ServicesSection({ experiences, storeItems, zoneName, apa
               const badge = badgeFor(exp);
               return (
                 <article key={exp.id} className="g-exp">
-                  <PhotoFigure className="g-ph" src={exp.cover_image_url} alt="" name={exp.name}>
+                  <PhotoFigure className="g-ph" src={experiencePhoto(exp)} alt="" name={exp.name}>
                     {badge && <span className={badge.className}>{badge.label}</span>}
                   </PhotoFigure>
                   <div className="g-exp-in">

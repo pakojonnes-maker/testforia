@@ -18,7 +18,7 @@ import ServicesSection from '../components/ServicesSection';
 import ChatIASection from '../components/ChatIASection';
 import WelcomeModal, { WelcomeModalData } from '../components/WelcomeModal';
 import { getTranslation, ACTIVE_LANGUAGES, isRtl } from '../lib/i18n';
-import type { GuidePoi, CitySummary, ZoneSummary, CtaActionType, GuideRestaurant } from '../lib/types';
+import type { GuidePoi, CitySummary, ZoneSummary, CtaActionType, GuideRestaurant, PoiMedia } from '../lib/types';
 import '../styles/guide.css';
 import '../styles/casa.css';
 import '../styles/lugares.css';
@@ -72,6 +72,8 @@ interface GuidebookData {
     cta_source?: 'affiliate' | 'direct';
     price_display: string; is_featured: boolean; is_promoted?: boolean; cta_label: string;
     cover_image_url?: string;
+    /** Galería (guide_poi_media): la foto real suele estar aquí, no en cover_image_url. Ver experiencePhoto. */
+    media?: PoiMedia[];
   }>;
   store_items: Array<{
     id: string; owner_type: 'host' | 'agency' | 'platform'; category: string;

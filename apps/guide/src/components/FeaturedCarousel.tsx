@@ -1,6 +1,8 @@
 import { useMemo } from 'react';
 import { getTranslation, getCategoryLabel } from '../lib/i18n';
 import PhotoFigure from './PhotoFigure';
+import { experiencePhoto } from '../lib/media';
+import type { PoiMedia } from '../lib/types';
 
 type TabKey = 'info' | 'discover' | 'restaurants' | 'services' | 'chat';
 type ItemKind = 'restaurant' | 'experience' | 'product';
@@ -10,7 +12,7 @@ interface Restaurant {
   is_promoted?: boolean;
 }
 interface Experience {
-  id: string; name: string; category: string; is_featured: boolean; is_promoted?: boolean; cover_image_url?: string; price_display: string;
+  id: string; name: string; category: string; is_featured: boolean; is_promoted?: boolean; cover_image_url?: string; media?: PoiMedia[]; price_display: string;
 }
 interface StoreItem {
   id: string; name: string; category: string; price_display: string; cover_image_url?: string | null; is_featured: boolean; is_promoted?: boolean;
@@ -39,7 +41,7 @@ export default function FeaturedCarousel({ restaurants, experiences, storeItems,
     const list: RailItem[] = [];
     experiences.filter(e => e.is_featured || e.is_promoted).forEach(e => list.push({
       id: `experience-${e.id}`, kind: 'experience', name: e.name,
-      subtitle: getCategoryLabel(e.category, lang), image: e.cover_image_url,
+      subtitle: getCategoryLabel(e.category, lang), image: experiencePhoto(e),
       price: e.price_display, tab: 'services', promoted: e.is_promoted,
     }));
     storeItems.filter(i => i.is_featured || i.is_promoted).forEach(i => list.push({

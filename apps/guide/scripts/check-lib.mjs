@@ -1,6 +1,6 @@
 // scripts/check-lib.mjs — comprueba con textos REALES de producción las funciones puras de src/lib que
 // interpretan lo que escriben los anfitriones: el WiFi («Red: X / Contraseña: Y», con o sin nota) y el
-// texto plano de las guías (párrafos y títulos numerados).
+// texto plano de las guías (párrafos y títulos numerados), y qué foto pinta una experiencia (portada o galería).
 //
 //   npm run test:lib          (desde apps/guide)
 import { build } from 'esbuild';
@@ -9,7 +9,7 @@ import { fileURLToPath } from 'node:url';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const out = await build({
-  stdin: { contents: `export * from './wifi'; export * from './text';`, resolveDir: path.join(here, '..', 'src', 'lib'), sourcefile: 'check-entry.ts', loader: 'ts' },
+  stdin: { contents: `export * from './wifi'; export * from './text'; export * from './media';`, resolveDir: path.join(here, '..', 'src', 'lib'), sourcefile: 'check-entry.ts', loader: 'ts' },
   bundle: true, format: 'esm', platform: 'node', write: false, logLevel: 'silent',
 });
 const L = await import('data:text/javascript;base64,' + Buffer.from(out.outputFiles[0].text).toString('base64'));
@@ -57,6 +57,18 @@ eq(nb(L.formatMoney(9.9, '', 'de')), '9,90 €', 'sin moneda: euros');
 
 console.log('— Tamaño del código');
 eq([L.codeSize('4821'), L.codeSize('48291'), L.codeSize('482913'), L.codeSize('4829135'), L.codeSize('48291357'), L.codeSize('48 29')], ['', 's', 's', 'xs', 'xs', ''], '4 caben grandes; 5–6 medianas; 7–8 pequeñas');
+
+console.log('— Foto de una experiencia (portada o galería)');
+const pois = 'https://visualtasteworker.franciscotortosaestudios.workers.dev/media/guide/pois';
+const img = (id, role, type = 'image') => ({ id, url: `${pois}/${id}.jpg`, type, role });
+eq(L.experiencePhoto({ cover_image_url: null, media: [img('poi_benalmadena_mariposario', 'PRIMARY_IMAGE')] }), `${pois}/poi_benalmadena_mariposario.jpg`, 'sin portada y con galería (el Mariposario, tal como llega de producción): la foto de la galería');
+eq(L.experiencePhoto({ cover_image_url: null, media: [] }), undefined, 'sin portada ni galería (el kayak): sin foto, sale la inicial');
+eq(L.experiencePhoto({ cover_image_url: 'https://x.test/portada.jpg', media: [img('a', 'PRIMARY_IMAGE')] }), 'https://x.test/portada.jpg', 'con portada: manda la portada, lo que ya se veía no cambia');
+eq(L.experiencePhoto({ cover_image_url: 'https://placehold.co/600x400', media: [img('a', 'PRIMARY_IMAGE')] }), `${pois}/a.jpg`, 'portada que es un placeholder ajeno: cuenta como sin portada');
+eq(L.experiencePhoto({ media: [img('a', 'GALLERY_IMAGE'), img('b', 'PRIMARY_IMAGE')] }), `${pois}/b.jpg`, 'la imagen principal gana a la primera de la lista');
+eq(L.experiencePhoto({ media: [img('a', 'GALLERY_IMAGE'), img('b', 'GALLERY_IMAGE')] }), `${pois}/a.jpg`, 'sin principal: la primera imagen');
+eq(L.experiencePhoto({ media: [img('v', 'PRIMARY_VIDEO', 'video'), img('t', 'THUMBNAIL', 'thumbnail')] }), undefined, 'solo vídeo o miniatura: no valen para un <img>');
+eq(L.experiencePhoto({}), undefined, 'JSON sin media (uno viejo de la caché): no rompe');
 
 console.log(failures === 0 ? '\n✔ lib: todo comprobado' : `\n✘ ${failures} comprobaciones fallan`);
 process.exit(failures === 0 ? 0 : 1);
