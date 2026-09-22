@@ -112,8 +112,19 @@ interface TranslateSummary {
   error?: string;
 }
 
-// Debe coincidir con MAX_ENTITIES_PER_REQUEST en workerGuideTranslate.js.
-const MAX_TRANSLATE_BATCH = 25;
+// El servidor acepta hasta MAX_ENTITIES_PER_REQUEST (25, workerGuideTranslate.js)
+// por petición, pero mandarlas todas de golpe deja al navegador sin ninguna
+// señal mientras el servidor hace, POR POI, hasta 6 llamadas secuenciales a
+// Workers AI (12 idiomas activos ÷ LANG_GROUP_SIZE=2) — con 19 POIs, hasta 114
+// llamadas a la IA en fila antes de que llegue una sola respuesta. Se trocea
+// más fino solo para tener paradas reales entre las que pintar progreso; este
+// número solo tiene que ser ≤ 25, no igualarlo.
+const TRANSLATE_CHUNK_SIZE = 3;
+// Cuánto se espera CADA trozo antes de dejar de esperarlo en el navegador. No
+// cancela la petición en el servidor (fetch nativo, sin AbortController: ver
+// el porqué junto a runTranslation) — solo evita que la UI se quede muda para
+// siempre si una conexión intermedia se cae sin avisar.
+const TRANSLATE_CHUNK_TIMEOUT_MS = 120_000;
 
 function defaultActionFor(status: PreviewStatus, restaurantMode = false, r?: PreviewResult): RowAction {
   // En modo restaurante tres casos se dejan en "Descartar" aunque la ficha sea nueva: ya es
@@ -208,6 +219,7 @@ export default function GuidePoisImportDialog({ open, onClose, zones, defaultZon
   const [autoTranslate, setAutoTranslate] = useState(true);
   const [translating, setTranslating] = useState(false);
   const [translationSummary, setTranslationSummary] = useState<TranslateSummary | null>(null);
+  const [translateProgress, setTranslateProgress] = useState<{ done: number; total: number } | null>(null);
 
   const reset = () => {
     setPhase('input');
@@ -215,6 +227,7 @@ export default function GuidePoisImportDialog({ open, onClose, zones, defaultZon
     setRows([]);
     setSummary(null);
     setTranslationSummary(null);
+    setTranslateProgress(null);
     setError(null);
   };
 
@@ -269,13 +282,27 @@ export default function GuidePoisImportDialog({ open, onClose, zones, defaultZon
    */
   const runTranslation = async (ids: string[]) => {
     setTranslating(true);
+    setTranslateProgress({ done: 0, total: ids.length });
     const agg: TranslateSummary = { translated: 0, upToDate: 0, failed: 0, budgetExhausted: false, neuronsSpent: 0 };
-    try {
-      for (let i = 0; i < ids.length; i += MAX_TRANSLATE_BATCH) {
-        const response = await apiClient.request('/guide/admin/translate', {
-          method: 'POST',
-          body: JSON.stringify({ entity_type: 'poi', entity_ids: ids.slice(i, i + MAX_TRANSLATE_BATCH) }),
-        });
+    for (let i = 0; i < ids.length; i += TRANSLATE_CHUNK_SIZE) {
+      const chunkIds = ids.slice(i, i + TRANSLATE_CHUNK_SIZE);
+      try {
+        // apiClient.request() no reenvía `signal` al fetch (lo filtra a
+        // method/headers/body), y no lo vamos a tocar aquí: ese archivo tiene
+        // ahora mismo el login con Google a medio commitear en otra sesión.
+        // Promise.race no cancela la petición real (sigue corriendo, y su
+        // gasto de IA cuenta igual si termina más tarde) — solo deja de
+        // esperarla en el navegador para no quedarnos sin información.
+        const response = await Promise.race([
+          apiClient.request('/guide/admin/translate', {
+            method: 'POST',
+            body: JSON.stringify({ entity_type: 'poi', entity_ids: chunkIds }),
+          }),
+          new Promise<never>((_, reject) => setTimeout(
+            () => reject(new Error(`sin respuesta tras ${TRANSLATE_CHUNK_TIMEOUT_MS / 1000}s (puede seguir trabajando en el servidor)`)),
+            TRANSLATE_CHUNK_TIMEOUT_MS
+          )),
+        ]);
         // El presupuesto restante es el del último lote, que es el más reciente;
         // el gasto sí se acumula entre lotes.
         if (response.usage) {
@@ -291,12 +318,18 @@ export default function GuidePoisImportDialog({ open, onClose, zones, defaultZon
         // El backend corta el lote en cuanto se agota el presupuesto diario y
         // devuelve lo que quedó sin tocar; mandar más lotes solo sumaría errores.
         if ((response.pending_ids || []).length > 0) { agg.budgetExhausted = true; break; }
+      } catch (err: any) {
+        // Un timeout o un fallo de red en un trozo no dice nada sobre los
+        // siguientes (a diferencia de agotar presupuesto): se sigue con el
+        // resto en vez de dar por perdida toda la tanda por un solo trozo.
+        agg.failed += chunkIds.length;
+        agg.error = err.message || 'Error al traducir.';
       }
-    } catch (err: any) {
-      agg.error = err.message || 'Error al traducir.';
+      setTranslateProgress({ done: Math.min(i + TRANSLATE_CHUNK_SIZE, ids.length), total: ids.length });
     }
     setTranslationSummary(agg);
     setTranslating(false);
+    setTranslateProgress(null);
   };
 
   const handleImportSelected = async () => {
@@ -394,6 +427,8 @@ export default function GuidePoisImportDialog({ open, onClose, zones, defaultZon
             {translating && (
               <Alert severity="info" icon={<CircularProgress size={18} />}>
                 Traduciendo a los otros 12 idiomas…
+                {translateProgress && ` ${translateProgress.done} de ${translateProgress.total} POIs procesados.`}
+                {' '}Solo se tocan descripción, consejo corto y texto del botón — nunca teléfono, web ni el nombre.
               </Alert>
             )}
             {translationSummary && !translating && (
@@ -402,23 +437,19 @@ export default function GuidePoisImportDialog({ open, onClose, zones, defaultZon
                   ? 'warning'
                   : 'success'
               }>
-                {translationSummary.error
-                  ? `Los ${noun} se guardaron, pero la traducción falló: ${translationSummary.error}`
-                  : <>
-                      Traducción: {translationSummary.translated} {noun} traducidos
-                      {translationSummary.upToDate > 0 ? `, ${translationSummary.upToDate} ya estaban al día` : ''}
-                      {translationSummary.failed > 0 ? `, ${translationSummary.failed} sin traducir` : ''}.
-                      {translationSummary.budgetExhausted && ' Se alcanzó el límite diario de IA — vuelve a lanzarlo mañana para los que falten (los ' + noun + ' ya están guardados).'}
-                      {translationSummary.usage?.budget_tracked && (
-                        <Typography variant="caption" color="text.secondary" component="div" sx={{ mt: 0.5 }}>
-                          Coste: {Math.round(translationSummary.neuronsSpent)} neuronas ·
-                          {' '}quedan {translationSummary.usage.budget_remaining.toLocaleString('es-ES')} de{' '}
-                          {translationSummary.usage.budget_limit.toLocaleString('es-ES')} del presupuesto diario del
-                          traductor (no incluye lo que gasta el asistente de los huéspedes).
-                        </Typography>
-                      )}
-                    </>
-                }
+                Traducción: {translationSummary.translated} {noun} traducidos
+                {translationSummary.upToDate > 0 ? `, ${translationSummary.upToDate} ya estaban al día` : ''}
+                {translationSummary.failed > 0 ? `, ${translationSummary.failed} sin traducir` : ''}.
+                {translationSummary.budgetExhausted && ' Se alcanzó el límite diario de IA — vuelve a lanzarlo mañana para los que falten (los ' + noun + ' ya están guardados).'}
+                {translationSummary.error && ` Último error: ${translationSummary.error} — los ${noun} ya están guardados, solo falta reintentar la traducción.`}
+                {translationSummary.usage?.budget_tracked && (
+                  <Typography variant="caption" color="text.secondary" component="div" sx={{ mt: 0.5 }}>
+                    Coste: {Math.round(translationSummary.neuronsSpent)} neuronas ·
+                    {' '}quedan {translationSummary.usage.budget_remaining.toLocaleString('es-ES')} de{' '}
+                    {translationSummary.usage.budget_limit.toLocaleString('es-ES')} del presupuesto diario del
+                    traductor (no incluye lo que gasta el asistente de los huéspedes).
+                  </Typography>
+                )}
               </Alert>
             )}
             {error && <Alert severity="error">{error}</Alert>}
