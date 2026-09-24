@@ -1,6 +1,6 @@
 // src/contexts/AuthContext.tsx
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
-import { apiClient } from '../lib/apiClient';
+import { apiClient, type GoogleLoginResult } from '../lib/apiClient';
 
 // Admin mode: determines which sidebar and data context is active
 type AdminMode = 'restaurant' | 'agency';
@@ -13,6 +13,7 @@ interface AuthContextType {
   isLoading: boolean;
   login: (email: string, password: string) => Promise<any>;
   loginWithMfa: (ticket: string, code: string) => Promise<any>;
+  loginWithGoogle: (credential: string) => Promise<GoogleLoginResult>;
   logout: () => Promise<void>;
   // Restaurant context (existing)
   currentRestaurant?: any;
@@ -199,6 +200,27 @@ export function AuthProvider({ children }: AuthProviderProps) {
     }
   };
 
+  // Login con Google (solo superadmin). El backend valida el ID token y responde
+  // como /auth/login: sesión completa, o { mfaRequired, ticket } si la cuenta
+  // tiene TOTP activo — Google no salta ese segundo factor, así que LoginPage
+  // pide igualmente el código y llama a loginWithMfa.
+  const loginWithGoogle = async (credential: string) => {
+    try {
+      const response = await apiClient.googleLogin(credential);
+      if (response.mfaRequired) {
+        return response;
+      }
+      if (response.token) {
+        persistSession(response);
+        return response;
+      }
+      throw new Error('No se recibió token de autenticación');
+    } catch (error) {
+      console.error("Error de inicio de sesión con Google:", error);
+      throw error;
+    }
+  };
+
   // Función de cambio de restaurante
   const switchRestaurant = (restaurantId: string) => {
     if (user?.restaurants) {
@@ -248,6 +270,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
     isLoading,
     login,
     loginWithMfa,
+    loginWithGoogle,
     logout,
     currentRestaurant,
     setCurrentRestaurant,

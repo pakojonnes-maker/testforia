@@ -15,6 +15,17 @@ crons = ["17 4 * * *"]
 # Tienda del guidebook (aceite, queso...).
 PLATFORM_WHATSAPP = "+34633747033"
 
+# Login con Google del superadmin (workerGoogleAuth.js). Ninguna de las dos es
+# secreta: el Client ID viaja en el navegador de cualquier web con Google Sign-In
+# y la lista solo dice quién puede usar el botón. Con GOOGLE_CLIENT_ID vacío el
+# botón no aparece y /auth/google responde 503, así que esto se puede desplegar
+# antes de crearlo. Se crea en Google Cloud Console → APIs y servicios →
+# Credenciales → ID de cliente de OAuth (Aplicación web), con estos orígenes
+# JavaScript autorizados: https://admin.visualtastes.com, http://localhost y
+# http://localhost:5174 (sin URIs de redireccionamiento: aquí no hay redirección).
+GOOGLE_CLIENT_ID = ""
+GOOGLE_ADMIN_EMAILS = "franciscotortosaestudios@gmail.com"
+
 [[d1_databases]]
 binding = "DB"
 database_name = "restaurant-menu-saas"

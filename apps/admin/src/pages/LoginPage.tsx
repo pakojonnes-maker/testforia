@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
+import { GoogleSignInButton } from '../components/auth/GoogleSignInButton';
 import {
   Container,
   Box,
@@ -45,9 +46,23 @@ function describeApiError(err: unknown, fallback: string): string {
   return 'Demasiados intentos fallidos. Inténtalo de nuevo más tarde.';
 }
 
+/**
+ * Errores del login con Google. 403 y 503 traen un mensaje pensado para
+ * mostrarse tal cual ("esta cuenta no tiene acceso", "Google no responde");
+ * el resto, 429 incluido, reutiliza describeApiError.
+ */
+function describeGoogleError(err: unknown): string {
+  const status = (err as ApiErrorShape)?.response?.status;
+  const message = (err as ApiErrorShape)?.response?.data?.message;
+  if ((status === 403 || status === 503) && message) {
+    return message;
+  }
+  return describeApiError(err, 'No se pudo iniciar sesión con Google. Inténtalo de nuevo o usa tu contraseña.');
+}
+
 export default function LoginPage() {
   const navigate = useNavigate();
-  const { login, loginWithMfa, isAuthenticated } = useAuth();
+  const { login, loginWithMfa, loginWithGoogle, isAuthenticated } = useAuth();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
@@ -100,6 +115,25 @@ export default function LoginPage() {
       navigate('/');
     } catch (err) {
       setError(describeApiError(err, 'Código incorrecto. Comprueba tu app de autenticación.'));
+      console.error(err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleGoogleCredential = async (credential: string) => {
+    setError('');
+    setLoading(true);
+
+    try {
+      const response = await loginWithGoogle(credential);
+      if (response.mfaRequired && response.ticket) {
+        setMfaTicket(response.ticket);
+      } else {
+        navigate('/');
+      }
+    } catch (err) {
+      setError(describeGoogleError(err));
       console.error(err);
     } finally {
       setLoading(false);
@@ -221,6 +255,7 @@ export default function LoginPage() {
               >
                 {loading ? 'Accediendo...' : 'Acceder'}
               </Button>
+              <GoogleSignInButton onCredential={handleGoogleCredential} disabled={loading} />
             </Box>
           )}
         </Paper>

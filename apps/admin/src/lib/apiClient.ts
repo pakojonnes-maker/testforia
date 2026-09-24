@@ -9,6 +9,24 @@ const API_URL = import.meta.env.VITE_API_URL || "https://visualtasteworker.franc
 // Crear instancia base del cliente API
 const baseApiClient = createApiClient(API_URL);
 
+/** Respuesta de GET /auth/google/config: si hay que pintar el botón "Entrar con Google". */
+export interface GoogleLoginConfig {
+  enabled: boolean;
+  clientId?: string;
+}
+
+/**
+ * Respuesta de POST /auth/google: sesión completa, o el ticket de MFA si la
+ * cuenta tiene TOTP activo (mismo contrato que /auth/login).
+ */
+export interface GoogleLoginResult {
+  success: boolean;
+  token?: string;
+  mfaRequired?: boolean;
+  ticket?: string;
+  user?: unknown;
+}
+
 /**
  * AdminApiClient extiende la funcionalidad de ApiClient para la aplicación de administración
  */
@@ -793,6 +811,18 @@ class AdminApiClient {
 
   public async mfaVerify(ticket: string, code: string): Promise<any> {
     const response = await this.baseClient.client.post(`/auth/mfa/verify`, { ticket, code });
+    return response.data;
+  }
+
+  // Login con Google (solo superadmin). El Client ID lo sirve el worker, así
+  // que no hay variable de build que mantener sincronizada con él.
+  public async getGoogleLoginConfig(): Promise<GoogleLoginConfig> {
+    const response = await this.baseClient.client.get<GoogleLoginConfig>(`/auth/google/config`);
+    return response.data;
+  }
+
+  public async googleLogin(credential: string): Promise<GoogleLoginResult> {
+    const response = await this.baseClient.client.post<GoogleLoginResult>(`/auth/google`, { credential });
     return response.data;
   }
 

@@ -27,10 +27,14 @@ npx wrangler secret list
 
 `EMAIL_FROM` (opcional, no es secreto — puede ir en `[vars]` de `wrangler.toml`) es la dirección remitente de esos correos. Sin configurar, cae en `onboarding@resend.dev` (el dominio de pruebas de Resend, con límites de envío).
 
-`wrangler.toml` no define ninguna variable en `[vars]` salvo `PLATFORM_WHATSAPP`
-(no es secreto), y los bindings (`DB`, `R2_BUCKET`, `GUIDE_CACHE`, `RATE_LIMIT_KV`,
-`AI`) se resuelven por plataforma, sin credenciales. Los cuatro secretos de
-arriba son, a fecha de esta revisión, todos los que existen.
+`wrangler.toml` no define ninguna variable en `[vars]` salvo `PLATFORM_WHATSAPP`,
+`GOOGLE_CLIENT_ID` y `GOOGLE_ADMIN_EMAILS` (ninguna es secreta: el Client ID de
+Google viaja en el navegador de cualquier web con Google Sign-In, y la segunda es
+la lista de emails que pueden usar el botón "Entrar con Google" del admin, ver
+`workerGoogleAuth.js`; ese login usa ID token y no necesita client secret), y los
+bindings (`DB`, `R2_BUCKET`, `GUIDE_CACHE`, `RATE_LIMIT_KV`, `AI`) se resuelven
+por plataforma, sin credenciales. Los cuatro secretos de arriba son, a fecha de
+esta revisión, todos los que existen.
 
 ### Estado del historial de git
 

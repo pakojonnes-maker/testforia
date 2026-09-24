@@ -515,8 +515,11 @@ function generateRecoveryCodes(count = RECOVERY_CODE_COUNT) {
  * el segundo factor". Vive en KV, no en el JWT: si viviera en un JWT firmado,
  * cualquiera con ese token a medias podría intentar fuerza bruta contra el
  * código sin que el servidor pudiera invalidarlo antes de que expire.
+ *
+ * Exportada para workerGoogleAuth.js, que la usa cuando el primer factor es
+ * Google en vez de la contraseña.
  */
-async function createMfaTicket(env, userId) {
+export async function createMfaTicket(env, userId) {
     const ticket = base64UrlEncode(crypto.getRandomValues(new Uint8Array(24)));
     if (!env.RATE_LIMIT_KV) {
         // Sin KV no hay dónde guardar el ticket. No se puede exigir MFA sin
@@ -689,8 +692,11 @@ async function handleAcceptInvitation(request, env, token) {
  *
  * @param {Object} env
  * @param {{id, email, display_name, photo_url, is_superadmin, token_version}} user
+ *
+ * Exportada para workerGoogleAuth.js, que la reutiliza tal cual: es el único
+ * sitio donde nace una sesión, y así sigue siéndolo.
  */
-async function buildAuthenticatedResponse(env, user) {
+export async function buildAuthenticatedResponse(env, user) {
     let restaurants = [];
     const isSuperAdmin = user.is_superadmin === 1 || user.is_superadmin === true;
     if (isSuperAdmin) {

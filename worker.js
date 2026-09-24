@@ -1,5 +1,6 @@
 import { handleDashboardRequests } from './workerDashboard.js';
 import { handleAuthRequests, authenticateRequest } from './workerAuthentication.js';
+import { handleGoogleAuthRequests } from './workerGoogleAuth.js';
 import { handleAnalyticsRequests } from './workerAnalytics.js';
 import { handleAllergensRequests } from './workerAllergens.js';
 import { handleMenuRequests } from './workerMenus.js';
@@ -58,6 +59,11 @@ const PUBLIC_ROUTES = [
     // Auth
     { method: 'POST', pattern: /^\/auth\/login$/ },
     { method: 'POST', pattern: /^\/auth\/mfa\/verify$/ },
+    // Login con Google del superadmin (workerGoogleAuth.js): quien lo usa aún no
+    // tiene sesión. El handler decide con el ID token; /config solo dice si pintar
+    // el botón y con qué Client ID (público por diseño).
+    { method: 'POST', pattern: /^\/auth\/google$/ },
+    { method: 'GET', pattern: /^\/auth\/google\/config$/ },
     // Invitaciones: quien las canjea todavía no tiene sesión, por definición.
     { method: 'GET', pattern: /^\/auth\/invitations\/[^/]+$/ },
     { method: 'POST', pattern: /^\/auth\/invitations\/[^/]+\/accept$/ },
@@ -164,6 +170,12 @@ export default {
                 access = scope.access || null;
             }
             // 3. Routing a handlers (con CORS wrapper)
+            // LOGIN CON GOOGLE (público, solo superadmin). Se atiende antes de la
+            // cascada para que ningún handler anterior pueda tragarse /auth/google.
+            if (url.pathname === '/auth/google' || url.pathname === '/auth/google/config') {
+                const response = await handleGoogleAuthRequests(request, env);
+                if (response) return addCorsHeaders(response, request);
+            }
             // ALÉRGENOS
             if (url.pathname === "/allergens") {
                 console.log("[Worker] → Allergens");
