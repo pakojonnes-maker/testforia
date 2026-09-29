@@ -109,14 +109,14 @@ mismo hash de contenido (`GuidebookPage-<hash>.js`) que el despliegue ajeno.
 ## 6. Invalidar la caché KV si cambió la FORMA de la respuesta del guide
 
 Desplegar **no** invalida `guide:{slug}:{lang}:v{version}`. Si añadiste/cambiaste campos
-de `GET /guide/:slug` (o de `/guide/tv/config/:code`), bumpea la versión de cada slug
-afectado:
+de `GET /guide/:slug` (o de `/guide/tv/config/:code`), invalida todas las guías con UNA
+escritura: la versión es compuesta (apt + zona + agencia + `ver:all`, ver CLAUDE.md §3).
 
 ```bash
-npx wrangler kv key put --namespace-id=89c387501e00410b9d4f0d80dc563bf2 "ver:apt:<slug>" "$(date +%s%3N)" --remote
+npx wrangler kv key put --namespace-id=89c387501e00410b9d4f0d80dc563bf2 "ver:all" "$(date +%s%3N)" --remote
 ```
 
-**No copies una lista de slugs de aquí.** Desde la migración `0089` cada slug lleva un
+Para un solo piso: `"ver:apt:<slug>"`. **No copies una lista de slugs de aquí.** Desde la migración `0089` cada slug lleva un
 sufijo aleatorio (`paloma-park-benalmadena-9ffdb397`), y esta skill llegó a tener tres
 slugs sin sufijo: bumpear `ver:apt:paloma-park-benalmadena` no falla, escribe una clave
 que no lee nadie y te deja creyendo que invalidaste la caché. Pregúntaselos a la base:

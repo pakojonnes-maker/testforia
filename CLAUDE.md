@@ -212,11 +212,16 @@ versionada `guide:{slug}:{lang}:v{version}`. **Desplegar el worker NO invalida e
 caché**: la versión solo cambia al editar contenido desde el admin (`touchGuideVersion`).
 Si cambias la **forma** del JSON (añadir un campo como `apartment.wifi`), producción
 seguirá sirviendo el JSON viejo con `X-Cache: HIT` hasta que la caducidad expire.
-Tras un deploy que cambie la forma de la respuesta, bumpea la versión a mano:
+Tras un deploy que cambie la forma de la respuesta, invalida TODAS las guías con UNA
+escritura: la versión de una guía es compuesta (`ver:apt:{slug}` + `ver:zone:{zona}` +
+`ver:agency:{id}` + `ver:all`) y cada edición del admin toca solo el que le corresponde,
+por el cupo de 1.000 escrituras/día de KV:
 
 ```bash
-npx wrangler kv key put --namespace-id=89c387501e00410b9d4f0d80dc563bf2 "ver:apt:<slug>" "$(date +%s%3N)" --remote
+npx wrangler kv key put --namespace-id=89c387501e00410b9d4f0d80dc563bf2 "ver:all" "$(date +%s%3N)" --remote
 ```
+
+Para un solo piso sigue valiendo `"ver:apt:<slug>"` (slug real, con sufijo).
 
 Corolario al verificar: una respuesta con datos viejos justo después de una migración
 puede ser caché, no un fallo de la migración.
