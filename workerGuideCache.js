@@ -14,6 +14,19 @@
 // need these helpers — a third shared module avoids a circular import.
 // ============================================
 
+// Escribe una entrada de caché SIN poder romper la respuesta. La caché es una
+// optimización: el free tier de KV son 1.000 escrituras/día y, agotadas, `put`
+// lanza excepción. Sin este try/catch esa excepción subía hasta el handler y
+// convertía en 500 una respuesta que ya estaba calculada y lista para servir.
+export async function putGuideCache(env, key, value, ttl = 86400) {
+    if (!env.GUIDE_CACHE || !key) return;
+    try {
+        await env.GUIDE_CACHE.put(key, value, { expirationTtl: ttl });
+    } catch (error) {
+        console.error('[GuideCache] No se pudo escribir la caché (¿cupo de KV agotado?):', error.message);
+    }
+}
+
 export async function getGuideVersion(env, slug) {
     if (!env.GUIDE_CACHE) return '0';
     return (await env.GUIDE_CACHE.get(`ver:apt:${slug}`)) || '0';

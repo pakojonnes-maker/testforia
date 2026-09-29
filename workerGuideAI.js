@@ -6,6 +6,7 @@
 // =====================================================
 
 import { hitRateLimit } from './workerAuthentication.js';
+import { resolveGuideLang } from './workerGuide.js';
 
 function errorResponse(message, status = 400) {
     return new Response(JSON.stringify({ success: false, error: message }), {
@@ -272,7 +273,7 @@ export async function handleGuideAI(request, env) {
         console.warn('[GuideAI] RATE_LIMIT_KV no está configurado: chat IA sin límites de uso');
     }
 
-    const lang = body.lang || 'es';
+    const lang = resolveGuideLang(body.lang);
     const contextData = await buildContext(env, apartmentId, lang);
     if (!contextData) {
         return errorResponse('Apartment not found', 404);

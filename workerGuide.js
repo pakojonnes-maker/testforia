@@ -5,9 +5,17 @@
 // ============================================
 
 import { ACTIVE_LANGUAGES } from './workerGuideAdmin.js';
-import { getGuideVersion, getZoneExploreVersion, getZoneCatalogVersion } from './workerGuideCache.js';
+import { getGuideVersion, getZoneExploreVersion, getZoneCatalogVersion, putGuideCache } from './workerGuideCache.js';
 
 const FALLBACK_LANG = 'es'; // es is the source of truth (see CLAUDE.md §5)
+
+// `?lang=` llega tal cual del cliente. Sin validarlo, cada valor inventado
+// (`?lang=a1`, `a2`...) fabricaba una clave de caché nueva, lanzaba la carga
+// completa en D1 y gastaba una escritura de KV: mil peticiones agotaban el cupo
+// diario del free tier. Todo idioma fuera de los 13 activos cae a `es`.
+export function resolveGuideLang(lang) {
+    return ACTIVE_LANGUAGES.includes(lang) ? lang : FALLBACK_LANG;
+}
 // Media URLs must be absolute: the guide/TV frontends live on a different
 // origin (Pages) than the worker that serves /media/*, so a bare "/media/..."
 // path resolves against the *frontend's* origin and 404s (SPA fallback masks
@@ -412,6 +420,7 @@ export async function handleGuideRequests(request, env) {
  * config) can return the exact same shape/cache without duplicating the query.
  */
 export async function handleGetGuidebook(env, slug, lang, origin, surface = 'guide') {
+    lang = resolveGuideLang(lang);
     // KV Cache check. The key embeds a version bumped by the admin panel on any
     // edit (see workerGuideCache.js), so a 24h TTL is safe here: content changes
     // land on a fresh key instantly instead of relying on the TTL to expire stale
@@ -1103,9 +1112,7 @@ export async function handleGetGuidebook(env, slug, lang, origin, surface = 'gui
         }
     };
 
-    if (env.GUIDE_CACHE && cacheKey) {
-        await env.GUIDE_CACHE.put(cacheKey, JSON.stringify(responseData), { expirationTtl: 86400 });
-    }
+    await putGuideCache(env, cacheKey, JSON.stringify(responseData));
 
     return jsonResponse(responseData);
 }
@@ -1127,6 +1134,7 @@ export async function handleGetGuidebook(env, slug, lang, origin, surface = 'gui
  * the main payload and only calls this for a different zone.
  */
 export async function handleGetExplore(env, apartmentSlug, zoneSlug, lang, origin) {
+    lang = resolveGuideLang(lang);
     if (!zoneSlug) return errorResponse('zone is required', 400);
 
     // 1. Resolve the apartment's own region + home zone slug. Also doubles as
@@ -1266,9 +1274,7 @@ export async function handleGetExplore(env, apartmentSlug, zoneSlug, lang, origi
         }
     };
 
-    if (env.GUIDE_CACHE && cacheKey) {
-        await env.GUIDE_CACHE.put(cacheKey, JSON.stringify(responseData), { expirationTtl: 86400 });
-    }
+    await putGuideCache(env, cacheKey, JSON.stringify(responseData));
 
     return jsonResponse(responseData);
 }

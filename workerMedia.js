@@ -525,14 +525,41 @@ export async function handleMediaRequests(request, env) {
   if (request.method === "GET" && url.pathname.startsWith('/media/')) {
     try {
       const key = decodeURIComponent(url.pathname.replace('/media/', ''));
-      console.log(`[Media] Sirviendo: ${key}`);
-      
-      // Obtener objeto de R2
-      const object = await env.R2_BUCKET.get(key);
-      
+
+      // Range se resuelve en R2 (no cortando el stream aquí): `object.body` es un
+      // ReadableStream y no tiene .slice(), así que el código anterior lanzaba
+      // TypeError, lo capturaba y devolvía el vídeo ENTERO con un 200. Cada salto
+      // en el reproductor descargaba el archivo completo, y Safari/iOS no
+      // reproduce vídeo si no le contestan 206.
+      const rangeHeader = request.headers.get('Range');
+      const rangeMatch = rangeHeader ? rangeHeader.match(/^bytes=(\d*)-(\d*)$/) : null;
+      let r2Range;
+      if (rangeMatch && (rangeMatch[1] !== '' || rangeMatch[2] !== '')) {
+        const [, s, e] = rangeMatch;
+        if (s === '') r2Range = { suffix: parseInt(e, 10) };                       // bytes=-500
+        else if (e === '') r2Range = { offset: parseInt(s, 10) };                  // bytes=1000-
+        else if (parseInt(e, 10) >= parseInt(s, 10)) {
+          r2Range = { offset: parseInt(s, 10), length: parseInt(e, 10) - parseInt(s, 10) + 1 };
+        }
+      }
+
+      let object;
+      try {
+        object = await env.R2_BUCKET.get(key, r2Range ? { range: r2Range } : undefined);
+      } catch (rangeError) {
+        // Rango fuera del archivo (offset >= size): 416 en vez de 500.
+        const head = await env.R2_BUCKET.head(key);
+        if (!head) object = null;
+        else {
+          return new Response(null, {
+            status: 416,
+            headers: { 'Content-Range': `bytes */${head.size}`, 'Access-Control-Allow-Origin': '*' }
+          });
+        }
+      }
+
       if (!object) {
-        console.error(`[Media] Archivo no encontrado: ${key}`);
-        return new Response('Archivo no encontrado', { 
+        return new Response('Archivo no encontrado', {
           status: 404,
           headers: {
             "Access-Control-Allow-Origin": "*",
@@ -540,11 +567,9 @@ export async function handleMediaRequests(request, env) {
           }
         });
       }
-      
-      // Determinar si es un video
+
       const isVideo = object.httpMetadata?.contentType?.startsWith('video/') || key.endsWith('.mp4');
-      
-      // Headers para streaming optimizado CON CORS
+
       const headers = new Headers({
         'Content-Type': object.httpMetadata?.contentType || (isVideo ? 'video/mp4' : 'application/octet-stream'),
         'Cache-Control': 'public, max-age=86400',
@@ -552,36 +577,29 @@ export async function handleMediaRequests(request, env) {
         'Access-Control-Allow-Origin': '*',
         'Access-Control-Allow-Methods': 'GET',
         'Access-Control-Allow-Headers': 'Range',
+        'Access-Control-Expose-Headers': 'Content-Range, Content-Length, Accept-Ranges',
         'Cross-Origin-Resource-Policy': 'cross-origin',
         'ETag': object.etag,
       });
-      
-      // Soporte optimizado para Range requests (streaming)
-      const range = request.headers.get('Range');
-      if (range && isVideo) {
-        try {
-          const rangeValues = range.match(/bytes=(\d+)-(\d*)/);
-          if (rangeValues) {
-            const start = parseInt(rangeValues[1]);
-            const end = rangeValues[2] ? parseInt(rangeValues[2]) : object.size - 1;
-            
-            if (start >= 0 && end < object.size && start <= end) {
-              const contentLength = end - start + 1;
-              headers.set('Content-Range', `bytes ${start}-${end}/${object.size}`);
-              headers.set('Content-Length', contentLength.toString());
-              
-              return new Response(object.body.slice(start, end + 1), {
-                status: 206,
-                headers
-              });
-            }
-          }
-        } catch (rangeError) {
-          console.error(`[Media] Error procesando Range:`, rangeError);
+
+      // Con range, R2 informa de lo que devuelve realmente en object.range
+      // (recortado al tamaño del archivo si el cliente pidió de más).
+      if (r2Range && object.range) {
+        const total = object.size;
+        let start, length;
+        if ('suffix' in object.range) {
+          length = Math.min(object.range.suffix, total);
+          start = total - length;
+        } else {
+          start = object.range.offset ?? 0;
+          length = object.range.length ?? (total - start);
         }
+        headers.set('Content-Range', `bytes ${start}-${start + length - 1}/${total}`);
+        headers.set('Content-Length', String(length));
+        return new Response(object.body, { status: 206, headers });
       }
-      
-      // Retornar archivo completo
+
+      headers.set('Content-Length', String(object.size));
       return new Response(object.body, { headers });
     } catch (error) {
       console.error(`[Media] Error al servir medio: ${error.message}`, error);
