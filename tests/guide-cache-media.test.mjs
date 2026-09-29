@@ -13,6 +13,9 @@ import { loadWorkerModule } from './_load.mjs';
 const { module: guide, cleanup: c1 } = await loadWorkerModule('workerGuide.js');
 const { module: cache, cleanup: c2 } = await loadWorkerModule('workerGuideCache.js');
 const { module: media, cleanup: c3 } = await loadWorkerModule('workerMedia.js');
+const { module: ai, cleanup: c4 } = await loadWorkerModule('workerGuideAI.js');
+const { module: tv, cleanup: c5 } = await loadWorkerModule('workerTvScreen.js');
+const { module: tracking, cleanup: c6 } = await loadWorkerModule('workerGuideTracking.js');
 
 let failures = 0;
 function check(name, ok, detail = '') {
@@ -110,6 +113,112 @@ const bytesOf = async (res) => new Uint8Array(await res.arrayBuffer());
     check('inexistente → 404', res.status === 404, res.status);
 }
 
-c1(); c2(); c3();
+// --- 4. Versión compuesta: cada edición cuesta UNA escritura ---------------------
+{
+    const store = new Map();
+    let puts = 0, dbReads = 0;
+    const apts = {
+        'a-1': { zone_slug: 'costa', agency_id: 'ag1' },
+        'a-2': { zone_slug: 'costa', agency_id: 'ag2' },
+        'b-1': { zone_slug: 'norte', agency_id: 'ag1' },
+    };
+    const env = {
+        GUIDE_CACHE: { get: async (k) => store.get(k) ?? null, put: async (k, v) => { puts++; store.set(k, v); } },
+        DB: { prepare: (sql) => ({ bind: (...a) => ({
+            first: async () => {
+                dbReads++;
+                if (sql.includes('FROM guide_apartments a JOIN guide_zones')) return apts[a[0]] ?? null;
+                if (sql.includes('SELECT slug FROM guide_zones')) return { slug: a[0] === 'z-costa' ? 'costa' : 'norte' };
+                return null;
+            },
+        }) }) },
+    };
+    const v = async (slug) => cache.getGuideVersion(env, slug);
+    const before = { a1: await v('a-1'), a2: await v('a-2'), b1: await v('b-1') };
+    check('versión inicial compuesta 0.0.0.0', before.a1 === '0.0.0.0', before.a1);
+
+    await new Promise(r => setTimeout(r, 2)); // Date.now() distinto en cada bump
+    puts = 0;
+    await cache.touchZoneGuideVersions(env, 'z-costa');
+    check('editar un POI de la zona = 1 escritura de KV', puts === 1, String(puts));
+    check('  cambia la guía de TODOS los pisos de la zona', (await v('a-1')) !== before.a1 && (await v('a-2')) !== before.a2);
+    check('  NO cambia la de otra zona', (await v('b-1')) === before.b1);
+
+    await new Promise(r => setTimeout(r, 2));
+    const mid = { a1: await v('a-1'), a2: await v('a-2'), b1: await v('b-1') };
+    puts = 0;
+    await cache.touchAgencyGuideVersions(env, 'ag1');
+    check('editar la tienda de una agencia = 1 escritura', puts === 1, String(puts));
+    check('  cambian sus pisos (a-1, b-1) y no los de otra agencia (a-2)',
+        (await v('a-1')) !== mid.a1 && (await v('b-1')) !== mid.b1 && (await v('a-2')) === mid.a2);
+
+    await new Promise(r => setTimeout(r, 2));
+    const mid2 = { a1: await v('a-1'), a2: await v('a-2'), b1: await v('b-1') };
+    puts = 0;
+    await cache.touchAllGuideVersions(env);
+    check('editar la tienda de plataforma = 1 escritura', puts === 1, String(puts));
+    check('  cambian todas', (await v('a-1')) !== mid2.a1 && (await v('a-2')) !== mid2.a2 && (await v('b-1')) !== mid2.b1);
+
+    await new Promise(r => setTimeout(r, 2));
+    const mid3 = { a2: await v('a-2') };
+    await cache.touchGuideVersion(env, 'a-1');
+    check('editar un piso solo invalida ese piso', (await v('a-2')) === mid3.a2);
+
+    dbReads = 0;
+    await v('a-1'); await v('a-1'); await v('a-2');
+    check('la zona/agencia de un piso se memoriza (sin D1 en la ruta caliente)', dbReads === 0, String(dbReads));
+    check('piso inexistente → versión simple, sin romper', (await v('no-existe')) === '0');
+}
+
+// --- 5. Chat IA: apartamento + global en un solo documento diario -------------------
+{
+    let gets = 0, puts = 0;
+    const store = new Map();
+    const kv = { get: async (k) => { gets++; return store.has(k) ? JSON.parse(store.get(k)) : null; },
+                 put: async (k, v) => { puts++; store.set(k, v); } };
+    const env = { RATE_LIMIT_KV: kv };
+    const r1 = await ai.hitDailyAiBudget(env, 'apt1');
+    check('mensaje permitido = 1 lectura + 1 escritura (antes eran 2+2)', r1 === 'ok' && gets === 1 && puts === 1, `${r1} g${gets} p${puts}`);
+
+    const key = [...store.keys()][0];
+    store.set(key, JSON.stringify({ total: 10, apts: { apt1: 300 } }));
+    check('apartamento en su tope → apartment', (await ai.hitDailyAiBudget(env, 'apt1')) === 'apartment');
+    check('otro apartamento sigue pudiendo', (await ai.hitDailyAiBudget(env, 'apt2')) === 'ok');
+    store.set(key, JSON.stringify({ total: 2000, apts: {} }));
+    check('presupuesto global agotado → global', (await ai.hitDailyAiBudget(env, 'apt3')) === 'global');
+    const broken = { RATE_LIMIT_KV: { get: async () => { throw new Error('boom'); }, put: async () => {} } };
+    check('KV caído → se deja pasar (el techo de neuronas sigue)', (await ai.hitDailyAiBudget(broken, 'apt1')) === 'ok');
+    check('sin binding → ok', (await ai.hitDailyAiBudget({}, 'apt1')) === 'ok');
+}
+
+// --- 6. Latido de la TV: no reescribe en cada evento -----------------------------------
+{
+    const calls = [];
+    const env = { DB: { prepare: (sql) => ({ bind: (...a) => ({ run: async () => { calls.push({ sql, a }); return {}; } }) }) } };
+    const now = '2026-09-29T12:00:00.000Z';
+    await tv.touchDeviceSeen(env, 'dev1', now);
+    const { sql, a } = calls[0];
+    check('UPDATE condicionado a last_seen_at antiguo', /last_seen_at IS NULL OR last_seen_at < \?/.test(sql), sql);
+    check('  umbral = hace 10 min (el admin da "en línea" hasta 15)', a[2] === '2026-09-29T11:50:00.000Z', a[2]);
+}
+
+// --- 7. section-view: un solo INSERT ... SELECT -----------------------------------------
+{
+    const stmts = [];
+    const mk = (changes) => ({ DB: { prepare: (sql) => ({ bind: (...a) => ({
+        run: async () => { stmts.push({ sql, a }); return { meta: { changes } }; },
+        first: async () => { stmts.push({ sql, a }); return null; },
+    }) }) } });
+    const post = (body) => new Request('https://w.dev/guide/track/section-view', { method: 'POST', body: JSON.stringify(body) });
+    const ok1 = await tracking.handleGuideTracking(post({ apartmentId: 'apt1', sessionId: 's1', section: 'info' }), mk(1), {});
+    check('section-view válido → 200', ok1.status === 200, ok1.status);
+    check('  una sola consulta a D1', stmts.length === 1 && /INSERT INTO guide_section_views[\s\S]*SELECT[\s\S]*FROM guide_apartments/.test(stmts[0].sql), String(stmts.length));
+    const nf = await tracking.handleGuideTracking(post({ apartmentId: 'nope', section: 'info' }), mk(0), {});
+    check('apartamento inexistente → 404', nf.status === 404, nf.status);
+    const chat = await tracking.handleGuideTracking(post({ apartmentId: 'apt1', section: 'chat' }), mk(1), {});
+    check('sección "chat" → 400 (el front ya no la manda)', chat.status === 400, chat.status);
+}
+
+c1(); c2(); c3(); c4(); c5(); c6();
 if (failures) { console.error(`\n${failures} fallo(s)`); process.exit(1); }
 console.log('\nOK');

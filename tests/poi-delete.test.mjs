@@ -69,6 +69,10 @@ function makeEnv({ poiExists = true, commissions = 0 } = {}) {
                                         ? { id: POI_ID, zone_id: 'zone_1', category: 'beach', poi_type: 'sight' }
                                         : null;
                                 }
+                                // touchZoneGuideVersions resuelve el slug de la zona
+                                if (s.includes('SELECT slug FROM guide_zones WHERE id')) {
+                                    return { slug: 'costa-test' };
+                                }
                                 if (s.includes('AS apartments')) {
                                     return {
                                         apartments: 3, media: 2, translations: 24,
@@ -261,10 +265,11 @@ section('Media en R2 y caché KV de la zona');
         env.r2.deleted.join(','));
 
     // Un POI es contenido de zona: se invalida la guía de TODOS los apartamentos
-    // de esa zona, no la de uno.
+    // de esa zona con UNA sola escritura (ver:zone), no con una por piso: el free
+    // tier de KV son 1.000 escrituras/día.
     const claves = env.kv.map(k => k.key);
-    ok('Se bumpea la versión de cada apartamento de la zona',
-        claves.includes('ver:apt:piso-carabeo') && claves.includes('ver:apt:atico-burriana'),
+    ok('Se bumpea la versión de la ZONA con una sola escritura de KV',
+        claves.length === 1 && claves[0] === 'ver:zone:costa-test',
         claves.join(','));
 
     ok('La respuesta informa de lo borrado',

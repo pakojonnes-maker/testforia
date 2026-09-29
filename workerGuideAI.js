@@ -37,8 +37,39 @@ function errorResponse(message, status = 400) {
 const MAX_MESSAGE_LENGTH = 800;
 const MAX_HISTORY_MESSAGES = 10;
 const RATE_LIMIT_PER_VISITOR = { limit: 20, windowSeconds: 600 };       // 20 msg / 10 min
-const RATE_LIMIT_PER_APARTMENT = { limit: 300, windowSeconds: 86400 };  // 300 msg / día
-const RATE_LIMIT_GLOBAL_BUDGET = { limit: 2000, windowSeconds: 86400 }; // 2000 msg / día, ajustar según presupuesto real
+const DAILY_LIMIT_PER_APARTMENT = 300;  // msg / día / apartamento
+const DAILY_LIMIT_GLOBAL = 2000;        // msg / día en toda la plataforma, ajustar según presupuesto real
+
+/**
+ * Contador diario (día UTC) de apartamento + global en una sola clave de KV:
+ * `{ total, apts: { [apartmentId]: n } }`. Un get y un put por mensaje, en vez
+ * de los dos pares que costaban los contadores por separado.
+ *
+ * Mismo criterio que hitRateLimit: si KV falla se deja pasar (el techo duro
+ * de neuronas de Workers AI sigue ahí) y se avisa en el log.
+ *
+ * @returns {Promise<'ok'|'apartment'|'global'>}
+ */
+export async function hitDailyAiBudget(env, apartmentId) {
+    if (!env.RATE_LIMIT_KV) return 'ok';
+    const key = `ai:day:${new Date().toISOString().slice(0, 10)}`;
+    try {
+        const doc = (await env.RATE_LIMIT_KV.get(key, { type: 'json' })) || { total: 0, apts: {} };
+        const apts = doc.apts || {};
+        if ((doc.total || 0) >= DAILY_LIMIT_GLOBAL) return 'global';
+        if ((apts[apartmentId] || 0) >= DAILY_LIMIT_PER_APARTMENT) return 'apartment';
+        apts[apartmentId] = (apts[apartmentId] || 0) + 1;
+        await env.RATE_LIMIT_KV.put(
+            key,
+            JSON.stringify({ total: (doc.total || 0) + 1, apts }),
+            { expirationTtl: 90000 } // 25 h: sobrevive al cambio de día UTC y caduca solo
+        );
+        return 'ok';
+    } catch (error) {
+        console.error('[GuideAI] Error en el contador diario:', error.message);
+        return 'ok';
+    }
+}
 
 // Nunca se confía en el `role` que manda el cliente en `history` — es
 // precisamente el vector de la inyección de system prompt. Solo user/assistant
@@ -264,11 +295,12 @@ export async function handleGuideAI(request, env) {
         const visitorLimit = await hitRateLimit(env, visitorKey, RATE_LIMIT_PER_VISITOR);
         if (!visitorLimit.allowed) return errorResponse('rate_limited', 429);
 
-        const apartmentLimit = await hitRateLimit(env, `ai:apartment:${apartmentId}`, RATE_LIMIT_PER_APARTMENT);
-        if (!apartmentLimit.allowed) return errorResponse('rate_limited', 429);
-
-        const budgetLimit = await hitRateLimit(env, 'ai:global_budget', RATE_LIMIT_GLOBAL_BUDGET);
-        if (!budgetLimit.allowed) return errorResponse('ai_unavailable', 503);
+        // Apartamento y presupuesto global comparten UN documento diario: antes
+        // eran dos contadores (get+put cada uno), y con el free tier de KV en
+        // 1.000 escrituras/día cada mensaje del chat gastaba tres.
+        const daily = await hitDailyAiBudget(env, apartmentId);
+        if (daily === 'apartment') return errorResponse('rate_limited', 429);
+        if (daily === 'global') return errorResponse('ai_unavailable', 503);
     } else {
         console.warn('[GuideAI] RATE_LIMIT_KV no está configurado: chat IA sin límites de uso');
     }

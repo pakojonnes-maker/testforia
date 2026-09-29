@@ -148,6 +148,19 @@ async function resolveDevice(env, pairingCode) {
     `).bind(pairingCode).first();
 }
 
+// Ventana mínima entre dos escrituras de last_seen_at de la misma TV. El admin
+// da una TV por "en línea" si la ve hace menos de 15 min (GuideTvPage.tsx), así
+// que 10 min no cambia lo que se muestra y evita una escritura por cada evento
+// de una ráfaga de navegación con el mando.
+const SEEN_WRITE_INTERVAL_MS = 10 * 60 * 1000;
+
+export async function touchDeviceSeen(env, deviceId, now = new Date().toISOString()) {
+    const threshold = new Date(Date.parse(now) - SEEN_WRITE_INTERVAL_MS).toISOString();
+    await env.DB.prepare(
+        'UPDATE guide_tv_devices SET last_seen_at = ? WHERE id = ? AND (last_seen_at IS NULL OR last_seen_at < ?)'
+    ).bind(now, deviceId, threshold).run();
+}
+
 async function handleTvConfig(env, pairingCode, lang, origin) {
     const device = await resolveDevice(env, pairingCode);
     if (!device || !device.is_active) {
@@ -160,7 +173,7 @@ async function handleTvConfig(env, pairingCode, lang, origin) {
     // reconectar, "impresiones" acababa midiendo arranques de app y cambios de
     // idioma, no huéspedes mirando la pantalla. Ahora la impresión la emite la
     // app una sola vez por sesión de TV vía POST /guide/tv/track.
-    await env.DB.prepare('UPDATE guide_tv_devices SET last_seen_at = ? WHERE id = ?').bind(now, device.id).run();
+    await touchDeviceSeen(env, device.id, now);
 
     // Misma forma de datos que GET /guide/:slug — sin duplicar la query. La
     // superficie 'tv' va explícita porque el JSON lleva las URLs de afiliado ya
@@ -264,7 +277,7 @@ async function handleTvTrack(request, env) {
     // El heartbeat de last_seen_at solo se actualizaba al pedir la config. Como
     // en producción el shell va empaquetado en el APK y no la repide, ese campo
     // no servía para saber si la TV sigue viva. Ahora cualquier evento lo refresca.
-    await env.DB.prepare('UPDATE guide_tv_devices SET last_seen_at = ? WHERE id = ?').bind(now, device.id).run();
+    await touchDeviceSeen(env, device.id, now);
 
     await logTvAffiliateIntent(env, device, eventType, targetId, now);
 

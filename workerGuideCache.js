@@ -27,51 +27,78 @@ export async function putGuideCache(env, key, value, ttl = 86400) {
     }
 }
 
+// ---------------------------------------------------------------------------
+// Versión compuesta de la guía: cuatro alcances, UNA escritura por edición.
+// ---------------------------------------------------------------------------
+// Antes, editar un POI o un producto compartido escribía una clave `ver:apt:*`
+// por cada apartamento afectado (toda la zona, toda la agencia, toda la
+// plataforma). El free tier de KV son 1.000 escrituras/día: una tarde editando
+// POIs en una zona con 40 pisos las agotaba, y con ellas la caché entera.
+//
+// Ahora la versión de una guía se compone de cuatro contadores y cada edición
+// toca solo el que le corresponde:
+//   ver:apt:{slug}       contenido de ese piso
+//   ver:zone:{zoneSlug}  POIs / experiencias de la zona (lo lee también Explorar)
+//   ver:agency:{id}      catálogo de tienda de la agencia
+//   ver:all              cosas de plataforma (tienda global, restaurantes de zona)
+// Coste: 4 lecturas de KV en paralelo por petición (cupo de 100.000/día, 100
+// veces el de escrituras) a cambio de que editar cueste siempre 1 escritura.
+//
+// La clave de caché cambia de forma (`v<a>.<z>.<g>.<all>`), así que el primer
+// despliegue deja huérfanas las entradas anteriores: sin bump manual, la guía
+// se regenera sola. Y `ver:all` sirve de "invalidar todo" con una sola escritura.
+
+const SCOPE_MEMO_TTL_MS = 5 * 60 * 1000;
+const scopeMemo = new Map(); // slug -> { zoneSlug, agencyId, exp }
+
+// Zona y agencia de un piso. Se memoriza por isolate: cambian casi nunca, y si
+// un piso se mueve de zona la propia edición bumpea su ver:apt, de modo que la
+// guía se recalcula bien; solo tarda hasta 5 min en enterarse de las ediciones
+// futuras de su NUEVA zona.
+async function resolveGuideScope(env, slug) {
+    const hit = scopeMemo.get(slug);
+    if (hit && hit.exp > Date.now()) return hit;
+    const row = await env.DB.prepare(`
+        SELECT z.slug AS zone_slug, a.agency_id AS agency_id
+        FROM guide_apartments a JOIN guide_zones z ON z.id = a.zone_id
+        WHERE a.slug = ?
+    `).bind(slug).first();
+    if (!row) return null; // piso inexistente: no se memoriza para no ocultar un alta posterior
+    const scope = { zoneSlug: row.zone_slug, agencyId: row.agency_id, exp: Date.now() + SCOPE_MEMO_TTL_MS };
+    scopeMemo.set(slug, scope);
+    return scope;
+}
+
 export async function getGuideVersion(env, slug) {
     if (!env.GUIDE_CACHE) return '0';
-    return (await env.GUIDE_CACHE.get(`ver:apt:${slug}`)) || '0';
+    const scope = await resolveGuideScope(env, slug);
+    if (!scope) return (await env.GUIDE_CACHE.get(`ver:apt:${slug}`)) || '0';
+    const [apt, zone, agency, all] = await Promise.all([
+        env.GUIDE_CACHE.get(`ver:apt:${slug}`),
+        env.GUIDE_CACHE.get(`ver:zone:${scope.zoneSlug}`),
+        env.GUIDE_CACHE.get(`ver:agency:${scope.agencyId}`),
+        env.GUIDE_CACHE.get('ver:all'),
+    ]);
+    return `${apt || 0}.${zone || 0}.${agency || 0}.${all || 0}`;
 }
 
 export async function touchGuideVersion(env, slug) {
-    if (!env.GUIDE_CACHE || !slug) return;
+    if (!env.GUIDE_CACHE) return;
     await env.GUIDE_CACHE.put(`ver:apt:${slug}`, String(Date.now()));
 }
 
-// Zone-level content (POIs, experiences, zone-restaurant links) is shared by every
-// apartment in that zone, so there's no single zone cache key to bump — touch every
-// active apartment's version instead. This is an admin-only write path (rare), so
-// the extra D1 read here is cheap relative to what it saves on the public read path.
-//
-// Also bumps ver:zone:{slug} (see getZoneExploreVersion below), which every caller
-// of this function gets for free: it's what the /guide/:slug/explore endpoint reads
-// to invalidate its own cache, so a POI edit invalidates both the home guidebook
-// (ver:apt:*) and the "browse other cities" explore cache in one call.
+// Un POI/experiencia es contenido de ZONA: lo comparten todos sus pisos. Una
+// escritura (ver:zone) invalida la guía de todos ellos Y el Explorar de la zona.
 export async function touchZoneGuideVersions(env, zoneId) {
     if (!env.GUIDE_CACHE || !zoneId) return;
-    const [zoneRow, apts] = await Promise.all([
-        env.DB.prepare('SELECT slug FROM guide_zones WHERE id = ?').bind(zoneId).first(),
-        env.DB.prepare('SELECT slug FROM guide_apartments WHERE zone_id = ? AND is_active = TRUE').bind(zoneId).all(),
-    ]);
-    const now = String(Date.now());
-    const writes = (apts.results || []).map(a => env.GUIDE_CACHE.put(`ver:apt:${a.slug}`, now));
-    if (zoneRow?.slug) writes.push(env.GUIDE_CACHE.put(`ver:zone:${zoneRow.slug}`, now));
-    await Promise.all(writes);
+    const zoneRow = await env.DB.prepare('SELECT slug FROM guide_zones WHERE id = ?').bind(zoneId).first();
+    if (zoneRow?.slug) await env.GUIDE_CACHE.put(`ver:zone:${zoneRow.slug}`, String(Date.now()));
 }
 
-// Todos los alojamientos de una AGENCIA. Lo pide el catálogo de Tienda: un
-// producto con owner_type='agency' sale en la tienda de todas las propiedades
-// de ese property manager, así que editarlo tiene que invalidar todas — pero
-// sólo esas. Antes la única herramienta para "esto sale en varias guías" era
-// touchAllGuideVersions (los productos 'platform'), que escribe en KV una clave
-// por apartamento ACTIVO DE LA PLATAFORMA: correcto para el catálogo global y
-// desproporcionado para una agencia de tres pisos.
+// Catálogo de Tienda de una AGENCIA: sale en todos sus pisos. Una escritura.
 export async function touchAgencyGuideVersions(env, agencyId) {
     if (!env.GUIDE_CACHE || !agencyId) return;
-    const apts = await env.DB.prepare(
-        'SELECT slug FROM guide_apartments WHERE agency_id = ? AND is_active = TRUE'
-    ).bind(agencyId).all();
-    const now = String(Date.now());
-    await Promise.all((apts.results || []).map(a => env.GUIDE_CACHE.put(`ver:apt:${a.slug}`, now)));
+    await env.GUIDE_CACHE.put(`ver:agency:${agencyId}`, String(Date.now()));
 }
 
 // Per-zone version for the "explore other cities" endpoint (GET /guide/:slug/explore).
@@ -95,18 +122,11 @@ export async function touchZoneCatalogVersion(env) {
     await env.GUIDE_CACHE.put('ver:zonecatalog', String(Date.now()));
 }
 
-// Platform store items (guide_store_items.owner_type='platform') and zone-restaurant
-// links are visible on every apartment's guide, not just one apartment or one zone —
-// there's no single cache key to bump for those, so touch every active apartment.
-// Admin-only write path (rare), so the extra D1 read is cheap relative to what it saves
-// on the public read path.
+// Tienda de plataforma (guide_store_items.owner_type='platform') y vínculos
+// zona-restaurante se ven en la guía de TODOS los pisos: una sola clave global.
 export async function touchAllGuideVersions(env) {
     if (!env.GUIDE_CACHE) return;
-    const apts = await env.DB.prepare(
-        'SELECT slug FROM guide_apartments WHERE is_active = TRUE'
-    ).all();
-    const now = String(Date.now());
-    await Promise.all((apts.results || []).map(a => env.GUIDE_CACHE.put(`ver:apt:${a.slug}`, now)));
+    await env.GUIDE_CACHE.put('ver:all', String(Date.now()));
 }
 
 // Same scheme for the digital menu (workerReels.js). Keyed by restaurant slug,

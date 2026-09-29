@@ -317,10 +317,12 @@ async function clearRateLimit(env, key) {
 // momento de emitirse (`tv`); si no coincide con el actual, el token se trata
 // como revocado aunque su firma y su `exp` sigan siendo válidos.
 //
-// Coste: consultar D1 en CADA request protegida sería caro. Se cachea en KV
-// con TTL corto, así que el caso común (mismo usuario, requests seguidas) no
-// toca la base de datos.
-const TOKEN_VERSION_CACHE_TTL = 300; // 5 min
+// Coste: consultar D1 en CADA request protegida sería caro. Se cachea en KV.
+// El TTL puede ser largo porque revocar (logout, cambio de contraseña) BORRA
+// la clave a propósito (ver revokeAllSessions y el reset de contraseña): el TTL
+// solo acota cuánto dura una entrada que nadie ha invalidado. Cada renovación
+// es una escritura de KV (1.000/día en el free tier), de ahí que no sean 5 min.
+const TOKEN_VERSION_CACHE_TTL = 3600; // 1 h
 
 async function getCurrentTokenVersion(env, userId) {
     const cacheKey = `tv:${userId}`;

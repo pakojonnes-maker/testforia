@@ -847,13 +847,6 @@ export async function handleGetGuidebook(env, slug, lang, origin, surface = 'gui
         ) AS value
     `).bind(zone.id, lang, zone.id, FALLBACK_LANG).first();
 
-    const deviceCount = await env.DB.prepare(`
-        SELECT COUNT(DISTINCT device_fingerprint) as count
-        FROM guide_sessions
-        WHERE apartment_id = ? AND device_fingerprint IS NOT NULL
-        AND started_at >= datetime('now', '-24 hours')
-    `).bind(apartment.id).first();
-
     // 6. Compose response  
     // Replace {{apartment_name}} in prefilled WhatsApp messages
     // Contexto de sustitución de los CTA. `sub_id` es lo que verá Francisco en
@@ -1107,8 +1100,7 @@ export async function handleGetGuidebook(env, slug, lang, origin, surface = 'gui
         } : null,
         meta: {
             lang,
-            available_langs: ACTIVE_LANGUAGES,
-            active_devices_24h: deviceCount?.count || 0
+            available_langs: ACTIVE_LANGUAGES
         }
     };
 

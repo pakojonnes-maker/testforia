@@ -294,27 +294,25 @@ async function handleSectionView(request, env) {
         return errorResponse('Invalid section');
     }
 
-    const apartment = await env.DB.prepare(
-        'SELECT zone_id FROM guide_apartments WHERE id = ?'
-    ).bind(apartmentId).first();
-
-    if (!apartment) {
-        return errorResponse('Apartment not found', 404);
-    }
-
+    // Un solo INSERT ... SELECT: el zone_id sale de la propia fila del
+    // apartamento, así que ya no hace falta leerlo antes en otra consulta. Si el
+    // apartamento no existe el SELECT no devuelve filas y no se inserta nada.
     const viewId = generateId('sv');
-    await env.DB.prepare(`
+    const result = await env.DB.prepare(`
         INSERT INTO guide_section_views (id, session_id, apartment_id, zone_id, section, duration_seconds, created_at)
-        VALUES (?, ?, ?, ?, ?, ?, ?)
+        SELECT ?, ?, id, zone_id, ?, ?, ? FROM guide_apartments WHERE id = ?
     `).bind(
         viewId,
         sessionId || null,
-        apartmentId,
-        apartment.zone_id,
         section,
         durationSeconds || 0,
-        new Date().toISOString()
+        new Date().toISOString(),
+        apartmentId
     ).run();
+
+    if (!result.meta?.changes) {
+        return errorResponse('Apartment not found', 404);
+    }
 
     return jsonResponse({ success: true, viewId });
 }

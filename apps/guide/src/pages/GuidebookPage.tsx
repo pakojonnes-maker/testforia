@@ -81,7 +81,7 @@ interface GuidebookData {
     price_currency: string; price_display: string; cover_image_url?: string | null;
     is_featured: boolean; is_promoted?: boolean; in_stock: boolean;
   }>;
-  meta: { lang: string; available_langs: string[]; active_devices_24h?: number };
+  meta: { lang: string; available_langs: string[] };
   welcome_modal: WelcomeModalData | null;
 }
 
@@ -293,7 +293,10 @@ export default function GuidebookPage() {
   // Track section view when tab changes
   useEffect(() => {
     if (data?.apartment?.id) {
-      trackSectionView(data.apartment.id, sessionIdRef.current, activeTab);
+      // 'chat' no es una sección del contrato de tracking (el Worker acepta
+      // info|discover|restaurants|services y responde 400 al resto): mandarla
+      // era una petición inútil en cada visita al asistente.
+      if (activeTab !== 'chat') trackSectionView(data.apartment.id, sessionIdRef.current, activeTab);
       // Scroll to top of tab content smoothly
       window.scrollTo({ top: 0, behavior: 'smooth' });
     }
