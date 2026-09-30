@@ -1,0 +1,4 @@
+# admin.visualtastes.com: el panel no se indexa (X-Robots-Tag: noindex en _headers). No se bloquea aquí a
+# propósito: bloqueado, el buscador no leería el noindex.
+User-agent: *
+Allow: /
