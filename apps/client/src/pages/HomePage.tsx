@@ -996,6 +996,24 @@ function Footer() {
         textAlign: 'center',
       }}
     >
+      {/* Los otros dos productos, enlazados desde la portada: buscadores e IA ven así que las tres webs son de la
+          misma marca, y es el único enlace que les llega a guide. y tv. desde el dominio principal. */}
+      <Box
+        component="nav"
+        aria-label="Otros productos de VisualTaste"
+        sx={{
+          mb: 2,
+          display: 'flex',
+          flexWrap: 'wrap',
+          justifyContent: 'center',
+          gap: { xs: 1, sm: 3 },
+          '& a': { color: colors.textMuted, textDecoration: 'none', fontSize: 14 },
+          '& a:hover': { color: colors.text, textDecoration: 'underline' },
+        }}
+      >
+        <a href="https://guide.visualtastes.com/">VisualTaste Guía · guía digital para alojamientos</a>
+        <a href="https://tv.visualtastes.com/">VisualTaste TV · pantalla de bienvenida para la tele</a>
+      </Box>
       <Typography variant="body2" sx={{ color: colors.textMuted }}>
         © {new Date().getFullYear()} VisualTaste. Todos los derechos reservados.
       </Typography>

@@ -33,6 +33,60 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,100..900&display=swap"
     rel="stylesheet">
+  <!-- Datos estructurados de la portada. La organización lleva el mismo @id en guide.visualtastes.com y
+       tv.visualtastes.com: es una sola entidad con tres productos. -->
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@graph": [
+      {
+        "@type": "Organization",
+        "@id": "https://visualtastes.com/#organization",
+        "name": "VisualTaste",
+        "url": "https://visualtastes.com/",
+        "logo": "https://visualtastes.com/logo.png",
+        "email": "info@visualtastes.com"
+      },
+      {
+        "@type": "WebSite",
+        "@id": "https://visualtastes.com/#website",
+        "url": "https://visualtastes.com/",
+        "name": "VisualTaste",
+        "inLanguage": "es",
+        "publisher": { "@id": "https://visualtastes.com/#organization" }
+      },
+      {
+        "@type": "SoftwareApplication",
+        "@id": "https://visualtastes.com/#app",
+        "name": "VisualTaste Carta",
+        "url": "https://visualtastes.com/",
+        "applicationCategory": "BusinessApplication",
+        "applicationSubCategory": "Carta digital con QR para restaurantes",
+        "operatingSystem": "Web",
+        "description": "Carta digital con QR y vídeo para restaurantes, con traducción automática de la carta y panel de gestión.",
+        "publisher": { "@id": "https://visualtastes.com/#organization" }
+      }
+    ]
+  }
+  </script>
+  <script>
+    /* Un solo build sirve visualtastes.com, www. y menu. (y visualtaste.pages.dev): el canonical dice cuál es la
+       dirección buena. Se pone desde aquí y no fijo en el HTML porque este index.html también es la landing de
+       cada restaurante (/<slug>), que tiene su propia dirección. menu. no lleva: es la app de la carta, con
+       noindex (public/_headers). El JSON-LD de arriba describe la portada: fuera de / sobra. */
+    (function () {
+      var p = location.pathname;
+      if (p !== '/') {
+        var ld = document.querySelectorAll('script[type="application/ld+json"]');
+        for (var i = 0; i < ld.length; i++) ld[i].parentNode.removeChild(ld[i]);
+      }
+      if (location.hostname.indexOf('menu.') === 0) return;
+      var link = document.createElement('link');
+      link.rel = 'canonical';
+      link.href = 'https://visualtastes.com' + p;
+      document.head.appendChild(link);
+    })();
+  </script>
 </head>
 
 <body>

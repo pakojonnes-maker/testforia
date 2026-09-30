@@ -1,0 +1,26 @@
+# Qué se indexa de este proyecto (visualtastes.com, www. y menu. sirven el MISMO build):
+#  - visualtastes.com/ (portada) y visualtastes.com/<slug> (landing de cada restaurante): sí.
+#  - menu.visualtastes.com: la app de la carta. No es una página para buscadores, y duplicaría la landing.
+#  - www. y visualtaste.pages.dev: copias exactas del sitio (el canonical de index.html apunta a visualtastes.com).
+#  - Enlaces con token (canjes de ofertas, reservas) y la propuesta comercial antigua: nunca.
+# No se bloquean en robots.txt a propósito: bloqueadas, los buscadores no leerían el noindex.
+https://menu.visualtastes.com/*
+  X-Robots-Tag: noindex
+
+https://www.visualtastes.com/*
+  X-Robots-Tag: noindex
+
+https://:project.pages.dev/*
+  X-Robots-Tag: noindex
+
+/r/*
+  X-Robots-Tag: noindex
+
+/:slug/oferta/*
+  X-Robots-Tag: noindex
+
+/reserve/*
+  X-Robots-Tag: noindex
+
+/proposal*
+  X-Robots-Tag: noindex
