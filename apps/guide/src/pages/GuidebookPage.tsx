@@ -464,7 +464,6 @@ export default function GuidebookPage() {
             <ChatIASection
               lang={lang}
               apartmentId={data?.apartment?.id}
-              apartmentName={data?.apartment?.name}
               onLanguageChange={handleLanguageChange}
               restaurants={restaurants}
               pois={pois}

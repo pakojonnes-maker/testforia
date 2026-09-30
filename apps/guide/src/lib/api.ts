@@ -353,28 +353,36 @@ export async function sendChatMessage(
 
     const reader = res.body.getReader();
     const decoder = new TextDecoder();
+    // Un evento SSE puede llegar partido entre dos lecturas: la última línea de
+    // cada trozo se guarda hasta que llegue su final. Sin esto, su JSON no
+    // parseaba y ese token se perdía (palabras a las que les faltaban letras).
+    let pending = '';
+
+    const handleLine = (line: string) => {
+      if (!line.startsWith('data: ')) return;
+      const data = line.slice(6).trim();
+      if (data === '[DONE]') return;
+      try {
+        const parsed = JSON.parse(data);
+        // Workers AI format: { response: "token" }
+        const token = parsed?.response ?? parsed?.choices?.[0]?.delta?.content ?? '';
+        if (token) onToken(token);
+      } catch {
+        // Non-JSON SSE line, skip
+      }
+    };
 
     while (true) {
       const { done, value } = await reader.read();
       if (done) break;
 
-      const chunk = decoder.decode(value, { stream: true });
       // Workers AI streams SSE: "data: {...}\n\n"
-      const lines = chunk.split('\n');
-      for (const line of lines) {
-        if (!line.startsWith('data: ')) continue;
-        const data = line.slice(6).trim();
-        if (data === '[DONE]') break;
-        try {
-          const parsed = JSON.parse(data);
-          // Workers AI format: { response: "token" }
-          const token = parsed?.response ?? parsed?.choices?.[0]?.delta?.content ?? '';
-          if (token) onToken(token);
-        } catch {
-          // Non-JSON SSE line, skip
-        }
-      }
+      pending += decoder.decode(value, { stream: true });
+      const lines = pending.split('\n');
+      pending = lines.pop() ?? '';
+      lines.forEach(handleLine);
     }
+    handleLine(pending + decoder.decode());
   } catch (err: any) {
     if (err?.message === '__rate_limited__') {
       onToken(getTranslation('chat_rate_limited', lang));
