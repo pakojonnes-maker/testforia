@@ -1,7 +1,14 @@
 /*
+  X-Robots-Tag: noindex
   X-Content-Type-Options: nosniff
   Referrer-Policy: strict-origin-when-cross-origin
   Permissions-Policy: camera=(), microphone=(), geolocation=()
+
+# Solo la landing (/) se indexa. /<slug> y /#<código> son la pantalla de un alojamiento (lleva su WiFi), no una
+# página: van con noindex, igual que ficheros y visualtaste-tv.pages.dev (copia del sitio). No se bloquean en
+# robots.txt a propósito: bloqueadas, los buscadores no leerían el noindex.
+https://tv.visualtastes.com/
+  ! X-Robots-Tag
 
 # Vite le pone hash al nombre de todo lo de /assets: se puede cachear para siempre.
 /assets/*
