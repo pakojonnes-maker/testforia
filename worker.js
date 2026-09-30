@@ -46,6 +46,9 @@ function addCorsHeaders(response, request) {
     Object.entries(corsHeaders).forEach(([key, value]) => {
         newHeaders.set(key, value);
     });
+    // Es una API: ninguna respuesta debe acabar en un buscador. /guide/:slug, por ejemplo, lleva la dirección y la
+    // contraseña del WiFi de un alojamiento real.
+    newHeaders.set('X-Robots-Tag', 'noindex, nofollow');
     return new Response(response.body, {
         status: response.status,
         statusText: response.statusText,
