@@ -267,7 +267,8 @@ export async function handleReelsRequests(request, env) {
                 };
 
                 if (env.GUIDE_CACHE && cacheKey) {
-                    await env.GUIDE_CACHE.put(cacheKey, JSON.stringify(shared), { expirationTtl: 86400 });
+                    await env.GUIDE_CACHE.put(cacheKey, JSON.stringify(shared), { expirationTtl: 86400 })
+                        .catch(err => console.warn('[Reels] No se pudo cachear en KV:', err.message));
                 }
             }
 

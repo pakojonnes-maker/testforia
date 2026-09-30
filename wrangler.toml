@@ -53,3 +53,18 @@ id = "c8456e9e79794fe796c9a09ab5405d29"
 # Workers AI binding for the guidebook AI assistant
 [ai]
 binding = "AI"
+
+# Frenos por minuto del chat IA del guidebook (workerGuideAI.js). Van con el
+# binding nativo y NO con RATE_LIMIT_KV: en el plan Free KV admite 1.000
+# escrituras/día para toda la cuenta, y el chat hacía 4 por mensaje. Son por
+# ubicación y aproximados; el tope real del gasto es el presupuesto en neuronas
+# de workerAiBudget.js (D1). period solo admite 10 o 60.
+[[ratelimits]]
+name = "AI_CHAT_IP_LIMITER"
+namespace_id = "1001"
+simple = { limit = 20, period = 60 }
+
+[[ratelimits]]
+name = "AI_CHAT_VISITOR_LIMITER"
+namespace_id = "1002"
+simple = { limit = 6, period = 60 }

@@ -25,34 +25,27 @@
 // ---------------------------------------------------------------------------
 // En el plan Workers Free no existe facturación por exceso: al agotar las
 // 10.000 neuronas/día, Workers AI devuelve error 3036 / HTTP 429 y ya está
-// (docs: workers-ai/platform/errors). Para que hubiera cargos habría que
-// contratar Workers Paid a mano. Aun así, este módulo NO se apoya solo en eso:
+// (docs: workers-ai/platform/errors). La cuenta está en Free (comprobado el
+// 2026-09-30); para que hubiera cargos habría que contratar Workers Paid a
+// mano. Aun así, este módulo NO se apoya solo en eso:
 //
-//   - Presupuesto diario propio (TRANSLATE_NEURON_BUDGET): 6.000 de las 10.000
-//     neuronas del día, dejando ~4.000 garantizadas al asistente IA del huésped
-//     (workerGuideAI.js). Se contabiliza el gasto REAL leyendo el `usage` que
-//     devuelve Workers AI, no un número de llamadas. Sin esto, un backfill de
-//     todo el catálogo dejaría a los huéspedes sin chat hasta las 00:00 UTC —
-//     el riesgo real aquí es de disponibilidad, no de dinero.
+//   - Presupuesto diario COMPARTIDO con el chat del huésped
+//     (workerAiBudget.js, en D1): el traductor usa todo lo que el chat no
+//     necesita, menos una reserva mínima para el chat. Con el chat en calma son
+//     7.500 neuronas. Se contabiliza el gasto REAL leyendo el `usage` que
+//     devuelve Workers AI, no un número de llamadas.
 //   - Límite por usuario (anti-bucle si el admin le da mil veces al botón).
-//   - Todo pasa por el AI Gateway 'guidebook-ai', que ya tiene configurado un
-//     spend limit real de $5/día impuesto por Cloudflare en el borde. Hoy en
-//     plan Free ese tope nunca se dispara (el coste siempre es $0), pero es el
-//     seguro que se activa solo si algún día se sube a Workers Paid.
 //   - Los textos de entrada se truncan (MAX_FIELD_CHARS) y max_tokens está
 //     acotado: una descripción kilométrica no puede disparar el gasto.
 //
-// El coste real depende de cuánto texto tenga cada campo, así que varía
-// entidad a entidad — y grupos más pequeños (LANG_GROUP_SIZE) cuestan algo
-// más EN TOTAL por entidad que grupos grandes, porque el system prompt se
-// repite en cada llamada. Es el precio de no truncar el JSON de salida (ver
-// el porqué junto a LANG_GROUP_SIZE). El presupuesto de 6.000 sigue dando
-// para decenas de POIs al día; la respuesta del endpoint devuelve el gasto
-// exacto en `usage`, así que ese número se puede contrastar con la realidad
-// en vez de creérselo.
+// Coste medido (2026-09-30, un POI real a los 12 idiomas): 47 neuronas y 13 s
+// SIN el razonamiento de Gemma 4. Con él activado, que era lo que había, eran
+// 432 neuronas, 270 s y solo 6 de 12 idiomas: el razonamiento se comía el
+// max_tokens y el JSON salía cortado. De ahí `enable_thinking: false` abajo.
 // =====================================================
 
 import { verifyJWT, hitRateLimit } from './workerAuthentication.js';
+import { addUsage, readTranslateBudget } from './workerAiBudget.js';
 import { ACTIVE_LANGUAGES } from './workerGuideAdmin.js';
 import { touchZoneGuideVersions } from './workerGuideCache.js';
 
@@ -65,22 +58,14 @@ import { touchZoneGuideVersions } from './workerGuideCache.js';
 // Cloudflare del 2026-07-28 (el que movió kimi-k2.6 y glm-5.2 a solo-pago).
 const TRANSLATE_MODEL = '@cf/google/gemma-4-26b-a4b-it';
 
-// El mismo gateway que el chatbot: reutiliza su spend limit y deja las
-// traducciones visibles en las analíticas junto al resto del gasto de IA.
+// El mismo gateway que el chatbot: deja las traducciones visibles en las
+// analíticas junto al resto del gasto de IA.
 const AI_GATEWAY_ID = 'guidebook-ai';
 
 // Tarifas publicadas de TRANSLATE_MODEL (workers-ai/platform/pricing). Si se
 // cambia de modelo hay que cambiarlas aquí también, o el contador mentirá.
 const NEURONS_PER_M_INPUT = 9091;
 const NEURONS_PER_M_OUTPUT = 27273;
-
-// 6.000 de las 10.000 neuronas gratis del día. Las ~4.000 restantes quedan para
-// el asistente IA del huésped (workerGuideAI.js), que comparte la misma bolsa de
-// la cuenta. Subir esto es exactamente lo que separa un backfill grande de
-// dejar a los huéspedes sin chat hasta las 00:00 UTC.
-const TRANSLATE_NEURON_BUDGET = 6000;
-const BUDGET_KEY = 'translate:neurons:daily';
-const BUDGET_WINDOW_SECONDS = 86400;
 
 // Cuando Workers AI no devuelve `usage` (no está garantizado en todos los
 // modelos ni en todos los caminos), se imputa esto en vez de 0. Contar 0 haría
@@ -153,6 +138,8 @@ function chunk(arr, size) {
 
 /** @returns {number} neuronas consumidas por una llamada, según su `usage`. */
 export function neuronsForUsage(usage) {
+    // Los modelos nuevos traen la cifra exacta de Cloudflare: mejor que calcularla.
+    if (typeof usage?.neurons === 'number') return usage.neurons;
     const inTokens = usage?.prompt_tokens;
     const outTokens = usage?.completion_tokens;
     if (typeof inTokens !== 'number' || typeof outTokens !== 'number') {
@@ -162,56 +149,20 @@ export function neuronsForUsage(usage) {
 }
 
 /**
- * Estado del presupuesto diario, con ventana fija en KV al estilo de
- * hitRateLimit(). Sin binding de KV se deja pasar (y se avisa): quedarse sin
- * traductor porque falta un namespace sería peor que traducir sin contador, y
- * en plan Free el gasto no puede generar factura de todas formas.
+ * Estado del presupuesto del traductor para hoy (workerAiBudget.js). Si D1 no
+ * responde se deja pasar: quedarse sin traductor por un fallo del contador
+ * sería peor, y en plan Free el gasto no puede generar factura de todas formas.
  */
-async function readBudget(env) {
-    if (!env.RATE_LIMIT_KV) return { spent: 0, remaining: TRANSLATE_NEURON_BUDGET, resetsIn: 0, tracked: false };
-    const now = Math.floor(Date.now() / 1000);
-    try {
-        const data = await env.RATE_LIMIT_KV.get(BUDGET_KEY, { type: 'json' });
-        if (data && now - data.windowStart < BUDGET_WINDOW_SECONDS) {
-            return {
-                spent: data.spent,
-                remaining: Math.max(0, TRANSLATE_NEURON_BUDGET - data.spent),
-                resetsIn: BUDGET_WINDOW_SECONDS - (now - data.windowStart),
-                windowStart: data.windowStart,
-                tracked: true,
-            };
-        }
-        return { spent: 0, remaining: TRANSLATE_NEURON_BUDGET, resetsIn: BUDGET_WINDOW_SECONDS, windowStart: now, tracked: true };
-    } catch (err) {
-        console.error('[GuideTranslate] No se pudo leer el presupuesto:', err.message);
-        return { spent: 0, remaining: TRANSLATE_NEURON_BUDGET, resetsIn: 0, tracked: false };
-    }
-}
+const readBudget = (env) => readTranslateBudget(env);
 
 /**
  * Suma el gasto REAL después de la llamada. Consecuencia asumida: como el
  * cobro es posterior, una llamada puede rebasar el tope por su propio coste
- * (~17 neuronas) antes de que el corte actúe. Es la misma eventual consistency
- * que documentan los spend limits de AI Gateway, y a esta escala da igual.
+ * (~8 neuronas) antes de que el corte actúe. El tope total deja margen para eso.
  */
 async function addSpentNeurons(env, neurons) {
-    if (!env.RATE_LIMIT_KV || neurons <= 0) return;
-    const now = Math.floor(Date.now() / 1000);
-    try {
-        const data = await env.RATE_LIMIT_KV.get(BUDGET_KEY, { type: 'json' });
-        const inWindow = data && now - data.windowStart < BUDGET_WINDOW_SECONDS;
-        const windowStart = inWindow ? data.windowStart : now;
-        const spent = (inWindow ? data.spent : 0) + neurons;
-        await env.RATE_LIMIT_KV.put(
-            BUDGET_KEY,
-            JSON.stringify({ spent, windowStart }),
-            // El TTL cubre lo que resta de ventana, no la ventana entera: si no,
-            // cada llamada la extendería y el presupuesto no se resetearía nunca.
-            { expirationTtl: Math.max(60, BUDGET_WINDOW_SECONDS - (now - windowStart)) }
-        );
-    } catch (err) {
-        console.error('[GuideTranslate] No se pudo apuntar el gasto:', err.message);
-    }
+    if (neurons <= 0) return;
+    await addUsage(env, [{ scope: 'translate', neurons, calls: 1 }]);
 }
 
 // ---------------------------------------------------------------------------
@@ -347,6 +298,9 @@ async function translateGroup(env, sourceFields, targetLangs) {
                 // Traducir no es escribir: se quiere reproducibilidad, no
                 // creatividad.
                 temperature: 0.2,
+                // Sin razonamiento: con él, cada POI costaba 9 veces más y el
+                // razonamiento se comía los tokens del JSON (ver COSTE arriba).
+                chat_template_kwargs: { enable_thinking: false },
             },
             { gateway: { id: AI_GATEWAY_ID } }
         );
@@ -567,7 +521,7 @@ async function runTranslation(env, body, userId) {
         const userLimit = await hitRateLimit(env, `translate:user:${userId}`, TRANSLATE_PER_USER);
         if (!userLimit.allowed) return errorResponse('rate_limited', 429);
     } else {
-        console.warn('[GuideTranslate] RATE_LIMIT_KV no configurado: traductor sin presupuesto diario');
+        console.warn('[GuideTranslate] RATE_LIMIT_KV no configurado: traductor sin límite por usuario');
     }
 
     const results = [];
@@ -611,14 +565,12 @@ async function runTranslation(env, body, userId) {
         fields: selectedFields,
         results,
         // Gasto REAL de esta ejecución, calculado con el `usage` que devuelve
-        // Workers AI — no una estimación. `budget_*` es el presupuesto de ESTE
-        // traductor, NO las neuronas restantes de la cuenta: el asistente IA del
-        // huésped gasta de la misma bolsa de 10.000/día y no se cuenta aquí. Si
-        // algún día se quiere el número real de la cuenta, sale del dashboard de
-        // Workers AI o de la GraphQL Analytics API, no de este contador.
+        // Workers AI — no una estimación. `budget_*` es lo que le toca HOY al
+        // traductor de la bolsa compartida con el chat (workerAiBudget.js): el
+        // límite baja si el chat ha gastado más que su reserva.
         usage: {
             neurons_spent: Math.round(spentNeurons * 10) / 10,
-            budget_limit: TRANSLATE_NEURON_BUDGET,
+            budget_limit: Math.round(budgetAfter.limit),
             budget_remaining: Math.round(budgetAfter.remaining),
             budget_resets_in_seconds: budgetAfter.resetsIn,
             budget_tracked: budgetAfter.tracked,

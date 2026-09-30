@@ -1104,7 +1104,10 @@ export async function handleGetGuidebook(env, slug, lang, origin, surface = 'gui
     };
 
     if (env.GUIDE_CACHE && cacheKey) {
-        await env.GUIDE_CACHE.put(cacheKey, JSON.stringify(responseData), { expirationTtl: 86400 });
+        // Sin await suelto: si KV no deja escribir (plan Free: 1.000 escrituras/día
+        // para toda la cuenta) la guía se sirve igual, solo que sin cachear.
+        await env.GUIDE_CACHE.put(cacheKey, JSON.stringify(responseData), { expirationTtl: 86400 })
+            .catch(err => console.warn('[Guide] No se pudo cachear en KV:', err.message));
     }
 
     return jsonResponse(responseData);
@@ -1267,7 +1270,10 @@ export async function handleGetExplore(env, apartmentSlug, zoneSlug, lang, origi
     };
 
     if (env.GUIDE_CACHE && cacheKey) {
-        await env.GUIDE_CACHE.put(cacheKey, JSON.stringify(responseData), { expirationTtl: 86400 });
+        // Sin await suelto: si KV no deja escribir (plan Free: 1.000 escrituras/día
+        // para toda la cuenta) la guía se sirve igual, solo que sin cachear.
+        await env.GUIDE_CACHE.put(cacheKey, JSON.stringify(responseData), { expirationTtl: 86400 })
+            .catch(err => console.warn('[Guide] No se pudo cachear en KV:', err.message));
     }
 
     return jsonResponse(responseData);

@@ -170,6 +170,7 @@ cambios sin commitear de otra sesión en curso dando vueltas por el repo. Antes 
 | `workerGuideTracking.js` | Tracking del guidebook (`/guide/track/*`). |
 | `workerGuideAI.js` | Asistente IA del guidebook (`/guide/ai/*`, usa binding `AI`). |
 | `workerGuideTranslate.js` | Traducción automática a los 13 idiomas (`POST /guide/admin/translate`, Workers AI). Rellena `translations` sin pisar lo ya escrito. Tiene presupuesto diario propio para no dejar sin neuronas al chatbot de `workerGuideAI.js` — los dos comparten el tier gratuito de la cuenta. |
+| `workerAiBudget.js` | Presupuesto diario **compartido** de Workers AI (chat + traductor) en D1 (`ai_usage_daily`), con neuronas reales. Toda llamada nueva a `env.AI.run` pasa por aquí. |
 | `workerGuideCache.js` | Versionado de la caché KV del guide/carta (`getGuideVersion`, `touchGuideVersion`, `touchZoneGuideVersions`, `*MenuVersion`). Ver el aviso de caché más abajo. |
 | `workerTvScreen.js` | VisualTaste TV: `/guide/tv/config/:pairingCode`, `/guide/tv/track`, `/guide/admin/tv/*`. **Debe registrarse en `worker.js` ANTES del bloque `/guide/admin/`** o ese handler devuelve 404 duro. |
 | `workerAuthz.js` | Autorización multi-tenant: `checkRestaurantScope`, `getRestaurantAccess`, `requireRole`, `ROLE_RANK`. Todo endpoint nuevo con `:slug`/`restaurantId` pasa por aquí. |
@@ -187,6 +188,12 @@ cambios sin commitear de otra sesión en curso dando vueltas por el repo. Antes 
 - **Secrets vía `env`**, nunca hardcodeados. `JWT_SECRET` sale de `env.JWT_SECRET`
   (configúralo con `wrangler secret put JWT_SECRET`, no en el código).
 - Runtime edge: Web Standards, evita Node built-ins salvo que Workers los soporte.
+- **La cuenta está en Workers Free** (verificado sep-2026): KV admite **1.000 escrituras/día para toda
+  la cuenta** y la caché de las guías vive ahí. Nada de contadores por petición en KV: límites por
+  minuto con el binding `[[ratelimits]]`, gasto diario en D1. Un `GUIDE_CACHE.put` sin `.catch` tumba
+  la guía cuando KV se agota.
+- **Gemma 4 (y cualquier modelo con razonamiento) va con `chat_template_kwargs: { enable_thinking: false }`**:
+  con él activo, traducir un POI costaba 432 neuronas en vez de 47 y cortaba el JSON a la mitad.
 
 ### Base de datos
 - Esquema de referencia: **`BDschemaFinal.sql`** (raíz). ⚠️ **Se desfasa en horas, no en

@@ -42,12 +42,14 @@ async function signTestJWT(payload, secret) {
  *    `written` para poder comprobar qué se escribió de verdad.
  *  - AI: devuelve lo que diga `aiResponder(sourceFields, targetLangs)`.
  */
-function makeEnv(rows, aiResponder) {
+function makeEnv(rows, aiResponder, usageRows = []) {
     const written = [];
     const aiCalls = [];
+    const usageWrites = [];
     return {
         written,
         aiCalls,
+        usageWrites,
         AI: {
             async run(model, opts) {
                 // El prompt lleva el JSON del origen y la lista de idiomas; se
@@ -73,6 +75,10 @@ function makeEnv(rows, aiResponder) {
                                         results: rows.filter(r => r.entity_id === args[0] && r.entity_type === args[1]),
                                     };
                                 }
+                                // Gasto de IA del día (workerAiBudget.js).
+                                if (s.includes('FROM ai_usage_daily')) {
+                                    return { results: usageRows.filter(r => args.slice(1).includes(r.scope)) };
+                                }
                                 return { results: [] };
                             },
                             async first() {
@@ -92,6 +98,10 @@ function makeEnv(rows, aiResponder) {
                     if (st._sql.includes('INSERT INTO translations')) {
                         const [entity_id, entity_type, field, language_code, value] = st._args;
                         written.push({ entity_id, entity_type, field, language_code, value });
+                    }
+                    if (st._sql.includes('INSERT INTO ai_usage_daily')) {
+                        const [day, scope, neurons, calls] = st._args;
+                        usageWrites.push({ day, scope, neurons, calls });
                     }
                 }
                 return [];
@@ -370,12 +380,11 @@ console.log('\n--- Presupuesto en neuronas: corta y no llama al modelo ---');
     const rows = [
         { entity_id: 'poi_8', entity_type: 'poi', language_code: 'es', field: 'description', value: 'Hola' },
     ];
-    const env = makeEnv(rows, () => JSON.stringify({ en: { description: 'Hi' } }));
-    // KV que dice que el presupuesto del día ya está gastado.
-    env.RATE_LIMIT_KV = {
-        async get() { return { spent: 6000, windowStart: Math.floor(Date.now() / 1000) }; },
-        async put() {},
-    };
+    // D1 dice que hoy el traductor ya gastó todo lo suyo: 9.000 del total menos
+    // la reserva del chat (1.500), porque el chat aún no ha gastado nada.
+    const env = makeEnv(rows, () => JSON.stringify({ en: { description: 'Hi' } }), [
+        { scope: 'translate', neurons: 7500 },
+    ]);
     const result = await translateEntity(env, 'poi_8', 'poi', {
         fields: ['description'], targetLangs: ALL_TARGETS, force: false,
     });
@@ -384,21 +393,48 @@ console.log('\n--- Presupuesto en neuronas: corta y no llama al modelo ---');
     assert('Presupuesto agotado → coste marginal cero', result.neurons === 0);
 }
 {
-    // Con presupuesto disponible sí traduce y apunta el gasto en KV.
+    // Con presupuesto disponible sí traduce y apunta el gasto en D1, no en KV.
     const rows = [
         { entity_id: 'poi_9', entity_type: 'poi', language_code: 'es', field: 'description', value: 'Hola' },
     ];
-    const env = makeEnv(rows, () => JSON.stringify({ en: { description: 'Hi' } }));
-    let stored = null;
-    env.RATE_LIMIT_KV = {
-        async get() { return stored; },
-        async put(_k, v) { stored = JSON.parse(v); },
-    };
+    const env = makeEnv(rows, () => JSON.stringify({ en: { description: 'Hi' } }), [
+        { scope: 'translate', neurons: 7000 },
+    ]);
+    let kvWrites = 0;
+    env.RATE_LIMIT_KV = { async get() { return null; }, async put() { kvWrites++; } };
     await translateEntity(env, 'poi_9', 'poi', {
         fields: ['description'], targetLangs: ['en'], force: false,
     });
     assert('Con presupuesto sí llama al modelo', env.aiCalls.length === 1);
-    assert('El gasto queda apuntado en KV', stored?.spent > 0, JSON.stringify(stored));
+    const w = env.usageWrites[0];
+    assert('El gasto queda apuntado en D1 como "translate"', w?.scope === 'translate' && w.neurons > 0, JSON.stringify(w));
+    assert('...y el contador ya no escribe en KV', kvWrites === 0, String(kvWrites));
+}
+{
+    // Si el chat gastó más que su reserva, el traductor tiene menos.
+    const rows = [
+        { entity_id: 'poi_10', entity_type: 'poi', language_code: 'es', field: 'description', value: 'Hola' },
+    ];
+    const env = makeEnv(rows, () => JSON.stringify({ en: { description: 'Hi' } }), [
+        { scope: 'chat', neurons: 4000 },
+        { scope: 'translate', neurons: 5000 },
+    ]);
+    const result = await translateEntity(env, 'poi_10', 'poi', {
+        fields: ['description'], targetLangs: ['en'], force: false,
+    });
+    assert('Chat 4.000 + traductor 5.000 = tope de 9.000 → budget_exhausted', result.status === 'budget_exhausted', result.status);
+}
+{
+    // El razonamiento de Gemma 4 va apagado: con él cada POI costaba 9 veces más.
+    const rows = [
+        { entity_id: 'poi_11', entity_type: 'poi', language_code: 'es', field: 'description', value: 'Hola' },
+    ];
+    let opts = null;
+    const env = makeEnv(rows, () => JSON.stringify({ en: { description: 'Hi' } }));
+    const run = env.AI.run;
+    env.AI.run = async (model, o) => { opts = o; return run(model, o); };
+    await translateEntity(env, 'poi_11', 'poi', { fields: ['description'], targetLangs: ['en'], force: false });
+    assert('La llamada lleva enable_thinking: false', opts?.chat_template_kwargs?.enable_thinking === false, JSON.stringify(opts?.chat_template_kwargs));
 }
 
 console.log('\n--- handleGuideTranslateRequests: guardarraíles HTTP ---');
