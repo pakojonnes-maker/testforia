@@ -305,7 +305,11 @@ privacidad de la cabecera (el pie no se renderiza en Explorar ni en Chat).
 - Las opciones de color y fuente que ofrece el admin salen de `apps/admin/src/theme/guideTheme.ts`.
 - El contenido de una guía (`apartment_info.content`) es **texto plano**: `lib/text.ts` lo parte en
   párrafos y títulos numerados, sin parser de markdown (un `**negrita**` sale con los asteriscos literales).
-- Build: `tsc -b && vite build`.
+- Build: `tsc -b && vite build && node scripts/prerender-landing.mjs`. El último paso mete la landing (SSR) y su
+  JSON-LD en `dist/index.html` para los bots de IA, que no ejecutan JS. **Indexación:** `public/_headers` pone
+  `noindex` a todo menos `https://guide.visualtastes.com/` (las guías de huésped llevan el WiFi en claro). Una
+  página pública nueva necesita su propia excepción allí y una entrada en `public/sitemap.xml`. Lo mismo pasa en
+  `apps/tv-landing` y en `apps/client` (menu., www. y pages.dev van con `noindex`).
 
 ### `apps/tv` — VisualTaste TV
 - **React 19** + Vite + Tailwind v4. Dev port **5176** (`npm run dev:tv`).
