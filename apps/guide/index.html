@@ -9,15 +9,35 @@
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="default">
   <meta name="apple-mobile-web-app-title" content="Guidebook">
-  <!-- Open Graph -->
+  <!-- Este index.html lo sirve Pages para la landing (/) Y para la guía de cada huésped (/<slug>): el título, la
+       descripción y el Open Graph tienen que valer para los dos (el enlace de la guía se comparte por WhatsApp). -->
+  <title>VisualTaste Guía — La guía digital de tu alojamiento, en un QR</title>
+  <meta name="description" content="Guía digital con QR para alojamientos del Mediterráneo: WiFi, normas, mapa, restaurantes y un conserje con IA en 13 idiomas. Sin instalar nada." />
+  <link rel="canonical" href="https://guide.visualtastes.com/" />
   <meta property="og:type" content="website" />
-  <meta property="og:title" content="VisualTastes Guidebook — Tu guía turística digital" />
-  <meta property="og:description" content="Descubre restaurantes, experiencias y secretos locales en tu destino vacacional. Guidebook digital gratuito para apartamentos turísticos." />
+  <meta property="og:site_name" content="VisualTaste Guía" />
+  <meta property="og:locale" content="es_ES" />
+  <meta property="og:title" content="VisualTaste Guía — La guía digital del alojamiento" />
+  <meta property="og:description" content="WiFi, normas, mapa, restaurantes y un conserje en 13 idiomas, en el móvil y sin instalar nada." />
   <link rel="icon" type="image/x-icon" href="/favicon.ico" />
-  <title>VisualTastes Guidebook — Guía turística digital para apartamentos</title>
-  <meta name="description" content="Guidebook digital para apartamentos turísticos. Información del piso, restaurantes, experiencias locales y puntos de interés turístico. Traducido a 13 idiomas." />
   <!-- Sin tipografías ni iconos de terceros aquí: Playfair Display y Montserrat van empaquetadas (@fontsource-variable)
        y las que elija una agencia se piden desde src/theme/useAgencyTheme.ts solo si hacen falta. -->
+  <!-- scripts/prerender-landing.mjs pone aquí el JSON-LD de la landing y mete su HTML en #root (.vt-pre) para los
+       rastreadores que no ejecutan JavaScript. Ninguna persona ve .vt-pre: en / React pinta la landing encima, y
+       en /<slug> la guía. -->
+  <style>.vt-pre{display:none}</style>
+  <!--vt:ld-->
+  <script>
+    /* Fuera de / (la guía de un huésped, /legal) no hay que decir que la página «es» la landing: se quitan el
+       canonical y el JSON-LD. Además, esas rutas llevan X-Robots-Tag: noindex (public/_headers). */
+    (function () {
+      var p = location.pathname;
+      if (p === '/' || p === '/index.html') return;
+      var drop = document.querySelectorAll('link[rel="canonical"], script[type="application/ld+json"]');
+      for (var i = 0; i < drop.length; i++) drop[i].parentNode.removeChild(drop[i]);
+      document.title = 'VisualTaste Guía';
+    })();
+  </script>
 </head>
 <body>
   <div id="root"></div>

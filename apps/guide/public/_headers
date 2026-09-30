@@ -1,0 +1,10 @@
+# Solo la landing se indexa. Todo lo demás es la guía de un huésped (/<slug>: dirección, WiFi y contraseña en
+# claro), /legal o ficheros, y visualtastes-guide.pages.dev es una copia del sitio.
+/*
+  X-Robots-Tag: noindex
+
+https://guide.visualtastes.com/
+  ! X-Robots-Tag
+
+/assets/*
+  Cache-Control: public, max-age=31536000, immutable

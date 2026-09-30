@@ -2,6 +2,13 @@
   "version": "0.0.1",
   "configurations": [
     {
+      "_comment": "El build de producción de la guía (dist, con la landing prerenderizada) servido con vite preview. Puerto 5185 porque está en ALLOWED_ORIGINS: no lo levantes si guide-verify está en marcha.",
+      "name": "guide-dist",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["--prefix", "apps/guide", "run", "preview", "--", "--port", "5185", "--strictPort"],
+      "port": 5185
+    },
+    {
       "name": "client",
       "runtimeExecutable": "npm",
       "runtimeArgs": ["--prefix", "apps/client", "run", "dev", "--", "--port", "5173"],

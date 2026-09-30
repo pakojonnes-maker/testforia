@@ -1,0 +1,7 @@
+# guide.visualtastes.com — solo la landing (/) es indexable. La guía de cada huésped (/<slug>) y /legal llevan
+# X-Robots-Tag: noindex (ver _headers). No se bloquean aquí a propósito: si robots.txt las bloqueara, los buscadores
+# no llegarían a leer el noindex y podrían indexar la URL igualmente.
+User-agent: *
+Allow: /
+
+Sitemap: https://guide.visualtastes.com/sitemap.xml

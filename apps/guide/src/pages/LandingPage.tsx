@@ -165,7 +165,8 @@ export default function LandingPage() {
 
   // SEO: esta es una SPA con un único index.html compartido por la landing, /legal y /:slug (la guía real de
   // cada huésped). No hay que pisar el <title> ni la meta description del resto de rutas: se captura el valor
-  // original antes de sobrescribirlo y se restaura al desmontar.
+  // original antes de sobrescribirlo y se restaura al desmontar. El JSON-LD y el HTML que leen los rastreadores
+  // los pone el build en index.html (scripts/prerender-landing.mjs): esto solo cubre la navegación dentro de la app.
   useEffect(() => {
     const prevTitle = document.title;
     const metaDescription = document.querySelector('meta[name="description"]');
@@ -174,37 +175,9 @@ export default function LandingPage() {
     document.title = PAGE_TITLE;
     metaDescription?.setAttribute('content', PAGE_DESCRIPTION);
 
-    const schema = document.createElement('script');
-    schema.type = 'application/ld+json';
-    schema.id = 'landing-schema';
-    schema.textContent = JSON.stringify({
-      '@context': 'https://schema.org',
-      '@graph': [
-        {
-          '@type': 'SoftwareApplication',
-          name: 'VisualTaste Guía',
-          applicationCategory: 'BusinessApplication',
-          operatingSystem: 'Web',
-          description:
-            'Guía digital para alojamientos turísticos: información del alojamiento, mapa de la zona, restaurantes, tienda, conserje con IA y traducción a 13 idiomas.',
-          url: 'https://guide.visualtastes.com/',
-        },
-        {
-          '@type': 'FAQPage',
-          mainEntity: FAQ.map((item) => ({
-            '@type': 'Question',
-            name: item.q,
-            acceptedAnswer: { '@type': 'Answer', text: item.a },
-          })),
-        },
-      ],
-    });
-    document.head.appendChild(schema);
-
     return () => {
       document.title = prevTitle;
       if (prevDescription !== null) metaDescription?.setAttribute('content', prevDescription);
-      document.getElementById('landing-schema')?.remove();
     };
   }, []);
 
