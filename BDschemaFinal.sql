@@ -2,19 +2,17 @@
 -- BDschemaFinal.sql — ESQUEMA REAL DE PRODUCCION
 -- =====================================================
 -- Base de datos D1: restaurant-menu-saas (7e8d1efe-2a54-4849-9a06-4c47152392bd)
--- Exportado el 2026-09-20 desde la BD en produccion, tras aplicar la
--- migracion 0095 (restaurantes traidos de Google):
---   · guide_pois gana cinco columnas: google_types, google_primary_type,
---     business_status, price_level y google_raw. Un restaurante de Google es
---     una fila de guide_pois con category = 'Restaurantes' (la cocina va en
---     subcategory), no una fila de restaurants.
---   · google_raw es el JSON de Place Details SIN fotos ni resenas, en UNA sola
---     columna a proposito: los terminos de Google solo permiten guardar el
---     place_id sin limite, asi que purgarlo es
---     UPDATE guide_pois SET google_raw = NULL (no otra migracion).
--- Antes, 0094 (una sola capa de overrides por apartamento): guide_apartment_items
--- sustituye a guide_apartment_pois y a guide_apartment_item_order.
--- 86 tablas (sin cambios).
+-- Exportado el 2026-09-30 desde la BD en produccion, tras aplicar la
+-- migracion 0096 (presupuesto diario de Workers AI):
+--   · ai_usage_daily (day, scope, neurons, calls): gasto en neuronas REALES
+--     por dia UTC y ambito ('chat', 'translate', 'chat:apt:<id>'). El chat del
+--     guidebook y el traductor comparten el cupo gratis de la cuenta y cortan
+--     antes de llegar a el (workerAiBudget.js). Va en D1 y no en KV porque en
+--     el plan Workers Free KV admite solo 1.000 escrituras/dia para toda la cuenta.
+-- Antes, 0095 (restaurantes traidos de Google): guide_pois gana google_types,
+-- google_primary_type, business_status, price_level y google_raw (JSON de
+-- Place Details SIN fotos ni resenas; purgarlo es UPDATE ... SET google_raw = NULL).
+-- 87 tablas (una mas: ai_usage_daily).
 --
 -- NO editar a mano. Para regenerar:
 --   npx wrangler d1 export restaurant-menu-saas --remote --no-data --output BDschemaFinal.sql
@@ -1256,6 +1254,13 @@ CREATE TABLE guide_apartment_items (
     modified_at      TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     PRIMARY KEY (apartment_id, item_type, item_id),
     FOREIGN KEY (apartment_id) REFERENCES guide_apartments(id) ON DELETE CASCADE
+);
+CREATE TABLE ai_usage_daily (
+    day      TEXT    NOT NULL,
+    scope    TEXT    NOT NULL,
+    neurons  REAL    NOT NULL DEFAULT 0,
+    calls    INTEGER NOT NULL DEFAULT 0,
+    PRIMARY KEY (day, scope)
 );
 CREATE INDEX idx_dishes_restaurant ON dishes(restaurant_id);
 CREATE INDEX idx_sections_restaurant ON sections(restaurant_id);
