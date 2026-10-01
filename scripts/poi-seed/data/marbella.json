@@ -1,0 +1,26 @@
+{
+  "zone": {"id": "zone_marbella", "name": "Marbella", "slug": "marbella", "latitude": 36.5099, "longitude": -4.885, "max_km": 7},
+  "pois": [
+    { "key": "casco-antiguo", "query": "Casco Antiguo de Marbella", "category": "Cultura", "poi_type": "sight", "access_type": "free" },
+    { "key": "plaza-naranjos", "query": "Plaza de los Naranjos, Marbella", "category": "Cultura", "poi_type": "sight", "access_type": "free" },
+    { "key": "iglesia-encarnacion", "query": "Iglesia de Nuestra Señora de la Encarnación, Marbella", "category": "Cultura", "poi_type": "sight", "access_type": "free" },
+    { "key": "murallas-castillo", "query": "Murallas del Castillo, Marbella", "category": "Cultura", "poi_type": "sight", "access_type": "free" },
+    { "key": "capilla-san-juan-dios", "query": "Capilla de San Juan de Dios, Marbella", "category": "Cultura", "poi_type": "sight", "access_type": "free" },
+    { "key": "ermita-santo-cristo", "query": "Ermita del Santo Cristo de la Vera Cruz, Marbella", "category": "Cultura", "poi_type": "sight", "access_type": "free" },
+    { "key": "grabado", "query": "Museo del Grabado Español Contemporáneo, Marbella", "category": "Cultura", "poi_type": "museum", "access_type": "paid", "price_display": "5 €", "price_amount": 5 },
+    { "key": "avenida-del-mar", "query": "Avenida del Mar, Marbella", "category": "Cultura", "poi_type": "sight", "access_type": "free" },
+    { "key": "parque-alameda", "query": "Parque de la Alameda, Marbella", "category": "Naturaleza", "poi_type": "nature", "access_type": "free" },
+    { "key": "parque-constitucion", "query": "Parque de la Constitución, Marbella", "category": "Naturaleza", "poi_type": "nature", "access_type": "free" },
+    { "key": "parque-represa", "query": "Parque Arroyo de la Represa, Marbella", "category": "Naturaleza", "poi_type": "nature", "access_type": "free" },
+    { "key": "cortijo-miraflores", "query": "Centro Cultural Cortijo Miraflores, Marbella", "category": "Cultura", "poi_type": "museum", "access_type": "free" },
+    { "key": "banus", "query": "Puerto Deportivo José Banús", "category": "Compras", "poi_type": "sight", "access_type": "free" },
+    { "key": "ralli", "query": "Museo Ralli Marbella", "category": "Cultura", "poi_type": "museum", "access_type": "free" },
+    { "key": "bulevar-san-pedro", "query": "Bulevar de San Pedro Alcántara", "category": "Cultura", "poi_type": "sight", "access_type": "free", "max_km": 12 },
+    { "key": "villa-romana-rio-verde", "query": "Villa Romana de Río Verde, Marbella", "category": "Cultura", "poi_type": "sight", "access_type": "free" },
+    { "key": "basilica-vega-mar", "query": "Basílica Paleocristiana de Vega del Mar, San Pedro de Alcántara", "category": "Cultura", "poi_type": "sight", "access_type": "free", "max_km": 12 },
+    { "key": "termas-bovedas", "query": "Termas Romanas de Las Bóvedas, San Pedro de Alcántara", "category": "Cultura", "poi_type": "sight", "access_type": "free", "max_km": 12 },
+    { "key": "dunas-artola", "query": "Monumento Natural Dunas de Artola, Cabopino", "category": "Naturaleza", "poi_type": "nature", "access_type": "free", "max_km": 15 },
+    { "key": "la-concha", "query": "Pico La Concha, Sierra Blanca, Marbella", "category": "Naturaleza", "poi_type": "nature", "access_type": "free", "max_km": 12 },
+    { "key": "cruz-juanar", "query": "Cruz de Juanar, Ojén", "category": "Naturaleza", "poi_type": "nature", "access_type": "free", "max_km": 15 }
+  ]
+}

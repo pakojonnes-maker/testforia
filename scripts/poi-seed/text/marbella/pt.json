@@ -1,0 +1,111 @@
+{
+  "_zone": {
+    "name": "Marbella",
+    "description": "Centro histórico branco de ruelas estreitas e vasos de flores, praias longas, o luxo de Puerto Banús e a Sierra Blanca por trás. Nos arredores, villas e termas romanas em San Pedro de Alcántara."
+  },
+  "casco-antiguo": {
+    "name": "Centro histórico de Marbella",
+    "description": "Labirinto de ruelas caiadas com vasos coloridos, pracetas, igrejas e restos da muralha árabe, à volta da Plaza de los Naranjos.",
+    "short_tip": "Perca-se sem mapa: é pequeno e tudo acaba por levar à Plaza de los Naranjos."
+  },
+  "plaza-naranjos": {
+    "name": "Plaza de los Naranjos",
+    "description": "O coração do centro histórico, traçada após a conquista cristã em 1485, com a Câmara Municipal do século XVI, a Casa do Corregedor, a Ermida de Santiago e uma fonte renascentista.",
+    "short_tip": "As esplanadas são caras: beba algo nas ruelas à volta e volte à praça para passear."
+  },
+  "iglesia-encarnacion": {
+    "name": "Igreja da Encarnación",
+    "description": "A igreja principal de Marbella, do século XVII, com um portal barroco de pedra e um grande órgão conhecido como Órgano del Sol Mayor.",
+    "short_tip": "Entrada livre fora das missas. A dois minutos da Plaza de los Naranjos."
+  },
+  "murallas-castillo": {
+    "name": "Muralhas do Castelo",
+    "description": "Restos da muralha e do castelo árabe que protegiam a Marbella medieval, hoje integrados entre as casas do centro histórico.",
+    "short_tip": "O melhor troço fica na calle Trinidad."
+  },
+  "capilla-san-juan-dios": {
+    "name": "Capela de San Juan de Dios",
+    "description": "Antigo Hospital Real da Misericórdia, do século XVI, com uma capela de teto de caixotões mudéjar, uma das joias escondidas do centro histórico.",
+    "short_tip": "Entrada livre quando está aberta. Visita curta."
+  },
+  "ermita-santo-cristo": {
+    "name": "Ermida do Santo Cristo",
+    "description": "Pequena ermida na parte alta do centro histórico, com campanário e teto de caixotões em madeira, numa das praças mais tranquilas de Marbella.",
+    "short_tip": "Recanto pouco visitado: bom para fotos sem gente."
+  },
+  "grabado": {
+    "name": "Museu da Gravura Espanhola Contemporânea",
+    "description": "No antigo Hospital Bazán, do século XVI, reúne gravuras de Picasso, Miró, Dalí, Tàpies e outros grandes artistas espanhóis.",
+    "short_tip": "Em pleno centro histórico. Conte com uma hora."
+  },
+  "avenida-del-mar": {
+    "name": "Avenida del Mar",
+    "description": "Passeio pedonal de mármore entre a Alameda e a praia, com dez esculturas de bronze de Salvador Dalí ao ar livre.",
+    "short_tip": "Grátis e sempre aberta. À noite, com as esculturas iluminadas, fica ainda melhor."
+  },
+  "parque-alameda": {
+    "name": "Parque da Alameda",
+    "description": "Jardim histórico junto ao centro histórico com bancos de azulejos andaluzes, a fonte da Virgen del Rocío e muita sombra.",
+    "short_tip": "Liga o centro histórico à Avenida del Mar e à praia."
+  },
+  "parque-constitucion": {
+    "name": "Parque da Constituição",
+    "description": "Parque frondoso do centro com um auditório ao ar livre onde no verão há concertos e espetáculos.",
+    "short_tip": "Consulte a programação de verão do auditório."
+  },
+  "parque-represa": {
+    "name": "Parque Arroyo de la Represa",
+    "description": "Parque linear ao longo de um ribeiro, a um passo do centro histórico, com lagos, pontes e parques infantis.",
+    "short_tip": "Tranquilo e com sombra: bom passeio com crianças."
+  },
+  "cortijo-miraflores": {
+    "name": "Cortijo Miraflores",
+    "description": "Casa de campo de 1706 que teve engenho de açúcar e lagar de azeite. Hoje é centro cultural com o Museu do Azeite e uma sala arqueológica.",
+    "short_tip": "Entrada gratuita. Costuma ter exposições temporárias."
+  },
+  "banus": {
+    "name": "Puerto Banús",
+    "description": "Marina de luxo inaugurada em 1970, com superiates, lojas de grandes marcas, esplanadas e vida noturna.",
+    "short_tip": "Vá ao pôr do sol ver os iates. Estacionar é caro: melhor de autocarro ou táxi."
+  },
+  "ralli": {
+    "name": "Museu Ralli",
+    "description": "Museu privado de arte contemporânea latino-americana e europeia, com esculturas de Dalí e obras de Miró e Chagall, numa urbanização entre Marbella e Puerto Banús.",
+    "short_tip": "Entrada gratuita. Fechado aos domingos e segundas, e de finais de dezembro a janeiro."
+  },
+  "bulevar-san-pedro": {
+    "name": "Bulevar de San Pedro Alcántara",
+    "description": "Grande passeio ajardinado construído sobre a antiga estrada N-340, com parques infantis, fontes e esplanadas.",
+    "short_tip": "O centro da vida de San Pedro. Ideal com crianças ao fim da tarde."
+  },
+  "villa-romana-rio-verde": {
+    "name": "Villa Romana de Río Verde",
+    "description": "Villa romana dos séculos I e II com um mosaico a preto e branco único que representa utensílios de cozinha romanos.",
+    "short_tip": "Entrada livre. Abre só sextas, sábados, domingos e feriados de manhã."
+  },
+  "basilica-vega-mar": {
+    "name": "Basílica Paleocristã de Vega del Mar",
+    "description": "Restos de uma basílica dos primeiros cristãos, dos séculos IV a VI, com pia batismal e necrópole, entre os pinheiros de San Pedro.",
+    "short_tip": "Entrada livre. Abre só sextas, sábados, domingos e feriados de manhã."
+  },
+  "termas-bovedas": {
+    "name": "Termas Romanas de Las Bóvedas",
+    "description": "Edifício termal romano de planta octogonal, um dos mais bem conservados da costa, junto à praia de Guadalmina.",
+    "short_tip": "Visitas aos fins de semana de manhã; grupos com marcação."
+  },
+  "dunas-artola": {
+    "name": "Dunas de Artola",
+    "description": "Monumento natural com as últimas dunas da Costa del Sol, percorridas por um passadiço de madeira até à torre de vigia de Cabopino.",
+    "short_tip": "Fique no passadiço: pisar as dunas estraga a vegetação."
+  },
+  "la-concha": {
+    "name": "La Concha",
+    "description": "A montanha em forma de concha que domina Marbella, na Sierra Blanca, com vista até África em dias limpos.",
+    "short_tip": "Caminhada exigente de várias horas desde o Refugio de Juanar ou Istán. Saia cedo e leve água."
+  },
+  "cruz-juanar": {
+    "name": "Cruz de Juanar",
+    "description": "Miradouro com uma grande cruz no alto da Sierra Blanca, sobre Marbella e a costa, a que se chega por um trilho entre pinheiros.",
+    "short_tip": "Trilho fácil desde o Refugio de Juanar (Ojén). É comum ver cabras-monteses."
+  }
+}
