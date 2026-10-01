@@ -1,0 +1,26 @@
+{
+  "_zone": {
+    "name": "Torrox",
+    "description": "Zwei Gesichter in einer Gemeinde: Torrox Costa mit langen Stränden und lebhafter Promenade und das weiße, maurische Torrox-Dorf zwischen Avocadohügeln. Es rühmt sich, das beste Klima Europas zu haben."
+  },
+  "faro-torrox": {
+    "name": "Leuchtturm von Torrox und römische Villa Caviclum",
+    "description": "Neben dem Leuchtturm liegen die Reste einer römischen Villa mit Thermen, Fischpökelanlage und Töpferei. Das Besucherzentrum erklärt das römische Caviclum.",
+    "short_tip": "Eintritt frei. Sonntags und montags geschlossen."
+  },
+  "torrox-pueblo": {
+    "name": "Torrox-Dorf",
+    "description": "Ein weißes Dorf maurischen Ursprungs am Hang, mit engen Gassen, die von der Plaza de la Constitución hinaufführen, umgeben von Avocado- und Mangoplantagen.",
+    "short_tip": "Am besten zu Fuß: unten parken und hinaufgehen. Im Dezember feiert es sein berühmtes Migas-Fest."
+  },
+  "iglesia-encarnacion": {
+    "name": "Kirche La Encarnación",
+    "description": "Kirche vom Anfang des 16. Jahrhunderts, über der alten Hauptmoschee errichtet, mit einem Turm, der das Dorf überragt.",
+    "short_tip": "Zu den Gottesdienstzeiten geöffnet."
+  },
+  "ermita-nieves": {
+    "name": "Kloster Las Nieves",
+    "description": "Ehemaliges Kloster aus dem 16. Jahrhundert im Mudéjar-Stil am Ortseingang, dessen Kreuzgang besichtigt werden kann.",
+    "short_tip": "Zu den Gottesdienstzeiten geöffnet."
+  }
+}

@@ -1,0 +1,26 @@
+{
+  "_zone": {
+    "name": "Torrox",
+    "description": "Dues cares en un mateix municipi: Torrox Costa, amb platges llargues i un passeig marítim animat, i Torrox poble, blanc i morisc entre turons d'alvocats. Presumeix del millor clima d'Europa."
+  },
+  "faro-torrox": {
+    "name": "Far de Torrox i vil·la romana de Caviclum",
+    "description": "Al costat del far, les restes d'una vil·la romana amb termes, factoria de salaons i terrisseria. El centre d'interpretació explica com era la Caviclum romana.",
+    "short_tip": "Entrada gratuïta. Tancat diumenges i dilluns."
+  },
+  "torrox-pueblo": {
+    "name": "Torrox poble",
+    "description": "Poble blanc d'origen àrab al turó, amb carrers estrets que pugen des de la Plaza de la Constitución, envoltat d'horts d'alvocats i mangos.",
+    "short_tip": "Millor a peu: aparca a baix i puja. Al desembre celebra la seva famosa Festa de les Migas."
+  },
+  "iglesia-encarnacion": {
+    "name": "Església de l'Encarnación",
+    "description": "Temple de principis del segle XVI aixecat sobre l'antiga mesquita major, amb una torre que domina el poble.",
+    "short_tip": "Es visita en horari de culte."
+  },
+  "ermita-nieves": {
+    "name": "Convent de las Nieves",
+    "description": "Antic convent del segle XVI d'arquitectura mudèjar, a l'entrada del poble, del qual es visita el claustre.",
+    "short_tip": "Es visita en horari de culte."
+  }
+}

@@ -1,0 +1,128 @@
+{
+  "poi_malaga_alcazaba": { "short_tip": "Gratis los domingos desde las 14 h. Entrada conjunta con Gibralfaro: 10 €." },
+  "poi_malaga_gibralfaro": { "short_tip": "Gratis los domingos desde las 14 h. Se sube a pie desde la Alcazaba o en el bus 35." },
+  "poi_malaga_catedral": { "short_tip": "Audioguía incluida. Las cubiertas se visitan aparte, con hora reservada." },
+  "poi_malaga_museo_picasso": { "short_tip": "Gratis los domingos en las dos últimas horas. En temporada alta, reserva hora." },
+  "poi_malaga_thyssen": { "short_tip": "Gratis los domingos desde las 16 h." },
+  "poi_malaga_pompidou": { "short_tip": "Gratis los domingos desde las 16 h. Es el cubo de colores del Muelle Uno." },
+  "poi_malaga_museo_automovilistico": { "short_tip": "En la antigua Tabacalera, junto a la Colección del Museo Ruso." },
+  "poi_malaga_casa_natal_picasso": { "short_tip": "En la Plaza de la Merced. Visita corta, de unos 45 minutos." },
+  "poi_malaga_concepcion": { "short_tip": "Gratis los domingos. Está a las afueras, al norte: mejor en coche o taxi." },
+  "poi_malaga_cementerio_ingles": { "short_tip": "Cerrado los lunes. A 15 minutos a pie del centro, junto a la Malagueta." },
+
+  "museo-vidrio": {
+    "name": "Museo del Vidrio y Cristal",
+    "description": "Casa del siglo XVIII en el barrio de San Felipe Neri con más de 3.000 piezas de vidrio, de la Antigüedad al siglo XX, ambientadas como una vivienda de época.",
+    "short_tip": "La visita es guiada y está incluida en la entrada."
+  },
+  "museo-ruso": {
+    "name": "Colección del Museo Ruso",
+    "description": "En la antigua Fábrica de Tabacos, este centro municipal expone pintura rusa de los siglos XVI al XX y acoge exposiciones temporales en su espacio MEET.",
+    "short_tip": "Entrada combinada con la exposición temporal: 8 €."
+  },
+  "oxo": {
+    "name": "OXO Museo del Videojuego",
+    "description": "Museo interactivo sobre la historia del videojuego: decenas de máquinas y consolas, la mayoría jugables, de los arcades clásicos a la realidad virtual.",
+    "short_tip": "Ideal con niños o en un día de lluvia. Calcula al menos dos horas."
+  },
+  "museo-malaga": {
+    "name": "Museo de Málaga",
+    "description": "En el Palacio de la Aduana, reúne bellas artes y arqueología: de fenicios y romanos a la pintura malagueña del siglo XIX. Es uno de los mayores museos de España.",
+    "short_tip": "Gratis para ciudadanos de la UE con documento; 1,50 € para el resto."
+  },
+  "artes-costumbres": {
+    "name": "Museo de Artes y Costumbres Populares",
+    "description": "En un mesón del siglo XVII junto al río Guadalmedina, recrea la vida cotidiana de la Málaga de los siglos XVIII y XIX: almazara, bodega, cocina y oficios.",
+    "short_tip": "Visita de una hora, a dos pasos del Mercado de Atarazanas."
+  },
+  "revello-toro": {
+    "name": "Museo Revello de Toro",
+    "description": "En la casa-taller del escultor barroco Pedro de Mena, del siglo XVII, expone la obra del retratista malagueño Félix Revello de Toro.",
+    "short_tip": "Gratis los domingos. Tiene un patio andaluz muy bien conservado."
+  },
+  "mimma": {
+    "name": "Museo Interactivo de la Música (MIMMA)",
+    "description": "Más de mil instrumentos de todo el mundo, muchos de ellos para tocar: el lema del museo es «se ruega tocar».",
+    "short_tip": "Muy recomendable con niños. En pleno centro histórico."
+  },
+  "museo-vino": {
+    "name": "Museo del Vino",
+    "description": "En un palacio del siglo XVIII, cuenta la historia de los vinos de Málaga, del dulce moscatel a los de la Serranía de Ronda, con etiquetas y carteles antiguos.",
+    "short_tip": "La entrada incluye la cata de dos vinos de Málaga."
+  },
+  "pena-juan-breva": {
+    "name": "Museo de Arte Flamenco (Peña Juan Breva)",
+    "description": "La peña flamenca más antigua de Málaga guarda una colección única de guitarras, discos de pizarra, carteles y trajes del cante jondo.",
+    "short_tip": "La peña organiza recitales: consulta su programación."
+  },
+  "jorge-rando": {
+    "name": "Museo Jorge Rando",
+    "description": "Dedicado al pintor malagueño Jorge Rando y al expresionismo, en un edificio que comparte muros con el convento de las Mercedarias.",
+    "short_tip": "Entrada gratuita. Tranquilo y poco conocido, a diez minutos a pie del centro."
+  },
+  "mucac": {
+    "name": "MuCAC Málaga (La Coracha)",
+    "description": "El museo municipal de arte contemporáneo, nacido en 2024 de la unión del antiguo CAC y del Museo del Patrimonio Municipal. Su sede de La Coracha, al pie de Gibralfaro, reúne colección y exposiciones temporales.",
+    "short_tip": "Entrada gratuita. Cerrado los lunes."
+  },
+  "museo-aeronautico": {
+    "name": "Museo Aeronáutico de Málaga",
+    "description": "Junto al aeropuerto, en su antigua terminal, recorre la historia de la aviación en Málaga con aviones, maquetas y uniformes.",
+    "short_tip": "Entrada gratuita. Encaja bien el día del vuelo si te sobra tiempo."
+  },
+  "parque-malaga": {
+    "name": "Parque de Málaga",
+    "description": "Jardín botánico urbano de finales del siglo XIX entre el puerto y el centro, con especies tropicales de los cinco continentes, fuentes y esculturas.",
+    "short_tip": "Sombra asegurada en verano. Une la Plaza de la Marina con la Malagueta."
+  },
+  "jardines-pedro-luis-alonso": {
+    "name": "Jardines de Pedro Luis Alonso",
+    "description": "Jardín de estilo hispanomusulmán junto al Ayuntamiento, con setos recortados, fuentes y rosales, a los pies de la Alcazaba.",
+    "short_tip": "Muy fotogénico. Al lado empiezan los Jardines de Puerta Oscura, que suben hacia Gibralfaro."
+  },
+  "la-farola": {
+    "name": "La Farola",
+    "description": "El faro del puerto, de 1817, uno de los pocos de España con nombre femenino. Marca el inicio del paseo de la Malagueta.",
+    "short_tip": "Se ve por fuera. Precioso al atardecer desde el Muelle Uno."
+  },
+  "plaza-obispo": {
+    "name": "Plaza del Obispo y Palacio Episcopal",
+    "description": "Frente a la fachada principal de la Catedral, la cierra el Palacio Episcopal, de fachada barroca del siglo XVIII, que acoge exposiciones temporales.",
+    "short_tip": "La mejor vista de la fachada de la Catedral, con terrazas alrededor."
+  },
+  "iglesia-martires": {
+    "name": "Iglesia de los Santos Mártires",
+    "description": "Fundada tras la conquista cristiana en 1487 y reformada en el barroco, con un interior lleno de dorados y varias cofradías de Semana Santa.",
+    "short_tip": "Entrada libre fuera de misa. A dos minutos de calle Larios."
+  },
+  "iglesia-santiago": {
+    "name": "Iglesia de Santiago",
+    "description": "Una de las parroquias fundadas por los Reyes Católicos en 1490, con torre mudéjar. Aquí fue bautizado Picasso en 1881.",
+    "short_tip": "Entrada libre. En calle Granada, camino de la Plaza de la Merced."
+  },
+  "iglesia-san-juan": {
+    "name": "Iglesia de San Juan",
+    "description": "Otra de las parroquias fundadas en 1490, reconstruida en el siglo XVIII, con su torre-pórtico sobre la calle San Juan.",
+    "short_tip": "Entrada libre. En una calle peatonal llena de tiendas y bares."
+  },
+  "sagrado-corazon": {
+    "name": "Iglesia del Sagrado Corazón",
+    "description": "El único templo neogótico de la ciudad, de 1920, con una fachada de agujas que recuerda a las catedrales del norte de Europa.",
+    "short_tip": "Entrada libre. En pleno centro histórico."
+  },
+  "pedregalejo": {
+    "name": "Pedregalejo",
+    "description": "Antiguo barrio de pescadores al este de la ciudad, con casas bajas frente al mar, pequeñas playas entre espigones y la tradición de los espetos de sardinas.",
+    "short_tip": "Llega a pie por el paseo marítimo o en el bus 11 desde el Paseo del Parque."
+  },
+  "guadalhorce": {
+    "name": "Desembocadura del Guadalhorce",
+    "description": "Paraje natural junto al aeropuerto donde el río forma lagunas: más de 260 especies de aves, con observatorios de libre acceso.",
+    "short_tip": "Entrada gratuita. Lleva prismáticos y ve a primera hora."
+  },
+  "montes-malaga": {
+    "name": "Parque Natural Montes de Málaga",
+    "description": "Pinares y senderos a 15 minutos del centro en coche, con miradores sobre la bahía y ventas tradicionales donde comer el plato de los montes.",
+    "short_tip": "Mejor en coche. Lleva agua: en verano hace calor y hay pocas fuentes."
+  }
+}

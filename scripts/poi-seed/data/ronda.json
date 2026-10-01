@@ -1,0 +1,32 @@
+{
+  "zone": {"id": "zone_ronda", "create": true, "name": "Ronda", "slug": "ronda", "region": "Costa del Sol", "country": "ES", "latitude": 36.7423, "longitude": -5.1671, "max_km": 4},
+  "pois": [
+    { "key": "puente-nuevo", "category": "Cultura", "poi_type": "sight", "access_type": "free", "place_id": "ChIJVWnnfgAxDQ0Rg8NXWLl7PwQ" },
+    { "key": "tajo", "query": "Tajo de Ronda", "category": "Naturaleza", "poi_type": "nature", "access_type": "free" },
+    { "key": "mirador-camino-molinos", "query": "Mirador del Puente Nuevo, Camino de los Molinos, Ronda", "category": "Naturaleza", "poi_type": "sight", "access_type": "free" },
+    { "key": "centro-interpretacion-puente", "query": "Centro de Interpretación del Puente Nuevo, Ronda", "category": "Cultura", "poi_type": "museum", "access_type": "paid", "price_display": "2,50 €", "price_amount": 2.5 },
+    { "key": "plaza-toros", "query": "Plaza de Toros de la Real Maestranza de Caballería de Ronda", "category": "Cultura", "poi_type": "museum", "access_type": "paid", "price_display": "10 €", "price_amount": 10 },
+    { "key": "casa-rey-moro", "query": "Jardines y Mina de la Casa del Rey Moro, Ronda", "category": "Cultura", "poi_type": "attraction", "access_type": "paid", "price_display": "10 €", "price_amount": 10 },
+    { "key": "banos-arabes", "query": "Baños Árabes de Ronda", "category": "Cultura", "poi_type": "attraction", "access_type": "paid", "price_display": "4,50 €", "price_amount": 4.5 },
+    { "key": "palacio-mondragon", "query": "Palacio de Mondragón, Museo Municipal de Ronda", "category": "Cultura", "poi_type": "museum", "access_type": "paid", "price_display": "5 €", "price_amount": 5 },
+    { "key": "santa-maria-mayor", "query": "Iglesia de Santa María la Mayor, Ronda", "category": "Cultura", "poi_type": "sight", "access_type": "paid", "price_display": "4,50 €", "price_amount": 4.5 },
+    { "key": "museo-lara", "query": "Casa Palacio Museo Lara, Ronda", "category": "Cultura", "poi_type": "museum", "access_type": "paid", "price_display": "4 €", "price_amount": 4 },
+    { "key": "museo-joaquin-peinado", "query": "Museo Joaquín Peinado, Ronda", "category": "Cultura", "poi_type": "museum", "access_type": "paid", "price_display": "4 €", "price_amount": 4 },
+    { "key": "casa-gigante", "query": "Casa del Gigante, Ronda", "category": "Cultura", "poi_type": "sight", "access_type": "paid", "price_display": "2,50 €", "price_amount": 2.5 },
+    { "key": "casa-don-bosco", "query": "Casa Museo Don Bosco, Ronda", "category": "Cultura", "poi_type": "museum", "access_type": "paid", "price_display": "2,50 €", "price_amount": 2.5 },
+    { "key": "espiritu-santo", "query": "Iglesia del Espíritu Santo, Ronda", "category": "Cultura", "poi_type": "sight", "access_type": "paid", "price_display": "1 €", "price_amount": 1 },
+    { "key": "cueva-pileta", "query": "Cueva de la Pileta, Benaoján", "category": "Naturaleza", "poi_type": "attraction", "access_type": "paid", "price_display": "10 €", "price_amount": 10, "max_km": 25 },
+    { "key": "reservatauro", "query": "Reservatauro Ronda", "category": "Actividades", "poi_type": "experience", "access_type": "paid", "max_km": 15 },
+    { "key": "puente-viejo", "query": "Puente Viejo, Ronda", "category": "Cultura", "poi_type": "sight", "access_type": "free" },
+    { "key": "puente-romano", "query": "Puente Romano o de San Miguel, Ronda", "category": "Cultura", "poi_type": "sight", "access_type": "free" },
+    { "key": "alameda-tajo", "query": "Alameda del Tajo, Ronda", "category": "Naturaleza", "poi_type": "sight", "access_type": "free" },
+    { "key": "mirador-aldehuela", "query": "Mirador de Aldehuela, Ronda", "category": "Naturaleza", "poi_type": "sight", "access_type": "free" },
+    { "key": "jardines-cuenca", "query": "Jardines de Cuenca, Ronda", "category": "Naturaleza", "poi_type": "nature", "access_type": "free" },
+    { "key": "paseo-blas-infante", "query": "Paseo de Blas Infante, Ronda", "category": "Naturaleza", "poi_type": "sight", "access_type": "free" },
+    { "key": "puerta-almocabar", "query": "Puerta de Almocábar, Ronda", "category": "Cultura", "poi_type": "sight", "access_type": "free" },
+    { "key": "plaza-duquesa-parcent", "query": "Plaza Duquesa de Parcent, Ronda", "category": "Cultura", "poi_type": "sight", "access_type": "free" },
+    { "key": "plaza-socorro", "query": "Plaza del Socorro, Ronda", "category": "Cultura", "poi_type": "sight", "access_type": "free" },
+    { "key": "virgen-paz", "query": "Santuario de María Auxiliadora y Virgen de la Paz, Plaza Beato Diego José de Cádiz, Ronda", "category": "Cultura", "poi_type": "sight", "access_type": "free" },
+    { "key": "convento-merced", "query": "Convento de la Merced Carmelitas Descalzas, Ronda", "category": "Cultura", "poi_type": "sight", "access_type": "free" }
+  ]
+}

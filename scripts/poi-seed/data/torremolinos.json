@@ -1,0 +1,19 @@
+{
+  "zone": {"id": "zone_torremolinos", "name": "Torremolinos", "slug": "torremolinos", "latitude": 36.6236, "longitude": -4.4998, "max_km": 6},
+  "pois": [
+    { "id": "poi_torremolinos_molino_inca", "query": "Jardín Botánico Molino de Inca, Torremolinos", "set": {"access_type": "paid", "price_display": "3 €", "price_amount": 3} },
+    { "id": "poi_torremolinos_cocodrilos", "query": "Crocodile Park Torremolinos", "set": {"price_display": "18,90 €", "price_amount": 18.9} },
+    { "id": "poi_torremolinos_aqualand", "query": "Aqualand Torremolinos", "set": {"price_display": "26 €", "price_amount": 26} },
+    { "id": "poi_torremolinos_bateria", "query": "Parque de la Batería, Torremolinos" },
+    { "id": "poi_msb1rniw_077bzs" },
+    { "id": "poi_torremolinos_torre_pimentel", "query": "Torre de Pimentel, Torremolinos" },
+    { "id": "poi_torremolinos_carihuela", "query": "La Carihuela, Torremolinos" },
+    { "id": "poi_torremolinos_san_miguel", "query": "Calle San Miguel, Torremolinos" },
+    { "id": "poi_torremolinos_cuesta_tajo", "query": "Cuesta del Tajo, Torremolinos" },
+    { "id": "poi_torremolinos_bajondillo", "query": "Playa del Bajondillo, Torremolinos" },
+    { "key": "iglesia-san-miguel", "query": "Parroquia de San Miguel Arcángel, Torremolinos", "category": "Cultura", "poi_type": "sight", "access_type": "free" },
+    { "key": "centro-cultural-picasso", "query": "Centro Cultural Pablo Ruiz Picasso, Torremolinos", "category": "Cultura", "poi_type": "museum", "access_type": "free" },
+    { "key": "mirador-canada-lobo", "query": "Mirador de la Cañada del Lobo, Torremolinos", "category": "Naturaleza", "poi_type": "sight", "access_type": "free" },
+    { "key": "el-morro", "query": "Punta de Torremolinos El Morro", "category": "Naturaleza", "poi_type": "sight", "access_type": "free" }
+  ]
+}

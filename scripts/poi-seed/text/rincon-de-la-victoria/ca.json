@@ -1,0 +1,46 @@
+{
+  "_zone": {
+    "name": "Rincón de la Victoria",
+    "description": "Poble mariner a tocar de Màlaga, famós pels seus seitons i per la Cueva del Tesoro, una de les poques coves marines visitables del món. Nou quilòmetres de platges, túnels de l'antic tren i una vil·la romana amb mosaics."
+  },
+  "cueva-tesoro": {
+    "name": "Cova del Tresor",
+    "description": "Una de les poques coves d'origen marí visitables del món, amb restes prehistòriques i la llegenda d'un tresor almoràvit amagat al segle XII.",
+    "short_tip": "Gratuïta entre setmana al primer torn del matí, amb reserva. Calçat còmode: hi ha escales."
+  },
+  "cueva-victoria": {
+    "name": "Cova de la Victoria",
+    "description": "Cova al costat de la del Tresor amb pintures rupestres esquemàtiques i restes d'ocupació prehistòrica, que només es visita amb guia.",
+    "short_tip": "Només amb visita guiada i reserva prèvia."
+  },
+  "villa-antiopa": {
+    "name": "Villa Antiopa",
+    "description": "Vil·la romana del segle III, de les més ben conservades d'Andalusia, amb mosaics com el d'Antíope seduïda per Zeus disfressat de sàtir.",
+    "short_tip": "Gratuïta els dilluns amb reserva prèvia. Hi ha audioguia per al mòbil."
+  },
+  "casa-fuerte-bezmiliana": {
+    "name": "Casa Forta de Bezmiliana",
+    "description": "Fortí manat construir per Carles III el 1766 per defensar la costa dels pirates. Avui és sala d'exposicions i oficina de turisme.",
+    "short_tip": "Entrada lliure. Pregunta aquí per les visites a les coves."
+  },
+  "tuneles-cantal": {
+    "name": "Túnels del Cantal",
+    "description": "Túnels oberts el 1908 per al tren de Màlaga a Vélez, avui part del passeig marítim, sota els penya-segats del Cantal i la seva torre de guaita medieval.",
+    "short_tip": "Es recorren a peu o en bici. Molt agradables a l'estiu per l'ombra."
+  },
+  "santuario-carmen": {
+    "name": "Santuari de la Virgen del Carmen",
+    "description": "Santuari mariner de La Cala del Moral dedicat a la patrona dels pescadors, que cada juliol surt en processó fins al mar.",
+    "short_tip": "Entrada lliure. Si hi ets el 16 de juliol, no et perdis la processó marinera."
+  },
+  "iglesia-victoria": {
+    "name": "Església de Nostra Senyora de la Victòria",
+    "description": "Parròquia principal de Rincón de la Victoria, al centre del poble, a pocs passos del passeig marítim.",
+    "short_tip": "Entrada lliure fora de l'horari de missa."
+  },
+  "benagalbon": {
+    "name": "Benagalbón",
+    "description": "El nucli d'interior del municipi: un poble blanc als turons, amb la seva església i un petit Museu d'Arts Populars.",
+    "short_tip": "Bon contrast amb la costa, a 10 minuts en cotxe."
+  }
+}

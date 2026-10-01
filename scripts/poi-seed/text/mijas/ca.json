@@ -1,0 +1,40 @@
+{
+  "poi_mijas_cac": {
+    "description": "Col·lecció permanent amb obres originals de Picasso, Dalí i Miró, sobretot ceràmica de Picasso. Sorprenent per a un poble d'aquesta mida.",
+    "short_tip": "Visita d'uns 45 minuts. Imprescindible encara que no siguis de museus."
+  },
+  "poi_mijas_plaza_toros": {
+    "short_tip": "Una de les poques places de toros quadrades. Inclou un petit museu taurí."
+  },
+  "poi_mijas_carromato": {
+    "short_tip": "Museu de rareses: el Sant Sopar en un gra d'arròs o puces vestides."
+  },
+  "museo-historico": {
+    "name": "Museu Històric-Etnològic",
+    "description": "A l'antic Ajuntament, recrea la vida tradicional de Mijas: molí d'oli, celler, cuina, eines del camp i l'amagatall on «el Talp de Mijas» va viure 30 anys.",
+    "short_tip": "Visita curta i a un preu gairebé simbòlic. A la Plaza de la Libertad."
+  },
+  "iglesia-inmaculada": {
+    "name": "Església de la Immaculada Concepció",
+    "description": "Església del segle XVI aixecada sobre l'antiga mesquita, tocant a la muralla, amb una torre d'origen medieval.",
+    "short_tip": "Just al darrere hi ha els jardins de la Muralla i les seves vistes."
+  },
+  "ermita-calvario": {
+    "name": "Ermita del Calvari",
+    "description": "Petita ermita del segle XVIII a la muntanya, on s'arriba per un camí de pins amb les estacions del Via Crucis. Vistes sobre tota la costa.",
+    "short_tip": "Uns 30 minuts de pujada des del poble. Porta aigua."
+  },
+  "calle-san-sebastian": {
+    "name": "Calle San Sebastián",
+    "description": "Carrer costerut de cases emblanquinades amb testos a les façanes i la petita ermita de San Sebastián al fons. La imatge més fotografiada de Mijas.",
+    "short_tip": "Vés-hi d'hora per fer fotos sense gent."
+  },
+  "donkey-dreamland": {
+    "name": "Donkey Dreamland",
+    "description": "Santuari que rescata ases i mules abandonats o maltractats. Els voluntaris ensenyen el refugi i expliquen la història de cada animal.",
+    "short_tip": "Entrada lliure amb donatiu. Consulta els dies de visita abans d'anar-hi."
+  },
+  "poi_mijas_burro_taxi": {
+    "short_tip": "Alguns visitants tenen dubtes sobre el benestar dels animals: valora-ho abans de pujar-hi."
+  }
+}

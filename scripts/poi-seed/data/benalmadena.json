@@ -1,0 +1,24 @@
+{
+  "zone": {"id": "zone_benalmadena", "name": "Benalmádena", "slug": "benalmadena", "latitude": 36.5988, "longitude": -4.5164, "max_km": 6},
+  "pois": [
+    { "id": "poi_benalmadena_teleferico", "query": "Teleférico Benalmádena", "set": {"category": "Actividades", "price_display": "23,90 €", "price_amount": 23.9} },
+    { "id": "poi_mubz2l7a_dc0x28", "set": {"access_type": "paid", "poi_type": "attraction"} },
+    { "id": "poi_mubz2mqg_py03or", "set": {"access_type": "paid", "poi_type": "attraction"} },
+    { "id": "poi_mubz2j8b_dm8c8t", "set": {"access_type": "paid", "poi_type": "attraction"} },
+    { "id": "poi_mubz2iph_biiuod", "set": {"category": "Cultura", "access_type": "paid", "price_display": "3 €", "price_amount": 3} },
+    { "id": "poi_mubz2izo_jirste", "set": {"category": "Cultura"} },
+    { "id": "poi_mubz2jf8_k9tk83", "set": {"poi_type": "museum"} },
+    { "id": "poi_mubz2jp9_0ify2g", "set": {"poi_type": "museum"} },
+    { "id": "poi_mubz2k0o_b0qi5w" },
+    { "id": "poi_mubz2k95_4eni0z" },
+    { "id": "poi_mubz2khr_lhg491", "set": {"category": "Cultura"} },
+    { "id": "poi_mubz2kqb_6pwjme", "set": {"poi_type": "nature"} },
+    { "id": "poi_mubz2lft_rfy382", "set": {"poi_type": "nature"} },
+    { "id": "poi_mubz2loo_dsnwmv" },
+    { "id": "poi_mubz2m5i_629of3" },
+    { "id": "poi_mubz2n0p_dxuukc", "set": {"category": "Cultura"} },
+    { "id": "poi_mubz2n83_sub71a", "set": {"category": "Cultura"} },
+    { "id": "poi_mt0qfcfn_r5wfmx", "set": {"category": "Cultura"} },
+    { "id": "poi_mtybk2re_h1jmd9" }
+  ]
+}

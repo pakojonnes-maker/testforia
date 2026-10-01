@@ -1,0 +1,46 @@
+{
+  "_zone": {
+    "name": "Rincón de la Victoria",
+    "description": "Vila piscatória mesmo ao lado de Málaga, famosa pelos seus biqueirões e pela Cueva del Tesoro, uma das poucas grutas marinhas visitáveis do mundo. Nove quilómetros de praias, túneis do antigo comboio e uma villa romana com mosaicos."
+  },
+  "cueva-tesoro": {
+    "name": "Gruta do Tesouro",
+    "description": "Uma das poucas grutas de origem marinha visitáveis no mundo, com vestígios pré-históricos e a lenda de um tesouro almorávida escondido no século XII.",
+    "short_tip": "Grátis nos dias úteis no primeiro horário da manhã, com reserva. Calçado confortável: há escadas."
+  },
+  "cueva-victoria": {
+    "name": "Gruta da Victoria",
+    "description": "Gruta junto à do Tesouro com pinturas rupestres esquemáticas e vestígios de ocupação pré-histórica, que só se visita com guia.",
+    "short_tip": "Só com visita guiada e reserva prévia."
+  },
+  "villa-antiopa": {
+    "name": "Villa Antiopa",
+    "description": "Villa romana do século III, das mais bem conservadas da Andaluzia, com mosaicos como o de Antíope seduzida por Zeus disfarçado de sátiro.",
+    "short_tip": "Grátis às segundas com reserva. Há audioguia para o telemóvel."
+  },
+  "casa-fuerte-bezmiliana": {
+    "name": "Casa-Forte de Bezmiliana",
+    "description": "Fortim mandado construir por Carlos III em 1766 para defender a costa dos piratas. Hoje é sala de exposições e posto de turismo.",
+    "short_tip": "Entrada livre. Pergunte aqui pelas visitas às grutas."
+  },
+  "tuneles-cantal": {
+    "name": "Túneis de El Cantal",
+    "description": "Túneis abertos em 1908 para o comboio Málaga–Vélez, hoje parte do passeio marítimo, sob as falésias de El Cantal e a sua torre de vigia medieval.",
+    "short_tip": "Percorrem-se a pé ou de bicicleta. Muito agradáveis no verão pela sombra."
+  },
+  "santuario-carmen": {
+    "name": "Santuário da Virgen del Carmen",
+    "description": "Santuário marinheiro de La Cala del Moral dedicado à padroeira dos pescadores, levada em procissão até ao mar todos os meses de julho.",
+    "short_tip": "Entrada livre. Se estiver cá a 16 de julho, não perca a procissão marítima."
+  },
+  "iglesia-victoria": {
+    "name": "Igreja de Nossa Senhora da Vitória",
+    "description": "A igreja paroquial principal de Rincón de la Victoria, no centro da vila, a poucos passos do passeio marítimo.",
+    "short_tip": "Entrada livre fora das missas."
+  },
+  "benagalbon": {
+    "name": "Benagalbón",
+    "description": "A parte do interior do concelho: uma aldeia branca nas colinas, com a sua igreja e um pequeno Museu de Artes Populares.",
+    "short_tip": "Um bom contraste com a costa, a 10 minutos de carro."
+  }
+}

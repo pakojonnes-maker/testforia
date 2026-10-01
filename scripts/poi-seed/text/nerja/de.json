@@ -1,0 +1,62 @@
+{
+  "poi_balcon": {
+    "name": "Balcón de Europa",
+    "description": "Der berühmteste Aussichtspunkt der Costa del Sol: eine Palmenpromenade auf einer Landzunge über dem Mittelmeer, mit Buchten darunter und der Sierra de Almijara im Rücken.",
+    "short_tip": "Bei Sonnenuntergang oder früh morgens kommen, dann ist weniger los. Neben der Kirche El Salvador."
+  },
+  "poi_cuevas": {
+    "name": "Höhle von Nerja",
+    "description": "Eine riesige Höhle, 1959 von fünf Jungen aus dem Ort entdeckt, mit gewaltigen Sälen, Tropfsteinsäulen und prähistorischen Malereien. Im Sommer findet hier ein Musik- und Tanzfestival statt.",
+    "short_tip": "Das Ticket enthält das Museum von Nerja. Kostenlose Besichtigung Montag bis Freitag um 9:15 Uhr, mit Reservierung, 60 Plätze."
+  },
+  "poi_burriana": {
+    "name": "Strand Burriana",
+    "description": "Der beliebteste Strand von Nerja: dunkler Sand, ruhiges Wasser, eine Promenade voller Strandbars und Wassersport.",
+    "short_tip": "Die Paella bei Ayo probieren, ein Klassiker am Strand."
+  },
+  "iglesia-salvador": {
+    "name": "Kirche El Salvador",
+    "description": "Weiße Kirche aus dem 17. Jahrhundert neben dem Balcón de Europa, mit Mudéjar-Kassettendecke und einem Wandbild der Verkündigung von Francisco Hernández.",
+    "short_tip": "Eintritt frei. Direkt am Zugang zum Balcón de Europa."
+  },
+  "ermita-angustias": {
+    "name": "Einsiedelei Las Angustias",
+    "description": "Kleine Einsiedelei aus dem 18. Jahrhundert, deren Kuppel mit Fresken der Passion bemalt ist, eine der schönsten der Axarquía.",
+    "short_tip": "Kurze Öffnungszeiten: Ist sie geschlossen, lohnt die weiß gekalkte Fassade ein Foto."
+  },
+  "museo-nerja": {
+    "name": "Museum von Nerja",
+    "description": "An der Plaza de España erzählt es die Geschichte des Ortes seit der Vorgeschichte, mit den Funden aus der Höhle von Nerja als Hauptattraktion.",
+    "short_tip": "Im Ticket der Höhle von Nerja enthalten; einzeln 5 €."
+  },
+  "verano-azul": {
+    "name": "Park Verano Azul",
+    "description": "Ein Park, der der in Nerja gedrehten Kult-Fernsehserie gewidmet ist, mit „La Dorada“, dem Boot von Chanquete, im Mittelpunkt.",
+    "short_tip": "Für spanische Besucher ein Muss. Mit Kinderspielplatz."
+  },
+  "detunda": {
+    "name": "Botanischer Garten Detunda",
+    "description": "Neben der Höhle von Nerja vereint er über 200 Arten aus den Bergen von Málaga und Granada, mit traditionellen Anbauten und Küstenblick.",
+    "short_tip": "Eintritt frei. Mit dem Höhlenbesuch verbinden."
+  },
+  "maro": {
+    "name": "Maro",
+    "description": "Kleines weißes Dorf von Nerja auf den Klippen, mit Terrassengärten, der Kirche Las Maravillas und Wegen hinunter zu ruhigen Buchten.",
+    "short_tip": "Von hier geht es zum Strand von Maro hinunter: ideal zum Kajakfahren und Schnorcheln."
+  },
+  "acueducto-aguila": {
+    "name": "Adler-Aquädukt",
+    "description": "Ziegelaquädukt aus dem 19. Jahrhundert mit vier Bogenreihen, gebaut, um eine Zuckerfabrik mit Wasser zu versorgen. Von der Straße nach Maro aus zu sehen.",
+    "short_tip": "Nur von außen; am Aussichtspunkt an der alten Straße anhalten."
+  },
+  "acantilados-maro": {
+    "name": "Klippen von Maro-Cerro Gordo",
+    "description": "Naturgebiet mit Klippen und Buchten zwischen Nerja und La Herradura, mit Wachtürmen und sehr reichem Meeresgrund.",
+    "short_tip": "Am schönsten vom Meer aus mit dem Kajak oder über die Pfade hinunter zu den Buchten."
+  },
+  "frigiliana": {
+    "name": "Frigiliana",
+    "description": "Eines der schönsten Dörfer Spaniens, 7 km von Nerja: steile Gassen mit weißen Häusern, ein maurisches Viertel und Keramiktafeln, die seine Geschichte erzählen.",
+    "short_tip": "Am Ortseingang parken und zu Fuß durch das maurische Viertel hinauf. Den Zuckerrohrhonig probieren."
+  }
+}

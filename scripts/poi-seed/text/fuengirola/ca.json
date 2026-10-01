@@ -1,0 +1,28 @@
+{
+  "poi_fuengirola_bioparc": { "short_tip": "Compta mig dia. Gairebé tot el recorregut és a l'ombra." },
+  "snakeroom": {
+    "name": "Snakeroom Serpentarium",
+    "description": "Centre de divulgació amb serps, rèptils, amfibis i insectes de tot el món. La visita és guiada i permet tocar alguns animals.",
+    "short_tip": "Visita guiada d'una hora en grups reduïts. Tancat els dilluns."
+  },
+  "finca-secretario": {
+    "name": "Jaciment romà de la Finca del Secretario",
+    "description": "Restes d'una vil·la romana del segle I amb forns de ceràmica, termes i piles de salaó, on va aparèixer la cèlebre Venus de Fuengirola.",
+    "short_tip": "Accés lliure. Visita breu, amb plafons que expliquen cada estança."
+  },
+  "termas-torreblanca": {
+    "name": "Termes romanes de Torreblanca",
+    "description": "Jaciment vora el mar amb termes romanes i una necròpolis de l'antiguitat tardana, protegit sota una coberta amb passarel·les.",
+    "short_tip": "Horari reduït: comprova'l abans d'anar-hi."
+  },
+  "museo-ciudad": {
+    "name": "Museu de la Ciutat",
+    "description": "Petit museu d'història local, dels primers pobladors a les èpoques romana i andalusina, amb peces trobades a la Finca del Secretario i al Castell Sohail.",
+    "short_tip": "Entrada gratuïta. Obre al matí."
+  },
+  "mercadillo": {
+    "name": "Mercat de Fuengirola",
+    "description": "Un dels mercats ambulants més grans de la Costa del Sol: cada dimarts, centenars de parades de roba, artesania, fruita i antiguitats al recinte firal.",
+    "short_tip": "Només dimarts al matí. Vés-hi d'hora: a migdia és ple."
+  }
+}

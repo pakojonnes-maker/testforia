@@ -1,0 +1,128 @@
+{
+  "poi_malaga_alcazaba": { "short_tip": "Gratuit le dimanche à partir de 14 h. Billet combiné avec Gibralfaro : 10 €." },
+  "poi_malaga_gibralfaro": { "short_tip": "Gratuit le dimanche à partir de 14 h. Montée à pied depuis l'Alcazaba ou en bus 35." },
+  "poi_malaga_catedral": { "short_tip": "Audioguide inclus. Les toits se visitent à part, sur créneau horaire." },
+  "poi_malaga_museo_picasso": { "short_tip": "Gratuit le dimanche pendant les deux dernières heures. En haute saison, réservez un créneau." },
+  "poi_malaga_thyssen": { "short_tip": "Gratuit le dimanche à partir de 16 h." },
+  "poi_malaga_pompidou": { "short_tip": "Gratuit le dimanche à partir de 16 h. C'est le cube coloré du Muelle Uno." },
+  "poi_malaga_museo_automovilistico": { "short_tip": "Dans l'ancienne Manufacture de tabac, à côté de la Collection du Musée russe." },
+  "poi_malaga_casa_natal_picasso": { "short_tip": "Sur la Plaza de la Merced. Visite courte, environ 45 minutes." },
+  "poi_malaga_concepcion": { "short_tip": "Gratuit le dimanche. En périphérie nord : mieux en voiture ou en taxi." },
+  "poi_malaga_cementerio_ingles": { "short_tip": "Fermé le lundi. À 15 minutes à pied du centre, près de la Malagueta." },
+
+  "museo-vidrio": {
+    "name": "Musée du Verre et du Cristal",
+    "description": "Maison du XVIIIe siècle dans le quartier de San Felipe Neri, avec plus de 3 000 pièces de verre, de l'Antiquité au XXe siècle, présentées comme dans une demeure d'époque.",
+    "short_tip": "La visite est guidée et comprise dans le billet."
+  },
+  "museo-ruso": {
+    "name": "Collection du Musée russe",
+    "description": "Dans l'ancienne Manufacture de tabac, ce centre municipal expose la peinture russe du XVIe au XXe siècle et accueille des expositions temporaires dans son espace MEET.",
+    "short_tip": "Billet combiné avec l'exposition temporaire : 8 €."
+  },
+  "oxo": {
+    "name": "OXO Musée du jeu vidéo",
+    "description": "Musée interactif sur l'histoire du jeu vidéo : des dizaines de bornes et de consoles, presque toutes jouables, des classiques d'arcade à la réalité virtuelle.",
+    "short_tip": "Idéal avec des enfants ou un jour de pluie. Comptez au moins deux heures."
+  },
+  "museo-malaga": {
+    "name": "Musée de Málaga",
+    "description": "Dans le Palacio de la Aduana, il réunit beaux-arts et archéologie, des Phéniciens et des Romains à la peinture malaguène du XIXe siècle. L'un des plus grands musées d'Espagne.",
+    "short_tip": "Gratuit pour les citoyens de l'UE sur présentation d'une pièce d'identité ; 1,50 € pour les autres."
+  },
+  "artes-costumbres": {
+    "name": "Musée des Arts et Traditions populaires",
+    "description": "Dans une auberge du XVIIe siècle au bord du Guadalmedina, il recrée la vie quotidienne de Málaga aux XVIIIe et XIXe siècles : moulin à huile, chai, cuisine et métiers.",
+    "short_tip": "Visite d'une heure, à deux pas du marché d'Atarazanas."
+  },
+  "revello-toro": {
+    "name": "Musée Revello de Toro",
+    "description": "Dans la maison-atelier du XVIIe siècle du sculpteur baroque Pedro de Mena, il présente l'œuvre du portraitiste malaguène Félix Revello de Toro.",
+    "short_tip": "Gratuit le dimanche. Beau patio andalou très bien conservé."
+  },
+  "mimma": {
+    "name": "Musée interactif de la Musique (MIMMA)",
+    "description": "Plus de mille instruments du monde entier, dont beaucoup peuvent être joués : la devise du musée est « prière de toucher ».",
+    "short_tip": "Très recommandé avec des enfants. En plein centre historique."
+  },
+  "museo-vino": {
+    "name": "Musée du Vin",
+    "description": "Dans un palais du XVIIIe siècle, il raconte l'histoire des vins de Málaga, du moscatel doux à ceux de la Serranía de Ronda, avec étiquettes et affiches anciennes.",
+    "short_tip": "Le billet comprend la dégustation de deux vins de Málaga."
+  },
+  "pena-juan-breva": {
+    "name": "Musée d'Art flamenco (Peña Juan Breva)",
+    "description": "La plus ancienne peña flamenca de Málaga conserve une collection unique de guitares, disques 78 tours, affiches et costumes du cante jondo.",
+    "short_tip": "La peña organise des récitals : consultez sa programmation."
+  },
+  "jorge-rando": {
+    "name": "Musée Jorge Rando",
+    "description": "Consacré au peintre malaguène Jorge Rando et à l'expressionnisme, dans un bâtiment qui partage ses murs avec le couvent des Mercédaires.",
+    "short_tip": "Entrée gratuite. Calme et peu connu, à dix minutes à pied du centre."
+  },
+  "mucac": {
+    "name": "MuCAC Málaga (La Coracha)",
+    "description": "Le musée municipal d'art contemporain, né en 2024 de la fusion de l'ancien CAC et du Musée du patrimoine municipal. Son site de La Coracha, au pied de Gibralfaro, réunit collection et expositions temporaires.",
+    "short_tip": "Entrée gratuite. Fermé le lundi."
+  },
+  "museo-aeronautico": {
+    "name": "Musée aéronautique de Málaga",
+    "description": "À côté de l'aéroport, dans son ancien terminal, il retrace l'histoire de l'aviation à Málaga avec avions, maquettes et uniformes.",
+    "short_tip": "Entrée gratuite. Pratique le jour du vol si vous avez du temps."
+  },
+  "parque-malaga": {
+    "name": "Parc de Málaga",
+    "description": "Jardin botanique urbain de la fin du XIXe siècle entre le port et le centre, avec des espèces tropicales des cinq continents, des fontaines et des sculptures.",
+    "short_tip": "De l'ombre garantie en été. Il relie la Plaza de la Marina à la Malagueta."
+  },
+  "jardines-pedro-luis-alonso": {
+    "name": "Jardins de Pedro Luis Alonso",
+    "description": "Jardin de style hispano-mauresque près de l'hôtel de ville, avec haies taillées, fontaines et rosiers, au pied de l'Alcazaba.",
+    "short_tip": "Très photogénique. À côté commencent les Jardins de Puerta Oscura, qui montent vers Gibralfaro."
+  },
+  "la-farola": {
+    "name": "Phare La Farola",
+    "description": "Le phare du port, de 1817, l'un des rares d'Espagne à porter un nom féminin. Il marque le début de la promenade de la Malagueta.",
+    "short_tip": "Se voit de l'extérieur. Superbe au coucher du soleil depuis le Muelle Uno."
+  },
+  "plaza-obispo": {
+    "name": "Plaza del Obispo et Palais épiscopal",
+    "description": "Face à la façade principale de la cathédrale, la place est fermée par le Palais épiscopal, à façade baroque du XVIIIe siècle, qui accueille des expositions temporaires.",
+    "short_tip": "La meilleure vue sur la façade de la cathédrale, entourée de terrasses."
+  },
+  "iglesia-martires": {
+    "name": "Église des Saints-Martyrs",
+    "description": "Fondée après la conquête chrétienne en 1487 et remaniée à l'époque baroque, avec un intérieur couvert de dorures et plusieurs confréries de la Semaine sainte.",
+    "short_tip": "Entrée libre en dehors des messes. À deux minutes de la calle Larios."
+  },
+  "iglesia-santiago": {
+    "name": "Église de Santiago",
+    "description": "L'une des paroisses fondées par les Rois catholiques en 1490, avec une tour mudéjare. Picasso y fut baptisé en 1881.",
+    "short_tip": "Entrée libre. Dans la calle Granada, en direction de la Plaza de la Merced."
+  },
+  "iglesia-san-juan": {
+    "name": "Église de San Juan",
+    "description": "Une autre des paroisses fondées en 1490, reconstruite au XVIIIe siècle, avec sa tour-porche au-dessus de la calle San Juan.",
+    "short_tip": "Entrée libre. Dans une rue piétonne pleine de boutiques et de bars."
+  },
+  "sagrado-corazon": {
+    "name": "Église du Sacré-Cœur",
+    "description": "La seule église néogothique de la ville, de 1920, avec une façade à flèches qui rappelle les cathédrales d'Europe du Nord.",
+    "short_tip": "Entrée libre. En plein centre historique."
+  },
+  "pedregalejo": {
+    "name": "Pedregalejo",
+    "description": "Ancien quartier de pêcheurs à l'est de la ville, avec ses maisons basses face à la mer, ses petites plages entre les digues et la tradition des brochettes de sardines (espetos).",
+    "short_tip": "Venez à pied par le front de mer ou en bus 11 depuis le Paseo del Parque."
+  },
+  "guadalhorce": {
+    "name": "Embouchure du Guadalhorce",
+    "description": "Espace naturel près de l'aéroport où le fleuve forme des lagunes : plus de 260 espèces d'oiseaux, avec des observatoires en accès libre.",
+    "short_tip": "Entrée gratuite. Prenez des jumelles et venez tôt le matin."
+  },
+  "montes-malaga": {
+    "name": "Parc naturel des Montes de Málaga",
+    "description": "Pinèdes et sentiers à 15 minutes du centre en voiture, avec des belvédères sur la baie et des auberges traditionnelles où goûter le « plato de los montes ».",
+    "short_tip": "Mieux en voiture. Emportez de l'eau : il fait chaud l'été et les fontaines sont rares."
+  }
+}

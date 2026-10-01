@@ -1,0 +1,26 @@
+{
+  "_zone": {
+    "name": "Torrox",
+    "description": "Due volti in un solo comune: Torrox Costa, con lunghe spiagge e un lungomare animato, e Torrox paese, bianco e moresco tra colline di avocado. Si vanta di avere il miglior clima d'Europa."
+  },
+  "faro-torrox": {
+    "name": "Faro di Torrox e villa romana di Caviclum",
+    "description": "Accanto al faro, i resti di una villa romana con terme, fabbrica di salagione e officina di vasaio. Il centro visitatori spiega la Caviclum romana.",
+    "short_tip": "Ingresso gratuito. Chiuso domenica e lunedì."
+  },
+  "torrox-pueblo": {
+    "name": "Torrox paese",
+    "description": "Paese bianco di origine araba sulla collina, con viuzze che salgono da Plaza de la Constitución, circondato da piantagioni di avocado e mango.",
+    "short_tip": "Meglio a piedi: parcheggia in basso e sali. A dicembre celebra la sua famosa Festa delle Migas."
+  },
+  "iglesia-encarnacion": {
+    "name": "Chiesa della Encarnación",
+    "description": "Chiesa di inizio Cinquecento costruita sull'antica moschea maggiore, con una torre che domina il paese.",
+    "short_tip": "Visitabile negli orari di culto."
+  },
+  "ermita-nieves": {
+    "name": "Convento de las Nieves",
+    "description": "Antico convento del XVI secolo in stile mudéjar all'ingresso del paese, di cui si visita il chiostro.",
+    "short_tip": "Visitabile negli orari di culto."
+  }
+}

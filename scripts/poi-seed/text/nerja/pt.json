@@ -1,0 +1,62 @@
+{
+  "poi_balcon": {
+    "name": "Balcão da Europa",
+    "description": "O miradouro mais famoso da Costa del Sol: um passeio de palmeiras sobre um promontório debruçado sobre o Mediterrâneo, com enseadas aos seus pés e a serra de Almijara atrás.",
+    "short_tip": "Vá ao pôr do sol ou logo de manhã, quando há menos gente. Junto à Igreja de El Salvador."
+  },
+  "poi_cuevas": {
+    "name": "Gruta de Nerja",
+    "description": "Cavidade gigantesca descoberta em 1959 por cinco rapazes da terra, com salas enormes, colunas de estalactites e pinturas pré-históricas. No verão acolhe um festival de música e dança.",
+    "short_tip": "O bilhete inclui o Museu de Nerja. Visita gratuita de segunda a sexta às 9h15, com reserva e 60 lugares."
+  },
+  "poi_burriana": {
+    "name": "Praia de Burriana",
+    "description": "A praia mais popular de Nerja: areia escura, águas calmas, um passeio cheio de bares de praia e desportos náuticos.",
+    "short_tip": "Prove a paella do Ayo, um clássico da praia."
+  },
+  "iglesia-salvador": {
+    "name": "Igreja de El Salvador",
+    "description": "Igreja branca do século XVII junto ao Balcão da Europa, com teto de caixotões mudéjar e um mural da Anunciação pintado por Francisco Hernández.",
+    "short_tip": "Entrada livre. Fica à entrada do Balcão da Europa."
+  },
+  "ermita-angustias": {
+    "name": "Ermida de las Angustias",
+    "description": "Pequena ermida do século XVIII com uma cúpula pintada a fresco com cenas da Paixão, das mais bonitas da Axarquía.",
+    "short_tip": "Abre em horários curtos: se estiver fechada, a fachada caiada merece a foto."
+  },
+  "museo-nerja": {
+    "name": "Museu de Nerja",
+    "description": "Na Plaza de España, conta a história do concelho desde a pré-história, com os achados da Gruta de Nerja como grande protagonista.",
+    "short_tip": "Incluído no bilhete da Gruta de Nerja; à parte, 5 €."
+  },
+  "verano-azul": {
+    "name": "Parque Verano Azul",
+    "description": "Parque dedicado à mítica série de televisão filmada em Nerja, com «La Dorada», o barco de Chanquete, como peça central.",
+    "short_tip": "Visita obrigatória para o público espanhol. Com parque infantil."
+  },
+  "detunda": {
+    "name": "Jardim Botânico Detunda",
+    "description": "Junto à Gruta de Nerja, reúne mais de 200 espécies das serras de Málaga e Granada, com culturas tradicionais e vista para a costa.",
+    "short_tip": "Entrada gratuita. Combine-o com a visita à gruta."
+  },
+  "maro": {
+    "name": "Maro",
+    "description": "Pequena aldeia branca de Nerja sobre as falésias, com hortas em socalcos, a igreja de las Maravillas e descidas para enseadas tranquilas.",
+    "short_tip": "Daqui desce-se à praia de Maro: boa para caiaque e snorkel."
+  },
+  "acueducto-aguila": {
+    "name": "Aqueduto da Águia",
+    "description": "Aqueduto de tijolo do século XIX com quatro andares de arcos, construído para levar água a um engenho de açúcar. Vê-se da estrada de Maro.",
+    "short_tip": "Contempla-se por fora; pare no miradouro da estrada antiga."
+  },
+  "acantilados-maro": {
+    "name": "Falésias de Maro-Cerro Gordo",
+    "description": "Área natural de falésias e enseadas entre Nerja e La Herradura, com torres de vigia e fundos marinhos muito ricos.",
+    "short_tip": "O melhor é vê-las do mar em caiaque, ou pelos trilhos que descem às enseadas."
+  },
+  "frigiliana": {
+    "name": "Frigiliana",
+    "description": "Uma das aldeias mais bonitas de Espanha, a 7 km de Nerja: ruelas íngremes de casas brancas, bairro mourisco e painéis de cerâmica que contam a sua história.",
+    "short_tip": "Estacione à entrada e suba a pé pelo bairro mourisco. Prove o mel de cana."
+  }
+}

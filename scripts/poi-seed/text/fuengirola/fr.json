@@ -1,0 +1,28 @@
+{
+  "poi_fuengirola_bioparc": { "short_tip": "Comptez une demi-journée. La plus grande partie du parcours est ombragée." },
+  "snakeroom": {
+    "name": "Snakeroom Serpentarium",
+    "description": "Centre de découverte avec serpents, reptiles, amphibiens et insectes du monde entier. La visite est guidée et permet de toucher certains animaux.",
+    "short_tip": "Visite guidée d'une heure en petits groupes. Fermé le lundi."
+  },
+  "finca-secretario": {
+    "name": "Site romain de la Finca del Secretario",
+    "description": "Vestiges d'une villa romaine du Ier siècle avec fours de potier, thermes et bassins de salaison, où fut découverte la célèbre Vénus de Fuengirola.",
+    "short_tip": "Accès libre. Visite courte, avec des panneaux qui expliquent chaque pièce."
+  },
+  "termas-torreblanca": {
+    "name": "Thermes romains de Torreblanca",
+    "description": "Site en bord de mer avec des thermes romains et une nécropole de l'Antiquité tardive, protégé sous une couverture avec passerelles.",
+    "short_tip": "Horaires réduits : vérifiez avant d'y aller."
+  },
+  "museo-ciudad": {
+    "name": "Musée de la Ville",
+    "description": "Petit musée d'histoire locale, des premiers habitants aux époques romaine et andalouse, avec des pièces trouvées à la Finca del Secretario et au château Sohail.",
+    "short_tip": "Entrée gratuite. Ouvert le matin."
+  },
+  "mercadillo": {
+    "name": "Marché de Fuengirola",
+    "description": "L'un des plus grands marchés de la Costa del Sol : chaque mardi, des centaines d'étals de vêtements, d'artisanat, de fruits et d'antiquités sur le champ de foire.",
+    "short_tip": "Le mardi matin uniquement. Venez tôt : à midi, c'est bondé."
+  }
+}

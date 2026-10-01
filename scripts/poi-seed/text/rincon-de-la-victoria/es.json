@@ -1,0 +1,46 @@
+{
+  "_zone": {
+    "name": "Rincón de la Victoria",
+    "description": "Pueblo marinero a un paso de Málaga, famoso por sus boquerones y por la Cueva del Tesoro, una de las pocas cuevas marinas visitables del mundo. Nueve kilómetros de playas, túneles del antiguo tren y una villa romana con mosaicos."
+  },
+  "cueva-tesoro": {
+    "name": "Cueva del Tesoro",
+    "description": "Una de las pocas cuevas de origen marino visitables del mundo, con restos prehistóricos y la leyenda de un tesoro almorávide escondido en el siglo XII.",
+    "short_tip": "Gratis entre semana en el primer pase de la mañana, con reserva. Calzado cómodo: hay escaleras."
+  },
+  "cueva-victoria": {
+    "name": "Cueva de la Victoria",
+    "description": "Cueva junto a la del Tesoro con pinturas rupestres esquemáticas y restos de ocupación prehistórica, que solo se visita con guía.",
+    "short_tip": "Solo con visita guiada y reserva previa."
+  },
+  "villa-antiopa": {
+    "name": "Villa Antiopa",
+    "description": "Villa romana del siglo III, de las mejor conservadas de Andalucía, con mosaicos como el de Antíope seducida por Zeus disfrazado de sátiro.",
+    "short_tip": "Gratis los lunes con reserva previa. Hay audioguía para el móvil."
+  },
+  "casa-fuerte-bezmiliana": {
+    "name": "Casa Fuerte de Bezmiliana",
+    "description": "Fortín mandado construir por Carlos III en 1766 para defender la costa de los piratas. Hoy es sala de exposiciones y oficina de turismo.",
+    "short_tip": "Entrada libre. Pregunta aquí por las visitas a las cuevas."
+  },
+  "tuneles-cantal": {
+    "name": "Túneles del Cantal",
+    "description": "Túneles abiertos en 1908 para el tren de Málaga a Vélez, hoy parte del paseo marítimo, bajo los acantilados de El Cantal y su torre vigía medieval.",
+    "short_tip": "Se recorren a pie o en bici. Muy agradables en verano por la sombra."
+  },
+  "santuario-carmen": {
+    "name": "Santuario de la Virgen del Carmen",
+    "description": "Santuario marinero de La Cala del Moral dedicado a la patrona de los pescadores, que cada julio sale en procesión hasta el mar.",
+    "short_tip": "Entrada libre. Si coincides con el 16 de julio, no te pierdas la procesión marinera."
+  },
+  "iglesia-victoria": {
+    "name": "Iglesia de Nuestra Señora de la Victoria",
+    "description": "Parroquia principal de Rincón de la Victoria, en el centro del pueblo, a pocos pasos del paseo marítimo.",
+    "short_tip": "Entrada libre fuera del horario de misa."
+  },
+  "benagalbon": {
+    "name": "Benagalbón",
+    "description": "El núcleo de interior del municipio: un pueblo blanco en las colinas, con su iglesia y un pequeño Museo de Artes Populares.",
+    "short_tip": "Buen contraste con la costa, a 10 minutos en coche."
+  }
+}

@@ -1,0 +1,46 @@
+{
+  "_zone": {
+    "name": "Rincón de la Victoria",
+    "description": "Ein Fischerort direkt neben Málaga, berühmt für seine Sardellen und die Cueva del Tesoro, eine der wenigen besuchbaren Meereshöhlen der Welt. Neun Kilometer Strand, Tunnel der alten Bahnlinie und eine römische Villa mit Mosaiken."
+  },
+  "cueva-tesoro": {
+    "name": "Schatzhöhle",
+    "description": "Eine der wenigen vom Meer geformten Höhlen der Welt, die man besichtigen kann, mit prähistorischen Funden und der Legende eines im 12. Jahrhundert versteckten Almoravidenschatzes.",
+    "short_tip": "Werktags beim ersten Einlass am Morgen kostenlos, mit Reservierung. Bequeme Schuhe: Es gibt Treppen."
+  },
+  "cueva-victoria": {
+    "name": "Victoria-Höhle",
+    "description": "Höhle neben der Schatzhöhle mit schematischen Felsmalereien und Spuren prähistorischer Besiedlung, nur mit Führung zu besichtigen.",
+    "short_tip": "Nur mit Führung und Reservierung."
+  },
+  "villa-antiopa": {
+    "name": "Villa Antiopa",
+    "description": "Römische Villa aus dem 3. Jahrhundert, eine der besterhaltenen Andalusiens, mit Mosaiken wie Antiope, verführt von Zeus in Gestalt eines Satyrs.",
+    "short_tip": "Montags mit Reservierung kostenlos. Audioguide fürs Handy verfügbar."
+  },
+  "casa-fuerte-bezmiliana": {
+    "name": "Festungshaus Bezmiliana",
+    "description": "Ein kleines Fort, 1766 auf Befehl Karls III. zum Schutz der Küste vor Piraten erbaut. Heute Ausstellungsraum und Touristeninformation.",
+    "short_tip": "Eintritt frei. Hier nach Besuchen der Höhlen fragen."
+  },
+  "tuneles-cantal": {
+    "name": "Tunnel von El Cantal",
+    "description": "1908 für die Bahn von Málaga nach Vélez angelegte Tunnel, heute Teil der Strandpromenade, unter den Klippen von El Cantal mit ihrem mittelalterlichen Wachturm.",
+    "short_tip": "Zu Fuß oder mit dem Rad. Im Sommer angenehm schattig."
+  },
+  "santuario-carmen": {
+    "name": "Heiligtum der Virgen del Carmen",
+    "description": "Ein Fischerheiligtum in La Cala del Moral, der Schutzpatronin der Fischer geweiht, die jeden Juli in einer Prozession zum Meer getragen wird.",
+    "short_tip": "Eintritt frei. Wer am 16. Juli hier ist, sollte die Meeresprozession nicht verpassen."
+  },
+  "iglesia-victoria": {
+    "name": "Kirche Nuestra Señora de la Victoria",
+    "description": "Die Hauptpfarrkirche von Rincón de la Victoria im Ortskern, wenige Schritte von der Strandpromenade.",
+    "short_tip": "Eintritt frei außerhalb der Messen."
+  },
+  "benagalbon": {
+    "name": "Benagalbón",
+    "description": "Der Ortsteil im Hinterland: ein weißes Dorf in den Hügeln mit seiner Kirche und einem kleinen Volkskunstmuseum.",
+    "short_tip": "Ein schöner Kontrast zur Küste, 10 Autominuten entfernt."
+  }
+}

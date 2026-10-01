@@ -1,0 +1,26 @@
+{
+  "_zone": {
+    "name": "Torrox",
+    "description": "Two faces in one municipality: Torrox Costa, with long beaches and a lively promenade, and Torrox village, white and Moorish among avocado-covered hills. It boasts of having the best climate in Europe."
+  },
+  "faro-torrox": {
+    "name": "Torrox Lighthouse and Caviclum Roman Villa",
+    "description": "Beside the lighthouse lie the remains of a Roman villa with baths, a fish-salting factory and a pottery. The interpretation centre explains Roman Caviclum.",
+    "short_tip": "Free entry. Closed Sundays and Mondays."
+  },
+  "torrox-pueblo": {
+    "name": "Torrox Village",
+    "description": "A white hillside village of Moorish origin, with narrow streets climbing from Plaza de la Constitución, surrounded by avocado and mango orchards.",
+    "short_tip": "Best on foot: park below and walk up. In December it holds its famous Migas Festival."
+  },
+  "iglesia-encarnacion": {
+    "name": "Church of La Encarnación",
+    "description": "An early-16th-century church built on the site of the old main mosque, with a tower overlooking the village.",
+    "short_tip": "Open during service times."
+  },
+  "ermita-nieves": {
+    "name": "Convent of Las Nieves",
+    "description": "A former 16th-century convent in Mudéjar style at the entrance to the village, whose cloister can be visited.",
+    "short_tip": "Open during service times."
+  }
+}

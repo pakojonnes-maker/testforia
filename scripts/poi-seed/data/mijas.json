@@ -1,0 +1,20 @@
+{
+  "zone": {"id": "zone_mijas", "name": "Mijas", "slug": "mijas", "latitude": 36.5964, "longitude": -4.6372, "max_km": 6},
+  "pois": [
+    { "id": "poi_mijas_plaza_toros", "query": "Plaza de Toros de Mijas", "set": {"price_display": "3 €", "price_amount": 3} },
+    { "id": "poi_mijas_carromato", "query": "Museo de Miniaturas Carromato de Mijas", "set": {"price_display": "3 €", "price_amount": 3} },
+    { "id": "poi_mijas_burro_taxi", "query": "Burro Taxi Mijas, Avenida del Compás", "set": {"price_display": "10 €", "price_amount": 10, "is_bookable": 0, "action_type": null, "action_data": null} },
+    { "id": "poi_mijas_ermita_peña", "query": "Ermita de la Virgen de la Peña, Mijas" },
+    { "id": "poi_mijas_jardines_muralla", "query": "Parque de la Muralla, Mijas" },
+    { "id": "poi_mijas_mirador_compas", "query": "Mirador del Compás, Mijas" },
+    { "id": "poi_mijas_cac", "query": "CAC Mijas Centro de Arte Contemporáneo", "set": {"access_type": "paid", "price_display": "3 €", "price_amount": 3} },
+    { "id": "poi_mijas_casco_antiguo", "query": "Mijas Pueblo casco antiguo" },
+    { "id": "poi_mijas_plaza_virgen_peña", "query": "Plaza Virgen de la Peña, Mijas" },
+    { "id": "poi_mijas_cala", "query": "Playa de La Cala de Mijas", "max_km": 12 },
+    { "key": "museo-historico", "query": "Museo Histórico-Etnológico de Mijas, Plaza de la Libertad", "category": "Cultura", "poi_type": "museum", "access_type": "paid", "price_display": "1 €", "price_amount": 1 },
+    { "key": "iglesia-inmaculada", "query": "Iglesia de la Inmaculada Concepción, Mijas Pueblo", "category": "Cultura", "poi_type": "sight", "access_type": "free" },
+    { "key": "ermita-calvario", "query": "Ermita del Calvario, Mijas", "category": "Naturaleza", "poi_type": "sight", "access_type": "free" },
+    { "key": "calle-san-sebastian", "query": "Calle San Sebastián, Mijas Pueblo", "category": "Cultura", "poi_type": "sight", "access_type": "free" },
+    { "key": "donkey-dreamland", "query": "Donkey Dreamland Mijas", "category": "Naturaleza", "poi_type": "attraction", "access_type": "free", "max_km": 10 }
+  ]
+}

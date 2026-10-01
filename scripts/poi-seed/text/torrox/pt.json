@@ -1,0 +1,26 @@
+{
+  "_zone": {
+    "name": "Torrox",
+    "description": "Duas faces no mesmo concelho: Torrox Costa, com praias longas e um passeio marítimo animado, e Torrox aldeia, branca e mourisca entre colinas de abacateiros. Gaba-se de ter o melhor clima da Europa."
+  },
+  "faro-torrox": {
+    "name": "Farol de Torrox e villa romana de Caviclum",
+    "description": "Junto ao farol, os restos de uma villa romana com termas, fábrica de salga e olaria. O centro de interpretação explica como era a Caviclum romana.",
+    "short_tip": "Entrada gratuita. Fechado aos domingos e segundas."
+  },
+  "torrox-pueblo": {
+    "name": "Torrox aldeia",
+    "description": "Aldeia branca de origem árabe na colina, com ruas estreitas que sobem desde a Plaza de la Constitución, rodeada de pomares de abacates e mangas.",
+    "short_tip": "Melhor a pé: estacione em baixo e suba. Em dezembro celebra a famosa Festa das Migas."
+  },
+  "iglesia-encarnacion": {
+    "name": "Igreja da Encarnación",
+    "description": "Templo do início do século XVI erguido sobre a antiga mesquita maior, com uma torre que domina a aldeia.",
+    "short_tip": "Visita-se no horário de culto."
+  },
+  "ermita-nieves": {
+    "name": "Convento de las Nieves",
+    "description": "Antigo convento do século XVI de arquitetura mudéjar, à entrada da aldeia, de que se visita o claustro.",
+    "short_tip": "Visita-se no horário de culto."
+  }
+}

@@ -1,0 +1,46 @@
+{
+  "_zone": {
+    "name": "Rincón de la Victoria",
+    "description": "Paese di mare a due passi da Málaga, famoso per le sue alici e per la Cueva del Tesoro, una delle poche grotte marine visitabili al mondo. Nove chilometri di spiagge, gallerie della vecchia ferrovia e una villa romana con mosaici."
+  },
+  "cueva-tesoro": {
+    "name": "Grotta del Tesoro",
+    "description": "Una delle poche grotte di origine marina visitabili al mondo, con resti preistorici e la leggenda di un tesoro almoravide nascosto nel XII secolo.",
+    "short_tip": "Gratis nei giorni feriali al primo turno del mattino, con prenotazione. Scarpe comode: ci sono scale."
+  },
+  "cueva-victoria": {
+    "name": "Grotta della Victoria",
+    "description": "Grotta accanto a quella del Tesoro con pitture rupestri schematiche e tracce di insediamento preistorico, visitabile solo con guida.",
+    "short_tip": "Solo visita guidata, con prenotazione."
+  },
+  "villa-antiopa": {
+    "name": "Villa Antiopa",
+    "description": "Villa romana del III secolo, tra le meglio conservate dell'Andalusia, con mosaici come quello di Antiope sedotta da Zeus travestito da satiro.",
+    "short_tip": "Gratis il lunedì con prenotazione. C'è un'audioguida per il telefono."
+  },
+  "casa-fuerte-bezmiliana": {
+    "name": "Casa Forte di Bezmiliana",
+    "description": "Fortino fatto costruire da Carlo III nel 1766 per difendere la costa dai pirati. Oggi è sala espositiva e ufficio turistico.",
+    "short_tip": "Ingresso libero. Chiedi qui delle visite alle grotte."
+  },
+  "tuneles-cantal": {
+    "name": "Gallerie di El Cantal",
+    "description": "Gallerie aperte nel 1908 per il treno Málaga–Vélez, oggi parte del lungomare, sotto le scogliere di El Cantal e la loro torre di avvistamento medievale.",
+    "short_tip": "Si percorrono a piedi o in bici. D'estate sono piacevoli per l'ombra."
+  },
+  "santuario-carmen": {
+    "name": "Santuario della Virgen del Carmen",
+    "description": "Santuario marinaro di La Cala del Moral dedicato alla patrona dei pescatori, portata in processione fino al mare ogni luglio.",
+    "short_tip": "Ingresso libero. Se sei qui il 16 luglio, non perderti la processione a mare."
+  },
+  "iglesia-victoria": {
+    "name": "Chiesa di Nostra Signora della Vittoria",
+    "description": "La parrocchia principale di Rincón de la Victoria, in centro, a pochi passi dal lungomare.",
+    "short_tip": "Ingresso libero fuori dagli orari delle messe."
+  },
+  "benagalbon": {
+    "name": "Benagalbón",
+    "description": "La parte interna del comune: un paese bianco tra le colline, con la sua chiesa e un piccolo Museo delle Arti Popolari.",
+    "short_tip": "Un bel contrasto con la costa, a 10 minuti d'auto."
+  }
+}

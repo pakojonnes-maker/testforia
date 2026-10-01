@@ -1,0 +1,141 @@
+{
+  "_zone": {
+    "name": "Ronda",
+    "description": "Weiße Stadt, die der Tajo in zwei Hälften teilt, eine hundert Meter tiefe Schlucht, über die der Puente Nuevo führt. Wiege des modernen Stierkampfs, mit nasridischer Altstadt, arabischen Bädern und Weinbergen in der Serranía."
+  },
+  "puente-nuevo": {
+    "name": "Puente Nuevo",
+    "description": "Das Wahrzeichen Rondas: eine Steinbrücke aus dem 18. Jahrhundert, die den Tajo in fast hundert Metern Höhe überspannt und Neu- und Altstadt verbindet.",
+    "short_tip": "Zu Fuß überqueren und von den Balkonen hinunterschauen. Im Inneren liegt das Besucherzentrum."
+  },
+  "tajo": {
+    "name": "Schlucht El Tajo",
+    "description": "Eine bis zu hundert Meter tiefe Schlucht, gegraben vom Fluss Guadalevín, die die Stadt teilt. Zu bewundern von Brücken, Aussichtspunkten und Pfaden.",
+    "short_tip": "Für den Blick von unten über den Camino de los Molinos hinabsteigen."
+  },
+  "mirador-camino-molinos": {
+    "name": "Aussichtspunkt Puente Nuevo (Camino de los Molinos)",
+    "description": "Von unten bietet der Mühlenweg den berühmtesten Blick auf den Puente Nuevo, mit der senkrechten Schlucht und dem Wasserfall zu seinen Füßen.",
+    "short_tip": "Etwa 20 Minuten Abstieg von der Plaza de María Auxiliadora. Der Rückweg ist anstrengend."
+  },
+  "centro-interpretacion-puente": {
+    "name": "Besucherzentrum Puente Nuevo",
+    "description": "In der Kammer im mittleren Bogen, die einst als Gefängnis diente, wird erklärt, wie die Brücke im 18. Jahrhundert gebaut wurde.",
+    "short_tip": "Kurzer Besuch. Im städtischen Touristenpass enthalten."
+  },
+  "plaza-toros": {
+    "name": "Stierkampfarena von Ronda",
+    "description": "Von 1785, eine der ältesten Spaniens und Wiege des Stierkampfs zu Fuß. Zu besichtigen sind Arena, Pferche, Ställe und das Stierkampfmuseum.",
+    "short_tip": "Mit Audioguide 12 €. Der einzige Stierkampf findet im September zur Feria Goyesca statt."
+  },
+  "casa-rey-moro": {
+    "name": "Haus des Maurenkönigs: Gärten und Mine",
+    "description": "Terrassengärten vom Anfang des 20. Jahrhunderts und eine in den Fels gehauene nasridische Wassermine, deren Treppen bis zum Fluss hinabführen.",
+    "short_tip": "Hinunter ist leicht, die Stufen der Mine hinauf weniger. Bequeme Schuhe."
+  },
+  "banos-arabes": {
+    "name": "Arabische Bäder",
+    "description": "Die besterhaltenen arabischen Bäder der Iberischen Halbinsel aus dem 13. und 14. Jahrhundert, mit sternförmigen Oberlichtgewölben am Fluss.",
+    "short_tip": "Dienstagnachmittags kostenlos. Ein Film erklärt, wie sie funktionierten."
+  },
+  "palacio-mondragon": {
+    "name": "Palacio de Mondragón",
+    "description": "Ein Palast nasridischen Ursprungs, in der Renaissance umgebaut, mit Mudéjar-Innenhöfen und Gärten über dem Tajo. Sitz des Stadtmuseums.",
+    "short_tip": "Unbedingt den Aussichtsgarten mit Blick auf die Serranía ansehen."
+  },
+  "santa-maria-mayor": {
+    "name": "Kirche Santa María la Mayor",
+    "description": "Über der einstigen Hauptmoschee errichtet, deren Mihrab-Bogen erhalten ist; sie verbindet Gotik, Renaissance und Barock.",
+    "short_tip": "Audioguide inklusive. An der Plaza Duquesa de Parcent."
+  },
+  "museo-lara": {
+    "name": "Museo Lara",
+    "description": "Riesige Privatsammlung in einem Palast aus dem 18. Jahrhundert: Uhren, Waffen, Fächer, Kino, Archäologie und Säle zu Inquisition und Hexerei.",
+    "short_tip": "Es gibt viel zu sehen: mindestens anderthalb Stunden einplanen."
+  },
+  "museo-joaquin-peinado": {
+    "name": "Museum Joaquín Peinado",
+    "description": "Im Palast der Marqueses de Moctezuma zeigt es das Werk dieses aus Ronda stammenden Malers der École de Paris, eines Freundes von Picasso.",
+    "short_tip": "Dienstags 15–17 Uhr kostenlos. Sonntags geschlossen."
+  },
+  "casa-gigante": {
+    "name": "Haus des Riesen",
+    "description": "Ein nasridisches Palasthaus aus dem 14. Jahrhundert, eines der wenigen erhaltenen Wohnhäuser dieser Zeit, mit Stuckarbeiten und Innenhof mit Becken.",
+    "short_tip": "Kurzer Besuch. Im städtischen Touristenpass enthalten."
+  },
+  "casa-don-bosco": {
+    "name": "Hausmuseum Don Bosco",
+    "description": "Ein Jugendstilhaus vom Anfang des 20. Jahrhunderts mit historischen Möbeln und einem Garten über dem Tajo mit Blick auf den Puente Nuevo.",
+    "short_tip": "Das Beste ist der Garten: Brückenblick mit wenig Andrang."
+  },
+  "espiritu-santo": {
+    "name": "Kirche Espíritu Santo",
+    "description": "Wehrkirche vom Ende des 15. Jahrhunderts, nach der christlichen Eroberung an der Stadtmauer im Viertel San Francisco errichtet.",
+    "short_tip": "Neben dem Tor von Almocábar."
+  },
+  "cueva-pileta": {
+    "name": "Höhle Cueva de la Pileta",
+    "description": "Höhle mit über 20.000 Jahre alten Felsmalereien, Pferden, Fischen und Symbolen, die nur im Licht von Handlampen besichtigt wird.",
+    "short_tip": "Führungen in Gruppen zu 15 nur mit Reservierung. 22 km von Ronda, bei Benaoján."
+  },
+  "reservatauro": {
+    "name": "Reservatauro",
+    "description": "Zuchtbetrieb für Kampfstiere in der Serranía: Man sieht die Tiere auf der Weide und erfährt, wie sie aufgezogen werden.",
+    "short_tip": "Nur mit Reservierung. Anfahrt mit dem Auto."
+  },
+  "puente-viejo": {
+    "name": "Puente Viejo",
+    "description": "Einbogige Brücke von 1616 über den Guadalevín, mit Blick auf den Tajo und die arabischen Bäder.",
+    "short_tip": "Mit den arabischen Bädern und der Römerbrücke verbinden: Sie liegen nebeneinander."
+  },
+  "puente-romano": {
+    "name": "Römerbrücke (San Miguel)",
+    "description": "Die niedrigste der drei Brücken Rondas, trotz ihres Namens mittelalterlichen Ursprungs, am Eingang der arabischen Bäder.",
+    "short_tip": "Von hier sieht man den Puente Viejo darüber."
+  },
+  "alameda-tajo": {
+    "name": "Alameda del Tajo",
+    "description": "Park aus dem 19. Jahrhundert am Rand des Abgrunds, mit Balkonen, die über die Serranía ragen, wie der berühmte Balcón del Coño.",
+    "short_tip": "Den überhängenden Balkon suchen: Schwindel garantiert."
+  },
+  "mirador-aldehuela": {
+    "name": "Aussichtspunkt Aldehuela",
+    "description": "Aussichtspunkt neben dem Puente Nuevo, nach seinem Architekten benannt, mit einem der nächsten Blicke auf Schlucht und Brücke.",
+    "short_tip": "Gute Fotos früh morgens, bevor die Gruppen kommen."
+  },
+  "jardines-cuenca": {
+    "name": "Gärten von Cuenca",
+    "description": "Terrassengärten über dem Tajo, mit Rosen und Blick auf den Puente Nuevo und den Puente Viejo.",
+    "short_tip": "Eintritt frei und wenig Andrang."
+  },
+  "paseo-blas-infante": {
+    "name": "Paseo de Blas Infante",
+    "description": "Promenade neben dem Parador mit Aussichtspunkten über den Tajo und die Serranía, die über den Paseo de los Ingleses weiterführt.",
+    "short_tip": "Bei Sonnenuntergang färbt sich das Tal orange."
+  },
+  "puerta-almocabar": {
+    "name": "Tor von Almocábar",
+    "description": "Haupttor der nasridischen Stadtmauer aus dem 13. Jahrhundert, neben dem Tor Karls V., durch das man die Stadt von Süden betrat.",
+    "short_tip": "Von hier sieht man einen guten Teil der Mauer."
+  },
+  "plaza-duquesa-parcent": {
+    "name": "Plaza Duquesa de Parcent",
+    "description": "Hauptplatz der Altstadt, umgeben von Klöstern, dem Rathaus und der Kirche Santa María la Mayor.",
+    "short_tip": "Ein ruhiger Ort mit schattigen Bänken."
+  },
+  "plaza-socorro": {
+    "name": "Plaza del Socorro",
+    "description": "Herz der Neustadt, mit der Kirche del Socorro und dem Gebäude, in dem 1918 Flagge und Wappen Andalusiens beschlossen wurden.",
+    "short_tip": "Umgeben von Bars und Läden, fünf Minuten vom Puente Nuevo."
+  },
+  "virgen-paz": {
+    "name": "Heiligtum der Virgen de la Paz",
+    "description": "Barockkirche aus dem 18. Jahrhundert, in der die Schutzpatronin Rondas verehrt wird.",
+    "short_tip": "Eintritt frei."
+  },
+  "convento-merced": {
+    "name": "Kloster La Merced",
+    "description": "Kloster der Unbeschuhten Karmelitinnen, das die Reliquie der Hand der heiligen Teresa von Ávila bewahrt. Die Nonnen verkaufen hausgemachtes Gebäck.",
+    "short_tip": "Das Gebäck kauft man an der Drehlade, vormittags und am späten Nachmittag."
+  }
+}

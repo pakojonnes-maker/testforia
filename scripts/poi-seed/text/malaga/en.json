@@ -1,0 +1,128 @@
+{
+  "poi_malaga_alcazaba": { "short_tip": "Free on Sundays from 2 pm. Joint ticket with Gibralfaro: €10." },
+  "poi_malaga_gibralfaro": { "short_tip": "Free on Sundays from 2 pm. Walk up from the Alcazaba or take bus 35." },
+  "poi_malaga_catedral": { "short_tip": "Audio guide included. The rooftops are a separate, timed visit." },
+  "poi_malaga_museo_picasso": { "short_tip": "Free on Sundays for the last two hours. Book a time slot in high season." },
+  "poi_malaga_thyssen": { "short_tip": "Free on Sundays from 4 pm." },
+  "poi_malaga_pompidou": { "short_tip": "Free on Sundays from 4 pm. It's the colourful cube on Muelle Uno." },
+  "poi_malaga_museo_automovilistico": { "short_tip": "In the old Tobacco Factory, next to the Russian Museum Collection." },
+  "poi_malaga_casa_natal_picasso": { "short_tip": "On Plaza de la Merced. A short visit, about 45 minutes." },
+  "poi_malaga_concepcion": { "short_tip": "Free on Sundays. It's on the northern outskirts: best by car or taxi." },
+  "poi_malaga_cementerio_ingles": { "short_tip": "Closed on Mondays. A 15-minute walk from the centre, next to La Malagueta." },
+
+  "museo-vidrio": {
+    "name": "Museum of Glass and Crystal",
+    "description": "An 18th-century house in the San Felipe Neri quarter with over 3,000 pieces of glass, from Antiquity to the 20th century, displayed as a period home.",
+    "short_tip": "Visits are guided and included in the ticket."
+  },
+  "museo-ruso": {
+    "name": "Russian Museum Collection",
+    "description": "In the old Tobacco Factory, this municipal centre shows Russian painting from the 16th to the 20th century and hosts temporary exhibitions in its MEET space.",
+    "short_tip": "Combined ticket with the temporary exhibition: €8."
+  },
+  "oxo": {
+    "name": "OXO Video Game Museum",
+    "description": "An interactive museum on the history of video games: dozens of arcade machines and consoles, most of them playable, from the classics to virtual reality.",
+    "short_tip": "Great with kids or on a rainy day. Allow at least two hours."
+  },
+  "museo-malaga": {
+    "name": "Museum of Málaga",
+    "description": "In the Palacio de la Aduana, it brings together fine arts and archaeology, from Phoenicians and Romans to 19th-century Málaga painting. One of the largest museums in Spain.",
+    "short_tip": "Free for EU citizens with ID; €1.50 for everyone else."
+  },
+  "artes-costumbres": {
+    "name": "Museum of Popular Arts and Customs",
+    "description": "In a 17th-century inn by the Guadalmedina river, it recreates everyday life in 18th- and 19th-century Málaga: oil mill, wine cellar, kitchen and old trades.",
+    "short_tip": "A one-hour visit, a short walk from the Atarazanas Market."
+  },
+  "revello-toro": {
+    "name": "Revello de Toro Museum",
+    "description": "In the 17th-century house and workshop of Baroque sculptor Pedro de Mena, it shows the work of Málaga portrait painter Félix Revello de Toro.",
+    "short_tip": "Free on Sundays. It has a beautifully preserved Andalusian patio."
+  },
+  "mimma": {
+    "name": "Interactive Music Museum (MIMMA)",
+    "description": "Over a thousand instruments from around the world, many of which you can play: the museum's motto is \"please touch\".",
+    "short_tip": "Highly recommended with kids. Right in the historic centre."
+  },
+  "museo-vino": {
+    "name": "Wine Museum",
+    "description": "In an 18th-century palace, it tells the story of Málaga wines, from sweet Moscatel to those of the Serranía de Ronda, with old labels and posters.",
+    "short_tip": "The ticket includes a tasting of two Málaga wines."
+  },
+  "pena-juan-breva": {
+    "name": "Flamenco Art Museum (Peña Juan Breva)",
+    "description": "Málaga's oldest flamenco club keeps a unique collection of guitars, shellac records, posters and costumes of cante jondo.",
+    "short_tip": "The club holds recitals: check its programme."
+  },
+  "jorge-rando": {
+    "name": "Jorge Rando Museum",
+    "description": "Devoted to Málaga painter Jorge Rando and to Expressionism, in a building that shares its walls with the Mercedarian convent.",
+    "short_tip": "Free entry. Quiet and little known, a ten-minute walk from the centre."
+  },
+  "mucac": {
+    "name": "MuCAC Málaga (La Coracha)",
+    "description": "The city's contemporary art museum, created in 2024 by merging the former CAC and the Municipal Heritage Museum. Its La Coracha site, at the foot of Gibralfaro, holds the collection and temporary shows.",
+    "short_tip": "Free entry. Closed on Mondays."
+  },
+  "museo-aeronautico": {
+    "name": "Málaga Aviation Museum",
+    "description": "Next to the airport, in its old terminal, it tells the history of aviation in Málaga with aircraft, models and uniforms.",
+    "short_tip": "Free entry. A good fit on your flight day if you have time to spare."
+  },
+  "parque-malaga": {
+    "name": "Parque de Málaga",
+    "description": "A late-19th-century urban botanical garden between the port and the old town, with tropical species from five continents, fountains and sculptures.",
+    "short_tip": "Guaranteed shade in summer. It links Plaza de la Marina with La Malagueta."
+  },
+  "jardines-pedro-luis-alonso": {
+    "name": "Pedro Luis Alonso Gardens",
+    "description": "A Hispano-Moorish style garden next to the City Hall, with clipped hedges, fountains and roses, at the foot of the Alcazaba.",
+    "short_tip": "Very photogenic. The Puerta Oscura Gardens start alongside and climb towards Gibralfaro."
+  },
+  "la-farola": {
+    "name": "La Farola Lighthouse",
+    "description": "The port lighthouse, built in 1817, one of the few in Spain with a feminine name. It marks the start of the Malagueta promenade.",
+    "short_tip": "Seen from outside. Lovely at sunset from Muelle Uno."
+  },
+  "plaza-obispo": {
+    "name": "Plaza del Obispo and Bishop's Palace",
+    "description": "Facing the main façade of the Cathedral, the square is closed by the Bishop's Palace, with an 18th-century Baroque front, which hosts temporary exhibitions.",
+    "short_tip": "The best view of the Cathedral's façade, with terraces all around."
+  },
+  "iglesia-martires": {
+    "name": "Church of the Holy Martyrs",
+    "description": "Founded after the Christian conquest in 1487 and remodelled in Baroque style, with a gilded interior and several Holy Week brotherhoods.",
+    "short_tip": "Free entry outside mass times. Two minutes from Calle Larios."
+  },
+  "iglesia-santiago": {
+    "name": "Church of Santiago",
+    "description": "One of the parishes founded by the Catholic Monarchs in 1490, with a Mudéjar tower. Picasso was baptised here in 1881.",
+    "short_tip": "Free entry. On Calle Granada, on the way to Plaza de la Merced."
+  },
+  "iglesia-san-juan": {
+    "name": "Church of San Juan",
+    "description": "Another of the parishes founded in 1490, rebuilt in the 18th century, with its tower-porch over Calle San Juan.",
+    "short_tip": "Free entry. On a pedestrian street full of shops and bars."
+  },
+  "sagrado-corazon": {
+    "name": "Church of the Sacred Heart",
+    "description": "The city's only neo-Gothic church, from 1920, with a spired façade reminiscent of northern European cathedrals.",
+    "short_tip": "Free entry. In the heart of the old town."
+  },
+  "pedregalejo": {
+    "name": "Pedregalejo",
+    "description": "A former fishing quarter east of the city, with low houses facing the sea, small beaches between breakwaters and the tradition of sardine skewers (espetos).",
+    "short_tip": "Walk along the seafront or take bus 11 from Paseo del Parque."
+  },
+  "guadalhorce": {
+    "name": "Guadalhorce River Mouth",
+    "description": "A nature reserve next to the airport where the river forms lagoons: over 260 bird species, with free-access hides.",
+    "short_tip": "Free entry. Bring binoculars and go early in the morning."
+  },
+  "montes-malaga": {
+    "name": "Montes de Málaga Natural Park",
+    "description": "Pine forests and trails 15 minutes by car from the centre, with viewpoints over the bay and traditional inns serving the hearty \"plato de los montes\".",
+    "short_tip": "Best by car. Bring water: summers are hot and fountains are few."
+  }
+}

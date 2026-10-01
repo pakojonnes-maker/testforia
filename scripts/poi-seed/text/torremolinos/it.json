@@ -1,0 +1,31 @@
+{
+  "poi_torremolinos_molino_inca": {
+    "description": "Antica sorgente e mulino ad acqua trasformati in giardino botanico, con stagni, cascate, uccelli e oltre mille specie vegetali. Un'oasi verde poco nota ai turisti.",
+    "short_tip": "Ingresso 3 € (1 € per i residenti iscritti). Perfetto per sfuggire al caldo estivo."
+  },
+  "poi_msb1rniw_077bzs": {
+    "name": "Casa de los Navajas",
+    "description": "Palazzina neomudéjar del 1925 affacciata sul mare sopra la spiaggia del Bajondillo, con azulejos, grate e giardini. Ospita mostre.",
+    "short_tip": "Ingresso gratuito. Aperta da mercoledì a domenica."
+  },
+  "iglesia-san-miguel": {
+    "name": "Chiesa di San Miguel Arcángel",
+    "description": "La parrocchia più antica di Torremolinos, del XVIII secolo, in cima a calle San Miguel, dove nacque il paese di pescatori e mugnai.",
+    "short_tip": "Ingresso libero. Si inserisce bene nella passeggiata lungo calle San Miguel."
+  },
+  "centro-cultural-picasso": {
+    "name": "Centro Culturale Pablo Ruiz Picasso",
+    "description": "Centro comunale con mostre temporanee d'arte, teatro e concerti, nel cuore di Torremolinos.",
+    "short_tip": "Le mostre sono gratuite. Consulta il programma."
+  },
+  "mirador-canada-lobo": {
+    "name": "Belvedere della Cañada del Lobo",
+    "description": "Sulle colline sopra Torremolinos, offre un'ampia vista sulla costa, da Málaga a Benalmádena.",
+    "short_tip": "Scarpe comode: l'ultimo tratto è un sentiero."
+  },
+  "el-morro": {
+    "name": "El Morro (Punta di Torremolinos)",
+    "description": "Il promontorio che separa la spiaggia del Bajondillo da La Carihuela, con un belvedere su tutta la baia di Málaga.",
+    "short_tip": "Il sentiero costiero lo aggira: bella passeggiata al tramonto."
+  }
+}

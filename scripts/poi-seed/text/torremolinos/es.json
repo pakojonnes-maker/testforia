@@ -1,0 +1,31 @@
+{
+  "poi_torremolinos_molino_inca": {
+    "description": "Antiguo manantial y molino de agua reconvertido en jardín botánico, con estanques, cascadas, aves y más de mil especies vegetales. Un oasis verde poco conocido por los turistas.",
+    "short_tip": "Entrada: 3 € (1 € para empadronados). Perfecto para escapar del calor en verano."
+  },
+  "poi_msb1rniw_077bzs": {
+    "name": "Casa de los Navajas",
+    "description": "Palacete neomudéjar de 1925 asomado al mar sobre la playa del Bajondillo, con azulejos, celosías y jardines. Acoge exposiciones.",
+    "short_tip": "Entrada gratuita. Abre de miércoles a domingo."
+  },
+  "iglesia-san-miguel": {
+    "name": "Iglesia de San Miguel Arcángel",
+    "description": "La parroquia más antigua de Torremolinos, del siglo XVIII, en lo alto de la calle San Miguel, donde empezó el pueblo de pescadores y molineros.",
+    "short_tip": "Entrada libre. Encaja en el paseo por la calle San Miguel."
+  },
+  "centro-cultural-picasso": {
+    "name": "Centro Cultural Pablo Ruiz Picasso",
+    "description": "Centro municipal con exposiciones temporales de arte, teatro y conciertos, en el centro de Torremolinos.",
+    "short_tip": "Las exposiciones son gratuitas. Consulta la programación."
+  },
+  "mirador-canada-lobo": {
+    "name": "Mirador de la Cañada del Lobo",
+    "description": "En la sierra que domina Torremolinos, ofrece una vista amplia de la costa, de Málaga a Benalmádena.",
+    "short_tip": "Lleva calzado cómodo: el último tramo es de sendero."
+  },
+  "el-morro": {
+    "name": "El Morro (Punta de Torremolinos)",
+    "description": "Promontorio que separa la playa del Bajondillo de La Carihuela, con un mirador sobre toda la bahía de Málaga.",
+    "short_tip": "La senda litoral lo rodea: buen paseo al atardecer."
+  }
+}

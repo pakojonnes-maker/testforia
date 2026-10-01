@@ -1,0 +1,46 @@
+{
+  "_zone": {
+    "name": "Rincón de la Victoria",
+    "description": "A seafaring town right next to Málaga, famous for its anchovies and for the Cueva del Tesoro, one of the few sea caves in the world you can visit. Nine kilometres of beaches, old railway tunnels and a Roman villa with mosaics."
+  },
+  "cueva-tesoro": {
+    "name": "Treasure Cave",
+    "description": "One of the few sea-formed caves in the world open to visitors, with prehistoric remains and the legend of an Almoravid treasure hidden in the 12th century.",
+    "short_tip": "Free on weekdays for the first morning slot, booking required. Wear comfortable shoes: there are stairs."
+  },
+  "cueva-victoria": {
+    "name": "Victoria Cave",
+    "description": "A cave next to the Treasure Cave with schematic rock paintings and traces of prehistoric settlement, visited only with a guide.",
+    "short_tip": "Guided visits only, booking required."
+  },
+  "villa-antiopa": {
+    "name": "Villa Antiopa",
+    "description": "A 3rd-century Roman villa, among the best preserved in Andalusia, with mosaics such as Antiope seduced by Zeus disguised as a satyr.",
+    "short_tip": "Free on Mondays with prior booking. There's an audio guide for your phone."
+  },
+  "casa-fuerte-bezmiliana": {
+    "name": "Bezmiliana Fort House",
+    "description": "A small fort built by order of Charles III in 1766 to defend the coast from pirates. Today it's an exhibition hall and tourist office.",
+    "short_tip": "Free entry. Ask here about visits to the caves."
+  },
+  "tuneles-cantal": {
+    "name": "El Cantal Tunnels",
+    "description": "Tunnels opened in 1908 for the Málaga–Vélez railway, now part of the seafront promenade, beneath the El Cantal cliffs and their medieval watchtower.",
+    "short_tip": "Walk or cycle through them. Pleasantly shady in summer."
+  },
+  "santuario-carmen": {
+    "name": "Sanctuary of the Virgen del Carmen",
+    "description": "A seafarers' sanctuary in La Cala del Moral devoted to the patron saint of fishermen, carried in procession to the sea every July.",
+    "short_tip": "Free entry. If you're here on 16 July, don't miss the sea procession."
+  },
+  "iglesia-victoria": {
+    "name": "Church of Our Lady of Victory",
+    "description": "The main parish church of Rincón de la Victoria, in the town centre, a few steps from the seafront.",
+    "short_tip": "Free entry outside mass times."
+  },
+  "benagalbon": {
+    "name": "Benagalbón",
+    "description": "The inland part of the municipality: a white village in the hills, with its church and a small Museum of Popular Arts.",
+    "short_tip": "A nice contrast to the coast, 10 minutes by car."
+  }
+}

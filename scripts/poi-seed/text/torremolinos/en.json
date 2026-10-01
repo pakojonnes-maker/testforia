@@ -1,0 +1,31 @@
+{
+  "poi_torremolinos_molino_inca": {
+    "description": "An old spring and watermill turned into a botanical garden, with ponds, waterfalls, birds and over a thousand plant species. A green oasis few tourists know.",
+    "short_tip": "Entry €3 (€1 for registered residents). Perfect to escape the summer heat."
+  },
+  "poi_msb1rniw_077bzs": {
+    "name": "Casa de los Navajas",
+    "description": "A 1925 neo-Mudéjar mansion overlooking the sea above Bajondillo beach, with tiles, latticework and gardens. It hosts exhibitions.",
+    "short_tip": "Free entry. Open Wednesday to Sunday."
+  },
+  "iglesia-san-miguel": {
+    "name": "Church of San Miguel Arcángel",
+    "description": "Torremolinos' oldest parish church, from the 18th century, at the top of Calle San Miguel, where the old village of fishermen and millers began.",
+    "short_tip": "Free entry. Fits nicely into a stroll down Calle San Miguel."
+  },
+  "centro-cultural-picasso": {
+    "name": "Pablo Ruiz Picasso Cultural Centre",
+    "description": "A municipal centre with temporary art exhibitions, theatre and concerts in the middle of Torremolinos.",
+    "short_tip": "Exhibitions are free. Check the programme."
+  },
+  "mirador-canada-lobo": {
+    "name": "Cañada del Lobo Viewpoint",
+    "description": "In the hills above Torremolinos, with a wide view of the coast from Málaga to Benalmádena.",
+    "short_tip": "Wear comfortable shoes: the last stretch is a footpath."
+  },
+  "el-morro": {
+    "name": "El Morro (Punta de Torremolinos)",
+    "description": "The headland between Bajondillo beach and La Carihuela, with a viewpoint over the whole Bay of Málaga.",
+    "short_tip": "The coastal path goes around it: a great sunset walk."
+  }
+}

@@ -1,0 +1,141 @@
+{
+  "_zone": {
+    "name": "Ronda",
+    "description": "Ciudad blanca partida en dos por el Tajo, un desfiladero de cien metros que el Puente Nuevo cruza de lado a lado. Cuna del toreo moderno, con casco antiguo nazarí, baños árabes y viñedos en la Serranía."
+  },
+  "puente-nuevo": {
+    "name": "Puente Nuevo",
+    "description": "El símbolo de Ronda: un puente de piedra del siglo XVIII que cruza el Tajo a casi cien metros de altura y une la ciudad nueva con la antigua.",
+    "short_tip": "Crúzalo a pie y asómate a sus balcones. Dentro está el centro de interpretación."
+  },
+  "tajo": {
+    "name": "El Tajo de Ronda",
+    "description": "Desfiladero de hasta cien metros excavado por el río Guadalevín, que parte la ciudad en dos. Se contempla desde puentes, miradores y senderos.",
+    "short_tip": "Para verlo desde abajo, baja por el Camino de los Molinos."
+  },
+  "mirador-camino-molinos": {
+    "name": "Mirador del Puente Nuevo (Camino de los Molinos)",
+    "description": "Desde abajo, el sendero de los Molinos regala la vista más famosa del Puente Nuevo, con el Tajo en vertical y la cascada a sus pies.",
+    "short_tip": "Unos 20 minutos de bajada desde la Plaza de María Auxiliadora. La subida cuesta."
+  },
+  "centro-interpretacion-puente": {
+    "name": "Centro de Interpretación del Puente Nuevo",
+    "description": "Ocupa la cámara que hay dentro del arco central, que llegó a usarse como prisión, y explica cómo se construyó el puente en el siglo XVIII.",
+    "short_tip": "Visita corta. Incluido en el bono turístico municipal."
+  },
+  "plaza-toros": {
+    "name": "Plaza de Toros de Ronda",
+    "description": "De 1785, una de las más antiguas de España y cuna del toreo a pie. Se recorre el ruedo, los corrales, las caballerizas y el museo taurino.",
+    "short_tip": "Con audioguía, 12 €. Solo hay corrida en la Feria Goyesca, en septiembre."
+  },
+  "casa-rey-moro": {
+    "name": "Casa del Rey Moro: jardines y mina",
+    "description": "Jardines escalonados de principios del siglo XX y una mina de agua nazarí excavada en la roca que baja por escaleras hasta el río.",
+    "short_tip": "Bajar es fácil; subir los escalones de la mina, no tanto. Calzado cómodo."
+  },
+  "banos-arabes": {
+    "name": "Baños Árabes",
+    "description": "Los baños árabes mejor conservados de la Península, de los siglos XIII y XIV, con bóvedas de lucernarios en forma de estrella junto al río.",
+    "short_tip": "Gratis los martes por la tarde. Un audiovisual explica cómo funcionaban."
+  },
+  "palacio-mondragon": {
+    "name": "Palacio de Mondragón",
+    "description": "Palacio de origen nazarí reformado en el Renacimiento, con patios mudéjares y jardines colgados sobre el Tajo. Alberga el Museo Municipal.",
+    "short_tip": "No te pierdas el jardín del mirador, con vistas a la Serranía."
+  },
+  "santa-maria-mayor": {
+    "name": "Iglesia de Santa María la Mayor",
+    "description": "Levantada sobre la antigua mezquita mayor, de la que conserva el arco del mihrab, mezcla gótico, renacimiento y barroco.",
+    "short_tip": "Audioguía incluida. Está en la Plaza Duquesa de Parcent."
+  },
+  "museo-lara": {
+    "name": "Museo Lara",
+    "description": "Inmensa colección privada en un palacio del siglo XVIII: relojes, armas, abanicos, cine, arqueología y salas sobre la Inquisición y la brujería.",
+    "short_tip": "Hay mucho que ver: calcula al menos hora y media."
+  },
+  "museo-joaquin-peinado": {
+    "name": "Museo Joaquín Peinado",
+    "description": "En el Palacio de los Marqueses de Moctezuma, reúne la obra de este pintor rondeño de la Escuela de París, amigo de Picasso.",
+    "short_tip": "Gratis los martes de 15 a 17 h. Cerrado los domingos."
+  },
+  "casa-gigante": {
+    "name": "Casa del Gigante",
+    "description": "Casa-palacio nazarí del siglo XIV, una de las pocas viviendas de esa época que se conservan, con yeserías y un patio con alberca.",
+    "short_tip": "Visita breve. Incluida en el bono turístico municipal."
+  },
+  "casa-don-bosco": {
+    "name": "Casa Museo Don Bosco",
+    "description": "Casa modernista de principios del siglo XX con muebles de época y un jardín colgado sobre el Tajo con vistas al Puente Nuevo.",
+    "short_tip": "Lo mejor es el jardín: una vista del puente con poca gente."
+  },
+  "espiritu-santo": {
+    "name": "Iglesia del Espíritu Santo",
+    "description": "Iglesia-fortaleza de finales del siglo XV, construida tras la conquista cristiana junto a la muralla, en el barrio de San Francisco.",
+    "short_tip": "Junto a la Puerta de Almocábar."
+  },
+  "cueva-pileta": {
+    "name": "Cueva de la Pileta",
+    "description": "Cueva con pinturas rupestres de hace más de 20.000 años, caballos, peces y símbolos, que se visita iluminada solo con lámparas de mano.",
+    "short_tip": "Visita guiada en grupos de 15 con reserva previa. A 22 km de Ronda, cerca de Benaoján."
+  },
+  "reservatauro": {
+    "name": "Reservatauro",
+    "description": "Finca de cría de toros bravos en la Serranía: se visitan los animales en la dehesa y se conoce cómo se crían.",
+    "short_tip": "Solo con reserva previa. Se llega en coche."
+  },
+  "puente-viejo": {
+    "name": "Puente Viejo",
+    "description": "Puente de un solo arco de 1616 sobre el Guadalevín, con vistas al Tajo y a los Baños Árabes.",
+    "short_tip": "Combínalo con los Baños Árabes y el Puente Romano: están juntos."
+  },
+  "puente-romano": {
+    "name": "Puente Romano (de San Miguel)",
+    "description": "El más bajo de los tres puentes de Ronda, de origen medieval pese a su nombre, a la entrada de los Baños Árabes.",
+    "short_tip": "Desde aquí se ve el Puente Viejo por encima."
+  },
+  "alameda-tajo": {
+    "name": "Alameda del Tajo",
+    "description": "Parque del siglo XIX al borde del precipicio, con balcones volados sobre la Serranía, como el famoso Balcón del Coño.",
+    "short_tip": "Busca el balcón volado: vértigo garantizado."
+  },
+  "mirador-aldehuela": {
+    "name": "Mirador de Aldehuela",
+    "description": "Mirador junto al Puente Nuevo, dedicado a su arquitecto, con una de las vistas más cercanas del Tajo y del puente.",
+    "short_tip": "Buena foto a primera hora, antes de que lleguen los grupos."
+  },
+  "jardines-cuenca": {
+    "name": "Jardines de Cuenca",
+    "description": "Jardines en terrazas colgados sobre el Tajo, con rosales y vistas al Puente Nuevo y al Puente Viejo.",
+    "short_tip": "Entrada libre y poca gente."
+  },
+  "paseo-blas-infante": {
+    "name": "Paseo de Blas Infante",
+    "description": "Paseo junto al Parador con miradores sobre el Tajo y la Serranía, que continúa por el Paseo de los Ingleses.",
+    "short_tip": "Al atardecer el valle se tiñe de naranja."
+  },
+  "puerta-almocabar": {
+    "name": "Puerta de Almocábar",
+    "description": "Puerta principal de la muralla nazarí del siglo XIII, junto a la de Carlos V, que daba acceso a la ciudad desde el sur.",
+    "short_tip": "Desde aquí se ve buena parte de la muralla."
+  },
+  "plaza-duquesa-parcent": {
+    "name": "Plaza Duquesa de Parcent",
+    "description": "Plaza principal de la ciudad antigua, rodeada de conventos, el Ayuntamiento y la iglesia de Santa María la Mayor.",
+    "short_tip": "Un rincón tranquilo con bancos a la sombra."
+  },
+  "plaza-socorro": {
+    "name": "Plaza del Socorro",
+    "description": "Corazón de la ciudad nueva, con la iglesia del Socorro y el edificio donde en 1918 se aprobaron la bandera y el escudo de Andalucía.",
+    "short_tip": "Rodeada de bares y tiendas, a cinco minutos del Puente Nuevo."
+  },
+  "virgen-paz": {
+    "name": "Santuario de la Virgen de la Paz",
+    "description": "Templo barroco del siglo XVIII donde se venera a la patrona de Ronda.",
+    "short_tip": "Entrada libre."
+  },
+  "convento-merced": {
+    "name": "Convento de la Merced",
+    "description": "Convento de carmelitas descalzas que guarda la reliquia de la mano de Santa Teresa de Jesús. Las monjas venden dulces caseros.",
+    "short_tip": "Los dulces se compran por el torno, por la mañana y a media tarde."
+  }
+}

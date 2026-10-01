@@ -1,0 +1,92 @@
+{
+  "poi_mubz2l7a_dc0x28": {
+    "name": "Selwo Marina",
+    "description": "Parc marí amb dofins, lleons marins, pingüins i ocells exòtics, amb exhibicions al llarg del dia.",
+    "short_tip": "Mira l'horari de les exhibicions en entrar. És al costat del telefèric."
+  },
+  "poi_mubz2mqg_py03or": {
+    "name": "Sea Life Benalmádena",
+    "description": "Aquari a Puerto Marina amb taurons, tortugues i meduses, i un túnel submarí.",
+    "short_tip": "Bon pla amb nens o en un dia de pluja."
+  },
+  "poi_mubz2j8b_dm8c8t": {
+    "name": "Papallonari de Benalmádena (Monowa)",
+    "description": "Papallonari en un edifici d'estil temple tailandès, amb més de 1.500 papallones tropicals en llibertat, a més de rèptils i insectes.",
+    "short_tip": "Vés-hi a mig matí: amb calor les papallones són més actives."
+  },
+  "poi_mubz2iph_biiuod": {
+    "name": "Castell de Colomares",
+    "description": "Monument a Cristòfor Colom aixecat entre 1987 i 1994, que barreja romànic, gòtic i mudèjar per explicar el descobriment d'Amèrica. Guarda la que es considera l'església més petita del món.",
+    "short_tip": "Visita d'una hora. Millor en cotxe: és dalt d'Arroyo de la Miel."
+  },
+  "poi_mubz2izo_jirste": {
+    "name": "Estupa de la Il·luminació",
+    "description": "L'estupa budista més gran d'Occident, de 33 metres, en un turó amb vistes al mar. A dins, una sala de meditació decorada amb pintures.",
+    "short_tip": "Entrada lliure. Descalça't en entrar i guarda silenci."
+  },
+  "poi_mubz2jf8_k9tk83": {
+    "name": "Museu d'Art Precolombí Felipe Orlando",
+    "description": "Una de les col·leccions d'art precolombí més importants d'Espanya, amb peces de Mesoamèrica i Sud-amèrica, a més d'arqueologia local.",
+    "short_tip": "Entrada gratuïta. A Benalmádena Pueblo."
+  },
+  "poi_mubz2jp9_0ify2g": {
+    "name": "Centre de la Història de Benalmádena",
+    "description": "Centre d'interpretació sobre la història del municipi, de la prehistòria a l'arribada del turisme.",
+    "short_tip": "Entrada gratuïta. Visita curta."
+  },
+  "poi_mubz2k0o_b0qi5w": {
+    "name": "Església de Santo Domingo de Guzmán",
+    "description": "Església dels segles XVI al XVIII a dalt de Benalmádena Pueblo, abocada a la costa.",
+    "short_tip": "Al costat dels Jardines del Muro: combina les dues visites."
+  },
+  "poi_mubz2k95_4eni0z": {
+    "name": "Jardines del Muro",
+    "description": "Jardins en terrasses al poble, amb fonts, pèrgoles i vistes al mar, al costat de l'església de Santo Domingo.",
+    "short_tip": "Molt bonics a la posta de sol."
+  },
+  "poi_mubz2khr_lhg491": {
+    "name": "Plaza de España i La Niña de Benalmádena",
+    "description": "Plaça principal de Benalmádena Pueblo, amb la font de La Niña, escultura de bronze convertida en símbol del municipi.",
+    "short_tip": "Bon punt de partida per recórrer el poble a peu."
+  },
+  "poi_mubz2kqb_6pwjme": {
+    "name": "Parque de la Paloma",
+    "description": "Gran parc urbà amb llac, cascada i animals en llibertat: conills, ànecs, paons i gallines. Un dels preferits de les famílies.",
+    "short_tip": "Entrada gratuïta. Perfecte per a un pícnic amb nens."
+  },
+  "poi_mubz2lft_rfy382": {
+    "name": "Mont Calamorro",
+    "description": "Cim de gairebé 800 metres amb vistes a tota la costa i, els dies clars, a l'Àfrica. S'hi puja amb el telefèric o per un sender exigent.",
+    "short_tip": "A peu és gratis però costerut: unes dues hores de pujada."
+  },
+  "poi_mubz2loo_dsnwmv": {
+    "name": "Casa de la Cultura de Benalmádena",
+    "description": "Centre cultural d'Arroyo de la Miel amb exposicions, concerts i teatre.",
+    "short_tip": "Consulta'n la programació."
+  },
+  "poi_mubz2m5i_629of3": {
+    "name": "Castell d'El Bil-Bil",
+    "description": "Edifici vermell d'estil àrab de 1934 davant del mar que avui acull exposicions i concerts. Un dels racons més fotografiats de la costa.",
+    "short_tip": "Exposicions d'entrada lliure. Al costat del passeig marítim."
+  },
+  "poi_mubz2n0p_dxuukc": {
+    "name": "Vil·la Romana de Los Molinillos",
+    "description": "Restes d'una vil·la i factoria de salaons romana dels segles I al V, al costat del passeig marítim.",
+    "short_tip": "Accés lliure. Es veu en pocs minuts."
+  },
+  "poi_mubz2n83_sub71a": {
+    "name": "Jaciment romà de Benalroma",
+    "description": "Restes d'una vil·la romana amb piles de salaó descobertes vora la costa.",
+    "short_tip": "Visita breu: combina-la amb Los Molinillos."
+  },
+  "poi_mt0qfcfn_r5wfmx": {
+    "name": "Puerto Marina",
+    "description": "Port esportiu d'arquitectura gairebé de conte, amb illes, ponts i terrasses, premiat diverses vegades com un dels millors del món.",
+    "short_tip": "Molt animat de nit."
+  },
+  "poi_mtybk2re_h1jmd9": {
+    "name": "Temple hindú de Benalmádena",
+    "description": "Temple hindú d'Arroyo de la Miel obert als visitants, de colors vius, on la comunitat celebra les seves festes.",
+    "short_tip": "Respecta el culte: descalça't en entrar."
+  }
+}

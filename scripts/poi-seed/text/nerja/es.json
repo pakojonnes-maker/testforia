@@ -1,0 +1,62 @@
+{
+  "poi_balcon": {
+    "name": "Balcón de Europa",
+    "description": "El mirador más famoso de la Costa del Sol: un paseo de palmeras sobre un promontorio que se asoma al Mediterráneo, con calas a sus pies y la sierra de Almijara detrás.",
+    "short_tip": "Ve al atardecer o a primera hora, cuando hay menos gente. Junto a la Iglesia de El Salvador."
+  },
+  "poi_cuevas": {
+    "name": "Cueva de Nerja",
+    "description": "Cavidad gigantesca descubierta en 1959 por cinco chicos del pueblo, con salas enormes, columnas de estalactitas y pinturas prehistóricas. En verano acoge un festival de música y danza.",
+    "short_tip": "La entrada incluye el Museo de Nerja. Visita gratuita de lunes a viernes a las 9:15, con reserva y 60 plazas."
+  },
+  "poi_burriana": {
+    "name": "Playa de Burriana",
+    "description": "La playa más popular de Nerja: arena oscura, aguas tranquilas, un paseo lleno de chiringuitos y deportes náuticos.",
+    "short_tip": "Prueba la paella de Ayo, todo un clásico de la playa."
+  },
+  "iglesia-salvador": {
+    "name": "Iglesia de El Salvador",
+    "description": "Iglesia blanca del siglo XVII junto al Balcón de Europa, con artesonado mudéjar y un mural de la Anunciación pintado por Francisco Hernández.",
+    "short_tip": "Entrada libre. Está a la entrada del Balcón de Europa."
+  },
+  "ermita-angustias": {
+    "name": "Ermita de las Angustias",
+    "description": "Pequeña ermita del siglo XVIII con una cúpula pintada al fresco con escenas de la Pasión, de las más bonitas de la Axarquía.",
+    "short_tip": "Abre en horarios cortos: si está cerrada, la fachada encalada merece la foto."
+  },
+  "museo-nerja": {
+    "name": "Museo de Nerja",
+    "description": "En la Plaza de España, cuenta la historia del municipio desde la prehistoria, con los hallazgos de la Cueva de Nerja como gran protagonista.",
+    "short_tip": "Incluido en la entrada de la Cueva de Nerja; por separado, 5 €."
+  },
+  "verano-azul": {
+    "name": "Parque Verano Azul",
+    "description": "Parque dedicado a la mítica serie de televisión rodada en Nerja, con «La Dorada», el barco de Chanquete, como pieza central.",
+    "short_tip": "Para el público español es visita obligada. Con zona de juegos para niños."
+  },
+  "detunda": {
+    "name": "Jardín Botánico Detunda",
+    "description": "Junto a la Cueva de Nerja, reúne más de 200 especies de las sierras de Málaga y Granada, con cultivos tradicionales y vistas a la costa.",
+    "short_tip": "Entrada gratuita. Combínalo con la visita a la cueva."
+  },
+  "maro": {
+    "name": "Maro",
+    "description": "Pequeño pueblo blanco de Nerja sobre los acantilados, con huertas en terrazas, la iglesia de las Maravillas y bajadas a calas tranquilas.",
+    "short_tip": "Desde aquí se baja a la playa de Maro: buena para kayak y snorkel."
+  },
+  "acueducto-aguila": {
+    "name": "Acueducto del Águila",
+    "description": "Acueducto de ladrillo del siglo XIX con cuatro pisos de arcos, construido para llevar agua a un ingenio azucarero. Se ve desde la carretera de Maro.",
+    "short_tip": "Se contempla desde fuera; para en el mirador de la carretera antigua."
+  },
+  "acantilados-maro": {
+    "name": "Acantilados de Maro-Cerro Gordo",
+    "description": "Paraje natural de acantilados y calas entre Nerja y La Herradura, con torres vigía y fondos marinos de gran riqueza.",
+    "short_tip": "Lo mejor es verlos desde el mar en kayak, o por los senderos que bajan a las calas."
+  },
+  "frigiliana": {
+    "name": "Frigiliana",
+    "description": "Uno de los pueblos más bonitos de España, a 7 km de Nerja: callejuelas empinadas de casas blancas, barrio morisco y paneles de cerámica que cuentan su historia.",
+    "short_tip": "Aparca a la entrada y sube a pie por el barrio morisco. Prueba la miel de caña."
+  }
+}

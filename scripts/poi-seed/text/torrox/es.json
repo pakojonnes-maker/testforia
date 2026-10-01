@@ -1,0 +1,26 @@
+{
+  "_zone": {
+    "name": "Torrox",
+    "description": "Dos caras en un mismo municipio: Torrox Costa, con playas largas y un paseo marítimo animado, y Torrox pueblo, blanco y morisco entre colinas de aguacates. Presume del mejor clima de Europa."
+  },
+  "faro-torrox": {
+    "name": "Faro de Torrox y villa romana de Caviclum",
+    "description": "Junto al faro, los restos de una villa romana con termas, factoría de salazones y alfar. El centro de interpretación explica cómo era la Caviclum romana.",
+    "short_tip": "Entrada gratuita. Cerrado domingos y lunes."
+  },
+  "torrox-pueblo": {
+    "name": "Torrox pueblo",
+    "description": "Pueblo blanco de origen árabe en la colina, con calles estrechas que suben desde la Plaza de la Constitución, rodeado de huertas de aguacates y mangos.",
+    "short_tip": "Mejor a pie: aparca abajo y sube. En diciembre celebra su famosa Fiesta de las Migas."
+  },
+  "iglesia-encarnacion": {
+    "name": "Iglesia de la Encarnación",
+    "description": "Templo de principios del siglo XVI levantado sobre la antigua mezquita mayor, con una torre que domina el pueblo.",
+    "short_tip": "Se visita en horario de culto."
+  },
+  "ermita-nieves": {
+    "name": "Convento de las Nieves",
+    "description": "Antiguo convento del siglo XVI de arquitectura mudéjar, a la entrada del pueblo, del que se visita el claustro.",
+    "short_tip": "Se visita en horario de culto."
+  }
+}

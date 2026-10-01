@@ -1,0 +1,40 @@
+{
+  "poi_mijas_cac": {
+    "description": "Colección permanente con obras originales de Picasso, Dalí y Miró, sobre todo cerámica de Picasso. Sorprendente para un pueblo de este tamaño.",
+    "short_tip": "Visita de unos 45 minutos. Imprescindible aunque no seas de museos."
+  },
+  "poi_mijas_plaza_toros": {
+    "short_tip": "Una de las pocas plazas de toros cuadradas. Incluye un pequeño museo taurino."
+  },
+  "poi_mijas_carromato": {
+    "short_tip": "Museo de rarezas: la Última Cena en un grano de arroz o pulgas vestidas."
+  },
+  "museo-historico": {
+    "name": "Museo Histórico-Etnológico",
+    "description": "En el antiguo Ayuntamiento, recrea la vida tradicional de Mijas: almazara, bodega, cocina, aperos y el escondite donde vivió 30 años «el Topo de Mijas».",
+    "short_tip": "Visita corta y casi simbólica de precio. En la Plaza de la Libertad."
+  },
+  "iglesia-inmaculada": {
+    "name": "Iglesia de la Inmaculada Concepción",
+    "description": "Iglesia del siglo XVI levantada sobre la antigua mezquita, junto a la muralla, con una torre de origen medieval.",
+    "short_tip": "Justo detrás están los jardines de la Muralla y sus vistas."
+  },
+  "ermita-calvario": {
+    "name": "Ermita del Calvario",
+    "description": "Pequeña ermita del siglo XVIII en el monte, a la que se sube por un camino de pinos con las estaciones del Vía Crucis. Vistas sobre toda la costa.",
+    "short_tip": "Unos 30 minutos de subida desde el pueblo. Lleva agua."
+  },
+  "calle-san-sebastian": {
+    "name": "Calle San Sebastián",
+    "description": "Calle empinada de casas encaladas con macetas en las fachadas y la pequeña ermita de San Sebastián al fondo. La imagen más fotografiada de Mijas.",
+    "short_tip": "Ve temprano para hacer fotos sin gente."
+  },
+  "donkey-dreamland": {
+    "name": "Donkey Dreamland",
+    "description": "Santuario que rescata burros y mulas abandonados o maltratados. Los voluntarios enseñan el refugio y cuentan la historia de cada animal.",
+    "short_tip": "Entrada libre con donativo. Consulta los días de visita antes de ir."
+  },
+  "poi_mijas_burro_taxi": {
+    "short_tip": "Algunos visitantes tienen dudas sobre el bienestar de los animales: valóralo antes de subirte."
+  }
+}

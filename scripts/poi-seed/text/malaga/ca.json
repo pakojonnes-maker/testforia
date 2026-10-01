@@ -1,0 +1,128 @@
+{
+  "poi_malaga_alcazaba": { "short_tip": "Gratuït els diumenges a partir de les 14 h. Entrada conjunta amb Gibralfaro: 10 €." },
+  "poi_malaga_gibralfaro": { "short_tip": "Gratuït els diumenges a partir de les 14 h. S'hi puja a peu des de l'Alcazaba o amb el bus 35." },
+  "poi_malaga_catedral": { "short_tip": "Audioguia inclosa. Les cobertes es visiten a part, amb hora reservada." },
+  "poi_malaga_museo_picasso": { "short_tip": "Gratuït els diumenges les dues últimes hores. En temporada alta, reserva hora." },
+  "poi_malaga_thyssen": { "short_tip": "Gratuït els diumenges a partir de les 16 h." },
+  "poi_malaga_pompidou": { "short_tip": "Gratuït els diumenges a partir de les 16 h. És el cub de colors del Muelle Uno." },
+  "poi_malaga_museo_automovilistico": { "short_tip": "A l'antiga Tabacalera, al costat de la Col·lecció del Museu Rus." },
+  "poi_malaga_casa_natal_picasso": { "short_tip": "A la Plaza de la Merced. Visita curta, d'uns 45 minuts." },
+  "poi_malaga_concepcion": { "short_tip": "Gratuït els diumenges. És als afores, al nord: millor en cotxe o taxi." },
+  "poi_malaga_cementerio_ingles": { "short_tip": "Tancat els dilluns. A 15 minuts a peu del centre, al costat de la Malagueta." },
+
+  "museo-vidrio": {
+    "name": "Museu del Vidre i el Cristall",
+    "description": "Casa del segle XVIII al barri de San Felipe Neri amb més de 3.000 peces de vidre, de l'Antiguitat al segle XX, ambientades com una casa d'època.",
+    "short_tip": "La visita és guiada i està inclosa a l'entrada."
+  },
+  "museo-ruso": {
+    "name": "Col·lecció del Museu Rus",
+    "description": "A l'antiga Fàbrica de Tabacs, aquest centre municipal exposa pintura russa dels segles XVI al XX i acull exposicions temporals al seu espai MEET.",
+    "short_tip": "Entrada combinada amb l'exposició temporal: 8 €."
+  },
+  "oxo": {
+    "name": "OXO Museu del Videojoc",
+    "description": "Museu interactiu sobre la història del videojoc: desenes de màquines i consoles, la majoria jugables, dels arcades clàssics a la realitat virtual.",
+    "short_tip": "Ideal amb nens o en un dia de pluja. Compta almenys dues hores."
+  },
+  "museo-malaga": {
+    "name": "Museu de Màlaga",
+    "description": "Al Palacio de la Aduana, reuneix belles arts i arqueologia, dels fenicis i romans a la pintura malaguenya del segle XIX. És un dels museus més grans d'Espanya.",
+    "short_tip": "Gratuït per a ciutadans de la UE amb document; 1,50 € per a la resta."
+  },
+  "artes-costumbres": {
+    "name": "Museu d'Arts i Costums Populars",
+    "description": "En un hostal del segle XVII vora el riu Guadalmedina, recrea la vida quotidiana de la Màlaga dels segles XVIII i XIX: molí d'oli, celler, cuina i oficis.",
+    "short_tip": "Visita d'una hora, a tocar del Mercat d'Atarazanas."
+  },
+  "revello-toro": {
+    "name": "Museu Revello de Toro",
+    "description": "A la casa-taller del segle XVII de l'escultor barroc Pedro de Mena, exposa l'obra del retratista malagueny Félix Revello de Toro.",
+    "short_tip": "Gratuït els diumenges. Té un pati andalús molt ben conservat."
+  },
+  "mimma": {
+    "name": "Museu Interactiu de la Música (MIMMA)",
+    "description": "Més de mil instruments de tot el món, molts per tocar-los: el lema del museu és «es prega tocar».",
+    "short_tip": "Molt recomanable amb nens. En ple centre històric."
+  },
+  "museo-vino": {
+    "name": "Museu del Vi",
+    "description": "En un palau del segle XVIII, explica la història dels vins de Màlaga, del moscatell dolç als de la Serranía de Ronda, amb etiquetes i cartells antics.",
+    "short_tip": "L'entrada inclou el tast de dos vins de Màlaga."
+  },
+  "pena-juan-breva": {
+    "name": "Museu d'Art Flamenc (Peña Juan Breva)",
+    "description": "La penya flamenca més antiga de Màlaga guarda una col·lecció única de guitarres, discos de pedra, cartells i vestits del cante jondo.",
+    "short_tip": "La penya organitza recitals: consulta'n la programació."
+  },
+  "jorge-rando": {
+    "name": "Museu Jorge Rando",
+    "description": "Dedicat al pintor malagueny Jorge Rando i a l'expressionisme, en un edifici que comparteix murs amb el convent de les Mercedàries.",
+    "short_tip": "Entrada gratuïta. Tranquil i poc conegut, a deu minuts a peu del centre."
+  },
+  "mucac": {
+    "name": "MuCAC Màlaga (La Coracha)",
+    "description": "El museu municipal d'art contemporani, nascut el 2024 de la unió de l'antic CAC i del Museu del Patrimoni Municipal. La seu de La Coracha, al peu de Gibralfaro, reuneix col·lecció i exposicions temporals.",
+    "short_tip": "Entrada gratuïta. Tancat els dilluns."
+  },
+  "museo-aeronautico": {
+    "name": "Museu Aeronàutic de Màlaga",
+    "description": "Al costat de l'aeroport, a l'antiga terminal, recorre la història de l'aviació a Màlaga amb avions, maquetes i uniformes.",
+    "short_tip": "Entrada gratuïta. Va bé el dia del vol si et sobra temps."
+  },
+  "parque-malaga": {
+    "name": "Parc de Màlaga",
+    "description": "Jardí botànic urbà de finals del segle XIX entre el port i el centre, amb espècies tropicals dels cinc continents, fonts i escultures.",
+    "short_tip": "Ombra assegurada a l'estiu. Uneix la Plaza de la Marina amb la Malagueta."
+  },
+  "jardines-pedro-luis-alonso": {
+    "name": "Jardins de Pedro Luis Alonso",
+    "description": "Jardí d'estil hispanomusulmà al costat de l'Ajuntament, amb tanques retallades, fonts i rosers, als peus de l'Alcazaba.",
+    "short_tip": "Molt fotogènic. Al costat comencen els Jardins de Puerta Oscura, que pugen cap a Gibralfaro."
+  },
+  "la-farola": {
+    "name": "Far La Farola",
+    "description": "El far del port, de 1817, un dels pocs d'Espanya amb nom femení. Marca l'inici del passeig de la Malagueta.",
+    "short_tip": "Es veu per fora. Preciós a la posta de sol des del Muelle Uno."
+  },
+  "plaza-obispo": {
+    "name": "Plaza del Obispo i Palau Episcopal",
+    "description": "Davant de la façana principal de la Catedral, la tanca el Palau Episcopal, de façana barroca del segle XVIII, que acull exposicions temporals.",
+    "short_tip": "La millor vista de la façana de la Catedral, amb terrasses al voltant."
+  },
+  "iglesia-martires": {
+    "name": "Església dels Sants Màrtirs",
+    "description": "Fundada després de la conquesta cristiana el 1487 i reformada en època barroca, amb un interior ple de daurats i diverses confraries de Setmana Santa.",
+    "short_tip": "Entrada lliure fora de missa. A dos minuts del carrer Larios."
+  },
+  "iglesia-santiago": {
+    "name": "Església de Santiago",
+    "description": "Una de les parròquies fundades pels Reis Catòlics el 1490, amb torre mudèjar. Aquí va ser batejat Picasso el 1881.",
+    "short_tip": "Entrada lliure. Al carrer Granada, camí de la Plaza de la Merced."
+  },
+  "iglesia-san-juan": {
+    "name": "Església de San Juan",
+    "description": "Una altra de les parròquies fundades el 1490, reconstruïda al segle XVIII, amb la seva torre-pòrtic sobre el carrer San Juan.",
+    "short_tip": "Entrada lliure. En un carrer de vianants ple de botigues i bars."
+  },
+  "sagrado-corazon": {
+    "name": "Església del Sagrat Cor",
+    "description": "L'únic temple neogòtic de la ciutat, de 1920, amb una façana d'agulles que recorda les catedrals del nord d'Europa.",
+    "short_tip": "Entrada lliure. En ple centre històric."
+  },
+  "pedregalejo": {
+    "name": "Pedregalejo",
+    "description": "Antic barri de pescadors a l'est de la ciutat, amb cases baixes davant del mar, platges petites entre esculleres i la tradició dels espetos de sardines.",
+    "short_tip": "Arriba-hi a peu pel passeig marítim o amb el bus 11 des del Paseo del Parque."
+  },
+  "guadalhorce": {
+    "name": "Desembocadura del Guadalhorce",
+    "description": "Paratge natural al costat de l'aeroport on el riu forma llacunes: més de 260 espècies d'ocells, amb observatoris d'accés lliure.",
+    "short_tip": "Entrada gratuïta. Porta prismàtics i vés-hi a primera hora."
+  },
+  "montes-malaga": {
+    "name": "Parc Natural Montes de Málaga",
+    "description": "Pinedes i senders a 15 minuts del centre en cotxe, amb miradors sobre la badia i hostals tradicionals on menjar el «plato de los montes».",
+    "short_tip": "Millor en cotxe. Porta aigua: a l'estiu fa calor i hi ha poques fonts."
+  }
+}

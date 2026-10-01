@@ -1,0 +1,31 @@
+{
+  "poi_torremolinos_molino_inca": {
+    "description": "Antiga deu i molí d'aigua convertits en jardí botànic, amb estanys, cascades, ocells i més de mil espècies vegetals. Un oasi verd poc conegut pels turistes.",
+    "short_tip": "Entrada 3 € (1 € per als empadronats). Perfecte per fugir de la calor a l'estiu."
+  },
+  "poi_msb1rniw_077bzs": {
+    "name": "Casa de los Navajas",
+    "description": "Palauet neomudèjar de 1925 abocat al mar sobre la platja del Bajondillo, amb rajoles, gelosies i jardins. Acull exposicions.",
+    "short_tip": "Entrada gratuïta. Obre de dimecres a diumenge."
+  },
+  "iglesia-san-miguel": {
+    "name": "Església de San Miguel Arcángel",
+    "description": "La parròquia més antiga de Torremolinos, del segle XVIII, a dalt del carrer San Miguel, on va néixer el poble de pescadors i moliners.",
+    "short_tip": "Entrada lliure. Encaixa en el passeig pel carrer San Miguel."
+  },
+  "centro-cultural-picasso": {
+    "name": "Centre Cultural Pablo Ruiz Picasso",
+    "description": "Centre municipal amb exposicions temporals d'art, teatre i concerts, al centre de Torremolinos.",
+    "short_tip": "Les exposicions són gratuïtes. Consulta'n la programació."
+  },
+  "mirador-canada-lobo": {
+    "name": "Mirador de la Cañada del Lobo",
+    "description": "A la serra que domina Torremolinos, ofereix una vista àmplia de la costa, de Màlaga a Benalmádena.",
+    "short_tip": "Porta calçat còmode: l'últim tram és un corriol."
+  },
+  "el-morro": {
+    "name": "El Morro (Punta de Torremolinos)",
+    "description": "Promontori que separa la platja del Bajondillo de La Carihuela, amb un mirador sobre tota la badia de Màlaga.",
+    "short_tip": "El sender litoral l'envolta: bon passeig a la posta de sol."
+  }
+}

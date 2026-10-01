@@ -1,0 +1,40 @@
+{
+  "poi_mijas_cac": {
+    "description": "Dauerausstellung mit Originalwerken von Picasso, Dalí und Miró, vor allem Keramiken von Picasso. Erstaunlich für ein Dorf dieser Größe.",
+    "short_tip": "Etwa 45 Minuten Besuch. Ein Muss, auch wenn Sie keine Museumsfans sind."
+  },
+  "poi_mijas_plaza_toros": {
+    "short_tip": "Eine der wenigen quadratischen Stierkampfarenen. Mit kleinem Stierkampfmuseum."
+  },
+  "poi_mijas_carromato": {
+    "short_tip": "Ein Kuriositätenmuseum: das Abendmahl auf einem Reiskorn oder bekleidete Flöhe."
+  },
+  "museo-historico": {
+    "name": "Historisch-Ethnologisches Museum",
+    "description": "Im alten Rathaus zeigt es das traditionelle Leben in Mijas: Ölmühle, Weinkeller, Küche, Ackergeräte und das Versteck, in dem „der Maulwurf von Mijas“ 30 Jahre lebte.",
+    "short_tip": "Kurzer Besuch zum fast symbolischen Preis. An der Plaza de la Libertad."
+  },
+  "iglesia-inmaculada": {
+    "name": "Kirche der Unbefleckten Empfängnis",
+    "description": "Kirche aus dem 16. Jahrhundert, über der alten Moschee an der Stadtmauer errichtet, mit einem Turm mittelalterlichen Ursprungs.",
+    "short_tip": "Direkt dahinter liegen die Muralla-Gärten mit ihrem Ausblick."
+  },
+  "ermita-calvario": {
+    "name": "Einsiedelei El Calvario",
+    "description": "Kleine Einsiedelei aus dem 18. Jahrhundert am Berg, erreichbar über einen Pinienweg mit Kreuzwegstationen. Blick über die ganze Küste.",
+    "short_tip": "Etwa 30 Minuten Aufstieg vom Dorf. Wasser mitnehmen."
+  },
+  "calle-san-sebastian": {
+    "name": "Calle San Sebastián",
+    "description": "Steile Gasse mit weiß gekalkten Häusern, Blumentöpfen an den Fassaden und der kleinen Kapelle San Sebastián am Ende. Das meistfotografierte Motiv von Mijas.",
+    "short_tip": "Früh kommen für Fotos ohne Menschenmassen."
+  },
+  "donkey-dreamland": {
+    "name": "Donkey Dreamland",
+    "description": "Ein Gnadenhof, der ausgesetzte oder misshandelte Esel und Maultiere aufnimmt. Freiwillige führen herum und erzählen die Geschichte jedes Tieres.",
+    "short_tip": "Eintritt frei gegen Spende. Besuchstage vorher prüfen."
+  },
+  "poi_mijas_burro_taxi": {
+    "short_tip": "Manche Besucher haben Bedenken zum Tierwohl: Überlegen Sie es sich vor dem Aufsitzen."
+  }
+}

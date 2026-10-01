@@ -1,0 +1,141 @@
+{
+  "_zone": {
+    "name": "Ronda",
+    "description": "Città bianca divisa in due dal Tajo, una gola di cento metri attraversata dal Puente Nuevo. Culla della tauromachia moderna, con centro storico nasride, bagni arabi e vigneti nella Serranía."
+  },
+  "puente-nuevo": {
+    "name": "Puente Nuevo",
+    "description": "Il simbolo di Ronda: un ponte di pietra del XVIII secolo che scavalca il Tajo a quasi cento metri d'altezza e unisce la città nuova a quella antica.",
+    "short_tip": "Attraversalo a piedi e affacciati dai suoi balconi. All'interno c'è il centro visitatori."
+  },
+  "tajo": {
+    "name": "Il Tajo di Ronda",
+    "description": "Gola profonda fino a cento metri scavata dal fiume Guadalevín, che spacca la città in due. Si ammira da ponti, belvedere e sentieri.",
+    "short_tip": "Per vederla dal basso, scendi lungo il Camino de los Molinos."
+  },
+  "mirador-camino-molinos": {
+    "name": "Belvedere del Puente Nuevo (Camino de los Molinos)",
+    "description": "Dal basso, il sentiero dei Mulini regala la vista più famosa del Puente Nuevo, con la gola a strapiombo e la cascata ai suoi piedi.",
+    "short_tip": "Circa 20 minuti di discesa da Plaza de María Auxiliadora. La risalita è faticosa."
+  },
+  "centro-interpretacion-puente": {
+    "name": "Centro visitatori del Puente Nuevo",
+    "description": "Occupa la camera all'interno dell'arco centrale, un tempo usata come prigione, e spiega come fu costruito il ponte nel XVIII secolo.",
+    "short_tip": "Visita breve. Inclusa nel pass turistico comunale."
+  },
+  "plaza-toros": {
+    "name": "Arena di Ronda",
+    "description": "Del 1785, una delle più antiche di Spagna e culla della corrida a piedi. Si visitano l'arena, i recinti, le scuderie e il museo taurino.",
+    "short_tip": "Con audioguida 12 €. L'unica corrida si tiene alla Feria Goyesca, a settembre."
+  },
+  "casa-rey-moro": {
+    "name": "Casa del Re Moro: giardini e miniera",
+    "description": "Giardini a terrazze di inizio Novecento e una miniera d'acqua nasride scavata nella roccia, con scale che scendono fino al fiume.",
+    "short_tip": "Scendere è facile; risalire i gradini della miniera un po' meno. Scarpe comode."
+  },
+  "banos-arabes": {
+    "name": "Bagni arabi",
+    "description": "I bagni arabi meglio conservati della penisola, del XIII e XIV secolo, con volte a lucernari a forma di stella accanto al fiume.",
+    "short_tip": "Gratis il martedì pomeriggio. Un audiovisivo spiega come funzionavano."
+  },
+  "palacio-mondragon": {
+    "name": "Palazzo di Mondragón",
+    "description": "Palazzo di origine nasride ristrutturato nel Rinascimento, con patii mudéjar e giardini sospesi sul Tajo. Ospita il Museo Municipale.",
+    "short_tip": "Non perdere il giardino-belvedere affacciato sulla Serranía."
+  },
+  "santa-maria-mayor": {
+    "name": "Chiesa di Santa María la Mayor",
+    "description": "Costruita sull'antica moschea maggiore, di cui conserva l'arco del mihrab, fonde gotico, rinascimento e barocco.",
+    "short_tip": "Audioguida inclusa. Si trova in Plaza Duquesa de Parcent."
+  },
+  "museo-lara": {
+    "name": "Museo Lara",
+    "description": "Immensa collezione privata in un palazzo del XVIII secolo: orologi, armi, ventagli, cinema, archeologia e sale sull'Inquisizione e la stregoneria.",
+    "short_tip": "C'è molto da vedere: calcola almeno un'ora e mezza."
+  },
+  "museo-joaquin-peinado": {
+    "name": "Museo Joaquín Peinado",
+    "description": "Nel Palazzo dei Marchesi di Moctezuma, riunisce l'opera di questo pittore di Ronda della Scuola di Parigi, amico di Picasso.",
+    "short_tip": "Gratis il martedì dalle 15 alle 17. Chiuso la domenica."
+  },
+  "casa-gigante": {
+    "name": "Casa del Gigante",
+    "description": "Casa-palazzo nasride del XIV secolo, una delle poche abitazioni dell'epoca giunte fino a noi, con stucchi e un patio con vasca.",
+    "short_tip": "Visita breve. Inclusa nel pass turistico comunale."
+  },
+  "casa-don-bosco": {
+    "name": "Casa Museo Don Bosco",
+    "description": "Casa modernista di inizio Novecento con mobili d'epoca e un giardino sospeso sul Tajo con vista sul Puente Nuevo.",
+    "short_tip": "Il meglio è il giardino: vista sul ponte con poca gente."
+  },
+  "espiritu-santo": {
+    "name": "Chiesa dello Spirito Santo",
+    "description": "Chiesa-fortezza di fine Quattrocento, costruita dopo la conquista cristiana accanto alle mura, nel quartiere di San Francisco.",
+    "short_tip": "Accanto alla Porta di Almocábar."
+  },
+  "cueva-pileta": {
+    "name": "Grotta della Pileta",
+    "description": "Grotta con pitture rupestri di oltre 20.000 anni fa, cavalli, pesci e simboli, che si visita solo alla luce di lampade a mano.",
+    "short_tip": "Visita guidata in gruppi di 15 con prenotazione. A 22 km da Ronda, vicino a Benaoján."
+  },
+  "reservatauro": {
+    "name": "Reservatauro",
+    "description": "Allevamento di tori da combattimento nella Serranía: si vedono gli animali al pascolo e si scopre come vengono allevati.",
+    "short_tip": "Solo su prenotazione. Si arriva in auto."
+  },
+  "puente-viejo": {
+    "name": "Puente Viejo",
+    "description": "Ponte a un'unica arcata del 1616 sul Guadalevín, con vista sul Tajo e sui bagni arabi.",
+    "short_tip": "Abbinalo ai bagni arabi e al ponte romano: sono uno accanto all'altro."
+  },
+  "puente-romano": {
+    "name": "Ponte romano (di San Miguel)",
+    "description": "Il più basso dei tre ponti di Ronda, di origine medievale nonostante il nome, all'ingresso dei bagni arabi.",
+    "short_tip": "Da qui si vede il Puente Viejo sopra."
+  },
+  "alameda-tajo": {
+    "name": "Alameda del Tajo",
+    "description": "Parco ottocentesco sul ciglio del precipizio, con balconi sporgenti sulla Serranía, come il famoso Balcón del Coño.",
+    "short_tip": "Cerca il balcone a sbalzo: vertigini garantite."
+  },
+  "mirador-aldehuela": {
+    "name": "Belvedere di Aldehuela",
+    "description": "Belvedere accanto al Puente Nuevo, dedicato al suo architetto, con una delle viste più ravvicinate della gola e del ponte.",
+    "short_tip": "Belle foto di primo mattino, prima dei gruppi."
+  },
+  "jardines-cuenca": {
+    "name": "Giardini di Cuenca",
+    "description": "Giardini a terrazze sospesi sul Tajo, con roseti e vista sul Puente Nuevo e sul Puente Viejo.",
+    "short_tip": "Ingresso libero e poca gente."
+  },
+  "paseo-blas-infante": {
+    "name": "Paseo de Blas Infante",
+    "description": "Passeggiata accanto al Parador con belvedere sul Tajo e sulla Serranía, che prosegue lungo il Paseo de los Ingleses.",
+    "short_tip": "Al tramonto la valle si tinge d'arancione."
+  },
+  "puerta-almocabar": {
+    "name": "Porta di Almocábar",
+    "description": "Porta principale delle mura nasridi del XIII secolo, accanto a quella di Carlo V, che dava accesso alla città da sud.",
+    "short_tip": "Da qui si vede buona parte delle mura."
+  },
+  "plaza-duquesa-parcent": {
+    "name": "Plaza Duquesa de Parcent",
+    "description": "Piazza principale della città antica, circondata da conventi, dal Municipio e dalla chiesa di Santa María la Mayor.",
+    "short_tip": "Un angolo tranquillo con panchine all'ombra."
+  },
+  "plaza-socorro": {
+    "name": "Plaza del Socorro",
+    "description": "Il cuore della città nuova, con la chiesa del Socorro e l'edificio dove nel 1918 furono approvati la bandiera e lo stemma dell'Andalusia.",
+    "short_tip": "Circondata da bar e negozi, a cinque minuti dal Puente Nuevo."
+  },
+  "virgen-paz": {
+    "name": "Santuario della Virgen de la Paz",
+    "description": "Chiesa barocca del XVIII secolo dove si venera la patrona di Ronda.",
+    "short_tip": "Ingresso libero."
+  },
+  "convento-merced": {
+    "name": "Convento della Merced",
+    "description": "Convento di carmelitane scalze che custodisce la reliquia della mano di santa Teresa d'Avila. Le suore vendono dolci fatti in casa.",
+    "short_tip": "I dolci si comprano alla ruota, la mattina e nel tardo pomeriggio."
+  }
+}

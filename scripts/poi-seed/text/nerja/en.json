@@ -1,0 +1,62 @@
+{
+  "poi_balcon": {
+    "name": "Balcony of Europe",
+    "description": "The most famous viewpoint on the Costa del Sol: a palm-lined promenade on a headland jutting into the Mediterranean, with coves below and the Almijara mountains behind.",
+    "short_tip": "Go at sunset or early morning, when it's quieter. Next to the Church of El Salvador."
+  },
+  "poi_cuevas": {
+    "name": "Nerja Cave",
+    "description": "A gigantic cave discovered in 1959 by five local boys, with vast chambers, columns of stalactites and prehistoric paintings. In summer it hosts a music and dance festival.",
+    "short_tip": "The ticket includes the Nerja Museum. Free visit Monday to Friday at 9:15, booking required, 60 places."
+  },
+  "poi_burriana": {
+    "name": "Burriana Beach",
+    "description": "Nerja's most popular beach: dark sand, calm water, a promenade full of beach bars and water sports.",
+    "short_tip": "Try the paella at Ayo, a beach classic."
+  },
+  "iglesia-salvador": {
+    "name": "Church of El Salvador",
+    "description": "A white 17th-century church next to the Balcony of Europe, with a Mudéjar coffered ceiling and a mural of the Annunciation by Francisco Hernández.",
+    "short_tip": "Free entry. Right at the entrance to the Balcony of Europe."
+  },
+  "ermita-angustias": {
+    "name": "Hermitage of Las Angustias",
+    "description": "A small 18th-century hermitage whose dome is painted in fresco with scenes of the Passion, among the loveliest in the Axarquía.",
+    "short_tip": "Opening hours are short: if it's closed, the whitewashed façade is worth a photo."
+  },
+  "museo-nerja": {
+    "name": "Nerja Museum",
+    "description": "On Plaza de España, it tells the town's story from prehistory, with the finds from the Nerja Cave in the starring role.",
+    "short_tip": "Included in the Nerja Cave ticket; €5 on its own."
+  },
+  "verano-azul": {
+    "name": "Verano Azul Park",
+    "description": "A park devoted to the cult TV series filmed in Nerja, with \"La Dorada\", Chanquete's boat, as its centrepiece.",
+    "short_tip": "A must for Spanish visitors. Has a children's play area."
+  },
+  "detunda": {
+    "name": "Detunda Botanical Garden",
+    "description": "Next to the Nerja Cave, it brings together over 200 species from the mountains of Málaga and Granada, with traditional crops and coastal views.",
+    "short_tip": "Free entry. Combine it with the cave visit."
+  },
+  "maro": {
+    "name": "Maro",
+    "description": "A small white village of Nerja on the cliffs, with terraced orchards, the church of Las Maravillas and paths down to quiet coves.",
+    "short_tip": "From here you can walk down to Maro beach: great for kayaking and snorkelling."
+  },
+  "acueducto-aguila": {
+    "name": "Eagle Aqueduct",
+    "description": "A 19th-century brick aqueduct with four tiers of arches, built to carry water to a sugar mill. You can see it from the Maro road.",
+    "short_tip": "Viewed from outside; stop at the lay-by on the old road."
+  },
+  "acantilados-maro": {
+    "name": "Maro-Cerro Gordo Cliffs",
+    "description": "A nature reserve of cliffs and coves between Nerja and La Herradura, with watchtowers and rich sea beds.",
+    "short_tip": "Best seen from the sea by kayak, or along the paths down to the coves."
+  },
+  "frigiliana": {
+    "name": "Frigiliana",
+    "description": "One of Spain's prettiest villages, 7 km from Nerja: steep lanes of white houses, a Moorish quarter and ceramic panels telling its history.",
+    "short_tip": "Park at the entrance and walk up through the Moorish quarter. Try the cane honey."
+  }
+}

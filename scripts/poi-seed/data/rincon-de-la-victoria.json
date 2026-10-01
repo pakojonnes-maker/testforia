@@ -1,0 +1,13 @@
+{
+  "zone": {"id": "zone_rincon_de_la_victoria", "create": true, "name": "Rincón de la Victoria", "slug": "rincon-de-la-victoria", "region": "Costa del Sol", "country": "ES", "latitude": 36.717, "longitude": -4.276, "max_km": 6},
+  "pois": [
+    { "key": "cueva-tesoro", "query": "Cueva del Tesoro, Rincón de la Victoria", "category": "Naturaleza", "poi_type": "attraction", "access_type": "paid", "price_display": "6 €", "price_amount": 6 },
+    { "key": "cueva-victoria", "query": "Cueva de la Victoria, Rincón de la Victoria", "category": "Cultura", "poi_type": "attraction", "access_type": "paid" },
+    { "key": "villa-antiopa", "query": "Villa Antiopa, Torre de Benagalbón", "category": "Cultura", "poi_type": "attraction", "access_type": "paid", "price_display": "6 €", "price_amount": 6 },
+    { "key": "casa-fuerte-bezmiliana", "query": "Casa Fuerte de Bezmiliana, Rincón de la Victoria", "category": "Cultura", "poi_type": "sight", "access_type": "free" },
+    { "key": "tuneles-cantal", "query": "Túneles del Cantal, Rincón de la Victoria", "category": "Naturaleza", "poi_type": "sight", "access_type": "free" },
+    { "key": "santuario-carmen", "query": "Santuario de la Virgen del Carmen, La Cala del Moral", "category": "Cultura", "poi_type": "sight", "access_type": "free" },
+    { "key": "iglesia-victoria", "query": "Parroquia Nuestra Señora de la Victoria, Rincón de la Victoria", "category": "Cultura", "poi_type": "sight", "access_type": "free" },
+    { "key": "benagalbon", "query": "Benagalbón, Rincón de la Victoria", "category": "Cultura", "poi_type": "sight", "access_type": "free", "max_km": 8 }
+  ]
+}

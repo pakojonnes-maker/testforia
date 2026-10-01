@@ -1,0 +1,46 @@
+{
+  "_zone": {
+    "name": "Rincón de la Victoria",
+    "description": "Village de pêcheurs aux portes de Málaga, célèbre pour ses anchois et pour la Cueva del Tesoro, l'une des rares grottes marines visitables au monde. Neuf kilomètres de plages, des tunnels de l'ancien train et une villa romaine aux mosaïques."
+  },
+  "cueva-tesoro": {
+    "name": "Grotte du Trésor",
+    "description": "L'une des rares grottes d'origine marine visitables au monde, avec des vestiges préhistoriques et la légende d'un trésor almoravide caché au XIIe siècle.",
+    "short_tip": "Gratuite en semaine au premier créneau du matin, sur réservation. Chaussures confortables : il y a des escaliers."
+  },
+  "cueva-victoria": {
+    "name": "Grotte de la Victoria",
+    "description": "Grotte voisine de celle du Trésor, avec des peintures rupestres schématiques et des traces d'occupation préhistorique, visitable uniquement avec un guide.",
+    "short_tip": "Visite guidée uniquement, sur réservation."
+  },
+  "villa-antiopa": {
+    "name": "Villa Antiopa",
+    "description": "Villa romaine du IIIe siècle, parmi les mieux conservées d'Andalousie, avec des mosaïques comme celle d'Antiope séduite par Zeus déguisé en satyre.",
+    "short_tip": "Gratuite le lundi sur réservation. Audioguide disponible sur le téléphone."
+  },
+  "casa-fuerte-bezmiliana": {
+    "name": "Maison-fort de Bezmiliana",
+    "description": "Fortin construit sur ordre de Charles III en 1766 pour défendre la côte contre les pirates. C'est aujourd'hui une salle d'exposition et l'office de tourisme.",
+    "short_tip": "Entrée libre. Renseignez-vous ici sur les visites des grottes."
+  },
+  "tuneles-cantal": {
+    "name": "Tunnels d'El Cantal",
+    "description": "Tunnels ouverts en 1908 pour le train Málaga–Vélez, aujourd'hui intégrés à la promenade, sous les falaises d'El Cantal et leur tour de guet médiévale.",
+    "short_tip": "À parcourir à pied ou à vélo. Très agréables l'été grâce à l'ombre."
+  },
+  "santuario-carmen": {
+    "name": "Sanctuaire de la Virgen del Carmen",
+    "description": "Sanctuaire marin de La Cala del Moral dédié à la patronne des pêcheurs, portée en procession jusqu'à la mer chaque mois de juillet.",
+    "short_tip": "Entrée libre. Si vous êtes là le 16 juillet, ne manquez pas la procession en mer."
+  },
+  "iglesia-victoria": {
+    "name": "Église Notre-Dame de la Victoire",
+    "description": "Église paroissiale principale de Rincón de la Victoria, au centre du village, à quelques pas du front de mer.",
+    "short_tip": "Entrée libre en dehors des messes."
+  },
+  "benagalbon": {
+    "name": "Benagalbón",
+    "description": "La partie intérieure de la commune : un village blanc dans les collines, avec son église et un petit Musée des Arts populaires.",
+    "short_tip": "Un joli contraste avec la côte, à 10 minutes en voiture."
+  }
+}

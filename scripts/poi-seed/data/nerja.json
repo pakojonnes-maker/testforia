@@ -1,0 +1,17 @@
+{
+  "zone": {"id": "zone_nerja", "name": "Nerja", "slug": "nerja", "latitude": 36.744, "longitude": -3.879, "max_km": 6},
+  "pois": [
+    { "id": "poi_balcon", "query": "Balcón de Europa, Nerja", "set": {"category": "Naturaleza", "poi_type": "sight", "access_type": "free"} },
+    { "id": "poi_cuevas", "query": "Cueva de Nerja", "set": {"category": "Naturaleza", "poi_type": "attraction", "access_type": "paid", "price_display": "16 €", "price_amount": 16} },
+    { "id": "poi_burriana", "query": "Playa de Burriana, Nerja", "set": {"category": "Playas", "poi_type": "beach", "access_type": "free"} },
+    { "key": "iglesia-salvador", "query": "Iglesia de El Salvador, Nerja", "category": "Cultura", "poi_type": "sight", "access_type": "free" },
+    { "key": "ermita-angustias", "query": "Ermita de Nuestra Señora de las Angustias, Nerja", "category": "Cultura", "poi_type": "sight", "access_type": "free" },
+    { "key": "museo-nerja", "query": "Museo de Nerja, Plaza de España", "category": "Cultura", "poi_type": "museum", "access_type": "paid", "price_display": "5 €", "price_amount": 5 },
+    { "key": "verano-azul", "query": "Parque Verano Azul, Nerja", "category": "Cultura", "poi_type": "sight", "access_type": "free" },
+    { "key": "detunda", "query": "Jardín Botánico Detunda Cueva de Nerja", "category": "Naturaleza", "poi_type": "nature", "access_type": "free" },
+    { "key": "maro", "query": "Maro, Nerja", "category": "Cultura", "poi_type": "sight", "access_type": "free" },
+    { "key": "acueducto-aguila", "query": "Acueducto del Águila, Nerja", "category": "Cultura", "poi_type": "sight", "access_type": "free" },
+    { "key": "acantilados-maro", "query": "Paraje Natural Acantilados de Maro-Cerro Gordo", "category": "Naturaleza", "poi_type": "nature", "access_type": "free", "max_km": 12 },
+    { "key": "frigiliana", "query": "Frigiliana, Málaga", "category": "Cultura", "poi_type": "sight", "access_type": "free", "max_km": 10 }
+  ]
+}

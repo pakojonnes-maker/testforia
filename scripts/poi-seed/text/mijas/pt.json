@@ -1,0 +1,40 @@
+{
+  "poi_mijas_cac": {
+    "description": "Coleção permanente com obras originais de Picasso, Dalí e Miró, sobretudo cerâmica de Picasso. Surpreendente para uma vila deste tamanho.",
+    "short_tip": "Visita de cerca de 45 minutos. Imperdível mesmo para quem não gosta de museus."
+  },
+  "poi_mijas_plaza_toros": {
+    "short_tip": "Uma das poucas praças de touros quadradas. Inclui um pequeno museu tauromáquico."
+  },
+  "poi_mijas_carromato": {
+    "short_tip": "Museu de curiosidades: a Última Ceia num grão de arroz ou pulgas vestidas."
+  },
+  "museo-historico": {
+    "name": "Museu Histórico-Etnológico",
+    "description": "Na antiga Câmara Municipal, recria a vida tradicional de Mijas: lagar de azeite, adega, cozinha, alfaias agrícolas e o esconderijo onde «a Toupeira de Mijas» viveu 30 anos.",
+    "short_tip": "Visita curta e a preço quase simbólico. Na Plaza de la Libertad."
+  },
+  "iglesia-inmaculada": {
+    "name": "Igreja da Imaculada Conceição",
+    "description": "Igreja do século XVI construída sobre a antiga mesquita, junto à muralha, com uma torre de origem medieval.",
+    "short_tip": "Logo atrás ficam os jardins da Muralla e as suas vistas."
+  },
+  "ermita-calvario": {
+    "name": "Ermida do Calvário",
+    "description": "Pequena ermida do século XVIII no monte, a que se sobe por um caminho de pinheiros com as estações da Via-Sacra. Vistas sobre toda a costa.",
+    "short_tip": "Cerca de 30 minutos de subida desde a vila. Leve água."
+  },
+  "calle-san-sebastian": {
+    "name": "Calle San Sebastián",
+    "description": "Rua íngreme de casas caiadas com vasos nas fachadas e a pequena ermida de San Sebastián ao fundo. A imagem mais fotografada de Mijas.",
+    "short_tip": "Vá cedo para tirar fotos sem gente."
+  },
+  "donkey-dreamland": {
+    "name": "Donkey Dreamland",
+    "description": "Santuário que resgata burros e mulas abandonados ou maltratados. Os voluntários mostram o refúgio e contam a história de cada animal.",
+    "short_tip": "Entrada livre com donativo. Confirme os dias de visita antes de ir."
+  },
+  "poi_mijas_burro_taxi": {
+    "short_tip": "Alguns visitantes têm dúvidas sobre o bem-estar dos animais: pense nisso antes de montar."
+  }
+}

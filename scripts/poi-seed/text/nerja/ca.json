@@ -1,0 +1,62 @@
+{
+  "poi_balcon": {
+    "name": "Balcó d'Europa",
+    "description": "El mirador més famós de la Costa del Sol: un passeig de palmeres sobre un promontori que s'aboca al Mediterrani, amb cales als seus peus i la serra d'Almijara al darrere.",
+    "short_tip": "Vés-hi a la posta de sol o a primera hora, quan hi ha menys gent. Al costat de l'Església d'El Salvador."
+  },
+  "poi_cuevas": {
+    "name": "Cova de Nerja",
+    "description": "Cavitat gegantina descoberta el 1959 per cinc nois del poble, amb sales enormes, columnes d'estalactites i pintures prehistòriques. A l'estiu acull un festival de música i dansa.",
+    "short_tip": "L'entrada inclou el Museu de Nerja. Visita gratuïta de dilluns a divendres a les 9.15 h, amb reserva i 60 places."
+  },
+  "poi_burriana": {
+    "name": "Platja de Burriana",
+    "description": "La platja més popular de Nerja: sorra fosca, aigües tranquil·les, un passeig ple de xiringuitos i esports nàutics.",
+    "short_tip": "Tasta la paella d'Ayo, tot un clàssic de la platja."
+  },
+  "iglesia-salvador": {
+    "name": "Església d'El Salvador",
+    "description": "Església blanca del segle XVII al costat del Balcó d'Europa, amb enteixinat mudèjar i un mural de l'Anunciació pintat per Francisco Hernández.",
+    "short_tip": "Entrada lliure. És a l'entrada del Balcó d'Europa."
+  },
+  "ermita-angustias": {
+    "name": "Ermita de las Angustias",
+    "description": "Petita ermita del segle XVIII amb una cúpula pintada al fresc amb escenes de la Passió, de les més boniques de l'Axarquía.",
+    "short_tip": "Obre en horaris curts: si és tancada, la façana emblanquinada mereix la foto."
+  },
+  "museo-nerja": {
+    "name": "Museu de Nerja",
+    "description": "A la Plaza de España, explica la història del municipi des de la prehistòria, amb les troballes de la Cova de Nerja com a gran protagonista.",
+    "short_tip": "Inclòs a l'entrada de la Cova de Nerja; per separat, 5 €."
+  },
+  "verano-azul": {
+    "name": "Parc Verano Azul",
+    "description": "Parc dedicat a la mítica sèrie de televisió rodada a Nerja, amb «La Dorada», la barca de Chanquete, com a peça central.",
+    "short_tip": "Per al públic espanyol és visita obligada. Amb zona de jocs per a nens."
+  },
+  "detunda": {
+    "name": "Jardí Botànic Detunda",
+    "description": "Al costat de la Cova de Nerja, reuneix més de 200 espècies de les serres de Màlaga i Granada, amb conreus tradicionals i vistes a la costa.",
+    "short_tip": "Entrada gratuïta. Combina'l amb la visita a la cova."
+  },
+  "maro": {
+    "name": "Maro",
+    "description": "Petit poble blanc de Nerja sobre els penya-segats, amb hortes en terrasses, l'església de las Maravillas i baixades a cales tranquil·les.",
+    "short_tip": "Des d'aquí es baixa a la platja de Maro: bona per a caiac i snorkel."
+  },
+  "acueducto-aguila": {
+    "name": "Aqüeducte de l'Àguila",
+    "description": "Aqüeducte de maó del segle XIX amb quatre pisos d'arcs, construït per portar aigua a un trapig de sucre. Es veu des de la carretera de Maro.",
+    "short_tip": "Es contempla des de fora; atura't al mirador de la carretera antiga."
+  },
+  "acantilados-maro": {
+    "name": "Penya-segats de Maro-Cerro Gordo",
+    "description": "Paratge natural de penya-segats i cales entre Nerja i La Herradura, amb torres de guaita i fons marins molt rics.",
+    "short_tip": "El millor és veure'ls des del mar en caiac, o pels senders que baixen a les cales."
+  },
+  "frigiliana": {
+    "name": "Frigiliana",
+    "description": "Un dels pobles més bonics d'Espanya, a 7 km de Nerja: carrerons costeruts de cases blanques, barri morisc i plafons de ceràmica que n'expliquen la història.",
+    "short_tip": "Aparca a l'entrada i puja a peu pel barri morisc. Tasta la mel de canya."
+  }
+}

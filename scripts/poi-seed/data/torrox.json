@@ -1,0 +1,9 @@
+{
+  "zone": {"id": "zone_torrox", "create": true, "name": "Torrox", "slug": "torrox", "region": "Costa del Sol", "country": "ES", "latitude": 36.745, "longitude": -3.955, "max_km": 6},
+  "pois": [
+    { "key": "faro-torrox", "query": "Centro de Interpretación Faro de Torrox", "category": "Cultura", "poi_type": "museum", "access_type": "free" },
+    { "key": "torrox-pueblo", "query": "Plaza de la Constitución, Torrox pueblo", "category": "Cultura", "poi_type": "sight", "access_type": "free" },
+    { "key": "iglesia-encarnacion", "query": "Iglesia de Nuestra Señora de la Encarnación, Torrox", "category": "Cultura", "poi_type": "sight", "access_type": "free" },
+    { "key": "ermita-nieves", "query": "Convento de Nuestra Señora de las Nieves, Torrox", "category": "Cultura", "poi_type": "sight", "access_type": "free" }
+  ]
+}

@@ -1,0 +1,17 @@
+{
+  "zone": {"id": "zone_fuengirola", "name": "Fuengirola", "slug": "fuengirola", "latitude": 36.5411, "longitude": -4.6247, "max_km": 6},
+  "pois": [
+    { "id": "poi_fuengirola_bioparc", "query": "Bioparc Fuengirola", "set": {"price_display": "29,50 €", "price_amount": 29.5} },
+    { "id": "poi_fuengirola_castillo_sohail", "query": "Castillo Sohail, Fuengirola" },
+    { "id": "poi_fuengirola_casco_antiguo", "query": "Plaza de la Constitución, Fuengirola" },
+    { "id": "poi_fuengirola_boliches", "query": "Los Boliches, Fuengirola" },
+    { "id": "poi_fuengirola_parque_fluvial", "query": "Parque Fluvial, Fuengirola" },
+    { "id": "poi_fuengirola_paseo_maritimo", "query": "Paseo Marítimo Rey de España, Fuengirola" },
+    { "id": "poi_fuengirola_santa_amalia", "query": "Playa de Santa Amalia, Fuengirola" },
+    { "key": "snakeroom", "query": "Snakeroom Serpentarium Fuengirola", "category": "Actividades", "poi_type": "attraction", "access_type": "paid", "price_display": "15 €", "price_amount": 15 },
+    { "key": "finca-secretario", "query": "Yacimiento Arqueológico Finca del Secretario, Fuengirola", "category": "Cultura", "poi_type": "sight", "access_type": "free" },
+    { "key": "termas-torreblanca", "query": "Termas romanas de Torreblanca, Fuengirola", "category": "Cultura", "poi_type": "sight", "access_type": "free" },
+    { "key": "museo-ciudad", "query": "Museo de la Ciudad de Fuengirola, Plaza de España", "category": "Cultura", "poi_type": "museum", "access_type": "free" },
+    { "key": "mercadillo", "query": "Mercadillo de Fuengirola, Recinto Ferial", "category": "Compras", "poi_type": "sight", "access_type": "free" }
+  ]
+}

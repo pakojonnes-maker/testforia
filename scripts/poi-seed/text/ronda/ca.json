@@ -1,0 +1,141 @@
+{
+  "_zone": {
+    "name": "Ronda",
+    "description": "Ciutat blanca partida en dos pel Tajo, un congost de cent metres que el Puente Nuevo travessa de banda a banda. Bressol del toreig modern, amb nucli antic nassarita, banys àrabs i vinyes a la Serranía."
+  },
+  "puente-nuevo": {
+    "name": "Puente Nuevo",
+    "description": "El símbol de Ronda: un pont de pedra del segle XVIII que travessa el Tajo a gairebé cent metres d'alçada i uneix la ciutat nova amb l'antiga.",
+    "short_tip": "Creua'l a peu i guaita des dels seus balcons. A dins hi ha el centre d'interpretació."
+  },
+  "tajo": {
+    "name": "El Tajo de Ronda",
+    "description": "Congost de fins a cent metres excavat pel riu Guadalevín, que parteix la ciutat en dos. Es contempla des de ponts, miradors i senders.",
+    "short_tip": "Per veure'l des de baix, baixa pel Camino de los Molinos."
+  },
+  "mirador-camino-molinos": {
+    "name": "Mirador del Puente Nuevo (Camino de los Molinos)",
+    "description": "Des de baix, el sender dels Molins regala la vista més famosa del Puente Nuevo, amb el Tajo a plom i la cascada als seus peus.",
+    "short_tip": "Uns 20 minuts de baixada des de la Plaza de María Auxiliadora. La pujada costa."
+  },
+  "centro-interpretacion-puente": {
+    "name": "Centre d'Interpretació del Puente Nuevo",
+    "description": "Ocupa la cambra de dins l'arc central, que va servir de presó, i explica com es va construir el pont al segle XVIII.",
+    "short_tip": "Visita curta. Inclosa al bo turístic municipal."
+  },
+  "plaza-toros": {
+    "name": "Plaça de Toros de Ronda",
+    "description": "De 1785, una de les més antigues d'Espanya i bressol del toreig a peu. Es recorre l'arena, els corrals, les cavallerisses i el museu taurí.",
+    "short_tip": "Amb audioguia, 12 €. Només hi ha correguda a la Feria Goyesca, al setembre."
+  },
+  "casa-rey-moro": {
+    "name": "Casa del Rei Moro: jardins i mina",
+    "description": "Jardins esglaonats de principis del segle XX i una mina d'aigua nassarita excavada a la roca, amb escales que baixen fins al riu.",
+    "short_tip": "Baixar és fàcil; pujar els graons de la mina, no tant. Calçat còmode."
+  },
+  "banos-arabes": {
+    "name": "Banys Àrabs",
+    "description": "Els banys àrabs més ben conservats de la Península, dels segles XIII i XIV, amb voltes de claraboies en forma d'estrella vora el riu.",
+    "short_tip": "Gratuït els dimarts a la tarda. Un audiovisual explica com funcionaven."
+  },
+  "palacio-mondragon": {
+    "name": "Palau de Mondragón",
+    "description": "Palau d'origen nassarita reformat al Renaixement, amb patis mudèjars i jardins penjats sobre el Tajo. Acull el Museu Municipal.",
+    "short_tip": "No et perdis el jardí del mirador, amb vistes a la Serranía."
+  },
+  "santa-maria-mayor": {
+    "name": "Església de Santa María la Mayor",
+    "description": "Aixecada sobre l'antiga mesquita major, de la qual conserva l'arc del mihrab, barreja gòtic, renaixement i barroc.",
+    "short_tip": "Audioguia inclosa. És a la Plaza Duquesa de Parcent."
+  },
+  "museo-lara": {
+    "name": "Museu Lara",
+    "description": "Immensa col·lecció privada en un palau del segle XVIII: rellotges, armes, ventalls, cinema, arqueologia i sales sobre la Inquisició i la bruixeria.",
+    "short_tip": "Hi ha molt per veure: compta almenys una hora i mitja."
+  },
+  "museo-joaquin-peinado": {
+    "name": "Museu Joaquín Peinado",
+    "description": "Al Palau dels Marquesos de Moctezuma, reuneix l'obra d'aquest pintor de Ronda de l'Escola de París, amic de Picasso.",
+    "short_tip": "Gratuït els dimarts de 15 a 17 h. Tancat els diumenges."
+  },
+  "casa-gigante": {
+    "name": "Casa del Gegant",
+    "description": "Casa-palau nassarita del segle XIV, una de les poques cases d'aquella època que es conserven, amb guixeries i un pati amb safareig.",
+    "short_tip": "Visita breu. Inclosa al bo turístic municipal."
+  },
+  "casa-don-bosco": {
+    "name": "Casa Museu Don Bosco",
+    "description": "Casa modernista de principis del segle XX amb mobles d'època i un jardí penjat sobre el Tajo amb vistes al Puente Nuevo.",
+    "short_tip": "El millor és el jardí: una vista del pont amb poca gent."
+  },
+  "espiritu-santo": {
+    "name": "Església de l'Esperit Sant",
+    "description": "Església-fortalesa de finals del segle XV, construïda després de la conquesta cristiana tocant a la muralla, al barri de San Francisco.",
+    "short_tip": "Al costat de la Porta d'Almocábar."
+  },
+  "cueva-pileta": {
+    "name": "Cova de la Pileta",
+    "description": "Cova amb pintures rupestres de fa més de 20.000 anys, cavalls, peixos i símbols, que es visita només amb la llum de llums de mà.",
+    "short_tip": "Visita guiada en grups de 15 amb reserva prèvia. A 22 km de Ronda, prop de Benaoján."
+  },
+  "reservatauro": {
+    "name": "Reservatauro",
+    "description": "Finca de cria de toros braus a la Serranía: es veuen els animals a la devesa i es coneix com es crien.",
+    "short_tip": "Només amb reserva prèvia. S'hi arriba en cotxe."
+  },
+  "puente-viejo": {
+    "name": "Puente Viejo",
+    "description": "Pont d'un sol arc de 1616 sobre el Guadalevín, amb vistes al Tajo i als Banys Àrabs.",
+    "short_tip": "Combina'l amb els Banys Àrabs i el Pont Romà: són l'un al costat de l'altre."
+  },
+  "puente-romano": {
+    "name": "Pont Romà (de San Miguel)",
+    "description": "El més baix dels tres ponts de Ronda, d'origen medieval malgrat el nom, a l'entrada dels Banys Àrabs.",
+    "short_tip": "Des d'aquí es veu el Puente Viejo per sobre."
+  },
+  "alameda-tajo": {
+    "name": "Alameda del Tajo",
+    "description": "Parc del segle XIX a la vora del precipici, amb balcons volats sobre la Serranía, com el famós Balcón del Coño.",
+    "short_tip": "Busca el balcó volat: vertigen garantit."
+  },
+  "mirador-aldehuela": {
+    "name": "Mirador d'Aldehuela",
+    "description": "Mirador al costat del Puente Nuevo, dedicat al seu arquitecte, amb una de les vistes més properes del congost i del pont.",
+    "short_tip": "Bona foto a primera hora, abans que arribin els grups."
+  },
+  "jardines-cuenca": {
+    "name": "Jardins de Cuenca",
+    "description": "Jardins en terrasses penjats sobre el Tajo, amb rosers i vistes al Puente Nuevo i al Puente Viejo.",
+    "short_tip": "Entrada lliure i poca gent."
+  },
+  "paseo-blas-infante": {
+    "name": "Paseo de Blas Infante",
+    "description": "Passeig al costat del Parador amb miradors sobre el Tajo i la Serranía, que continua pel Paseo de los Ingleses.",
+    "short_tip": "A la posta de sol la vall es tenyeix de taronja."
+  },
+  "puerta-almocabar": {
+    "name": "Porta d'Almocábar",
+    "description": "Porta principal de la muralla nassarita del segle XIII, al costat de la de Carles V, que donava accés a la ciutat pel sud.",
+    "short_tip": "Des d'aquí es veu bona part de la muralla."
+  },
+  "plaza-duquesa-parcent": {
+    "name": "Plaza Duquesa de Parcent",
+    "description": "Plaça principal de la ciutat antiga, envoltada de convents, l'Ajuntament i l'església de Santa María la Mayor.",
+    "short_tip": "Un racó tranquil amb bancs a l'ombra."
+  },
+  "plaza-socorro": {
+    "name": "Plaza del Socorro",
+    "description": "El cor de la ciutat nova, amb l'església del Socorro i l'edifici on el 1918 es van aprovar la bandera i l'escut d'Andalusia.",
+    "short_tip": "Envoltada de bars i botigues, a cinc minuts del Puente Nuevo."
+  },
+  "virgen-paz": {
+    "name": "Santuari de la Virgen de la Paz",
+    "description": "Temple barroc del segle XVIII on es venera la patrona de Ronda.",
+    "short_tip": "Entrada lliure."
+  },
+  "convento-merced": {
+    "name": "Convent de la Merced",
+    "description": "Convent de carmelites descalces que guarda la relíquia de la mà de Santa Teresa de Jesús. Les monges venen dolços casolans.",
+    "short_tip": "Els dolços es compren pel torn, al matí i a mitja tarda."
+  }
+}

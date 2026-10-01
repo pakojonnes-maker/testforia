@@ -1,0 +1,40 @@
+{
+  "poi_mijas_cac": {
+    "description": "A permanent collection with original works by Picasso, Dalí and Miró, above all Picasso ceramics. Surprising for a village this size.",
+    "short_tip": "About a 45-minute visit. A must, even if you're not into museums."
+  },
+  "poi_mijas_plaza_toros": {
+    "short_tip": "One of the few square bullrings. It includes a small bullfighting museum."
+  },
+  "poi_mijas_carromato": {
+    "short_tip": "A museum of oddities: the Last Supper on a grain of rice, or dressed fleas."
+  },
+  "museo-historico": {
+    "name": "Historical and Ethnological Museum",
+    "description": "In the old Town Hall, it recreates traditional life in Mijas: oil mill, wine cellar, kitchen, farm tools and the hideout where \"the Mole of Mijas\" lived for 30 years.",
+    "short_tip": "A short visit for an almost symbolic price. On Plaza de la Libertad."
+  },
+  "iglesia-inmaculada": {
+    "name": "Church of the Immaculate Conception",
+    "description": "A 16th-century church built over the old mosque, next to the town walls, with a tower of medieval origin.",
+    "short_tip": "Right behind it are the Muralla gardens and their views."
+  },
+  "ermita-calvario": {
+    "name": "Calvario Hermitage",
+    "description": "A small 18th-century hermitage on the hillside, reached by a pine-lined path with the Stations of the Cross. Views over the whole coast.",
+    "short_tip": "About a 30-minute climb from the village. Bring water."
+  },
+  "calle-san-sebastian": {
+    "name": "Calle San Sebastián",
+    "description": "A steep street of whitewashed houses with flowerpots on the walls and the little San Sebastián chapel at the end. The most photographed spot in Mijas.",
+    "short_tip": "Go early for photos without crowds."
+  },
+  "donkey-dreamland": {
+    "name": "Donkey Dreamland",
+    "description": "A sanctuary that rescues abandoned or mistreated donkeys and mules. Volunteers show you around and tell each animal's story.",
+    "short_tip": "Free entry with a donation. Check visiting days before you go."
+  },
+  "poi_mijas_burro_taxi": {
+    "short_tip": "Some visitors have concerns about the animals’ welfare: weigh it up before you ride."
+  }
+}
