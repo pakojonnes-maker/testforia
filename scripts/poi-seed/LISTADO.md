@@ -31,6 +31,14 @@ Estado: **nuevo** · **existe** (ya en producción, se deja) · **corregir** (ex
 >   Casa Fuerte de Bezmiliana, Túneles del Cantal, Santuario del Carmen, Iglesia de la Victoria,
 >   Benagalbón) y **Torrox** (zona nueva: Faro y villa romana de Caviclum, Torrox pueblo,
 >   Iglesia de la Encarnación, Convento de las Nieves).
+> - **Marbella rehecha desde cero (1-oct, APLICADA en producción):** borrados los 12 POIs de 0060
+>   (migración 0098; entre ellos el Museo del Bonsái, cerrado desde 2018) y sus 7 fotos de
+>   Wikimedia en R2. Nuevos 21: casco antiguo, Plaza de los Naranjos, Iglesia de la Encarnación,
+>   murallas, Capilla de San Juan de Dios, Ermita del Santo Cristo, Museo del Grabado (5 €; antes
+>   gratis), Avenida del Mar (Dalí), parques de la Alameda, la Constitución y la Represa, Cortijo
+>   Miraflores, Puerto Banús, Museo Ralli, Bulevar de San Pedro, Villa Romana de Río Verde,
+>   Basílica de Vega del Mar, Termas de Las Bóvedas, Dunas de Artola, La Concha y Cruz de Juanar.
+>   GetYourGuide en Marbella solo vende barcos, motos de agua y excursiones a otras ciudades.
 
 ## Málaga — 47 (22 existen, 25 nuevos)
 

@@ -217,7 +217,8 @@ for (const { zone, pois, file } of zones) {
             sql.push(`\n-- + ${label}`,
                 `INSERT INTO guide_pois (${names.join(', ')}) VALUES (${names.map(c => lit(cols[c])).join(', ')})\n  ON CONFLICT(id) DO UPDATE SET ${updates.join(', ')}, modified_at = CURRENT_TIMESTAMP;`,
                 ...translationSql(id, 'poi', poi.i18n, POI_FIELDS, warnings, label));
-            counts.nuevos++;
+            // Una ficha nueva que ya se aplicó vuelve a salir como upsert: se cuenta como actualizada.
+            if (existingById.has(id)) counts.actualizados++; else counts.nuevos++;
         } else {
             // ------------------------------------------------- POI que ya existe
             const sets = {};
@@ -246,7 +247,7 @@ for (const { zone, pois, file } of zones) {
 
     // Los POIs de producción que la ficha no menciona se quedan como están, pero
     // se listan: casi siempre es un olvido al escribir la ficha.
-    const mentioned = new Set(pois.filter(p => p.id).map(p => p.id));
+    const mentioned = new Set(pois.map(p => p.id || newPoiId(zone, p)));
     const untouched = existing.filter(r => r.zone_id === zone.id && r.is_active && !mentioned.has(r.id));
     for (const r of untouched) warnings.push(`sin tocar (no está en la ficha): ${r.tr?.['es.name'] || r.id}`);
 
