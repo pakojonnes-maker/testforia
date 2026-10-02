@@ -1,14 +1,20 @@
 // apps/client/src/pages/ReelsView.tsx - INTEGRACIÓN FINAL
-import { useMemo } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { lazy, Suspense, useMemo } from 'react';
+import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { useRestaurant } from '../contexts/RestaurantContext';
-import ReelsContainer from '../components/reels/ReelsContainer';
 import { Box, Typography, CircularProgress } from '@mui/material';
+
+// La carta por defecto es la «Mediterránea» (src/carta). La anterior sigue viva con
+// ?diseno=clasico por si hay que volver atrás; cada una se descarga solo si se usa.
+const CartaApp = lazy(() => import('../carta/CartaApp'));
+const ReelsContainer = lazy(() => import('../components/reels/ReelsContainer'));
 
 function ReelsView() {
   const restaurantData = useRestaurant();
   const params = useParams();
   const navigate = useNavigate();
+  const location = useLocation();
+  const classic = new URLSearchParams(location.search).get('diseno') === 'clasico';
 
   const { initialSectionIndex, initialDishIndex } = useMemo(() => {
     if (!restaurantData?.sections) {
@@ -89,13 +95,30 @@ function ReelsView() {
     );
   }
 
+  const fallback = <Box sx={{ height: '100svh', bgcolor: '#000' }} />;
+
+  if (!classic && restaurantData.restaurant?.slug) {
+    return (
+      <Suspense fallback={fallback}>
+        <CartaApp
+          slug={restaurantData.restaurant.slug}
+          initialSectionIndex={initialSectionIndex}
+          initialDishIndex={initialDishIndex}
+          deepLinked={!!(params.sectionId || params.dishId)}
+        />
+      </Suspense>
+    );
+  }
+
   return (
-    <ReelsContainer
-      restaurantData={restaurantData}
-      initialSectionIndex={initialSectionIndex}
-      initialDishIndex={initialDishIndex}
-      onClose={handleClose}
-    />
+    <Suspense fallback={fallback}>
+      <ReelsContainer
+        restaurantData={restaurantData}
+        initialSectionIndex={initialSectionIndex}
+        initialDishIndex={initialDishIndex}
+        onClose={handleClose}
+      />
+    </Suspense>
   );
 }
 

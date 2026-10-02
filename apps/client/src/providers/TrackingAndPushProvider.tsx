@@ -139,6 +139,7 @@ interface TrackingContext {
   showIOSPrompt: boolean;
   setShowIOSPrompt: (show: boolean) => void;
   subscribeToPush: () => Promise<'success' | 'denied' | 'error' | 'unsupported' | 'ios_prompt'>;
+  unsubscribeFromPush: () => Promise<boolean>;
   triggerPushPrompt: (onSuccess?: () => void) => Promise<void>;
 }
 
@@ -262,6 +263,7 @@ const TrackingCtx = createContext<TrackingContext>({
   showIOSPrompt: false,
   setShowIOSPrompt: () => { },
   subscribeToPush: async () => 'unsupported',
+  unsubscribeFromPush: async () => false,
   triggerPushPrompt: async () => { },
 });
 
@@ -1140,6 +1142,22 @@ export function TrackingAndPushProvider({ restaurantId, children }: Props) {
     }
   };
 
+  // Baja de avisos desde la carta. El worker ya borra las suscripciones que el
+  // servicio de push devuelve con 404/410, así que basta con anularla en el navegador.
+  const unsubscribeFromPush = async (): Promise<boolean> => {
+    if (!isPushSupported) return false;
+    try {
+      const registration = await navigator.serviceWorker.getRegistration('/');
+      const subscription = await registration?.pushManager.getSubscription();
+      if (subscription) await subscription.unsubscribe();
+      setIsPushEnabled(false);
+      return true;
+    } catch (error) {
+      console.error('🔔 [Push] Unsubscribe error:', error);
+      return false;
+    }
+  };
+
   // Safe access to restaurant context
   const restaurantContext = useContext(RestaurantContext);
   const restaurantFeatures = restaurantContext?.restaurant?.features || {};
@@ -1210,6 +1228,7 @@ export function TrackingAndPushProvider({ restaurantId, children }: Props) {
     showIOSPrompt,
     setShowIOSPrompt,
     subscribeToPush,
+    unsubscribeFromPush,
     triggerPushPrompt
   }), [sessionId, tracker, isInitialized, isPushSupported, isPushEnabled, isIOS, showIOSPrompt]);
 
@@ -1245,7 +1264,7 @@ export function TrackingAndPushProvider({ restaurantId, children }: Props) {
 }
 
 export function useDishTracking() {
-  const { tracker, revokeConsent, subscribeToPush, triggerPushPrompt, isPushEnabled, showIOSPrompt, setShowIOSPrompt, isIOS, isPushSupported } = useTracking();
+  const { tracker, revokeConsent, subscribeToPush, unsubscribeFromPush, triggerPushPrompt, isPushEnabled, showIOSPrompt, setShowIOSPrompt, isIOS, isPushSupported } = useTracking();
 
   return useMemo(() => ({
     viewDish: (dishId: string, sectionId?: string) => tracker?.viewDish(dishId, sectionId),
@@ -1265,11 +1284,12 @@ export function useDishTracking() {
     isReady: () => tracker?.isReady() ?? false,
     revokeConsent,
     subscribeToPush,
+    unsubscribeFromPush,
     triggerPushPrompt,
     isPushEnabled,
     showIOSPrompt,
     setShowIOSPrompt,
     isIOS,
     isPushSupported
-  }), [tracker, revokeConsent, subscribeToPush, triggerPushPrompt, isPushEnabled, showIOSPrompt, setShowIOSPrompt, isIOS, isPushSupported]);
+  }), [tracker, revokeConsent, subscribeToPush, unsubscribeFromPush, triggerPushPrompt, isPushEnabled, showIOSPrompt, setShowIOSPrompt, isIOS, isPushSupported]);
 }

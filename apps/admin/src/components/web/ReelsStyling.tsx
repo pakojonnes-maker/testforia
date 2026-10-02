@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { apiClient } from '../../lib/apiClient';
 import { useAuth } from '../../contexts/AuthContext';
+import CartaPreview from './CartaPreview';
 
 // Default color values - each completely independent
 const DEFAULT_COLORS = {
@@ -108,37 +109,41 @@ export default function ReelsStyling() {
                 <div style={styles.pickersColumn}>
                     <Section title="🎨 Colores principales">
                         <p style={styles.description}>
-                            Colores base que definen la identidad visual de tus reels.
+                            Toda la carta sale de estos cinco colores. Si alguno no se leería bien (un texto
+                            claro sobre un botón claro, un botón del mismo color que el fondo), la carta lo
+                            ajusta sola: la vista previa enseña el resultado ya corregido.
                         </p>
                         <div style={styles.colorGrid}>
                             <ColorPicker
-                                label="Primario (nombre plato, precio)"
+                                label="Primario: botones, precios, números y corazón"
                                 value={reelsColorsData.primary}
                                 onChange={(v) => updateReelsColor('primary', v)}
                             />
                             <ColorPicker
-                                label="Secundario (botones, iconos)"
+                                label="Secundario: plato sin foto y miniaturas vacías"
                                 value={reelsColorsData.secondary}
                                 onChange={(v) => updateReelsColor('secondary', v)}
                             />
                             <ColorPicker
-                                label="Acento (botón añadir al carrito)"
+                                label="Acento: pestaña activa, «Destacado» y avisos de alérgeno"
                                 value={reelsColorsData.accent}
                                 onChange={(v) => updateReelsColor('accent', v)}
                             />
                             <ColorPicker
-                                label="Texto (descripciones, etiquetas)"
+                                label="Texto: el papel de las fichas y la carta en lista"
                                 value={reelsColorsData.text}
                                 onChange={(v) => updateReelsColor('text', v)}
                             />
                             <ColorPicker
-                                label="Fondo general"
+                                label="Fondo: la tinta de los textos y el velo del vídeo"
                                 value={reelsColorsData.background}
                                 onChange={(v) => updateReelsColor('background', v)}
                             />
                         </div>
                     </Section>
 
+                    <details style={styles.legacy}>
+                    <summary style={styles.legacySummary}>Colores del diseño clásico (solo con ?diseno=clasico)</summary>
                     <Section title="📍 Encabezado">
                         <p style={styles.description}>
                             Color del título del restaurante y nombre de la sección activa.
@@ -199,12 +204,15 @@ export default function ReelsStyling() {
                             />
                         </div>
                     </Section>
+                    <h3 style={styles.previewTitle}>Vista previa del diseño clásico</h3>
+                    <ReelsPreview colors={reelsColorsData} />
+                    </details>
                 </div>
 
                 {/* RIGHT COLUMN: Live Preview */}
                 <div style={styles.previewColumn}>
                     <h3 style={styles.previewTitle}>Vista previa en vivo</h3>
-                    <ReelsPreview colors={reelsColorsData} />
+                    <CartaPreview colors={reelsColorsData} />
                 </div>
             </div>
 
@@ -467,6 +475,17 @@ const styles: Record<string, React.CSSProperties> = {
     tabContent: {
         animation: 'fadeIn 0.3s ease-in-out',
         padding: '1rem'
+    },
+    legacy: {
+        border: '1px solid #e5e7eb',
+        borderRadius: '12px',
+        padding: '0.75rem 1rem',
+        background: '#fafafa'
+    },
+    legacySummary: {
+        cursor: 'pointer',
+        fontWeight: 600,
+        color: '#4b5563'
     },
     mainGrid: {
         display: 'grid',

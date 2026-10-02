@@ -285,6 +285,16 @@ privacidad de la cabecera (el pie no se renderiza en Explorar ni en Chat).
 - **Styling: Emotion (`@emotion/react`, `@emotion/styled`) + CSS vanilla. NUNCA Tailwind aquí.**
 - Animaciones: **framer-motion** (intensivo). Carruseles/reels: **swiper**.
 - Estética: mobile-first, glassmorphism, gradientes, "premium". Nada de HTML "bare bones".
+- **DOS cartas** (oct-2026). Lo que ve el cliente es `src/carta/` («Carta Mediterránea»: un feed
+  vertical, CSS propio en `carta.css` bajo `.cm`, sin MUI salvo los modales heredados de delivery,
+  sellos, oferta y valoración). La anterior (`components/reels/`) sigue viva con `?diseno=clasico`:
+  **tocar `ReelsContainer` o `templates/classic` no cambia lo que se ve**.
+- Colores de la carta: **solo** los 5 de «Colores Reels» del admin, derivados en `src/carta/theme.ts`
+  con contraste garantizado (copia en `apps/admin/src/theme/cartaTheme.ts` para la vista previa:
+  si cambias una, cambia la otra). Iconos: solo alérgenos (los SVG del servidor) y el corazón.
+- Textos: `localization_strings` (context `reels`, claves `carta_*`, migración 0099) con el español
+  de respaldo en `src/carta/strings.ts`. La respuesta de `/restaurants/:slug/reels` va en KV: tras
+  cambiar textos o la forma del JSON, sube `ver:restaurant:<slug>` (§3).
 - Build: `tsc -b && vite build`.
 
 ### `apps/guide` — Guidebook

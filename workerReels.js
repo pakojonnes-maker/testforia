@@ -418,7 +418,7 @@ async function getDishesWithTranslations(env, sectionIds, langCode) {
       d.id, d.price, d.discount_price, d.discount_active,
       d.is_vegetarian, d.is_vegan, d.is_gluten_free, 
       d.is_new, d.is_featured, d.calories, d.preparation_time,
-      d.half_price, d.has_half_portion,
+      d.half_price, d.has_half_portion, d.favorite_count,
       sd.section_id, sd.order_index,
       GROUP_CONCAT(
         CASE WHEN t.language_code = ? THEN 
