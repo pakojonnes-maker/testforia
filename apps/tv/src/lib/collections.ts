@@ -14,8 +14,9 @@ import { categoryLabel } from './categoryVisual'
  * encapsulado aquí en `qr` — salvo la tienda, que no puede resolverse aquí:
  * ver el comentario de `buildStore`.
  *
- * Alrededores (POIs) se retiró de aquí a favor de la Tienda: ya no hay
- * `buildNearby`/`kind: 'nearby'` en esta app.
+ * Alrededores (POIs) perdió su tesela a favor de la Tienda; desde oct-2026
+ * esos lugares viven dentro de «Qué hacer», detrás de las experiencias
+ * reservables (ver buildDo).
  */
 
 // Carta digital "Gravy" (apps/client): experiencia táctil tipo Reels, por eso
@@ -28,8 +29,10 @@ export interface EntryQr {
   data: string
   /** Texto bajo el QR: dice QUÉ pasa al escanear, no "escanea el código". */
   caption: string
-  /** Evento de KPI que corresponde a enseñar este QR. */
-  event: 'menu_qr_shown' | 'booking_qr_shown'
+  /** Evento de KPI que corresponde a enseñar este QR. Un lugar sin reserva
+   *  cuenta como `poi_select` («Localizaciones vistas» en el admin), no como
+   *  reserva. */
+  event: 'menu_qr_shown' | 'booking_qr_shown' | 'poi_select'
 }
 
 export interface Entry {
@@ -140,6 +143,27 @@ function bookingQr(exp: GuidebookData['experiences'][number], lang: string): Ent
 }
 
 /**
+ * QR de un lugar sin reserva: abre el sitio en el mapa del móvil, que es lo que
+ * hace el «Cómo llegar» de Explorar en la guía. Si el POI no trae enlace de
+ * Google Maps vale con sus coordenadas: `pois` sólo incluye lugares que las
+ * tienen (workerGuide.js, mappableRows).
+ */
+function directionsQr(poi: GuidebookData['pois'][number], lang: string): EntryQr | undefined {
+  const mapsUrl = (poi.google_maps_url || '').trim()
+  const data = mapsUrl || (poi.latitude != null && poi.longitude != null
+    ? `https://www.google.com/maps/search/?api=1&query=${poi.latitude},${poi.longitude}`
+    : '')
+  if (!data) return undefined
+  return { data, caption: getTvString('qr_directions', lang), event: 'poi_select' }
+}
+
+/** Los restaurantes del catálogo ya están en «Dónde comer»: el worker los funde
+ *  en `restaurants`. Mismo criterio que `isRestaurant` de apps/guide. */
+function isRestaurant(category: string | null | undefined): boolean {
+  return (category || '').trim().toLowerCase() === 'restaurantes'
+}
+
+/**
  * Une portada + galería en una sola lista sin huecos ni duplicados: la
  * portada (cover_image_url) y la galería (guide_poi_media) son dos campos
  * independientes en el backend y a veces se pisan (la portada es también la
@@ -193,7 +217,53 @@ function buildEat(data: GuidebookData, lang: string): Entry[] {
   }))
 }
 
+/**
+ * «Qué hacer»: las experiencias reservables y, detrás, los lugares de Explorar.
+ *
+ * Hasta oct-2026 eran sólo las reservables (`is_bookable`), así que la TV de
+ * Finca Alboroto enseñaba el Teleférico y nada más mientras la guía del mismo
+ * piso tenía Selwo Marina, Sea Life y 15 sitios más: una casilla que el
+ * anfitrión no asocia con la tele decidía qué veía el huésped. Una reservable
+ * con coordenadas llega en las dos listas; se queda la de experiencia, que
+ * lleva el QR de reserva.
+ */
 function buildDo(data: GuidebookData, lang: string): Entry[] {
+  const bookable = buildExperiences(data, lang)
+  const seen = new Set(bookable.map(e => e.id))
+  const places = data.pois
+    .filter(p => !seen.has(p.id) && !isRestaurant(p.category))
+    .map((p): Entry => {
+      const { image, gallery } = photoSet(p.cover_image_url, p.media)
+      return {
+        id: p.id,
+        kind: 'do',
+        name: p.name,
+        // La categoría hace de antetítulo, así que no se repite como chip.
+        subtitle: p.category ? categoryLabel(p.category, lang) : '',
+        description: p.description || '',
+        image,
+        gallery,
+        featured: p.is_featured === true || p.is_promoted === true,
+        badge: p.is_featured ? { kind: 'featured', label: getTvString('featured_badge', lang) } : undefined,
+        sponsored: p.is_promoted === true,
+        // Sin categoría caería en la fila genérica, rotulada «Reservable desde
+        // tu móvil», que para un lugar es falso.
+        category: p.category || 'otro',
+        address: p.address || null,
+        phone: p.phone || null,
+        website: p.website_url || null,
+        openingHours: p.opening_hours || null,
+        distanceText: p.distance_text || null,
+        travelTimeText: p.travel_time_text || null,
+        travelMode: p.travel_mode || null,
+        facts: p.duration_text ? [{ label: p.duration_text }] : [],
+        qr: directionsQr(p, lang),
+      }
+    })
+  return [...bookable, ...places]
+}
+
+function buildExperiences(data: GuidebookData, lang: string): Entry[] {
   return data.experiences.map((e): Entry => {
     const { image, gallery } = photoSet(e.cover_image_url, e.media)
     // `category` llega sin traducir de guide_pois (ver categoryVisual.ts).
@@ -285,7 +355,8 @@ export function buildCollections(data: GuidebookData, lang: string): Collection[
     {
       kind: 'do',
       tile: getTvString('things_to_do', lang),
-      title: getTvString('experiences', lang),
+      // Ya no son sólo experiencias: un museo o un parque no lo es.
+      title: getTvString('things_to_do', lang),
       railLabel: getTvString('rail_do', lang),
       entries: buildDo(data, lang),
     },

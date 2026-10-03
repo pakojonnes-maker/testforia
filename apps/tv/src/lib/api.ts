@@ -39,6 +39,7 @@ export interface GuidebookData {
     address?: string | null; phone?: string | null; website_url?: string | null; opening_hours?: string | null
     rating?: number | null; travel_time_text?: string | null; travel_mode?: 'walk' | 'drive' | 'bike' | null; distance_text?: string | null
     is_featured?: boolean; is_promoted?: boolean; cover_image_url?: string | null
+    latitude?: number | null; longitude?: number | null; duration_text?: string | null
   }>
   restaurants: Array<{
     id: string; name: string; slug: string; cuisine_type: string; tier: RestaurantTier; cover_image: string

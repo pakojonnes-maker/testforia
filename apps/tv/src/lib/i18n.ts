@@ -42,16 +42,11 @@ const TV_STRINGS = {
     it: 'Dove mangiare', pt: 'Onde comer', ca: 'On menjar', ar: 'أين تأكل',
     ru: 'Где поесть', uk: 'Де поїсти', zh: '美食推荐', ja: 'グルメ', ko: '주변 맛집',
   },
-  // Tesela del inicio. Dentro, la sección se titula `experiences`.
+  // Tesela del inicio y título de la sección: dentro hay experiencias Y lugares.
   things_to_do: {
     es: 'Qué hacer', en: 'Things to do', fr: 'Que faire', de: 'Unternehmungen',
     it: 'Cosa fare', pt: 'O que fazer', ca: 'Què fer', ar: 'ماذا تفعل',
     ru: 'Чем заняться', uk: 'Чим зайнятися', zh: '玩乐', ja: '観光・体験', ko: '즐길 거리',
-  },
-  experiences: {
-    es: 'Experiencias', en: 'Experiences', fr: 'Expériences', de: 'Erlebnisse',
-    it: 'Esperienze', pt: 'Experiências', ca: 'Experiències', ar: 'التجارب',
-    ru: 'Впечатления', uk: 'Враження', zh: '体验', ja: '体験', ko: '체험',
   },
   language: {
     es: 'Idioma', en: 'Language', fr: 'Langue', de: 'Sprache', it: 'Lingua', pt: 'Idioma',
@@ -245,6 +240,15 @@ const TV_STRINGS = {
     ca: 'Escaneja per trucar i reservar', ar: 'امسح للاتصال والحجز',
     ru: 'Отсканируйте, чтобы позвонить и забронировать', uk: 'Відскануйте, щоб зателефонувати й забронювати',
     zh: '扫码致电预订', ja: 'スキャンして電話で予約', ko: '스캔하여 전화로 예약',
+  },
+  // Lugar sin reserva (Qué hacer): el QR abre el sitio en el mapa del móvil.
+  qr_directions: {
+    es: 'Escanea para ver cómo llegar', en: 'Scan for directions',
+    fr: "Scannez pour voir l'itinéraire", de: 'Scannen für die Route',
+    it: 'Scansiona per le indicazioni', pt: 'Digitalize para ver como chegar',
+    ca: 'Escaneja per veure com arribar-hi', ar: 'امسح لمعرفة الطريق',
+    ru: 'Отсканируйте, чтобы построить маршрут', uk: 'Відскануйте, щоб прокласти маршрут',
+    zh: '扫码查看路线', ja: 'スキャンして道順を表示', ko: '스캔하여 길찾기',
   },
 
   // ---- Detalle de una ficha ----
