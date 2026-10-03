@@ -1,7 +1,9 @@
 -- 0099: textos de la Carta Mediterránea (apps/client/src/carta) en los 13 idiomas.
 -- Claves nuevas con prefijo carta_; las que ya existían (button_add, allergens, see_more…) no se tocan.
--- Idempotente (INSERT OR REPLACE). La respuesta de /restaurants/:slug/reels va cacheada en KV
--- (menu:{slug}:{lang}:v{ver}): tras aplicarla hay que subir ver:restaurant:{slug} de cada carta.
+-- Idempotente (INSERT OR REPLACE). Un INSERT por idioma: D1 rechaza una sentencia de ~90 KB (SQLITE_TOOBIG).
+-- La respuesta de /restaurants/:slug/reels va cacheada en KV (menu:{slug}:{lang}:v{ver}): tras
+-- aplicarla hay que subir ver:restaurant:{slug} de cada carta.
+-- es
 INSERT OR REPLACE INTO localization_strings (context, key_name, language_code, label, description) VALUES
 ('reels', 'carta_menu', 'es', 'Carta', 'Carta Mediterránea'),
 ('reels', 'carta_house_hint', 'es', 'Reservas, avisos y más', 'Carta Mediterránea'),
@@ -89,7 +91,10 @@ INSERT OR REPLACE INTO localization_strings (context, key_name, language_code, l
 ('reels', 'carta_minus', 'es', 'Quitar uno', 'Carta Mediterránea'),
 ('reels', 'carta_plus', 'es', 'Añadir uno', 'Carta Mediterránea'),
 ('reels', 'carta_dish_n', 'es', 'Plato {n}', 'Carta Mediterránea'),
-('reels', 'carta_empty_menu', 'es', 'No hay carta disponible en este momento', 'Carta Mediterránea'),
+('reels', 'carta_empty_menu', 'es', 'No hay carta disponible en este momento', 'Carta Mediterránea');
+
+-- en
+INSERT OR REPLACE INTO localization_strings (context, key_name, language_code, label, description) VALUES
 ('reels', 'carta_menu', 'en', 'Menu', 'Carta Mediterránea'),
 ('reels', 'carta_house_hint', 'en', 'Bookings, notifications and more', 'Carta Mediterránea'),
 ('reels', 'carta_welcome_kicker', 'en', 'Welcome to', 'Carta Mediterránea'),
@@ -176,7 +181,10 @@ INSERT OR REPLACE INTO localization_strings (context, key_name, language_code, l
 ('reels', 'carta_minus', 'en', 'Remove one', 'Carta Mediterránea'),
 ('reels', 'carta_plus', 'en', 'Add one', 'Carta Mediterránea'),
 ('reels', 'carta_dish_n', 'en', 'Dish {n}', 'Carta Mediterránea'),
-('reels', 'carta_empty_menu', 'en', 'No menu available right now', 'Carta Mediterránea'),
+('reels', 'carta_empty_menu', 'en', 'No menu available right now', 'Carta Mediterránea');
+
+-- fr
+INSERT OR REPLACE INTO localization_strings (context, key_name, language_code, label, description) VALUES
 ('reels', 'carta_menu', 'fr', 'Carte', 'Carta Mediterránea'),
 ('reels', 'carta_house_hint', 'fr', 'Réservations, alertes et plus', 'Carta Mediterránea'),
 ('reels', 'carta_welcome_kicker', 'fr', 'Bienvenue à', 'Carta Mediterránea'),
@@ -263,7 +271,10 @@ INSERT OR REPLACE INTO localization_strings (context, key_name, language_code, l
 ('reels', 'carta_minus', 'fr', 'En retirer un', 'Carta Mediterránea'),
 ('reels', 'carta_plus', 'fr', 'En ajouter un', 'Carta Mediterránea'),
 ('reels', 'carta_dish_n', 'fr', 'Plat {n}', 'Carta Mediterránea'),
-('reels', 'carta_empty_menu', 'fr', 'Aucune carte disponible pour le moment', 'Carta Mediterránea'),
+('reels', 'carta_empty_menu', 'fr', 'Aucune carte disponible pour le moment', 'Carta Mediterránea');
+
+-- de
+INSERT OR REPLACE INTO localization_strings (context, key_name, language_code, label, description) VALUES
 ('reels', 'carta_menu', 'de', 'Karte', 'Carta Mediterránea'),
 ('reels', 'carta_house_hint', 'de', 'Reservierung, Hinweise und mehr', 'Carta Mediterránea'),
 ('reels', 'carta_welcome_kicker', 'de', 'Willkommen im', 'Carta Mediterránea'),
@@ -350,7 +361,10 @@ INSERT OR REPLACE INTO localization_strings (context, key_name, language_code, l
 ('reels', 'carta_minus', 'de', 'Eins weniger', 'Carta Mediterránea'),
 ('reels', 'carta_plus', 'de', 'Eins mehr', 'Carta Mediterránea'),
 ('reels', 'carta_dish_n', 'de', 'Gericht {n}', 'Carta Mediterránea'),
-('reels', 'carta_empty_menu', 'de', 'Im Moment ist keine Karte verfügbar', 'Carta Mediterránea'),
+('reels', 'carta_empty_menu', 'de', 'Im Moment ist keine Karte verfügbar', 'Carta Mediterránea');
+
+-- it
+INSERT OR REPLACE INTO localization_strings (context, key_name, language_code, label, description) VALUES
 ('reels', 'carta_menu', 'it', 'Menù', 'Carta Mediterránea'),
 ('reels', 'carta_house_hint', 'it', 'Prenotazioni, avvisi e altro', 'Carta Mediterránea'),
 ('reels', 'carta_welcome_kicker', 'it', 'Benvenuti da', 'Carta Mediterránea'),
@@ -437,7 +451,10 @@ INSERT OR REPLACE INTO localization_strings (context, key_name, language_code, l
 ('reels', 'carta_minus', 'it', 'Togli uno', 'Carta Mediterránea'),
 ('reels', 'carta_plus', 'it', 'Aggiungi uno', 'Carta Mediterránea'),
 ('reels', 'carta_dish_n', 'it', 'Piatto {n}', 'Carta Mediterránea'),
-('reels', 'carta_empty_menu', 'it', 'Nessun menù disponibile al momento', 'Carta Mediterránea'),
+('reels', 'carta_empty_menu', 'it', 'Nessun menù disponibile al momento', 'Carta Mediterránea');
+
+-- pt
+INSERT OR REPLACE INTO localization_strings (context, key_name, language_code, label, description) VALUES
 ('reels', 'carta_menu', 'pt', 'Menu', 'Carta Mediterránea'),
 ('reels', 'carta_house_hint', 'pt', 'Reservas, avisos e mais', 'Carta Mediterránea'),
 ('reels', 'carta_welcome_kicker', 'pt', 'Bem-vindos a', 'Carta Mediterránea'),
@@ -524,7 +541,10 @@ INSERT OR REPLACE INTO localization_strings (context, key_name, language_code, l
 ('reels', 'carta_minus', 'pt', 'Tirar um', 'Carta Mediterránea'),
 ('reels', 'carta_plus', 'pt', 'Adicionar um', 'Carta Mediterránea'),
 ('reels', 'carta_dish_n', 'pt', 'Prato {n}', 'Carta Mediterránea'),
-('reels', 'carta_empty_menu', 'pt', 'Não há menu disponível neste momento', 'Carta Mediterránea'),
+('reels', 'carta_empty_menu', 'pt', 'Não há menu disponível neste momento', 'Carta Mediterránea');
+
+-- ca
+INSERT OR REPLACE INTO localization_strings (context, key_name, language_code, label, description) VALUES
 ('reels', 'carta_menu', 'ca', 'Carta', 'Carta Mediterránea'),
 ('reels', 'carta_house_hint', 'ca', 'Reserves, avisos i més', 'Carta Mediterránea'),
 ('reels', 'carta_welcome_kicker', 'ca', 'Benvinguts a', 'Carta Mediterránea'),
@@ -611,7 +631,10 @@ INSERT OR REPLACE INTO localization_strings (context, key_name, language_code, l
 ('reels', 'carta_minus', 'ca', 'Treure’n un', 'Carta Mediterránea'),
 ('reels', 'carta_plus', 'ca', 'Afegir-ne un', 'Carta Mediterránea'),
 ('reels', 'carta_dish_n', 'ca', 'Plat {n}', 'Carta Mediterránea'),
-('reels', 'carta_empty_menu', 'ca', 'Ara mateix no hi ha carta disponible', 'Carta Mediterránea'),
+('reels', 'carta_empty_menu', 'ca', 'Ara mateix no hi ha carta disponible', 'Carta Mediterránea');
+
+-- ar
+INSERT OR REPLACE INTO localization_strings (context, key_name, language_code, label, description) VALUES
 ('reels', 'carta_menu', 'ar', 'القائمة', 'Carta Mediterránea'),
 ('reels', 'carta_house_hint', 'ar', 'الحجز والتنبيهات والمزيد', 'Carta Mediterránea'),
 ('reels', 'carta_welcome_kicker', 'ar', 'أهلًا بكم في', 'Carta Mediterránea'),
@@ -698,7 +721,10 @@ INSERT OR REPLACE INTO localization_strings (context, key_name, language_code, l
 ('reels', 'carta_minus', 'ar', 'أزل واحدًا', 'Carta Mediterránea'),
 ('reels', 'carta_plus', 'ar', 'أضف واحدًا', 'Carta Mediterránea'),
 ('reels', 'carta_dish_n', 'ar', 'الطبق {n}', 'Carta Mediterránea'),
-('reels', 'carta_empty_menu', 'ar', 'لا توجد قائمة متاحة حاليًا', 'Carta Mediterránea'),
+('reels', 'carta_empty_menu', 'ar', 'لا توجد قائمة متاحة حاليًا', 'Carta Mediterránea');
+
+-- ru
+INSERT OR REPLACE INTO localization_strings (context, key_name, language_code, label, description) VALUES
 ('reels', 'carta_menu', 'ru', 'Меню', 'Carta Mediterránea'),
 ('reels', 'carta_house_hint', 'ru', 'Бронирование, уведомления и другое', 'Carta Mediterránea'),
 ('reels', 'carta_welcome_kicker', 'ru', 'Добро пожаловать в', 'Carta Mediterránea'),
@@ -785,7 +811,10 @@ INSERT OR REPLACE INTO localization_strings (context, key_name, language_code, l
 ('reels', 'carta_minus', 'ru', 'Убрать одно', 'Carta Mediterránea'),
 ('reels', 'carta_plus', 'ru', 'Добавить одно', 'Carta Mediterránea'),
 ('reels', 'carta_dish_n', 'ru', 'Блюдо {n}', 'Carta Mediterránea'),
-('reels', 'carta_empty_menu', 'ru', 'Сейчас меню недоступно', 'Carta Mediterránea'),
+('reels', 'carta_empty_menu', 'ru', 'Сейчас меню недоступно', 'Carta Mediterránea');
+
+-- uk
+INSERT OR REPLACE INTO localization_strings (context, key_name, language_code, label, description) VALUES
 ('reels', 'carta_menu', 'uk', 'Меню', 'Carta Mediterránea'),
 ('reels', 'carta_house_hint', 'uk', 'Бронювання, сповіщення та інше', 'Carta Mediterránea'),
 ('reels', 'carta_welcome_kicker', 'uk', 'Ласкаво просимо до', 'Carta Mediterránea'),
@@ -872,7 +901,10 @@ INSERT OR REPLACE INTO localization_strings (context, key_name, language_code, l
 ('reels', 'carta_minus', 'uk', 'Прибрати одну', 'Carta Mediterránea'),
 ('reels', 'carta_plus', 'uk', 'Додати одну', 'Carta Mediterránea'),
 ('reels', 'carta_dish_n', 'uk', 'Страва {n}', 'Carta Mediterránea'),
-('reels', 'carta_empty_menu', 'uk', 'Зараз меню недоступне', 'Carta Mediterránea'),
+('reels', 'carta_empty_menu', 'uk', 'Зараз меню недоступне', 'Carta Mediterránea');
+
+-- zh
+INSERT OR REPLACE INTO localization_strings (context, key_name, language_code, label, description) VALUES
 ('reels', 'carta_menu', 'zh', '菜单', 'Carta Mediterránea'),
 ('reels', 'carta_house_hint', 'zh', '预订、通知及更多', 'Carta Mediterránea'),
 ('reels', 'carta_welcome_kicker', 'zh', '欢迎光临', 'Carta Mediterránea'),
@@ -959,7 +991,10 @@ INSERT OR REPLACE INTO localization_strings (context, key_name, language_code, l
 ('reels', 'carta_minus', 'zh', '减少一份', 'Carta Mediterránea'),
 ('reels', 'carta_plus', 'zh', '增加一份', 'Carta Mediterránea'),
 ('reels', 'carta_dish_n', 'zh', '第 {n} 道菜', 'Carta Mediterránea'),
-('reels', 'carta_empty_menu', 'zh', '目前没有可用的菜单', 'Carta Mediterránea'),
+('reels', 'carta_empty_menu', 'zh', '目前没有可用的菜单', 'Carta Mediterránea');
+
+-- ja
+INSERT OR REPLACE INTO localization_strings (context, key_name, language_code, label, description) VALUES
 ('reels', 'carta_menu', 'ja', 'メニュー', 'Carta Mediterránea'),
 ('reels', 'carta_house_hint', 'ja', '予約・お知らせなど', 'Carta Mediterránea'),
 ('reels', 'carta_welcome_kicker', 'ja', 'ようこそ', 'Carta Mediterránea'),
@@ -1046,7 +1081,10 @@ INSERT OR REPLACE INTO localization_strings (context, key_name, language_code, l
 ('reels', 'carta_minus', 'ja', '1つ減らす', 'Carta Mediterránea'),
 ('reels', 'carta_plus', 'ja', '1つ増やす', 'Carta Mediterránea'),
 ('reels', 'carta_dish_n', 'ja', '{n}品目', 'Carta Mediterránea'),
-('reels', 'carta_empty_menu', 'ja', '現在ご利用いただけるメニューはありません', 'Carta Mediterránea'),
+('reels', 'carta_empty_menu', 'ja', '現在ご利用いただけるメニューはありません', 'Carta Mediterránea');
+
+-- ko
+INSERT OR REPLACE INTO localization_strings (context, key_name, language_code, label, description) VALUES
 ('reels', 'carta_menu', 'ko', '메뉴', 'Carta Mediterránea'),
 ('reels', 'carta_house_hint', 'ko', '예약, 알림 등', 'Carta Mediterránea'),
 ('reels', 'carta_welcome_kicker', 'ko', '어서 오세요', 'Carta Mediterránea'),
