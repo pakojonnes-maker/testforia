@@ -196,13 +196,24 @@ class AdminApiClient {
     }
   }
 
-  public async uploadMedia(dishId: string, file: File, role: string = 'GALLERY_IMAGE', orderIndex: number = 0): Promise<DishMedia> {
+  public async uploadMedia(
+    dishId: string,
+    file: File,
+    role: string = 'GALLERY_IMAGE',
+    orderIndex: number = 0,
+    meta: { width?: number; height?: number; duration?: number } = {}
+  ): Promise<DishMedia> {
     const formData = new FormData();
     formData.append('file', file);
     formData.append('dish_id', dishId);
     formData.append('role', role);
     formData.append('order_index', String(orderIndex));
     formData.append('display_name', file.name || '');
+    // Medidas reales (las lee el navegador al preparar el archivo): la carta decide con ellas
+    // si una foto o vídeo va a sangre o entero, antes de que termine de cargar.
+    if (meta.width) formData.append('width', String(meta.width));
+    if (meta.height) formData.append('height', String(meta.height));
+    if (meta.duration) formData.append('duration', String(meta.duration));
 
     const response = await this.baseClient.uploadMedia(formData);
     return response.media || response;

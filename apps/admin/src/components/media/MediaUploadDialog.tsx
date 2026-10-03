@@ -29,6 +29,7 @@ import {
     Clear as ClearIcon,
     Warning as WarningIcon,
 } from '@mui/icons-material';
+import { prepareMedia } from '../../lib/mediaPrep';
 
 const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB
 
@@ -40,7 +41,7 @@ interface MediaUploadDialogProps {
     existingPrimaryVideo: boolean;
     existingPrimaryImage: boolean;
     onUploadComplete: () => void;
-    onUpload: (file: File, role: string) => Promise<void>;
+    onUpload: (file: File, role: string, meta?: { width?: number; height?: number; duration?: number }) => Promise<void>;
 }
 
 const ROLE_LABELS = {
@@ -70,6 +71,7 @@ export default function MediaUploadDialog({
     const [isUploading, setIsUploading] = useState(false);
     const [uploadProgress, setUploadProgress] = useState<Record<string, number>>({});
     const [error, setError] = useState<string>('');
+    const [notes, setNotes] = useState<Record<string, string>>({});
 
     // Auto-detectar rol según tipo de archivo
     useEffect(() => {
@@ -143,11 +145,15 @@ export default function MediaUploadDialog({
                     continue;
                 }
 
-                // Simular progreso
+                // Optimizar antes de subir (lib/mediaPrep.ts): fotos a WebP de 1600 px como mucho
+                // y MP4 con el índice delante. Si falla, se sube el original.
+                setUploadProgress(prev => ({ ...prev, [file.name]: 20 }));
+                const prepared = await prepareMedia(file);
+                if (prepared.note) setNotes(prev => ({ ...prev, [file.name]: prepared.note! }));
                 setUploadProgress(prev => ({ ...prev, [file.name]: 50 }));
 
                 // Subir archivo
-                await onUpload(file, selectedRole);
+                await onUpload(prepared.file, selectedRole, { width: prepared.width, height: prepared.height, duration: prepared.duration });
 
                 // Completar progreso
                 setUploadProgress(prev => ({ ...prev, [file.name]: 100 }));
@@ -156,6 +162,7 @@ export default function MediaUploadDialog({
             // Limpiar y cerrar
             setFiles([]);
             setUploadProgress({});
+            setNotes({});
             onUploadComplete();
             onClose();
         } catch (err: any) {
@@ -239,7 +246,7 @@ export default function MediaUploadDialog({
                                 : 'Arrastra archivos aquí o haz click para seleccionar'}
                         </Typography>
                         <Typography variant="caption" color="text.secondary">
-                            Imágenes (JPG, PNG, WebP) o Videos (MP4, MOV, WebM) - Máximo 10MB
+                            Imágenes (JPG, PNG, WebP) o Videos (MP4, MOV, WebM) - Máximo 10MB. Las fotos se optimizan al subirlas.
                         </Typography>
                     </Box>
 
@@ -281,6 +288,7 @@ export default function MediaUploadDialog({
                                             </Typography>
                                             <Typography variant="caption" color="text.secondary">
                                                 {(file.size / (1024 * 1024)).toFixed(2)} MB
+                                                {notes[file.name] ? ` · optimizado: ${notes[file.name]}` : ''}
                                             </Typography>
                                             {progress > 0 && (
                                                 <LinearProgress

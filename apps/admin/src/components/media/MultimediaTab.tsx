@@ -75,8 +75,8 @@ export default function MultimediaTab({ restaurantId, dishes }: MultimediaTabPro
 
     // Mutación para subir medios
     const uploadMutation = useMutation({
-        mutationFn: async ({ file, role }: { file: File; role: string }) => {
-            return apiClient.uploadMedia(selectedDish!.id, file, role);
+        mutationFn: async ({ file, role, meta }: { file: File; role: string; meta?: { width?: number; height?: number; duration?: number } }) => {
+            return apiClient.uploadMedia(selectedDish!.id, file, role, 0, meta);
         },
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ['dish-media', selectedDish?.id] });
@@ -165,8 +165,8 @@ export default function MultimediaTab({ restaurantId, dishes }: MultimediaTabPro
         }
     }, [groupedMedia]);
 
-    const handleUpload = async (file: File, role: string) => {
-        await uploadMutation.mutateAsync({ file, role });
+    const handleUpload = async (file: File, role: string, meta?: { width?: number; height?: number; duration?: number }) => {
+        await uploadMutation.mutateAsync({ file, role, meta });
     };
 
     const handleUpdateRole = async (newRole: string) => {
