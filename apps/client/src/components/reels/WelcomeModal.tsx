@@ -12,6 +12,7 @@ import {
 } from '@mui/material';
 import { Close, CardGiftcard } from '@mui/icons-material';
 import { useTranslation } from '../../contexts/TranslationContext';
+import { parseCampaignJson } from '../../hooks/useWelcomeModal';
 import type { TransitionProps } from '@mui/material/transitions';
 
 // Matches 'marketing_campaigns' table, type = 'welcome_modal'.
@@ -65,15 +66,15 @@ const WelcomeModal: React.FC<WelcomeModalProps> = ({ open, onClose, restaurant, 
 
     // Extract config from campaign - handle both parsed object and JSON string
     const rawContent = campaign.content;
-    const content = typeof rawContent === 'string' ? JSON.parse(rawContent || '{}') : (rawContent || {});
+    const content = parseCampaignJson(rawContent);
     const rawSettings = campaign.settings;
-    const settings = typeof rawSettings === 'string' ? JSON.parse(rawSettings || '{}') : (rawSettings || {});
+    const settings = parseCampaignJson(rawSettings);
 
     const title = content.title || `${t('welcome_title_prefix', '¡Bienvenido a ')}${restaurant?.name}!`;
     const body = content.body || content.description || t('welcome_description_default', '¡Esperamos que disfrutes tu experiencia con nosotros!');
     const mediaUrl = content.media_url || content.image_url;
     const mediaType: 'image' | 'video' | 'none' = content.media_type || (mediaUrl ? 'image' : 'none');
-    const ctaLabel = content.cta_label || t('button_accept', '¡Entendido!');
+    const ctaLabel = content.cta_label || t('button_understood', '¡Entendido!');
     const secondaryCta = content.secondary_cta?.url ? content.secondary_cta : null;
     const dismissible = settings.dismissible !== false;
     const useBranding = settings.use_branding !== false;
@@ -218,7 +219,7 @@ const WelcomeModal: React.FC<WelcomeModalProps> = ({ open, onClose, restaurant, 
                         variant="h5"
                         sx={{
                             fontWeight: 800,
-                            fontFamily: '"Fraunces", serif',
+                            fontFamily: '"Fraunces Variable", "Fraunces", serif',
                             mb: 1.5,
                             fontSize: { xs: '1.4rem', sm: '1.5rem' },
                             lineHeight: 1.2,
@@ -280,7 +281,7 @@ const WelcomeModal: React.FC<WelcomeModalProps> = ({ open, onClose, restaurant, 
                             variant="text"
                             sx={{ color: 'rgba(255,255,255,0.55)', fontSize: '0.85rem', textTransform: 'none' }}
                         >
-                            {secondaryCta.label || t('view_more', 'Ver más')}
+                            {secondaryCta.label || t('see_more', 'Ver más')}
                         </Button>
                     )}
                 </Box>

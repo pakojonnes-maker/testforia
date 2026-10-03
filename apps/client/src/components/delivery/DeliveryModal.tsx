@@ -35,10 +35,15 @@ import {
 import { motion, AnimatePresence } from 'framer-motion';
 import { useTracking } from '../../providers/TrackingAndPushProvider';
 import { useTranslation } from '../../contexts/TranslationContext';
+import { API_URL } from '../../lib/api';
+import { hasRememberConsent } from '../../lib/visitor';
 
 interface CartItem {
     id: string;
+    /** Nombre en el idioma del cliente (lo que ve en el resumen). */
     name: string;
+    /** Nombre en español: el mensaje de WhatsApp lo lee el restaurante. */
+    staffName?: string;
     quantity: number;
     price: number;
 }
@@ -53,14 +58,13 @@ interface DeliveryConfig {
     shipping_cost: number;
     free_shipping_threshold: number;
     minimum_order: number;
-    translations: {
-        delivery_zones: string;
-        custom_message: string;
+    translations?: {
+        delivery_zones?: string;
+        custom_message?: string;
     };
-    ui_strings: Record<string, string>;
 }
 
-interface DeliveryModalProps {
+export interface DeliveryModalProps {
     open: boolean;
     onClose: () => void;
     cartItems: CartItem[];
@@ -73,7 +77,6 @@ interface DeliveryModalProps {
     unavailableReason?: string;
 }
 
-const API_URL = import.meta.env.VITE_API_URL || 'https://visualtasteworker.franciscotortosaestudios.workers.dev';
 
 const DeliveryModal: React.FC<DeliveryModalProps> = ({
     open,
@@ -83,16 +86,16 @@ const DeliveryModal: React.FC<DeliveryModalProps> = ({
     deliveryConfig,
     restaurantName,
     restaurantId,
-    currentLanguage: _currentLanguage = 'es',
+    currentLanguage = 'es',
     isAvailable = true,
     unavailableReason
 }) => {
     const { tracker, sessionId } = useTracking();
     const { t } = useTranslation();
 
-    // ✅ FIX: Use correct key 'vt_visitor_id' and parse JSON {value, expiry}
+    // El id de 12 meses solo viaja con el pedido si el cliente activó "recordar este dispositivo".
     const visitorId = (() => {
-        if (typeof window === 'undefined') return null;
+        if (typeof window === 'undefined' || !hasRememberConsent()) return null;
         try {
             const raw = localStorage.getItem('vt_visitor_id');
             if (!raw) return null;
@@ -113,9 +116,13 @@ const DeliveryModal: React.FC<DeliveryModalProps> = ({
     const [sending, setSending] = useState(false);
     const [formErrors, setFormErrors] = useState<{ phone?: string; address?: string; payment?: string }>({});
 
-    // Helper para obtener strings de UI
-    const ui = (key: string, fallback: string) => {
-        return deliveryConfig?.ui_strings?.[key] || t(`delivery.${key}`, fallback);
+    // Precios con el formato del idioma del cliente (en árabe, con cifras latinas como la carta).
+    const money = (n: number) => {
+        try {
+            return new Intl.NumberFormat(currentLanguage === 'ar' ? 'ar-u-nu-latn' : currentLanguage, { style: 'currency', currency: 'EUR' }).format(n);
+        } catch {
+            return `${n.toFixed(2)}€`;
+        }
     };
 
     // Calcular costes
@@ -142,20 +149,20 @@ const DeliveryModal: React.FC<DeliveryModalProps> = ({
         const errors: { phone?: string; address?: string; payment?: string } = {};
 
         if (!customerPhone.trim()) {
-            errors.phone = 'El teléfono es obligatorio';
+            errors.phone = t('carta_dlv_err_phone', 'El teléfono es obligatorio');
         } else if (customerPhone.trim().length < 9) {
-            errors.phone = 'Teléfono inválido';
+            errors.phone = t('carta_dlv_err_phone_bad', 'Teléfono no válido');
         }
 
         if (!customerAddress.trim()) {
-            errors.address = 'La dirección es obligatoria';
+            errors.address = t('carta_dlv_err_address', 'La dirección es obligatoria');
         }
 
         // Validar método de pago si hay múltiples opciones
         const hasCash = deliveryConfig?.payment_methods?.cash;
         const hasCard = deliveryConfig?.payment_methods?.card;
         if (hasCash && hasCard && !selectedPayment) {
-            errors.payment = 'Selecciona un método de pago';
+            errors.payment = t('carta_dlv_err_payment', 'Elige cómo vas a pagar');
         }
 
         setFormErrors(errors);
@@ -185,19 +192,13 @@ const DeliveryModal: React.FC<DeliveryModalProps> = ({
             order_source: orderSource
         };
 
-        console.log('[Delivery] Saving order:', orderData);
-        console.log('[Delivery] API URL:', `${API_URL}/delivery/orders`);
-
         try {
             const response = await fetch(`${API_URL}/delivery/orders`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(orderData)
             });
-
-            console.log('[Delivery] Response status:', response.status);
             const data = await response.json();
-            console.log('[Delivery] Response data:', data);
 
             if (data.success) {
                 return data.order_id;
@@ -210,12 +211,13 @@ const DeliveryModal: React.FC<DeliveryModalProps> = ({
         }
     };
 
-    // Generar mensaje de WhatsApp
+    // Mensaje de WhatsApp. Siempre en español y con los platos en español, sea cual sea el
+    // idioma del cliente: quien lo lee es el restaurante (como "Para el camarero").
     const generateWhatsAppMessage = () => {
-        const waNew = ui('wa_new_order', 'Nuevo Pedido');
-        const shippingLabel = ui('shipping', 'Envío');
-        const totalLabel = ui('total', 'Total');
-        const freeLabel = ui('shipping_free', 'Gratis');
+        const waNew = 'Nuevo pedido';
+        const shippingLabel = 'Envío';
+        const totalLabel = 'Total';
+        const freeLabel = 'Gratis';
 
         let message = `🛵 *${waNew}* - ${restaurantName}\n\n`;
 
@@ -231,9 +233,9 @@ const DeliveryModal: React.FC<DeliveryModalProps> = ({
         message += `\n`;
 
         // Pedido
-        message += `📋 *${ui('order_summary', 'Tu pedido')}:*\n`;
+        message += `📋 *Pedido:*\n`;
         for (const item of cartItems) {
-            message += `• ${item.name} x${item.quantity} - ${(item.price * item.quantity).toFixed(2)}€\n`;
+            message += `• ${item.staffName || item.name} x${item.quantity} - ${(item.price * item.quantity).toFixed(2)}€\n`;
         }
 
         message += `\n💰 Subtotal: ${cartTotal.toFixed(2)}€\n`;
@@ -243,8 +245,8 @@ const DeliveryModal: React.FC<DeliveryModalProps> = ({
         // Añadir método de pago seleccionado
         const paymentMethod = selectedPayment || (deliveryConfig?.payment_methods?.cash && !deliveryConfig?.payment_methods?.card ? 'cash' : null);
         if (paymentMethod) {
-            const paymentLabel = paymentMethod === 'cash' ? ui('payment_cash', 'Efectivo') : ui('payment_card', 'Tarjeta');
-            message += `\n\n💳 *${ui('payment_method', 'Método de pago')}:* ${paymentLabel}`;
+            const paymentLabel = paymentMethod === 'cash' ? 'Efectivo' : 'Tarjeta';
+            message += `\n\n💳 *Método de pago:* ${paymentLabel}`;
         }
 
         return encodeURIComponent(message);
@@ -258,7 +260,6 @@ const DeliveryModal: React.FC<DeliveryModalProps> = ({
 
         // Guardar pedido en BD
         const orderId = await saveOrder('whatsapp');
-        console.log('[Delivery] Order saved:', orderId);
 
         // Track event
         tracker?.track({
@@ -288,7 +289,6 @@ const DeliveryModal: React.FC<DeliveryModalProps> = ({
 
         // Guardar pedido en BD
         const orderId = await saveOrder('phone');
-        console.log('[Delivery] Order saved:', orderId);
 
         // Track event
         tracker?.track({
@@ -344,10 +344,10 @@ const DeliveryModal: React.FC<DeliveryModalProps> = ({
                         <TwoWheeler sx={{ color: '#6366f1', fontSize: 28 }} />
                     </Box>
                     <Typography variant="h6" fontWeight={700}>
-                        {ui('modal_title', 'Pedir a Domicilio')}
+                        {t('carta_dlv_title', 'Pedir a domicilio')}
                     </Typography>
                 </Box>
-                <IconButton onClick={onClose} sx={{ color: 'rgba(255,255,255,0.7)' }}>
+                <IconButton onClick={onClose} aria-label={t('button_close', 'Cerrar')} sx={{ color: 'rgba(255,255,255,0.7)' }}>
                     <Close />
                 </IconButton>
             </DialogTitle>
@@ -362,21 +362,21 @@ const DeliveryModal: React.FC<DeliveryModalProps> = ({
                             icon={<Warning />}
                             sx={{ mb: 2, bgcolor: alpha('#f59e0b', 0.15), border: `1px solid ${alpha('#f59e0b', 0.3)}` }}
                         >
-                            {unavailableReason === 'closed_today' && ui('closed_today', 'Hoy no hay servicio de reparto')}
-                            {unavailableReason === 'outside_hours' && ui('outside_hours', 'Fuera de horario de reparto')}
-                            {(!unavailableReason || unavailableReason === 'disabled') && ui('closed_today', 'Servicio no disponible')}
+                            {unavailableReason === 'closed_today' && t('carta_dlv_closed_today', 'Hoy no hay servicio de reparto')}
+                            {unavailableReason === 'outside_hours' && t('carta_dlv_outside_hours', 'Fuera del horario de reparto')}
+                            {(!unavailableReason || unavailableReason === 'disabled') && t('carta_dlv_unavailable', 'Servicio no disponible')}
                         </Alert>
                     )}
 
                     {cartItems.length === 0 && (
                         <Alert key="alert-empty" severity="info" sx={{ mb: 2 }}>
-                            {ui('empty_cart', 'Tu carrito está vacío')}
+                            {t('carta_dlv_empty', 'Aún no has añadido nada al pedido')}
                         </Alert>
                     )}
 
                     {cartItems.length > 0 && !meetsMinimum && (
                         <Alert key="alert-minimum" severity="warning" sx={{ mb: 2, bgcolor: alpha('#f59e0b', 0.1), border: `1px solid ${alpha('#f59e0b', 0.2)}` }}>
-                            {ui('minimum_not_reached', 'No alcanzas el pedido mínimo')}: {deliveryConfig.minimum_order}€
+                            {t('carta_dlv_minimum', 'Pedido mínimo: {amount}').replace('{amount}', money(deliveryConfig.minimum_order))}
                         </Alert>
                     )}
 
@@ -395,14 +395,14 @@ const DeliveryModal: React.FC<DeliveryModalProps> = ({
                                 border: '1px solid rgba(255,255,255,0.08)'
                             }}>
                                 <Typography variant="subtitle2" color="text.secondary" sx={{ mb: 2 }}>
-                                    📋 Datos de entrega
+                                    📋 {t('carta_dlv_details', 'Datos de entrega')}
                                 </Typography>
 
                                 <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
                                     <TextField
                                         fullWidth
                                         size="small"
-                                        label="Nombre (opcional)"
+                                        label={t('carta_dlv_name', 'Nombre (opcional)')}
                                         value={customerName}
                                         onChange={(e) => setCustomerName(e.target.value)}
                                         InputProps={{
@@ -426,7 +426,7 @@ const DeliveryModal: React.FC<DeliveryModalProps> = ({
                                     <TextField
                                         fullWidth
                                         size="small"
-                                        label="Teléfono *"
+                                        label={t('carta_dlv_phone', 'Teléfono *')}
                                         type="tel"
                                         value={customerPhone}
                                         onChange={(e) => {
@@ -457,7 +457,7 @@ const DeliveryModal: React.FC<DeliveryModalProps> = ({
                                     <TextField
                                         fullWidth
                                         size="small"
-                                        label="Dirección completa *"
+                                        label={t('carta_dlv_address', 'Dirección completa *')}
                                         multiline
                                         rows={2}
                                         value={customerAddress}
@@ -467,7 +467,7 @@ const DeliveryModal: React.FC<DeliveryModalProps> = ({
                                         }}
                                         error={!!formErrors.address}
                                         helperText={formErrors.address}
-                                        placeholder="Calle, número, piso, código postal..."
+                                        placeholder={t('carta_dlv_address_ph', 'Calle, número, piso, código postal…')}
                                         InputProps={{
                                             startAdornment: (
                                                 <InputAdornment position="start" sx={{ alignSelf: 'flex-start', mt: 1 }}>
@@ -491,10 +491,10 @@ const DeliveryModal: React.FC<DeliveryModalProps> = ({
                                     <TextField
                                         fullWidth
                                         size="small"
-                                        label="Notas (opcional)"
+                                        label={t('carta_dlv_notes', 'Notas (opcional)')}
                                         value={customerNotes}
                                         onChange={(e) => setCustomerNotes(e.target.value)}
-                                        placeholder="Instrucciones de entrega, alergias..."
+                                        placeholder={t('carta_dlv_notes_ph', 'Instrucciones de entrega, alergias…')}
                                         InputProps={{
                                             startAdornment: (
                                                 <InputAdornment position="start">
@@ -535,11 +535,7 @@ const DeliveryModal: React.FC<DeliveryModalProps> = ({
                                         }}
                                     >
                                         <Typography variant="caption" sx={{ color: 'rgba(255,255,255,0.65)', display: 'block', lineHeight: 1.6 }}>
-                                            🔒 <strong>{restaurantName}</strong> tratará tu nombre, teléfono
-                                            y dirección para preparar y entregar este pedido, y para
-                                            cumplir sus obligaciones fiscales. No se usan para publicidad.
-                                            Puedes ejercer tus derechos de acceso, rectificación y
-                                            supresión como se explica en la{' '}
+                                            🔒 {t('carta_dlv_privacy', '{restaurant} tratará tu nombre, teléfono y dirección para preparar y entregar este pedido y para cumplir sus obligaciones fiscales. No se usan para publicidad. Puedes ejercer tus derechos de acceso, rectificación y supresión.').replace('{restaurant}', restaurantName)}{' '}
                                             <Box
                                                 component="a"
                                                 href="/legal/privacy"
@@ -547,11 +543,11 @@ const DeliveryModal: React.FC<DeliveryModalProps> = ({
                                                 rel="noopener noreferrer"
                                                 sx={{ color: '#fff', textDecoration: 'underline' }}
                                             >
-                                                política de privacidad
+                                                {t('carta_dlv_privacy_link', 'Política de privacidad')}
                                             </Box>
-                                            . Si tienes alergias, indícalo en las notas y{' '}
-                                            <strong>confírmalo también por teléfono</strong>: los platos se
-                                            elaboran en cocinas donde se manipulan todos los alérgenos.
+                                            <Box component="span" sx={{ display: 'block', mt: 0.75 }}>
+                                                <strong>{t('carta_dlv_allergy', 'Si tienes alergias, indícalo en las notas y confírmalo también por teléfono: los platos se elaboran en cocinas donde se manipulan todos los alérgenos.')}</strong>
+                                            </Box>
                                         </Typography>
                                     </Box>
 
@@ -559,12 +555,12 @@ const DeliveryModal: React.FC<DeliveryModalProps> = ({
                                     {(deliveryConfig?.payment_methods?.cash || deliveryConfig?.payment_methods?.card) && (
                                         <Box>
                                             <Typography variant="caption" color="text.secondary" sx={{ mb: 1, display: 'block' }}>
-                                                💳 Método de pago *
+                                                💳 {t('carta_dlv_payment', 'Cómo vas a pagar *')}
                                             </Typography>
                                             <Box sx={{ display: 'flex', gap: 1 }}>
                                                 <Chip
                                                     icon={<Money sx={{ fontSize: 18 }} />}
-                                                    label={ui('payment_cash', 'Efectivo')}
+                                                    label={t('carta_dlv_cash', 'Efectivo')}
                                                     onClick={() => {
                                                         setSelectedPayment('cash');
                                                         if (formErrors.payment) setFormErrors(prev => ({ ...prev, payment: undefined }));
@@ -584,7 +580,7 @@ const DeliveryModal: React.FC<DeliveryModalProps> = ({
                                                 />
                                                 <Chip
                                                     icon={<CreditCard sx={{ fontSize: 18 }} />}
-                                                    label={ui('payment_card', 'Tarjeta')}
+                                                    label={t('carta_dlv_card', 'Tarjeta')}
                                                     onClick={() => {
                                                         setSelectedPayment('card');
                                                         if (formErrors.payment) setFormErrors(prev => ({ ...prev, payment: undefined }));
@@ -630,7 +626,7 @@ const DeliveryModal: React.FC<DeliveryModalProps> = ({
                             <LocationOn sx={{ color: '#22c55e', fontSize: 20 }} />
                             <Box>
                                 <Typography variant="caption" color="text.secondary">
-                                    {ui('delivery_area', 'Zona de reparto')}
+                                    {t('carta_dlv_area', 'Zona de reparto')}
                                 </Typography>
                                 <Typography variant="body2" fontWeight={500}>
                                     {deliveryConfig.translations.delivery_zones}
@@ -643,7 +639,7 @@ const DeliveryModal: React.FC<DeliveryModalProps> = ({
                     {cartItems.length > 0 && (
                         <Box sx={{ mb: 2 }}>
                             <Typography variant="subtitle2" color="text.secondary" sx={{ mb: 1 }}>
-                                {ui('order_summary', 'Tu pedido')}
+                                {t('carta_dlv_order', 'Tu pedido')}
                             </Typography>
                             <Box sx={{
                                 bgcolor: 'rgba(255,255,255,0.03)',
@@ -665,7 +661,7 @@ const DeliveryModal: React.FC<DeliveryModalProps> = ({
                                             {item.name} x{item.quantity}
                                         </Typography>
                                         <Typography variant="body2" fontWeight={600}>
-                                            {(item.price * item.quantity).toFixed(2)}€
+                                            {money(item.price * item.quantity)}
                                         </Typography>
                                     </Box>
                                 ))}
@@ -688,19 +684,19 @@ const DeliveryModal: React.FC<DeliveryModalProps> = ({
                         }}>
                             <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
                                 <LocalShipping sx={{ color: '#6366f1', fontSize: 20 }} />
-                                <Typography variant="body2">{ui('shipping', 'Envío')}</Typography>
+                                <Typography variant="body2">{t('carta_dlv_shipping', 'Envío')}</Typography>
                             </Box>
                             <Box sx={{ textAlign: 'right' }}>
                                 {isFreeShipping ? (
                                     <Typography variant="body2" fontWeight={700} sx={{ color: '#22c55e' }}>
-                                        {ui('shipping_free', 'Gratis')} 🎉
+                                        {t('carta_dlv_free', 'Gratis')} 🎉
                                     </Typography>
                                 ) : (
                                     <>
-                                        <Typography variant="body2" fontWeight={600}>{shippingCost.toFixed(2)}€</Typography>
+                                        <Typography variant="body2" fontWeight={600}>{money(shippingCost)}</Typography>
                                         {deliveryConfig.free_shipping_threshold > 0 && (
                                             <Typography variant="caption" color="text.secondary">
-                                                {ui('shipping_free_from', 'Gratis a partir de')} {deliveryConfig.free_shipping_threshold}€
+                                                {t('carta_dlv_free_from', 'Gratis a partir de {amount}').replace('{amount}', money(deliveryConfig.free_shipping_threshold))}
                                             </Typography>
                                         )}
                                     </>
@@ -713,9 +709,9 @@ const DeliveryModal: React.FC<DeliveryModalProps> = ({
 
                     {/* Total */}
                     <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1 }}>
-                        <Typography variant="h6" fontWeight={700}>{ui('total', 'Total')}</Typography>
+                        <Typography variant="h6" fontWeight={700}>{t('carta_total', 'Total')}</Typography>
                         <Typography variant="h5" fontWeight={800} sx={{ color: '#6366f1' }}>
-                            {finalTotal.toFixed(2)}€
+                            {money(finalTotal)}
                         </Typography>
                     </Box>
 
@@ -731,8 +727,7 @@ const DeliveryModal: React.FC<DeliveryModalProps> = ({
                         variant="caption"
                         sx={{ color: 'rgba(255,255,255,0.5)', display: 'block', mb: 3, lineHeight: 1.5 }}
                     >
-                        IVA incluido. Al enviar el pedido confirmas que deseas contratarlo y
-                        que conlleva la obligación de pagar este importe al restaurante.
+                        {t('carta_dlv_vat', 'IVA incluido. Al enviar el pedido confirmas que deseas contratarlo y que conlleva la obligación de pagar este importe al restaurante.')}
                     </Typography>
 
                     {/* Action Buttons */}
@@ -762,7 +757,7 @@ const DeliveryModal: React.FC<DeliveryModalProps> = ({
                                     }
                                 }}
                             >
-                                {ui('send_whatsapp', 'Enviar pedido por WhatsApp')}
+                                {t('carta_dlv_send_wa', 'Enviar pedido por WhatsApp')}
                             </Button>
                         )}
 
@@ -790,7 +785,7 @@ const DeliveryModal: React.FC<DeliveryModalProps> = ({
                                     }
                                 }}
                             >
-                                {ui('call_restaurant', 'Llamar al restaurante')} ({deliveryConfig.phone_number})
+                                {t('carta_dlv_call', 'Llamar al restaurante')} ({deliveryConfig.phone_number})
                             </Button>
                         )}
                     </Box>

@@ -61,6 +61,32 @@ function useCounter(end: number, duration = 2000, startOnView = true) {
   return { count, ref };
 }
 
+// Una cifra de la franja de estadísticas. Componente propio porque useCounter es un hook y
+// no puede llamarse dentro de un .map().
+function StatCounter({ value, suffix, label }: { value: number; suffix: string; label: string }) {
+  const { count, ref } = useCounter(value);
+  return (
+    <Box ref={ref} sx={{ textAlign: 'center' }}>
+      <Typography
+        variant="h2"
+        sx={{
+          fontSize: { xs: '3rem', md: '4rem' },
+          fontWeight: 800,
+          background: gradients.goldText,
+          WebkitBackgroundClip: 'text',
+          WebkitTextFillColor: 'transparent',
+          mb: 1,
+        }}
+      >
+        +{count}{suffix}
+      </Typography>
+      <Typography variant="overline" sx={{ color: colors.textMuted, letterSpacing: '0.1em' }}>
+        {label}
+      </Typography>
+    </Box>
+  );
+}
+
 // ============================================================================
 // COMPONENTS
 // ============================================================================
@@ -351,31 +377,11 @@ function StatsSection() {
     >
       <Container maxWidth="lg">
         <Grid container spacing={4} justifyContent="center">
-          {stats.map((stat, index) => {
-            const { count, ref } = useCounter(stat.value);
-            return (
-              <Grid item xs={6} md={3} key={index}>
-                <Box ref={ref} sx={{ textAlign: 'center' }}>
-                  <Typography
-                    variant="h2"
-                    sx={{
-                      fontSize: { xs: '3rem', md: '4rem' },
-                      fontWeight: 800,
-                      background: gradients.goldText,
-                      WebkitBackgroundClip: 'text',
-                      WebkitTextFillColor: 'transparent',
-                      mb: 1,
-                    }}
-                  >
-                    +{count}{stat.suffix}
-                  </Typography>
-                  <Typography variant="overline" sx={{ color: colors.textMuted, letterSpacing: '0.1em' }}>
-                    {stat.label}
-                  </Typography>
-                </Box>
-              </Grid>
-            );
-          })}
+          {stats.map((stat, index) => (
+            <Grid item xs={6} md={3} key={index}>
+              <StatCounter value={stat.value} suffix={stat.suffix} label={stat.label} />
+            </Grid>
+          ))}
         </Grid>
       </Container>
     </Box>

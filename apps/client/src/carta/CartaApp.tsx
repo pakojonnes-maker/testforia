@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import '@fontsource-variable/playfair-display';
 import '@fontsource-variable/playfair-display/wght-italic.css';
@@ -10,40 +10,47 @@ import type { CartItem } from '../hooks/useCart';
 import { useWelcomeModal } from '../hooks/useWelcomeModal';
 import { useLoyaltyCard } from '../hooks/useLoyaltyCard';
 import { useDishTracking } from '../providers/TrackingAndPushProvider';
-import DeliveryModal from '../components/delivery/DeliveryModal';
-import LoyaltyCardModal from '../components/loyalty/LoyaltyCardModal';
-import WelcomeModal from '../components/reels/WelcomeModal';
-import RatingModal from '../components/ui/RatingModal';
+import { getRememberChoice, hasRememberConsent } from '../lib/visitor';
+import { API_URL } from '../lib/api';
 import { Ctx } from './context';
 import type { CartaCtx, CasaAction, View } from './context';
 import type { CartaAllergen, CartaDish, CartaLanguage, CartaSection, FeedItem } from './model';
 import { dishName, flattenSections, menuAllergens as listAllergens, money as fmtMoney, priceOf } from './model';
-import { makeT } from './strings';
+import { ES, makeT } from './strings';
 import { buildCartaTheme, themeVars } from './theme';
-import { readLanguage, saveLanguage, useStoredList } from './usePrefs';
+import { pickInitialLanguage, saveLanguage, useStoredList } from './usePrefs';
 import { Feed } from './Feed';
 import { Alergenos, Avisos, Camarero, CartaList, Casa, Ficha, Idioma, Seleccion } from './views';
 import { HeartIcon } from './parts';
 
+// Los diálogos heredados (pedido a domicilio, sellos, oferta, valoración, instalar en iPhone)
+// son MUI: se descargan la primera vez que hace falta uno, no al abrir la carta.
+const LegacyLayer = lazy(() => import('./LegacyLayer'));
+
 interface Props {
   slug: string;
-  initialSectionIndex?: number;
-  initialDishIndex?: number;
-  deepLinked?: boolean;
 }
 
-const API_URL = import.meta.env.VITE_API_URL || 'https://visualtasteworker.franciscotortosaestudios.workers.dev';
-const ARABIC_FONT_ID = 'carta-font-ar';
-
-/** Playfair y Montserrat van empaquetadas; la escritura árabe solo se pide si alguien elige árabe. */
+/** Playfair y Montserrat van empaquetadas; la escritura árabe solo se descarga si alguien elige árabe. */
 function useArabicFont(lang: string) {
   useEffect(() => {
-    if (lang !== 'ar' || document.getElementById(ARABIC_FONT_ID)) return;
-    const link = document.createElement('link');
-    link.id = ARABIC_FONT_ID;
-    link.rel = 'stylesheet';
-    link.href = 'https://fonts.googleapis.com/css2?family=Noto+Naskh+Arabic:wght@400..700&display=swap';
-    document.head.appendChild(link);
+    if (lang === 'ar') import('@fontsource-variable/noto-naskh-arabic').catch(() => { /* se queda la de sistema */ });
+  }, [lang]);
+}
+
+/** Título de la pestaña e idioma/dirección del documento: los del restaurante y el cliente. */
+function useDocumentMeta(name: string, lang: string) {
+  useEffect(() => {
+    if (!name) return;
+    const prev = document.title;
+    document.title = name;
+    return () => { document.title = prev; };
+  }, [name]);
+  useEffect(() => {
+    const html = document.documentElement;
+    html.lang = lang;
+    html.dir = lang === 'ar' ? 'rtl' : 'ltr';
+    return () => { html.lang = 'es'; html.dir = 'ltr'; };
   }, [lang]);
 }
 
@@ -58,14 +65,7 @@ function instagramHandle(url: string): string | undefined {
   }
 }
 
-function pickInitialLanguage(slug: string): string {
-  const stored = readLanguage(slug);
-  if (stored) return stored;
-  const nav = (typeof navigator !== 'undefined' ? navigator.language : 'es').split('-')[0];
-  return nav || 'es';
-}
-
-export default function CartaApp({ slug, initialSectionIndex = 0, initialDishIndex = 0, deepLinked = false }: Props) {
+export default function CartaApp({ slug }: Props) {
   const navigate = useNavigate();
   const [lang, setLangState] = useState(() => pickInitialLanguage(slug));
   const { config } = useReelsConfig(slug, lang);
@@ -84,7 +84,8 @@ export default function CartaApp({ slug, initialSectionIndex = 0, initialDishInd
   const esT = useMemo(() => makeT((esConfig as any)?.translations), [esConfig]);
   const sections: CartaSection[] = useMemo(() => cfg?.sections || [], [cfg?.sections]);
   const items = useMemo(() => flattenSections(sections), [sections]);
-  const restaurant = cfg?.restaurant || { id: '', name: '', slug };
+  const restaurant = useMemo(() => cfg?.restaurant || { id: '', name: '', slug }, [cfg?.restaurant, slug]);
+  useDocumentMeta(restaurant.name || '', lang);
   const theme = useMemo(() => buildCartaTheme(restaurant?.branding), [restaurant?.branding]);
   const money = useCallback((n: number) => fmtMoney(n, lang), [lang]);
   const esNames = useMemo(() => {
@@ -97,14 +98,11 @@ export default function CartaApp({ slug, initialSectionIndex = 0, initialDishInd
   const [index, setIndex] = useState(0);
   const currentId = useRef<string | null>(null);
   const placed = useRef(false);
-  // Primera carta: el plato del enlace. Cambio de idioma: llega otra carta y se vuelve
-  // al mismo plato, no al primero.
+  // Cambio de idioma: llega otra carta y se vuelve al mismo plato, no al primero.
   useEffect(() => {
     if (!items.length) return;
     if (!placed.current) {
       placed.current = true;
-      const start = items.find((it) => it.si === initialSectionIndex && it.di === initialDishIndex)?.index ?? 0;
-      setIndex(start);
       return;
     }
     const keep = currentId.current ? items.findIndex((it) => it.dish.id === currentId.current) : -1;
@@ -254,18 +252,23 @@ export default function CartaApp({ slug, initialSectionIndex = 0, initialDishInd
   const deliveryConfig = cfg?.deliverySettings || null;
   const deliveryEnabled = !!deliveryConfig?.is_enabled;
 
+  // La valoración va con la sesión de la carta (toda visita tiene una, anónima) y, si el
+  // cliente activó "recordar este dispositivo", también con su id de 12 meses.
+  const sessionId = tracking.sessionId;
   const submitRating = useCallback(async (rating: number, comment: string) => {
     try {
       let visitor: string | null = null;
-      try {
-        const raw = localStorage.getItem('vt_visitor_id');
-        const parsed = raw ? JSON.parse(raw) : null;
-        if (parsed?.value && (!parsed.expiry || Date.now() <= parsed.expiry)) visitor = parsed.value;
-      } catch { /* sin storage */ }
+      if (hasRememberConsent()) {
+        try {
+          const raw = localStorage.getItem('vt_visitor_id');
+          const parsed = raw ? JSON.parse(raw) : null;
+          if (parsed?.value && (!parsed.expiry || Date.now() <= parsed.expiry)) visitor = parsed.value;
+        } catch { /* sin storage */ }
+      }
       const res = await fetch(`${API_URL}/restaurants/${restaurant.slug}/rating`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ rating, comment, visitor_id: visitor, session_id: sessionStorage.getItem('session_id') }),
+        body: JSON.stringify({ rating, comment, visitor_id: visitor, session_id: sessionId }),
       });
       if (res.ok) {
         setRated(rating);
@@ -274,7 +277,7 @@ export default function CartaApp({ slug, initialSectionIndex = 0, initialDishInd
     } catch (err) {
       console.error('[Carta] rating', err);
     }
-  }, [restaurant.slug, restaurant.id]);
+  }, [restaurant.slug, restaurant.id, sessionId]);
 
   const push = useMemo(() => ({
     supported: tracking.isPushSupported || tracking.isIOS,
@@ -284,9 +287,21 @@ export default function CartaApp({ slug, initialSectionIndex = 0, initialDishInd
       const r = await tracking.subscribeToPush();
       if (r === 'success') toast(t('carta_notif_active'));
       else if (r === 'denied') toast(t('carta_notif_denied'));
+      else if (r === 'error') toast(t('carta_notif_error'));
     },
     disable: async () => { await tracking.unsubscribeFromPush(); },
   }), [tracking, toast, t]);
+
+  // iPhone: el cliente pidió avisos desde Safari, instaló la carta en la pantalla de inicio y
+  // la acaba de abrir desde allí. Se le lleva a la pantalla de avisos para que los active
+  // (iOS solo deja pedir el permiso tras un toque suyo).
+  const { pushPending, clearPushPending } = tracking;
+  useEffect(() => {
+    if (!pushPending || !config) return;
+    clearPushPending();
+    setWelcome(false);
+    open('avisos');
+  }, [pushPending, config]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const casaActions: CasaAction[] = useMemo(() => {
     const out: CasaAction[] = [];
@@ -310,12 +325,22 @@ export default function CartaApp({ slug, initialSectionIndex = 0, initialDishInd
   // ------------------------------------------------------------ bienvenida (una vez por sesión)
   const welcomeKey = `vt_carta_welcome_${slug}`;
   const [welcome, setWelcome] = useState(() => {
-    if (deepLinked) return false;
     try { return !sessionStorage.getItem(welcomeKey); } catch { return true; }
   });
   const closeWelcome = () => {
     setWelcome(false);
     try { sessionStorage.setItem(welcomeKey, '1'); } catch { /* ignorar */ }
+  };
+
+  // "¿Te reconocemos la próxima vez que vengas?": la recurrencia (días distintos) y la
+  // atribución a la guía en visitas posteriores necesitan un id en el móvil, y eso solo con
+  // permiso. Se pregunta aquí, en su idioma, sin tapar la carta; si cierra sin contestar, no
+  // hay id y se le vuelve a preguntar en la visita siguiente. Se cambia en Privacidad.
+  const [rememberAsk, setRememberAsk] = useState(() => getRememberChoice() === null);
+  const answerRemember = (on: boolean) => {
+    setRememberAsk(false);
+    tracking.rememberDevice(on);
+    toast(t(on ? 'carta_remember_done_yes' : 'carta_remember_done_no'));
   };
 
   // La oferta de bienvenida (campaña del admin) no salta encima de la bienvenida ni nada más
@@ -332,6 +357,25 @@ export default function CartaApp({ slug, initialSectionIndex = 0, initialDishInd
     if (movedFrom.current === null) movedFrom.current = index;
     else if (index !== movedFrom.current) setOfferReady(true);
   }, [index, welcome, offerReady]);
+
+  // Ni encima de otro diálogo (pedido, sellos, valoración, iPhone): espera a que se cierre.
+  const otherDialog = deliveryOpen || loyaltyOpen || ratingOpen || tracking.showIOSPrompt;
+  const welcomeOpen = welcomeModalOpen && !welcome && !otherDialog && (offerReady || stack.includes('casa'));
+
+  // Diálogos heredados (MUI): se descargan la primera vez que hace falta uno y se quedan
+  // montados para que cierren con su animación.
+  const needLegacy = deliveryOpen || loyaltyOpen || ratingOpen || welcomeOpen || tracking.showIOSPrompt;
+  const legacyRef = useRef(false);
+  if (needLegacy) legacyRef.current = true;
+  const legacyLoaded = legacyRef.current;
+  // Con una oferta de bienvenida programada se baja en segundo plano, para que no espere al abrirse.
+  useEffect(() => {
+    if (!marketingCampaign) return;
+    const id = window.setTimeout(() => { import('./LegacyLayer').catch(() => { /* ya se intentará al abrir */ }); }, 4000);
+    return () => window.clearTimeout(id);
+  }, [marketingCampaign]);
+  // Sus textos: los de D1 en el idioma del cliente, con el español de respaldo.
+  const legacyStrings = useMemo<Record<string, string>>(() => ({ ...ES, ...(translations || {}) }), [translations]);
 
   const setLang = useCallback((code: string) => { saveLanguage(slug, code); setLangState(code); }, [slug]);
 
@@ -449,6 +493,18 @@ export default function CartaApp({ slug, initialSectionIndex = 0, initialDishInd
                   )}
                 </div>
               )}
+              {rememberAsk && (
+                <div className="remember" role="group" aria-label={t('carta_remember_q')}>
+                  <p className="rq">{t('carta_remember_q')}</p>
+                  <p className="rs">
+                    {t('carta_remember_sub')} <a href="/legal/privacy">{t('carta_remember_more')}</a>
+                  </p>
+                  <div className="rb">
+                    <button className="chip" onClick={() => answerRemember(false)}>{t('carta_remember_no')}</button>
+                    <button className="chip" onClick={() => answerRemember(true)}>{t('carta_remember_yes')}</button>
+                  </div>
+                </div>
+              )}
               <button className="cta" onClick={closeWelcome}>{t('carta_start')}</button>
             </div>
           )}
@@ -466,41 +522,50 @@ export default function CartaApp({ slug, initialSectionIndex = 0, initialDishInd
         </div>
       </div>
 
-      <DeliveryModal
-        open={deliveryOpen}
-        onClose={() => setDeliveryOpen(false)}
-        cartItems={cart.map((i) => ({ id: i.dishId, name: i.name, quantity: i.quantity, price: i.price }))}
-        cartTotal={cartTotal}
-        deliveryConfig={deliveryConfig}
-        restaurantName={restaurant.name || ''}
-        restaurantId={restaurant.id}
-        currentLanguage={lang}
-        isAvailable={deliveryEnabled}
-      />
-      <LoyaltyCardModal
-        open={loyaltyOpen}
-        onClose={() => setLoyaltyOpen(false)}
-        program={loyaltyProgram}
-        card={loyaltyCard}
-        onCardChange={setLoyaltyCard}
-        restaurantId={restaurant.id}
-        restaurantSlug={restaurant.slug}
-        accentColor={theme.fill}
-        visitorId={visitorId}
-      />
-      <WelcomeModal
-        open={welcomeModalOpen && !welcome && (offerReady || stack.includes('casa'))}
-        onClose={() => setWelcomeModalOpen(false)}
-        restaurant={restaurant}
-        campaign={marketingCampaign}
-      />
-      <RatingModal
-        open={ratingOpen}
-        onClose={() => setRatingOpen(false)}
-        onSubmit={submitRating}
-        googleReviewUrl={restaurant.google_review_url}
-        previousRating={effectiveRating}
-      />
+      {legacyLoaded && (
+        <Suspense fallback={null}>
+          <LegacyLayer
+            translations={legacyStrings}
+            lang={lang}
+            delivery={{
+              open: deliveryOpen,
+              onClose: () => setDeliveryOpen(false),
+              // El mensaje de WhatsApp lo lee el restaurante: los platos van en español.
+              cartItems: cart.map((i) => ({ id: i.dishId, name: i.name, staffName: esNames.get(i.dishId) || i.name, quantity: i.quantity, price: i.price })),
+              cartTotal,
+              deliveryConfig,
+              restaurantName: restaurant.name || '',
+              restaurantId: restaurant.id,
+              isAvailable: deliveryEnabled,
+            }}
+            loyalty={{
+              open: loyaltyOpen,
+              onClose: () => setLoyaltyOpen(false),
+              program: loyaltyProgram,
+              card: loyaltyCard,
+              onCardChange: setLoyaltyCard,
+              restaurantId: restaurant.id,
+              restaurantSlug: restaurant.slug,
+              accentColor: theme.fill,
+              visitorId,
+            }}
+            welcome={{
+              open: welcomeOpen,
+              onClose: () => setWelcomeModalOpen(false),
+              restaurant,
+              campaign: marketingCampaign,
+            }}
+            rating={{
+              open: ratingOpen,
+              onClose: () => setRatingOpen(false),
+              onSubmit: submitRating,
+              googleReviewUrl: restaurant.google_review_url,
+              previousRating: effectiveRating,
+            }}
+            ios={{ open: tracking.showIOSPrompt, onClose: () => tracking.setShowIOSPrompt(false) }}
+          />
+        </Suspense>
+      )}
     </Ctx.Provider>
   );
 }

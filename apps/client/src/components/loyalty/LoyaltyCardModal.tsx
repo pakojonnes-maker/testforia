@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
     Dialog,
     DialogContent,
@@ -14,7 +14,7 @@ import { Close, CardGiftcard, CheckCircle } from '@mui/icons-material';
 import { useNavigate } from 'react-router-dom';
 import { ensureVisitorId } from '../../hooks/useLoyaltyCard';
 import { useTranslation } from '../../contexts/TranslationContext';
-import { API_URL } from '../../lib/apiClient';
+import { API_URL } from '../../lib/api';
 import type { TransitionProps } from '@mui/material/transitions';
 
 export interface LoyaltyProgram {
@@ -36,7 +36,7 @@ export interface LoyaltyCard {
     completed_at?: string | null;
 }
 
-interface LoyaltyCardModalProps {
+export interface LoyaltyCardModalProps {
     open: boolean;
     onClose: () => void;
     program?: LoyaltyProgram | null;
@@ -68,6 +68,19 @@ const LoyaltyCardModal: React.FC<LoyaltyCardModalProps> = ({
     const [pinError, setPinError] = useState<string | null>(null);
     const [loading, setLoading] = useState(false);
 
+    // La tarjeta del cliente no viene en la carta (la respuesta va cacheada para todos): se
+    // pide al abrir, si este móvil ya tiene id de visitante (lo crea el primer sello). Antes
+    // un cliente que volvía veía 0 sellos hasta sellar otra vez.
+    useEffect(() => {
+        if (!open || !program || card || !visitorId || !restaurantId) return;
+        let live = true;
+        fetch(`${API_URL}/api/loyalty/card?restaurant_id=${encodeURIComponent(restaurantId)}`, { headers: { 'X-Visitor-Id': visitorId } })
+            .then((r) => r.json())
+            .then((data) => { if (live && data?.success && data.card) onCardChange(data.card); })
+            .catch(() => { /* sin red: se queda la tarjeta vacía */ });
+        return () => { live = false; };
+    }, [open, program, card, visitorId, restaurantId, onCardChange]);
+
     if (!program) return null;
 
     const color = accentColor || program.card_color || '#FFD700';
@@ -85,7 +98,7 @@ const LoyaltyCardModal: React.FC<LoyaltyCardModalProps> = ({
 
     const handleConfirmStamp = async () => {
         if (pin.length < 4) {
-            setPinError(t('loyalty_pin_required', 'Introduce el PIN de 4 dígitos'));
+            setPinError(t('carta_loy_pin_required', 'Introduce el PIN de 4 dígitos'));
             return;
         }
         setLoading(true);
@@ -101,13 +114,14 @@ const LoyaltyCardModal: React.FC<LoyaltyCardModalProps> = ({
             });
             const data = await res.json();
             if (!res.ok || !data.success) {
-                setPinError(data.message || t('loyalty_pin_wrong', 'PIN incorrecto'));
+                // El mensaje del servidor va en español: fuera de él, el texto traducido.
+                setPinError((document.documentElement.lang === 'es' && data.message) || t('carta_loy_pin_wrong', 'PIN incorrecto'));
                 return;
             }
             onCardChange(data.card);
             setAskingPin(false);
             setPin('');
-        } catch (e) {
+        } catch {
             setPinError(t('error_connection', 'Error de conexión'));
         } finally {
             setLoading(false);
@@ -164,13 +178,13 @@ const LoyaltyCardModal: React.FC<LoyaltyCardModalProps> = ({
             </IconButton>
 
             <DialogContent sx={{ pt: 4, px: 3, pb: isMobile ? 4 : 3, textAlign: 'center' }}>
-                <Typography variant="h5" sx={{ fontWeight: 800, fontFamily: '"Fraunces", serif', mb: 0.5 }}>
-                    {t('loyalty_title', 'Tu tarjeta de fidelidad')}
+                <Typography variant="h5" sx={{ fontWeight: 800, fontFamily: '"Fraunces Variable", "Fraunces", serif', mb: 0.5 }}>
+                    {t('carta_loy_title', 'Tu tarjeta de fidelidad')}
                 </Typography>
                 <Typography variant="body2" sx={{ opacity: 0.6, mb: 3 }}>
                     {program.reward_name
-                        ? t('loyalty_reward_line', `Completa la tarjeta y consigue: ${program.reward_name}`)
-                        : t('loyalty_generic_line', 'Junta sellos en cada visita y consigue tu premio')}
+                        ? t('carta_loy_reward', 'Completa la tarjeta y consigue: {reward}').replace('{reward}', program.reward_name)
+                        : t('carta_loy_generic', 'Junta sellos en cada visita y consigue tu premio')}
                 </Typography>
 
                 {/* Stamp grid */}
@@ -206,14 +220,14 @@ const LoyaltyCardModal: React.FC<LoyaltyCardModalProps> = ({
                 </Box>
 
                 <Typography variant="caption" sx={{ opacity: 0.5, display: 'block', mb: 3 }}>
-                    {currentStamps}/{stampsRequired} {t('loyalty_stamps_label', 'sellos')}
+                    {t('carta_loy_count', '{n} de {total} sellos').replace('{n}', String(currentStamps)).replace('{total}', String(stampsRequired))}
                 </Typography>
 
                 {isRedeemed ? (
                     <Box sx={{ py: 2 }}>
                         <CheckCircle sx={{ fontSize: 48, color: '#22c55e', mb: 1 }} />
                         <Typography variant="body2" sx={{ opacity: 0.7 }}>
-                            {t('loyalty_already_redeemed', 'Ya canjeaste esta tarjeta. ¡Gracias por volver!')}
+                            {t('carta_loy_redeemed', 'Ya canjeaste esta tarjeta. ¡Gracias por volver!')}
                         </Typography>
                     </Box>
                 ) : isCompleted ? (
@@ -228,12 +242,12 @@ const LoyaltyCardModal: React.FC<LoyaltyCardModalProps> = ({
                             '&:hover': { bgcolor: color, filter: 'brightness(1.1)' }
                         }}
                     >
-                        🎁 {t('loyalty_view_reward', 'Ver mi premio')}
+                        🎁 {t('carta_loy_view_reward', 'Ver mi premio')}
                     </Button>
                 ) : askingPin ? (
                     <Box>
                         <Typography variant="caption" sx={{ display: 'block', mb: 1.5, opacity: 0.6 }}>
-                            {t('loyalty_ask_staff', 'Pide al camarero que introduzca el PIN')}
+                            {t('carta_loy_ask_staff', 'Pide al camarero que introduzca el PIN')}
                         </Typography>
                         <Box sx={{ display: 'flex', justifyContent: 'center', mb: 1.5 }}>
                             <input
@@ -273,7 +287,7 @@ const LoyaltyCardModal: React.FC<LoyaltyCardModalProps> = ({
                                 onClick={handleConfirmStamp}
                                 sx={{ bgcolor: color, color: '#0f0f1a', fontWeight: 700, borderRadius: 3, py: 1.5 }}
                             >
-                                {loading ? '...' : t('button_confirm', 'Confirmar')}
+                                {loading ? '...' : t('carta_confirm', 'Confirmar')}
                             </Button>
                         </Box>
                     </Box>
@@ -290,7 +304,7 @@ const LoyaltyCardModal: React.FC<LoyaltyCardModalProps> = ({
                             '&:hover': { bgcolor: color, filter: 'brightness(1.1)' }
                         }}
                     >
-                        {t('loyalty_add_stamp', 'Sumar sello')}
+                        {t('carta_loy_add', 'Sumar sello')}
                     </Button>
                 )}
 

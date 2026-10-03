@@ -1,110 +1,33 @@
-// src/providers/TrackingAndPushProvider.tsx - VERSIÓN COMPLETA CON SECCIONES
+// src/providers/TrackingAndPushProvider.tsx
+//
+// Medición de la carta y avisos push.
+//
+// ⚖️ Modelo de privacidad (oct-2026, igual que la guía): toda visita abre una sesión
+// ANÓNIMA. La identidad del día la calcula el servidor (workerVisitorHash.js: hash de IP +
+// navegador con un salt aleatorio que rota cada día) y aquí no se escribe nada en el móvil
+// para medir, así que no hay banner. Antes la carta no abría ninguna sesión sin un "Aceptar"
+// en un splash solo en español: 16 sesiones en 30 días entre las 4 cartas.
+//
+// Lo que de verdad le importa al negocio —saber si un cliente vuelve otro día y seguir
+// atribuyendo a la guía al huésped que cena días después— exige reconocer el móvil entre
+// días, y eso es guardar algo en él: con permiso o no se hace. Se pregunta en la hoja de
+// bienvenida de la carta, en su idioma, con "Sí" y "No" al mismo nivel y sin tapar la carta
+// (CartaApp); se puede cambiar en /legal/privacy. Con un "Sí", vt_visitor_id de 12 meses
+// (vt_consent_analytics = 'true') y el servidor identifica la sesión en curso
+// (/track/session/identify). La atribución guía → carta de otro día también llega por la
+// cookie vt_guide_ref, que el huésped autoriza en la guía.
+// Si cambias algo de esto, actualiza components/legal/PrivacyContent.tsx en el mismo commit.
 
 import React, { createContext, useContext, useEffect, useMemo, useRef, useState } from 'react';
-import { apiClient } from '../lib/apiClient';
-import { IOSInstallPrompt } from '../components/IOSInstallPrompt';
-import RestaurantContext from '../contexts/RestaurantContext';
-import { Modal, Box, Typography, Button, IconButton, Snackbar, Alert as MuiAlert } from '@mui/material';
-import NotificationsActiveIcon from '@mui/icons-material/NotificationsActive';
-import CloseIcon from '@mui/icons-material/Close';
-
-// INTERNAL COMPONENT: Soft Prompt
-function PushSoftPrompt({ open, onClose, onConfirm, primaryColor }: { open: boolean; onClose: () => void; onConfirm: () => void; primaryColor?: string }) {
-  if (!open) return null;
-
-  const accentColor = primaryColor || '#FF6B6B';
-
-  return (
-    <Modal open={open} onClose={onClose}>
-      <Box sx={{
-        position: 'absolute',
-        top: '50%',
-        left: '50%',
-        transform: 'translate(-50%, -50%)',
-        width: '90%',
-        maxWidth: 400,
-        bgcolor: '#1a1a1a',
-        borderRadius: 4,
-        boxShadow: 24,
-        p: 3,
-        textAlign: 'center',
-        outline: 'none'
-      }}>
-        <Box display="flex" justifyContent="flex-end">
-          <IconButton onClick={onClose} size="small" sx={{ color: 'rgba(255,255,255,0.5)' }}>
-            <CloseIcon />
-          </IconButton>
-        </Box>
-
-        <Box sx={{
-          width: 60,
-          height: 60,
-          borderRadius: '50%',
-          bgcolor: accentColor,
-          color: 'white',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          mx: 'auto',
-          mb: 2
-        }}>
-          <NotificationsActiveIcon fontSize="large" />
-        </Box>
-
-        <Typography variant="h5" component="h2" gutterBottom sx={{ fontWeight: 'bold', color: 'white' }}>
-          ¡No te pierdas nada!
-        </Typography>
-
-        <Typography variant="body1" sx={{ color: 'rgba(255,255,255,0.7)' }} paragraph>
-          Activa las notificaciones para enterarte de las últimas novedades, descuentos y recibir ofertas exclusivas.
-        </Typography>
-
-        <Box mt={3} display="flex" flexDirection="column" gap={1.5}>
-          <Button
-            variant="contained"
-            size="large"
-            fullWidth
-            onClick={onConfirm}
-            sx={{
-              borderRadius: 3,
-              textTransform: 'none',
-              fontSize: '1rem',
-              py: 1.5,
-              fontWeight: 'bold',
-              bgcolor: accentColor,
-              color: 'white',
-              boxShadow: `0 4px 14px 0 ${accentColor}40`,
-              '&:hover': { bgcolor: accentColor, opacity: 0.9 }
-            }}
-          >
-            Activar notificaciones y ver oferta
-          </Button>
-
-          <Button
-            variant="text"
-            size="medium"
-            fullWidth
-            onClick={onClose}
-            sx={{
-              textTransform: 'none',
-              color: 'rgba(255,255,255,0.6)',
-              '&:hover': { color: 'rgba(255,255,255,0.9)', bgcolor: 'transparent' }
-            }}
-          >
-            Solo ver oferta
-          </Button>
-        </Box>
-      </Box>
-    </Modal>
-  );
-}
+import { API_URL, apiRequest, beacon } from '../lib/api';
+import { getVisitorId, hasRememberConsent, setRememberConsent, setVisitorId } from '../lib/visitor';
 
 interface TrackEvent {
   type: string;
   entityId?: string;
   entityType?: string;
-  value?: any;
-  props?: Record<string, any>;
+  value?: any; // eslint-disable-line @typescript-eslint/no-explicit-any
+  props?: Record<string, any>; // eslint-disable-line @typescript-eslint/no-explicit-any
   ts?: string;
   sectionId?: string;
 }
@@ -112,48 +35,43 @@ interface TrackEvent {
 interface TrackerApi {
   viewDish(dishId: string, sectionId?: string): void;
   favoriteDish(dishId: string, set?: boolean): void;
-  rateDish(dishId: string, rating: number, comment?: string): void;
-  shareDish(dishId: string, where: string): void;
   track(ev: TrackEvent): void;
   flush(immediate?: boolean): Promise<void>;
   isReady(): boolean;
   setCurrentSection(sectionId: string | null): void;
-  viewSection(sectionId: string): void;
   trackDishViewDuration(dishId: string, duration: number, sectionId?: string): void;
   trackSectionTime(sectionId: string, duration: number, dishesViewed: number): void;
   trackScrollDepth(sectionId: string, dishIndex: number, totalDishes: number): void;
   trackMediaError(dishId: string, errorType: string, mediaUrl?: string): void;
-  isFavorited(dishId: string): boolean;
 }
+
+export type PushResult = 'success' | 'denied' | 'error' | 'unsupported' | 'ios_prompt';
 
 interface TrackingContext {
   sessionId: string | null;
-  startedAt: number | null;
   tracker: TrackerApi | null;
-  isInitialized: boolean;
-  revokeConsent: () => void;
+  /** "Recordar este dispositivo": guarda la respuesta y, si es sí, identifica ya la sesión en curso. */
+  rememberDevice: (on: boolean) => Promise<void>;
   // Push Notifications
   isPushSupported: boolean;
   isPushEnabled: boolean;
   isIOS: boolean;
+  /** iPhone con la carta ya en la pantalla de inicio y una activación de avisos a medias. */
+  pushPending: boolean;
+  clearPushPending: () => void;
   showIOSPrompt: boolean;
   setShowIOSPrompt: (show: boolean) => void;
-  subscribeToPush: () => Promise<'success' | 'denied' | 'error' | 'unsupported' | 'ios_prompt'>;
+  subscribeToPush: () => Promise<PushResult>;
   unsubscribeFromPush: () => Promise<boolean>;
-  triggerPushPrompt: (onSuccess?: () => void) => Promise<void>;
 }
 
-
-
-const VISITOR_KEY = 'vt_visitor_id';
-const CONSENT_KEY = 'vt_consent_analytics';
-const VISITOR_TTL = 365 * 24 * 60 * 60 * 1000; // 12 months
+const PUSH_PENDING_KEY = 'vt_push_pending';
 
 // Helper to convert VAPID key
 function urlBase64ToUint8Array(base64String: string) {
   const padding = '='.repeat((4 - base64String.length % 4) % 4);
   const base64 = (base64String + padding)
-    .replace(/\-/g, '+')
+    .replace(/-/g, '+')
     .replace(/_/g, '/');
   const rawData = window.atob(base64);
   const outputArray = new Uint8Array(rawData.length);
@@ -163,113 +81,30 @@ function urlBase64ToUint8Array(base64String: string) {
   return outputArray;
 }
 
-// Persistent Data Helpers
-function getVisitorId(): string | null {
-  if (typeof window === 'undefined') return null;
-
-  // ✅ FIX: visitor_id is an anonymous UUID — NOT personal data
-  // Consent controls detailed event tracking (dish views, favorites, etc.)
-  // but NOT basic anonymous visit counting for recurrence
-  const itemStr = localStorage.getItem(VISITOR_KEY);
-  if (!itemStr) return null;
-
-  try {
-    const item = JSON.parse(itemStr);
-    // Check TTL
-    if (Date.now() > item.expiry) {
-      localStorage.removeItem(VISITOR_KEY);
-      return null;
-    }
-    return item.value;
-  } catch {
-    return null;
-  }
-}
-
-function setVisitorId(id: string) {
-  if (typeof window === 'undefined') return;
-  const item = {
-    value: id,
-    expiry: Date.now() + VISITOR_TTL
-  };
-  localStorage.setItem(VISITOR_KEY, JSON.stringify(item));
-}
-
-/**
- * ⚖️ Consentimiento OPT-IN. Solo devuelve true con un "sí" explícito guardado.
- *
- * Antes esto era `hasRejectedAnalytics()` (=== 'false') y la sesión se abría salvo
- * que hubiera un rechazo previo. En la primera visita — o sea, en el 100% de los
- * QR de mesa — el valor es null: el banner tardaba 1,5 s en aparecer, la sesión ya
- * había arrancado y el backend recibía consentAnalytics: true a fuego. Eso es
- * consentimiento presunto, prohibido por el art. 6.1.a RGPD y el art. 22.2 LSSI
- * (y es exactamente el patrón que sanciona la AEPD).
- *
- * El silencio no es consentimiento: sin 'true' no se abre sesión ni se envía nada.
- */
-function hasAnalyticsConsent(): boolean {
-  if (typeof window === 'undefined') return false;
-  try {
-    return localStorage.getItem(CONSENT_KEY) === 'true';
-  } catch {
-    return false;
-  }
-}
-
-/**
- * Ejerce el derecho al olvido en el servidor. El endpoint /track/privacy/forget
- * existía desde el principio pero no lo llamaba nadie, así que "revocar" solo
- * borraba el id local y dejaba intactas las sesiones ya registradas.
- */
-function requestPrivacyForget() {
-  if (typeof window === 'undefined') return;
-  const visitorId = getVisitorId();
-  if (!visitorId) return;
-  const url = `${import.meta.env.VITE_API_URL || 'https://visualtasteworker.franciscotortosaestudios.workers.dev'}/track/privacy/forget`;
-  const body = JSON.stringify({ visitorId });
-  try {
-    if (navigator.sendBeacon) {
-      navigator.sendBeacon(url, new Blob([body], { type: 'application/json' }));
-    } else {
-      fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body, keepalive: true });
-    }
-  } catch { /* best-effort: la preferencia local ya está guardada */ }
-}
-
-function revokeConsentHelper() {
-  if (typeof window === 'undefined') return;
-  localStorage.setItem(CONSENT_KEY, 'false');
-  requestPrivacyForget();
-  // OJO: vt_visitor_id es también la identidad de la tarjeta de fidelización
-  // (useLoyaltyCard). Borrarlo aquí hacía que el cliente perdiera sus sellos al
-  // rechazar analítica. Se conserva; lo que se corta es el envío de datos.
-  window.location.reload();
-}
-
 const BATCH_SIZE = 8;
 const FLUSH_INTERVAL = 3000;
 const MAX_RETRIES = 2;
 const RETRY_DELAY = 1500;
+const OFFLINE_KEY = 'vt_offline_events';
 
 const TrackingCtx = createContext<TrackingContext>({
   sessionId: null,
-  startedAt: null,
   tracker: null,
-  isInitialized: false,
-  revokeConsent: () => { },
+  rememberDevice: async () => { },
   isPushSupported: false,
   isPushEnabled: false,
   isIOS: false,
+  pushPending: false,
+  clearPushPending: () => { },
   showIOSPrompt: false,
   setShowIOSPrompt: () => { },
   subscribeToPush: async () => 'unsupported',
   unsubscribeFromPush: async () => false,
-  triggerPushPrompt: async () => { },
 });
 
 export const useTracking = () => useContext(TrackingCtx);
 
-// Optimized Tracker
+// Cola de eventos con envío por lotes
 class OptimizedTracker implements TrackerApi {
   private restaurantId: string;
   private sessionId: string | null = null;
@@ -278,7 +113,6 @@ class OptimizedTracker implements TrackerApi {
   private viewedDishes = new Set<string>();
   private viewedSections = new Set<string>();
   private favorites = new Map<string, boolean>();
-  private ratings = new Set<string>();
   private timer: number | null = null;
   private isProcessing = false;
   private retryCount = 0;
@@ -287,15 +121,12 @@ class OptimizedTracker implements TrackerApi {
 
   constructor(restaurantId: string) {
     this.restaurantId = restaurantId;
-    console.log('🎯 [Tracker] Inicializado para:', restaurantId);
   }
 
   setSession(sessionId: string | null) {
     if (this.isDestroyed) return;
     this.sessionId = sessionId;
-    console.log('🔄 [Tracker] Session:', sessionId);
     if (sessionId) {
-      // ✅ FIX: Restore any events saved from previous failed sends
       this.restoreOfflineQueue();
       this.scheduleFlush();
     }
@@ -309,14 +140,10 @@ class OptimizedTracker implements TrackerApi {
     this.currentSectionId = sectionId;
   }
 
-  viewSection(sectionId: string): void {
+  private viewSection(sectionId: string): void {
     if (!this.isReady() || this.viewedSections.has(sectionId)) return;
     this.viewedSections.add(sectionId);
-    this.track({
-      type: 'view_section',
-      entityId: sectionId,
-      entityType: 'section'
-    });
+    this.track({ type: 'view_section', entityId: sectionId, entityType: 'section' });
   }
 
   isReady(): boolean {
@@ -326,16 +153,10 @@ class OptimizedTracker implements TrackerApi {
   private scheduleFlush() {
     if (this.isDestroyed || this.timer) return;
     this.timer = window.setTimeout(() => {
-      // ✅ FIX: sin este reset, `this.timer` quedaba con el id (ya consumido) del
-      // primer setTimeout para siempre, y el guard de arriba bloqueaba cualquier
-      // scheduleFlush() posterior: el flush periódico solo se disparaba UNA VEZ
-      // en toda la sesión, y los eventos solo salían al llegar a BATCH_SIZE (8)
-      // o al cerrar/ocultar la pestaña (sendBeacon).
+      // Sin este reset el guard de arriba bloqueaba todos los flush periódicos posteriores.
       this.timer = null;
       if (!this.isDestroyed) {
-        this.flush().catch(error => {
-          console.warn('⚠️ [Tracker] Error flush programado:', error);
-        });
+        this.flush().catch((error) => console.warn('⚠️ [Tracker] Error flush programado:', error));
       }
     }, FLUSH_INTERVAL);
   }
@@ -344,55 +165,14 @@ class OptimizedTracker implements TrackerApi {
     if (!this.isReady() || this.viewedDishes.has(dishId)) return;
     this.viewedDishes.add(dishId);
     const finalSectionId = sectionId || this.currentSectionId;
-    this.track({
-      type: 'viewdish',
-      entityId: dishId,
-      entityType: 'dish',
-      sectionId: finalSectionId || undefined
-    });
+    this.track({ type: 'viewdish', entityId: dishId, entityType: 'dish', sectionId: finalSectionId || undefined });
   }
 
   favoriteDish(dishId: string, set: boolean = true): void {
     if (!this.isReady()) return;
-    const currentState = this.favorites.get(dishId);
-    if (currentState === set) return;
+    if (this.favorites.get(dishId) === set) return;
     this.favorites.set(dishId, set);
-    this.track({
-      type: 'favorite',
-      entityId: dishId,
-      entityType: 'dish',
-      value: set,
-      sectionId: this.currentSectionId || undefined
-    });
-  }
-
-  isFavorited(dishId: string): boolean {
-    return this.favorites.get(dishId) === true;
-  }
-
-  rateDish(dishId: string, rating: number, comment?: string): void {
-    if (!this.isReady() || rating < 1 || rating > 5) return;
-    const ratingKey = `${dishId}_${rating}`;
-    if (this.ratings.has(ratingKey)) return;
-    this.ratings.add(ratingKey);
-    this.track({
-      type: 'rating',
-      entityId: dishId,
-      entityType: 'dish',
-      value: { rating, comment: comment || null },
-      sectionId: this.currentSectionId || undefined
-    });
-  }
-
-  shareDish(dishId: string, where: string): void {
-    if (!this.isReady()) return;
-    this.track({
-      type: 'share',
-      entityId: dishId,
-      entityType: 'dish',
-      value: where,
-      sectionId: this.currentSectionId || undefined
-    });
+    this.track({ type: 'favorite', entityId: dishId, entityType: 'dish', value: set, sectionId: this.currentSectionId || undefined });
   }
 
   trackDishViewDuration(dishId: string, duration: number, sectionId?: string): void {
@@ -404,7 +184,7 @@ class OptimizedTracker implements TrackerApi {
       entityType: 'dish',
       value: duration,
       sectionId: finalSectionId || undefined,
-      props: { duration_seconds: duration }
+      props: { duration_seconds: duration },
     });
   }
 
@@ -415,10 +195,7 @@ class OptimizedTracker implements TrackerApi {
       entityId: sectionId,
       entityType: 'section',
       value: duration,
-      props: {
-        duration_seconds: duration,
-        dishes_viewed: dishesViewed
-      }
+      props: { duration_seconds: duration, dishes_viewed: dishesViewed },
     });
   }
 
@@ -433,11 +210,7 @@ class OptimizedTracker implements TrackerApi {
       entityId: sectionId,
       entityType: 'section',
       value: depthPercent,
-      props: {
-        dish_index: dishIndex,
-        total_dishes: totalDishes,
-        depth_percent: depthPercent
-      }
+      props: { dish_index: dishIndex, total_dishes: totalDishes, depth_percent: depthPercent },
     });
   }
 
@@ -448,23 +221,17 @@ class OptimizedTracker implements TrackerApi {
       entityId: dishId,
       entityType: 'dish',
       value: errorType,
-      props: {
-        error_type: errorType,
-        media_url: mediaUrl || null,
-        section_id: this.currentSectionId
-      }
+      props: { error_type: errorType, media_url: mediaUrl || null, section_id: this.currentSectionId },
     });
   }
 
   track(ev: TrackEvent): void {
     if (!this.isReady() || this.isDestroyed) return;
-    const event: TrackEvent = {
+    this.queue.push({
       ...ev,
       ts: ev.ts || new Date().toISOString(),
-      sectionId: ev.sectionId || this.currentSectionId || undefined
-    };
-    this.queue.push(event);
-
+      sectionId: ev.sectionId || this.currentSectionId || undefined,
+    });
     if (this.queue.length >= BATCH_SIZE) {
       this.flush().catch(console.error);
     }
@@ -479,19 +246,11 @@ class OptimizedTracker implements TrackerApi {
     this.isProcessing = true;
     const events = [...this.queue];
     this.queue = [];
-
-    const payload = {
-      sessionId: this.sessionId!,
-      restaurantId: this.restaurantId,
-      events
-    };
+    const payload = { sessionId: this.sessionId!, restaurantId: this.restaurantId, events };
 
     try {
-      if (immediate && typeof navigator.sendBeacon === 'function') {
-        await apiClient.tracking.sendEventsBeacon(payload);
-      } else {
-        await apiClient.tracking.sendEvents(payload);
-      }
+      if (immediate) beacon('/track/events', payload);
+      else await apiRequest('/track/events', { method: 'POST', json: payload });
       this.retryCount = 0;
     } catch (error) {
       console.error('❌ [Tracker] Error enviando eventos:', error);
@@ -507,8 +266,8 @@ class OptimizedTracker implements TrackerApi {
     if (!immediate && !this.isDestroyed) this.scheduleFlush();
   }
 
+  /** Cierre de verdad de la página: lo pendiente sale por sendBeacon y el tracker se apaga. */
   cleanup(): void {
-    console.log('🧹 [Tracker] Iniciando cleanup');
     this.isDestroyed = true;
     if (this.timer) {
       clearTimeout(this.timer);
@@ -516,64 +275,38 @@ class OptimizedTracker implements TrackerApi {
     }
 
     if (this.queue.length > 0 && this.sessionId) {
-      const payload = {
-        sessionId: this.sessionId,
-        restaurantId: this.restaurantId,
-        events: [...this.queue]
-      };
-      if (navigator.sendBeacon) {
-        // ✅ FIX: sendBeacon returns false on failure, doesn't throw
-        const sent = navigator.sendBeacon(
-          `${import.meta.env.VITE_API_URL || 'https://visualtasteworker.franciscotortosaestudios.workers.dev'}/track/events`,
-          new Blob([JSON.stringify(payload)], { type: 'application/json' })
-        );
-        if (!sent) {
-          console.warn('⚠️ [Tracker] sendBeacon failed, saving to offline queue');
-          this.saveToOfflineQueue(this.queue);
-        }
-      } else {
-        // No sendBeacon available, save to offline queue
-        this.saveToOfflineQueue(this.queue);
-      }
+      const payload = { sessionId: this.sessionId, restaurantId: this.restaurantId, events: [...this.queue] };
+      const sent = typeof navigator.sendBeacon === 'function'
+        && navigator.sendBeacon(`${API_URL}/track/events`, new Blob([JSON.stringify(payload)], { type: 'application/json' }));
+      if (!sent) this.saveToOfflineQueue(this.queue);
     }
 
     this.viewedDishes.clear();
     this.viewedSections.clear();
     this.favorites.clear();
-    this.ratings.clear();
     this.queue = [];
     this.currentSectionId = null;
     this.sectionScrollDepth.clear();
   }
 
-  // ✅ FIX: Offline queue for failed sendBeacon
+  // Guardar eventos en el móvil para mandarlos en la siguiente visita es almacenamiento con
+  // fines de medición: solo con "recordar este dispositivo" activado. Si no, se pierden.
   private saveToOfflineQueue(events: TrackEvent[]): void {
+    if (!hasRememberConsent()) return;
     try {
-      const key = 'vt_offline_events';
-      const existing = JSON.parse(localStorage.getItem(key) || '[]');
-      const toSave = [...existing, ...events].slice(-100); // Keep last 100
-      localStorage.setItem(key, JSON.stringify(toSave));
-      console.log('📦 [Tracker] Saved', events.length, 'events to offline queue');
-    } catch (e) {
-      console.warn('⚠️ [Tracker] Failed to save offline queue:', e);
-    }
+      const existing = JSON.parse(localStorage.getItem(OFFLINE_KEY) || '[]');
+      localStorage.setItem(OFFLINE_KEY, JSON.stringify([...existing, ...events].slice(-100)));
+    } catch { /* sin storage */ }
   }
 
-  restoreOfflineQueue(): void {
+  private restoreOfflineQueue(): void {
     try {
-      const key = 'vt_offline_events';
-      const saved = localStorage.getItem(key);
-      if (saved) {
-        const events = JSON.parse(saved);
-        if (events.length > 0) {
-          this.queue.unshift(...events);
-          localStorage.removeItem(key);
-          console.log('📦 [Tracker] Restored', events.length, 'events from offline queue');
-        }
-      }
-    } catch (e) {
-      console.warn('⚠️ [Tracker] Failed to restore offline queue:', e);
-    }
+      const saved = localStorage.getItem(OFFLINE_KEY);
+      if (!saved) return;
+      localStorage.removeItem(OFFLINE_KEY);
+      const events = JSON.parse(saved);
+      if (Array.isArray(events) && events.length > 0 && hasRememberConsent()) this.queue.unshift(...events);
+    } catch { /* ignorar */ }
   }
 }
 
@@ -585,25 +318,27 @@ function detectEnvironment() {
   if (/Mobile|Android|iPhone/i.test(ua)) devicetype = 'mobile';
   else if (/iPad|Tablet/i.test(ua)) devicetype = 'tablet';
 
+  // El orden importa: el UA de un iPhone dice "like Mac OS X" y el de Android dice "Linux".
+  // Antes se comprobaban al revés y todos los iPhone contaban como macOS y los Android como Linux.
   let osname = 'Unknown';
   if (/Windows/i.test(ua)) osname = 'Windows';
-  else if (/Mac OS X/i.test(ua)) osname = 'macOS';
-  else if (/Linux/i.test(ua)) osname = 'Linux';
-  else if (/Android/i.test(ua)) osname = 'Android';
   else if (/iPhone|iPad|iPod/i.test(ua)) osname = 'iOS';
+  else if (/Mac OS X/i.test(ua)) osname = 'macOS';
+  else if (/Android/i.test(ua)) osname = 'Android';
+  else if (/Linux/i.test(ua)) osname = 'Linux';
 
   let browser = 'Unknown';
-  if (ua.includes('Edg/')) browser = 'Edge';
-  else if (ua.includes('Chrome/') && !ua.includes('Edg/')) browser = 'Chrome';
-  else if (ua.includes('Safari/') && !ua.includes('Chrome/')) browser = 'Safari';
-  else if (ua.includes('Firefox/')) browser = 'Firefox';
+  if (ua.includes('Edg/') || ua.includes('EdgiOS/')) browser = 'Edge';
+  else if (ua.includes('Firefox/') || ua.includes('FxiOS/')) browser = 'Firefox';
+  else if (ua.includes('Chrome/') || ua.includes('CriOS/')) browser = 'Chrome';
+  else if (ua.includes('Safari/')) browser = 'Safari';
 
-  const connection = (navigator as any).connection;
+  const connection = (navigator as unknown as { connection?: { effectiveType?: string } }).connection;
   const networktype = connection?.effectiveType ?? '4g';
 
   const ispwa = (
     (window.matchMedia && window.matchMedia('(display-mode: standalone)').matches) ||
-    (navigator as any).standalone === true ||
+    (navigator as unknown as { standalone?: boolean }).standalone === true ||
     window.location.search.includes('utm_source=homescreen')
   );
 
@@ -611,13 +346,12 @@ function detectEnvironment() {
   const utm = {
     source: urlParams.get('utm_source') || undefined,
     medium: urlParams.get('utm_medium') || undefined,
-    campaign: urlParams.get('utm_campaign') || undefined
+    campaign: urlParams.get('utm_campaign') || undefined,
   };
 
-  // Atribución cruzada: el guidebook y la TV del alojamiento añaden estos
-  // parámetros al enlazar al menú, de modo que la sesión sepa de qué apartamento
-  // viene el cliente. Se persisten en sessionStorage porque el huésped puede
-  // navegar dentro del menú y perder la query string.
+  // Atribución cruzada: la guía y la TV del alojamiento añaden ?ref=&apt=&gsid= al enlazar
+  // a la carta. Si el comensal llegó sin nada en la URL, el servidor aún puede atribuirla
+  // por el hash del día (mismo día) o por la cookie vt_guide_ref (otro día, con permiso).
   const referral = readReferral(urlParams);
 
   return {
@@ -627,29 +361,22 @@ function detectEnvironment() {
     networktype,
     ispwa,
     languages: navigator.language,
-    // El backend espera minutos de offset. Antes se enviaba el identificador
-    // IANA ("Europe/Madrid"), que acababa guardado como texto en una columna
-    // INTEGER y dejaba inservible el desglose por hora local.
+    // El backend espera minutos de offset, no el identificador IANA.
     timezone: -new Date().getTimezoneOffset(),
     referrer: document?.referrer || undefined,
     utm,
     qrcode: urlParams.get('qrcode') || urlParams.get('qr') || undefined,
     referralSource: referral.source,
     referralApartmentId: referral.apartmentId,
-    referralSessionId: referral.sessionId
+    referralSessionId: referral.sessionId,
   };
 }
 
 const REFERRAL_KEY = 'vt_referral';
 
-// Cookie de primera parte que el guidebook (y la TV) escriben en
-// .visualtastes.com al abrir/usar la guía — ver apps/guide/src/lib/api.ts
-// setReferralCookie(). guide.visualtastes.com y menu.visualtastes.com son
-// subdominios del mismo dominio raíz, así que esta cookie es legible aquí
-// aunque la sesión de menú se abra días después y sin ningún ?ref= en la URL
-// (el caso real: el huésped vio el restaurante en la guía y fue a cenar allí
-// más tarde, escaneando el QR físico de la mesa). sessionStorage no cubre ese
-// caso: no sobrevive ni a un cambio de pestaña ni a un día distinto.
+// Cookie de primera parte que la guía y la TV escriben en .visualtastes.com, solo con el
+// permiso del huésped (ver apps/guide/src/lib/consent.ts), para atribuir una visita a la
+// carta de otro día.
 const GUIDE_REFERRAL_COOKIE = 'vt_guide_ref';
 
 function readGuideReferralCookie(): { apartmentId?: string; sessionId?: string } {
@@ -663,19 +390,18 @@ function readGuideReferralCookie(): { apartmentId?: string; sessionId?: string }
   }
 }
 
-function readReferral(urlParams: URLSearchParams): {
-  source?: string; apartmentId?: string; sessionId?: string;
-} {
+function readReferral(urlParams: URLSearchParams): { source?: string; apartmentId?: string; sessionId?: string } {
   const source = urlParams.get('ref') || undefined;
   if (source) {
     const referral = {
       source,
       apartmentId: urlParams.get('apt') || undefined,
-      sessionId: urlParams.get('gsid') || urlParams.get('tvsid') || undefined
+      sessionId: urlParams.get('gsid') || urlParams.get('tvsid') || undefined,
     };
-    try {
-      sessionStorage.setItem(REFERRAL_KEY, JSON.stringify(referral));
-    } catch { /* sin storage: la atribución vive solo en esta carga */ }
+    // Para que sobreviva a una recarga hay que guardarlo en el móvil: solo con permiso.
+    if (hasRememberConsent()) {
+      try { sessionStorage.setItem(REFERRAL_KEY, JSON.stringify(referral)); } catch { /* ignorar */ }
+    }
     return referral;
   }
   try {
@@ -690,46 +416,26 @@ function readReferral(urlParams: URLSearchParams): {
   return {};
 }
 
-async function startTrackingSession(restaurantId: string): Promise<{ sessionId: string | null; visitorId: string | null }> {
-  // ⚖️ Sin consentimiento explícito no hay sesión. Cubre los dos casos que antes
-  // se colaban: el rechazo (que ya se respetaba) y el silencio de la primera
-  // visita (que no). Ver hasAnalyticsConsent().
-  if (!hasAnalyticsConsent()) {
-    console.log('🚫 [Session] Sin consentimiento de analítica, no se inicia sesión');
-    return { sessionId: null, visitorId: null };
-  }
-
-  const env = detectEnvironment();
-  const existingVisitorId = getVisitorId();
-
-  console.log('🚀 [Session] Iniciando sesión para:', restaurantId, 'Visitor:', existingVisitorId || 'Nuevo/Anónimo');
-
+async function startTrackingSession(restaurantId: string): Promise<string | null> {
+  const remember = hasRememberConsent();
   try {
-    const response = await apiClient.tracking.startSession({
-      restaurantId,
-      ...env,
-      visitorId: existingVisitorId || undefined,
-      consentAnalytics: true
+    const response = await apiRequest<{ success?: boolean; sessionId?: string; visitorId?: string | null }>('/track/session/start', {
+      method: 'POST',
+      json: {
+        restaurantId,
+        ...detectEnvironment(),
+        visitorId: remember ? getVisitorId() || undefined : undefined,
+        consentAnalytics: remember,
+      },
     });
-
-    if (response?.success && response?.sessionId) {
-      console.log('✅ [Session] Sesión iniciada:', response.sessionId);
-
-      if (response.visitorId) {
-        setVisitorId(response.visitorId);
-      }
-      return { sessionId: response.sessionId, visitorId: response.visitorId };
-    } else {
-      console.error('❌ [Session] Respuesta inválida:', response);
-      return { sessionId: null, visitorId: null };
-    }
+    if (!response?.success || !response.sessionId) return null;
+    if (remember && response.visitorId) setVisitorId(response.visitorId);
+    return response.sessionId;
   } catch (error) {
     console.error('❌ [Session] Error iniciando sesión:', error);
-    return { sessionId: null, visitorId: null };
+    return null;
   }
 }
-
-
 
 interface Props {
   restaurantId: string;
@@ -739,104 +445,23 @@ interface Props {
 export function TrackingAndPushProvider({ restaurantId, children }: Props) {
   const [sessionId, setSessionId] = useState<string | null>(null);
   const [tracker, setTracker] = useState<OptimizedTracker | null>(null);
-  const [isInitialized, setIsInitialized] = useState(false);
   const startedAtRef = useRef<number | null>(null);
-  const initializingRef = useRef(false);
 
-  const trackerInstance = useMemo(() => {
-    return new OptimizedTracker(restaurantId);
+  useEffect(() => {
+    if (!restaurantId) return;
+    let isMounted = true;
+    const instance = new OptimizedTracker(restaurantId);
+    startTrackingSession(restaurantId).then((sid) => {
+      if (!isMounted || !sid) return;
+      startedAtRef.current = Date.now();
+      instance.setSession(sid);
+      setSessionId(sid);
+      setTracker(instance);
+    });
+    return () => { isMounted = false; };
   }, [restaurantId]);
 
-  useEffect(() => {
-    if (initializingRef.current || !restaurantId) return;
-
-    let isMounted = true;
-    initializingRef.current = true;
-
-    const initialize = async () => {
-      console.log('🎬 [Provider] Inicializando tracking...');
-      try {
-        await new Promise(resolve => setTimeout(resolve, 100));
-        if (!isMounted) return;
-
-        const { sessionId: sid } = await startTrackingSession(restaurantId);
-
-        if (!isMounted) return;
-
-        if (sid) {
-          setSessionId(sid);
-          startedAtRef.current = Date.now();
-          trackerInstance.setSession(sid);
-          setTracker(trackerInstance);
-
-          if (typeof window !== 'undefined') {
-            (window as any).vtTracker = {
-              sessionId: sid,
-              restaurantId,
-              tracker: trackerInstance
-            };
-          }
-        }
-      } catch (error) {
-        console.error('❌ [Provider] Error en inicialización:', error);
-      } finally {
-        if (isMounted) setIsInitialized(true);
-        // ⚠️ Liberar el cerrojo. Solo servía para que StrictMode no montara dos
-        // sesiones (la segunda invocación entra y sale por el guard de arriba
-        // ANTES de que este finally se ejecute), pero se quedaba en true para
-        // siempre. Con la analítica presunta daba igual, porque la sesión ya se
-        // había abierto aquí. Ahora que sin consentimiento este arranque no crea
-        // nada, el único camino restante es el listener de 'vt-consent-update',
-        // y ese exige !initializingRef.current: quedaba bloqueado para siempre y
-        // aceptar las cookies no arrancaba la analítica nunca.
-        initializingRef.current = false;
-      }
-    };
-
-    initialize();
-    return () => { isMounted = false; };
-  }, [restaurantId, trackerInstance]);
-
-  // ✅ Listen for consent updates (from Splash or Settings)
-  useEffect(() => {
-    const handleConsentUpdate = () => {
-      console.log('🔔 [Provider] Consentimiento actualizado, re-verificando...');
-      // Trigger initialization if not already initialized
-      if (!sessionId && !initializingRef.current) {
-        initializingRef.current = true; // Prevent double init
-        startTrackingSession(restaurantId).then(({ sessionId: sid }) => {
-          if (sid) {
-            setSessionId(sid);
-            startedAtRef.current = Date.now();
-            trackerInstance.setSession(sid);
-            setTracker(trackerInstance);
-            setIsInitialized(true);
-          }
-          initializingRef.current = false;
-        });
-      }
-    };
-
-    // Rechazo explícito del banner: se para el tracker en caliente (sin recargar)
-    // y se pide al backend que anonimice lo ya registrado.
-    const handleConsentRevoked = () => {
-      console.log('🚫 [Provider] Consentimiento revocado, deteniendo tracking');
-      trackerInstance.cleanup();
-      setTracker(null);
-      setSessionId(null);
-      requestPrivacyForget();
-    };
-
-    window.addEventListener('vt-consent-update', handleConsentUpdate);
-    window.addEventListener('vt-consent-revoked', handleConsentRevoked);
-    return () => {
-      window.removeEventListener('vt-consent-update', handleConsentUpdate);
-      window.removeEventListener('vt-consent-revoked', handleConsentRevoked);
-    };
-  }, [restaurantId, trackerInstance, sessionId]);
-
-  // ✅ HEARTBEAT SYSTEM: With inactivity detection to prevent infinite requests
-  // Pauses heartbeats after 5 minutes of no user interaction
+  // ✅ HEARTBEAT: duración de la sesión, en pausa tras 5 min sin tocar nada
   useEffect(() => {
     if (!sessionId || !tracker || !startedAtRef.current) return;
 
@@ -844,56 +469,20 @@ export function TrackingAndPushProvider({ restaurantId, children }: Props) {
     let heartbeatInterval: number | null = null;
     let activityThrottleTimer: number | null = null;
 
-    const HEARTBEAT_INTERVAL = 30000; // 30 seconds
-    const IDLE_TIMEOUT = 5 * 60 * 1000; // 5 minutes
-    const ACTIVITY_THROTTLE = 1000; // 1 second - max frequency for activity updates
+    const HEARTBEAT_INTERVAL = 30000;
+    const IDLE_TIMEOUT = 5 * 60 * 1000;
+    const ACTIVITY_THROTTLE = 1000;
 
     let lastActivityTime = Date.now();
     let isIdle = false;
 
-    // Send heartbeat event to update session duration on backend
     const sendHeartbeat = () => {
-      if (sessionEndSent || !tracker) return;
-
+      if (sessionEndSent) return;
       const now = new Date();
       const durationSeconds = Math.floor((now.getTime() - (startedAtRef.current || now.getTime())) / 1000);
-
-      tracker.track({
-        type: 'heartbeat',
-        value: durationSeconds,
-        ts: now.toISOString()
-      });
+      tracker.track({ type: 'heartbeat', value: durationSeconds, ts: now.toISOString() });
     };
 
-    // Check if user is idle and manage heartbeat accordingly
-    const checkIdleAndSendHeartbeat = () => {
-      if (sessionEndSent || !tracker) return;
-
-      const now = Date.now();
-      const timeSinceActivity = now - lastActivityTime;
-
-      if (timeSinceActivity >= IDLE_TIMEOUT) {
-        // User is idle - stop heartbeats
-        if (!isIdle) {
-          console.log('💤 [Heartbeat] User idle for 5+ min, pausing heartbeats');
-          isIdle = true;
-          // Send one final heartbeat before pausing
-          sendHeartbeat();
-          stopHeartbeat();
-        }
-      } else {
-        // User is active - send heartbeat
-        sendHeartbeat();
-      }
-    };
-
-    // Start heartbeat interval when page is visible
-    const startHeartbeat = () => {
-      if (heartbeatInterval) return;
-      heartbeatInterval = window.setInterval(checkIdleAndSendHeartbeat, HEARTBEAT_INTERVAL);
-    };
-
-    // Stop heartbeat interval
     const stopHeartbeat = () => {
       if (heartbeatInterval) {
         clearInterval(heartbeatInterval);
@@ -901,79 +490,72 @@ export function TrackingAndPushProvider({ restaurantId, children }: Props) {
       }
     };
 
-    // Throttled activity handler - updates lastActivityTime and resumes heartbeats if idle
+    const checkIdleAndSendHeartbeat = () => {
+      if (sessionEndSent) return;
+      if (Date.now() - lastActivityTime >= IDLE_TIMEOUT) {
+        if (!isIdle) {
+          isIdle = true;
+          sendHeartbeat();
+          stopHeartbeat();
+        }
+      } else {
+        sendHeartbeat();
+      }
+    };
+
+    const startHeartbeat = () => {
+      if (heartbeatInterval) return;
+      heartbeatInterval = window.setInterval(checkIdleAndSendHeartbeat, HEARTBEAT_INTERVAL);
+    };
+
     const handleActivity = () => {
-      // Throttle activity updates to max once per second
       if (activityThrottleTimer) return;
-
-      activityThrottleTimer = window.setTimeout(() => {
-        activityThrottleTimer = null;
-      }, ACTIVITY_THROTTLE);
-
+      activityThrottleTimer = window.setTimeout(() => { activityThrottleTimer = null; }, ACTIVITY_THROTTLE);
       lastActivityTime = Date.now();
-
-      // Resume heartbeats if we were idle
       if (isIdle && document.visibilityState === 'visible') {
-        console.log('🔄 [Heartbeat] User activity detected, resuming heartbeats');
         isIdle = false;
-        sendHeartbeat(); // Send immediate heartbeat on resume
+        sendHeartbeat();
         startHeartbeat();
       }
     };
 
-    // Called on true page close (beforeunload/pagehide)
-    const handlePageClose = () => {
-      if (sessionEndSent || !tracker || !sessionId || !startedAtRef.current) return;
+    // Cierre real de la página. Un `pagehide` con `persisted` es la página entrando en la
+    // bfcache (volver atrás en Safari la restaura tal cual): ahí solo se vacía la cola. Antes
+    // se apagaba el tracker y, al volver, la sesión seguía abierta pero sin medir nada.
+    const handlePageClose = (e?: Event) => {
+      if (sessionEndSent || !startedAtRef.current) return;
+      if (e && (e as PageTransitionEvent).persisted) {
+        sendHeartbeat();
+        tracker.flush(true).catch(() => { });
+        return;
+      }
       sessionEndSent = true;
       stopHeartbeat();
-
-      // Flush remaining events
       tracker.cleanup();
-
-      // Send session end
-      if (navigator.sendBeacon) {
-        const payload = {
-          sessionId,
-          startedAt: new Date(startedAtRef.current).toISOString(),
-          endedAt: new Date().toISOString()
-        };
-        navigator.sendBeacon(
-          `${import.meta.env.VITE_API_URL || 'https://visualtasteworker.franciscotortosaestudios.workers.dev'}/track/session/end`,
-          new Blob([JSON.stringify(payload)], { type: 'application/json' })
-        );
-      }
+      beacon('/track/session/end', {
+        sessionId,
+        startedAt: new Date(startedAtRef.current).toISOString(),
+        endedAt: new Date().toISOString(),
+      });
     };
 
-    // Called on visibility change (tab switch, etc)
     const handleVisibilityChange = () => {
-      if (document.visibilityState === 'hidden' && tracker && !sessionEndSent) {
-        // ✅ Send final heartbeat before going hidden - CRITICAL for mobile
+      if (document.visibilityState === 'hidden' && !sessionEndSent) {
+        // Último latido antes de ocultarse: en móvil puede que no haya otra ocasión.
         sendHeartbeat();
-        // Flush events immediately
         tracker.flush(true).catch(() => { });
         stopHeartbeat();
-        console.log('🔄 [Provider] Tab hidden - sent heartbeat, flushed events');
-      } else if (document.visibilityState === 'visible' && !sessionEndSent) {
-        // Tab visible again - only resume if not idle
-        // If user was idle before hiding, they need to interact to resume
-        if (!isIdle) {
-          startHeartbeat();
-        } else {
-          console.log('💤 [Provider] Tab visible but user was idle - waiting for interaction');
-        }
+      } else if (document.visibilityState === 'visible' && !sessionEndSent && !isIdle) {
+        startHeartbeat();
       }
     };
 
-    // Add activity listeners (passive for scroll to avoid jank)
     const activityEvents = ['scroll', 'touchstart', 'click', 'keydown'];
-    activityEvents.forEach(event => {
-      const options = event === 'scroll' || event === 'touchstart'
-        ? { passive: true, capture: true }
-        : { capture: true };
+    activityEvents.forEach((event) => {
+      const options = event === 'scroll' || event === 'touchstart' ? { passive: true, capture: true } : { capture: true };
       document.addEventListener(event, handleActivity, options);
     });
 
-    // Send initial heartbeat and start interval
     sendHeartbeat();
     startHeartbeat();
 
@@ -983,12 +565,8 @@ export function TrackingAndPushProvider({ restaurantId, children }: Props) {
 
     return () => {
       stopHeartbeat();
-      if (activityThrottleTimer) {
-        clearTimeout(activityThrottleTimer);
-      }
-      activityEvents.forEach(event => {
-        document.removeEventListener(event, handleActivity, true);
-      });
+      if (activityThrottleTimer) clearTimeout(activityThrottleTimer);
+      activityEvents.forEach((event) => document.removeEventListener(event, handleActivity, true));
       window.removeEventListener('beforeunload', handlePageClose);
       window.removeEventListener('pagehide', handlePageClose);
       document.removeEventListener('visibilitychange', handleVisibilityChange);
@@ -996,148 +574,83 @@ export function TrackingAndPushProvider({ restaurantId, children }: Props) {
   }, [sessionId, tracker]);
 
   // ============================================
-  // PUSH NOTIFICATIONS LOGIC
+  // AVISOS PUSH
   // ============================================
   const [isPushSupported, setIsPushSupported] = useState(false);
   const [isPushEnabled, setIsPushEnabled] = useState(false);
   const [isIOS, setIsIOS] = useState(false);
   const [showIOSPrompt, setShowIOSPrompt] = useState(false);
-  const [showSoftPrompt, setShowSoftPrompt] = useState(false);
-  const [softPromptCallback, setSoftPromptCallback] = useState<(() => void) | undefined>();
-  // ✅ Snackbar state (replaces all alert() calls)
-  const [snackbar, setSnackbar] = useState<{ open: boolean; message: string; severity: 'success' | 'error' | 'info' | 'warning' }>({ open: false, message: '', severity: 'info' });
-  const showSnackbar = (message: string, severity: 'success' | 'error' | 'info' | 'warning' = 'info') => {
-    setSnackbar({ open: true, message, severity });
-  };
+  const [pushPending, setPushPending] = useState(false);
+
+  const isStandalone = () =>
+    window.matchMedia('(display-mode: standalone)').matches || (navigator as unknown as { standalone?: boolean }).standalone === true;
 
   useEffect(() => {
-    if (typeof window !== 'undefined' && 'serviceWorker' in navigator && 'PushManager' in window) {
-      setIsPushSupported(true);
+    if (typeof window === 'undefined' || !('serviceWorker' in navigator) || !('PushManager' in window)) return;
+    setIsPushSupported(true);
 
-      // Check if already subscribed
-      navigator.serviceWorker.ready.then(registration => {
-        registration.pushManager.getSubscription().then(subscription => {
-          setIsPushEnabled(!!subscription);
-        });
-      });
+    // getRegistration y no `ready`: `ready` no se resuelve nunca si no hay service worker.
+    navigator.serviceWorker.getRegistration('/').then((registration) =>
+      registration?.pushManager.getSubscription().then((subscription) => setIsPushEnabled(!!subscription)),
+    ).catch(() => { });
 
-      // iOS Detection
-      const ua = navigator.userAgent;
-      const isIosDevice = /iPad|iPhone|iPod/.test(ua) && !(window as any).MSStream;
-      setIsIOS(isIosDevice);
+    const iosDevice = /iPad|iPhone|iPod/.test(navigator.userAgent);
+    setIsIOS(iosDevice);
 
-      // ✅ FIX: iOS post-install auto-subscribe
-      // If user previously tried to subscribe on iOS Safari, and now they're in standalone PWA,
-      // auto-trigger the subscription flow.
-      const isStandalone = window.matchMedia('(display-mode: standalone)').matches || (navigator as any).standalone;
-      const hasPendingPush = localStorage.getItem('vt_push_pending') === 'true';
-      if (isIosDevice && isStandalone && hasPendingPush) {
-        console.log('🔔 [Push] iOS PWA detected with pending subscription — auto-triggering');
-        localStorage.removeItem('vt_push_pending');
-        // Delay to let the app fully initialize
-        setTimeout(() => {
-          setShowSoftPrompt(true);
-        }, 2000);
-      }
-    }
+    // En iPhone los avisos solo funcionan con la carta en la pantalla de inicio. Si el cliente
+    // lo pidió desde Safari, al abrir la app instalada se le lleva a la pantalla de avisos
+    // (iOS exige que el permiso salga de un toque suyo: no se puede pedir solo).
+    try {
+      if (iosDevice && isStandalone() && localStorage.getItem(PUSH_PENDING_KEY)) setPushPending(true);
+    } catch { /* ignorar */ }
   }, []);
 
-  const subscribeToPush = async (): Promise<'success' | 'denied' | 'error' | 'unsupported' | 'ios_prompt'> => {
-    console.log('🔔 [Push] subscribeToPush triggered');
-    if (!isPushSupported) {
-      console.warn('🔔 [Push] Not supported');
-      return 'unsupported';
-    }
+  const clearPushPending = () => {
+    setPushPending(false);
+    try { localStorage.removeItem(PUSH_PENDING_KEY); } catch { /* ignorar */ }
+  };
 
-    // iOS Smart Onboarding
-    const isStandalone = window.matchMedia('(display-mode: standalone)').matches || (navigator as any).standalone;
-    if (isIOS && !isStandalone) {
-      console.log('🔔 [Push] iOS Browser detected -> Show Prompt');
-      // ✅ FIX: Save pending intent so when user installs PWA, we auto-trigger
-      localStorage.setItem('vt_push_pending', 'true');
+  const subscribeToPush = async (): Promise<PushResult> => {
+    if (!isPushSupported) return 'unsupported';
+
+    if (isIOS && !isStandalone()) {
+      // Se guarda la carta en la que estaba: la app instalada arranca en la raíz del dominio
+      // (start_url del manifest) y App.tsx le devuelve aquí.
+      try { localStorage.setItem(PUSH_PENDING_KEY, window.location.pathname.split('/')[1] || 'true'); } catch { /* ignorar */ }
       setShowIOSPrompt(true);
       return 'ios_prompt';
     }
 
     try {
-      console.log('🔔 [Push] Requesting Permission...');
       const permission = await Notification.requestPermission();
-      console.log('🔔 [Push] Permission result:', permission);
+      if (permission !== 'granted') return 'denied';
 
-      if (permission !== 'granted') {
-        console.warn('🔔 [Push] Permission denied or dismissed');
-        return 'denied';
-      }
-
-      // ✅ FIX: VAPID key from env var with fallback
       const VAPID_PUBLIC_KEY = import.meta.env.VITE_VAPID_PUBLIC_KEY || 'BB34mfUFVy5s-Cnbtu7dB_OhXAx06GRlKKruLbJIbnTefFd0ECHqtcJP4x6r6MN-A3nr4Yl57wZ7iRm16SnSoQw';
 
-      // ✅ FIX: Always register SW first (browser no-ops if already registered),
-      // then wait for ready. navigator.serviceWorker.ready NEVER rejects —
-      // it hangs forever if no SW is registered, which caused the deadlock.
-      let registration;
-      try {
-        console.log('🔔 [Push] Registering SW (idempotent)...');
-        await navigator.serviceWorker.register('/sw.js', { scope: '/' });
-        console.log('🔔 [Push] Waiting for SW ready...');
-        registration = await navigator.serviceWorker.ready;
-        console.log('🔔 [Push] SW Ready:', registration);
-      } catch (swError) {
-        console.error('🔔 [Push] SW Registration Error:', swError);
-        showSnackbar('Error al activar notificaciones. Inténtalo de nuevo.', 'error');
-        return 'error';
-      }
+      // Registrar primero (si ya lo está, no hace nada) y luego esperar a `ready`, que se
+      // queda colgado para siempre si no hay ningún service worker registrado.
+      await navigator.serviceWorker.register('/sw.js', { scope: '/' });
+      const registration = await navigator.serviceWorker.ready;
+      const subscription = await registration.pushManager.subscribe({
+        userVisibleOnly: true,
+        applicationServerKey: urlBase64ToUint8Array(VAPID_PUBLIC_KEY),
+      });
 
-      let subscription;
-      try {
-        subscription = await registration.pushManager.subscribe({
-          userVisibleOnly: true,
-          applicationServerKey: urlBase64ToUint8Array(VAPID_PUBLIC_KEY)
-        });
-        console.log('🔔 [Push] Subscription object created:', subscription);
-      } catch (subError) {
-        console.error('🔔 [Push] Push Subscription Error:', subError);
-        showSnackbar('Error al suscribirse. Verifica la configuración del navegador.', 'error');
-        return 'error';
-      }
-
-      // Send to Backend
-      const env = detectEnvironment();
-      const visitorId = getVisitorId();
-
-      try {
-        console.log('🔔 [Push] Sending to backend...');
-        const response = await fetch(`${import.meta.env.VITE_API_URL || 'https://visualtasteworker.franciscotortosaestudios.workers.dev'}/api/notifications/subscribe`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json'
-          },
-          body: JSON.stringify({
-            subscription,
-            restaurant_id: restaurantId,
-            visitor_id: visitorId,
-            device_type: env.devicetype
-          })
-        });
-
-        // ✅ FIX: Verify backend response
-        if (!response.ok) {
-          console.error('🔔 [Push] Backend returned error:', response.status);
-          showSnackbar('Error al registrar la suscripción. Inténtalo de nuevo.', 'error');
-          return 'error';
-        }
-        console.log('🔔 [Push] Backend registration success');
-      } catch (backendError) {
-        console.error('🔔 [Push] Backend registration error:', backendError);
-        showSnackbar('Error de conexión al activar notificaciones.', 'error');
-        return 'error';
-      }
+      await apiRequest('/api/notifications/subscribe', {
+        method: 'POST',
+        json: {
+          subscription,
+          restaurant_id: restaurantId,
+          visitor_id: hasRememberConsent() ? getVisitorId() : null,
+          device_type: detectEnvironment().devicetype,
+        },
+      });
 
       setIsPushEnabled(true);
+      clearPushPending();
       return 'success';
     } catch (error) {
-      console.error('🔔 [Push] CRITICAL ERROR:', error);
-      showSnackbar('Error inesperado al activar notificaciones.', 'error');
+      console.error('🔔 [Push] Error activando avisos:', error);
       return 'error';
     }
   };
@@ -1158,138 +671,67 @@ export function TrackingAndPushProvider({ restaurantId, children }: Props) {
     }
   };
 
-  // Safe access to restaurant context
-  const restaurantContext = useContext(RestaurantContext);
-  const restaurantFeatures = restaurantContext?.restaurant?.features || {};
-  const primaryColor = restaurantContext?.restaurant?.branding?.primary_color ||
-    restaurantContext?.restaurant?.branding?.primaryColor ||
-    '#FF6B6B';
-
-  const triggerPushPrompt = async (onSuccess?: () => void) => {
-    // 1. Check Global Setting
-    if (restaurantFeatures.push_notifications_enabled === false) {
-      if (onSuccess) onSuccess();
-      return;
-    }
-
-    // 2. Check if already supported and not subscribed
-    if (!isPushSupported) {
-      if (onSuccess) onSuccess();
-      return;
-    }
-
-    if (isPushEnabled) {
-      // Already subscribed
-      if (onSuccess) onSuccess();
-      return;
-    }
-
-    // 3. Show Soft Prompt
-    setSoftPromptCallback(() => onSuccess);
-    setShowSoftPrompt(true);
-  };
-
-  const handleSoftPromptConfirm = async () => {
-    setShowSoftPrompt(false);
-
-    // Trigger Native Request
-    const result = await subscribeToPush();
-
-    if (result === 'success') {
-      // ✅ FIX: Snackbar instead of alert
-      showSnackbar('🔔 ¡Notificaciones activadas! Recibirás ofertas exclusivas.', 'success');
-      if (softPromptCallback) softPromptCallback();
-    } else if (result === 'denied') {
-      showSnackbar('Las notificaciones están bloqueadas. Actívalas en la configuración del navegador.', 'warning');
-      // Still proceed to let them see the offer content
-      if (softPromptCallback) softPromptCallback();
-    } else if (result === 'error') {
-      // Error snackbar already shown by subscribeToPush
-      if (softPromptCallback) softPromptCallback();
-    } else if (result === 'ios_prompt') {
-      // Handled by IOSPrompt component state
+  // "Sí, recuérdame": la sesión ya está abierta (anónima); el servidor le pone ahora el
+  // visitor_id (el que ya hubiera en el móvil, p. ej. el de la tarjeta de sellos, o uno
+  // nuevo), con su recurrencia y la atribución a la guía que herede. "No": se guarda la
+  // respuesta para no volver a preguntar, y si había un id se pide al servidor que lo olvide.
+  const rememberDevice = async (on: boolean) => {
+    setRememberConsent(on);
+    if (!on || !sessionId) return;
+    try {
+      const res = await apiRequest<{ success?: boolean; visitorId?: string }>('/track/session/identify', {
+        method: 'POST',
+        json: { sessionId, visitorId: getVisitorId() || undefined },
+      });
+      if (res?.success && res.visitorId) setVisitorId(res.visitorId);
+    } catch (error) {
+      // Si falla, la próxima sesión ya sale identificada (la respuesta está guardada).
+      console.warn('[Session] identify', error);
     }
   };
 
-  const handleSoftPromptClose = () => {
-    setShowSoftPrompt(false);
-    if (softPromptCallback) softPromptCallback();
-  };
-
-  const contextValue = useMemo<TrackingContext>(() => ({
+  const contextValue: TrackingContext = {
     sessionId,
-    startedAt: startedAtRef.current,
     tracker,
-    isInitialized,
-    revokeConsent: revokeConsentHelper,
+    rememberDevice,
     isPushSupported,
     isPushEnabled,
     isIOS,
+    pushPending,
+    clearPushPending,
     showIOSPrompt,
     setShowIOSPrompt,
     subscribeToPush,
     unsubscribeFromPush,
-    triggerPushPrompt
-  }), [sessionId, tracker, isInitialized, isPushSupported, isPushEnabled, isIOS, showIOSPrompt]);
+  };
 
-  return (
-    <TrackingCtx.Provider value={contextValue}>
-      {children}
-      <IOSInstallPrompt />
-      <PushSoftPrompt
-        open={showSoftPrompt}
-        onClose={handleSoftPromptClose}
-        onConfirm={handleSoftPromptConfirm}
-        primaryColor={primaryColor}
-      />
-      {/* ✅ Global Snackbar for push notification feedback (replaces alert()) */}
-      <Snackbar
-        open={snackbar.open}
-        autoHideDuration={5000}
-        onClose={() => setSnackbar(prev => ({ ...prev, open: false }))}
-        anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
-      >
-        <MuiAlert
-          elevation={6}
-          variant="filled"
-          severity={snackbar.severity}
-          onClose={() => setSnackbar(prev => ({ ...prev, open: false }))}
-          sx={{ width: '100%', borderRadius: 3 }}
-        >
-          {snackbar.message}
-        </MuiAlert>
-      </Snackbar>
-    </TrackingCtx.Provider>
-  );
+  return <TrackingCtx.Provider value={contextValue}>{children}</TrackingCtx.Provider>;
 }
 
 export function useDishTracking() {
-  const { tracker, revokeConsent, subscribeToPush, unsubscribeFromPush, triggerPushPrompt, isPushEnabled, showIOSPrompt, setShowIOSPrompt, isIOS, isPushSupported } = useTracking();
+  const ctx = useTracking();
+  const { tracker } = ctx;
 
   return useMemo(() => ({
     viewDish: (dishId: string, sectionId?: string) => tracker?.viewDish(dishId, sectionId),
     favoriteDish: (dishId: string, set: boolean = true) => tracker?.favoriteDish(dishId, set),
-    isFavorited: (dishId: string) => tracker?.isFavorited(dishId) ?? false,
-    rateDish: (dishId: string, rating: number, comment?: string) => tracker?.rateDish(dishId, rating, comment),
-    shareDish: (dishId: string, platform: string) => tracker?.shareDish(dishId, platform),
     setCurrentSection: (sectionId: string | null) => tracker?.setCurrentSection(sectionId),
-    viewSection: (sectionId: string) => tracker?.viewSection(sectionId),
     trackDishViewDuration: (dishId: string, duration: number, sectionId?: string) => tracker?.trackDishViewDuration(dishId, duration, sectionId),
     trackSectionTime: (sectionId: string, duration: number, dishesViewed: number) => tracker?.trackSectionTime(sectionId, duration, dishesViewed),
     trackScrollDepth: (sectionId: string, dishIndex: number, totalDishes: number) => tracker?.trackScrollDepth(sectionId, dishIndex, totalDishes),
     trackMediaError: (dishId: string, errorType: string, mediaUrl?: string) => tracker?.trackMediaError(dishId, errorType, mediaUrl),
-    // ✅ Acceso genérico a la cola con batching (usado por eventos de carrito, etc.)
-    // en vez de disparar un POST individual por evento.
+    // Cola genérica con envío por lotes (eventos de carrito, etc.)
     track: (ev: TrackEvent) => tracker?.track(ev),
-    isReady: () => tracker?.isReady() ?? false,
-    revokeConsent,
-    subscribeToPush,
-    unsubscribeFromPush,
-    triggerPushPrompt,
-    isPushEnabled,
-    showIOSPrompt,
-    setShowIOSPrompt,
-    isIOS,
-    isPushSupported
-  }), [tracker, revokeConsent, subscribeToPush, unsubscribeFromPush, triggerPushPrompt, isPushEnabled, showIOSPrompt, setShowIOSPrompt, isIOS, isPushSupported]);
+    sessionId: ctx.sessionId,
+    rememberDevice: ctx.rememberDevice,
+    subscribeToPush: ctx.subscribeToPush,
+    unsubscribeFromPush: ctx.unsubscribeFromPush,
+    isPushEnabled: ctx.isPushEnabled,
+    isPushSupported: ctx.isPushSupported,
+    isIOS: ctx.isIOS,
+    pushPending: ctx.pushPending,
+    clearPushPending: ctx.clearPushPending,
+    showIOSPrompt: ctx.showIOSPrompt,
+    setShowIOSPrompt: ctx.setShowIOSPrompt,
+  }), [tracker, ctx]);
 }

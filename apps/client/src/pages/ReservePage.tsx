@@ -71,7 +71,7 @@ const ReservePage: React.FC = () => {
         accent: reelConfig?.restaurant?.branding?.accent_color || '#FF8C42',
         background: reelConfig?.restaurant?.branding?.backgroundColor || '#121212',
         text: reelConfig?.restaurant?.branding?.textColor || '#ffffff',
-        fontFamily: reelConfig?.restaurant?.branding?.fontFamily || '"Fraunces", serif',
+        fontFamily: reelConfig?.restaurant?.branding?.fontFamily || '"Fraunces Variable", "Fraunces", serif',
     }), [reelConfig]);
 
     // State

@@ -263,6 +263,12 @@ Modelo actual, **no lo vuelvas a atar al consentimiento**:
 `visitor_id` de 12 meses. Se gestiona en `/legal`, accesible desde el icono de
 privacidad de la cabecera (el pie no se renderiza en Explorar ni en Chat).
 
+**La carta mide igual** (oct-2026, migración 0101): toda sesión es anónima con
+`sessions.visitor_day_hash`. Reconocer al cliente otro día (recurrencia, y heredar la
+atribución de la guía: `guide_returning`) exige un id en el móvil, y eso solo con el
+«Sí» de la bienvenida de la carta («¿Te reconocemos…?», Sí/No al mismo nivel), que
+identifica la sesión en curso (`/track/session/identify`). Nunca un id persistente sin él.
+
 ## 4. Frontend — cuatro apps con reglas DISTINTAS
 
 ⚠️ **Regla crítica de separación por app.** El styling NO es intercambiable:
@@ -285,15 +291,17 @@ privacidad de la cabecera (el pie no se renderiza en Explorar ni en Chat).
 - **Styling: Emotion (`@emotion/react`, `@emotion/styled`) + CSS vanilla. NUNCA Tailwind aquí.**
 - Animaciones: **framer-motion** (intensivo). Carruseles/reels: **swiper**.
 - Estética: mobile-first, glassmorphism, gradientes, "premium". Nada de HTML "bare bones".
-- **DOS cartas** (oct-2026). Lo que ve el cliente es `src/carta/` («Carta Mediterránea»: un feed
-  vertical, CSS propio en `carta.css` bajo `.cm`, sin MUI salvo los modales heredados de delivery,
-  sellos, oferta y valoración). La anterior (`components/reels/`) sigue viva con `?diseno=clasico`:
-  **tocar `ReelsContainer` o `templates/classic` no cambia lo que se ve**.
+- **La carta es `src/carta/`** («Carta Mediterránea»: feed vertical, CSS propio en `carta.css` bajo
+  `.cm`). La clásica se borró en oct-2026 (etiqueta git `carta-clasica`). **El arranque no carga MUI,
+  framer-motion ni axios**: los diálogos heredados (pedido, sellos, oferta, valoración, iPhone) son
+  MUI y van en `carta/LegacyLayer.tsx`, que se descarga al abrir uno. Si algo que monta la carta
+  importa MUI, vuelve todo al arranque: tras el build, `dist/index.html` solo debe precargar `vendor-react`.
 - Colores de la carta: **solo** los 5 de «Colores Reels» del admin, derivados en `src/carta/theme.ts`
   con contraste garantizado (copia en `apps/admin/src/theme/cartaTheme.ts` para la vista previa:
   si cambias una, cambia la otra). Iconos: solo alérgenos (los SVG del servidor) y el corazón.
-- Textos: `localization_strings` (context `reels`, claves `carta_*`, migración 0099) con el español
-  de respaldo en `src/carta/strings.ts`. La respuesta de `/restaurants/:slug/reels` va en KV: tras
+- Textos: `localization_strings` (context `reels`, claves `carta_*`, migraciones 0099 y 0102) con el
+  español de respaldo en `src/carta/strings.ts`, también los de los diálogos heredados. El WhatsApp
+  del pedido lo lee el restaurante: va siempre en español. La respuesta de `/restaurants/:slug/reels` va en KV: tras
   cambiar textos o la forma del JSON, sube `ver:restaurant:<slug>` (§3). **Todo endpoint que guarde
   algo de esa respuesta debe llamar a `touchMenuVersion`** (platos, secciones y `workerRestaurants`
   lo hacen; marketing, delivery, sellos, reservas e idiomas aún no): si no, el admin guarda y la

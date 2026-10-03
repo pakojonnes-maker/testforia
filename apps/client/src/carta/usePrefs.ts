@@ -58,6 +58,14 @@ export function readLanguage(slug: string): string | null {
   }
 }
 
+/** Idioma con el que se abre la carta: el que eligió el cliente aquí antes, o el de su móvil. */
+export function pickInitialLanguage(slug: string): string {
+  const stored = readLanguage(slug);
+  if (stored) return stored;
+  const nav = (typeof navigator !== 'undefined' ? navigator.language : 'es').split('-')[0];
+  return nav || 'es';
+}
+
 export function saveLanguage(slug: string, lang: string) {
   try {
     localStorage.setItem(`vt_lang_${slug}`, lang);

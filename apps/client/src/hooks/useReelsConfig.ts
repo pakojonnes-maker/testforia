@@ -1,8 +1,12 @@
-// apps/client/src/hooks/useReelsConfig.ts - CORREGIDO PARA CAMBIO DE IDIOMA
+// apps/client/src/hooks/useReelsConfig.ts
+//
+// La carta de un restaurante en un idioma (GET /restaurants/:slug/reels?lang=).
+// Una caché en memoria de 5 min y una sola petición en vuelo por (slug, idioma): App.tsx pide
+// la carta al arrancar y CartaApp/ReservePage la leen de aquí sin repetir la descarga.
 
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useEffect, useState } from 'react';
+import { API_URL } from '../lib/api';
 
-// ✅ Types (mantener iguales)
 interface Language {
   code: string;
   name: string;
@@ -16,7 +20,6 @@ interface RestaurantBranding {
   textColor: string;
   backgroundColor: string;
   fontFamily: string;
-  // Snake case variants for compatibility
   primary_color?: string;
   secondary_color?: string;
   text_color?: string;
@@ -36,229 +39,126 @@ interface RestaurantConfig {
     website_url?: string;
     branding: RestaurantBranding;
   };
-  sections: any[];
-  dishesBySection: { [key: number]: { dishes: any[] } };
+  sections: any[]; // eslint-disable-line @typescript-eslint/no-explicit-any
   languages: Language[];
-  template: {
-    id: string;
-    name: string;
-    description: string;
-    isPremium: boolean;
-  } | null;
-  config: Record<string, any>;
-  overrides?: Record<string, any>; // ✅ Reel-specific color overrides (reel_* prefixed keys)
-  marketing?: any;
+  marketing?: any; // eslint-disable-line @typescript-eslint/no-explicit-any
   reservationsEnabled?: boolean;
-  deliveryEnabled?: boolean; // ✅ NEW
-  deliverySettings?: any;    // ✅ NEW - Full delivery config
-  translations?: Record<string, string>; // ✅ Global translations
+  deliveryEnabled?: boolean;
+  deliverySettings?: any; // eslint-disable-line @typescript-eslint/no-explicit-any
+  translations?: Record<string, string>;
+  loyalty?: any; // eslint-disable-line @typescript-eslint/no-explicit-any
+  userStatus?: { hasRated: boolean; previousRating: number | null };
 }
 
 export type ReelConfig = RestaurantConfig;
 
-// ✅ Cache básico pero efectivo
-const configCache = new Map<string, {
-  data: RestaurantConfig;
-  expiry: number;
-}>();
+const CACHE_TTL = 5 * 60 * 1000;
+const cache = new Map<string, { data: RestaurantConfig; expiry: number }>();
+const inFlight = new Map<string, Promise<RestaurantConfig>>();
 
-const CACHE_TTL = 5 * 60 * 1000; // 5 minutes
+const keyOf = (slug: string, lang: string) => `${slug}-${lang}`;
 
-// ✅ Permite precargar la caché con datos ya obtenidos por otro fetch (p.ej. App.tsx),
-// evitando que ReelsContainer/ReservePage repitan la misma petición pesada al montar.
-export function seedReelsConfigCache(slug: string, language: string, rawData: any) {
-  if (!slug || !rawData) return;
-  const data: RestaurantConfig = {
-    restaurant: rawData.restaurant,
-    sections: rawData.sections || [],
-    dishesBySection: rawData.dishesBySection || {},
-    languages: rawData.languages || [],
-    template: rawData.template || null,
-    config: rawData.config || {},
-    overrides: rawData.overrides || {},
-    marketing: rawData.marketing,
-    reservationsEnabled: rawData.reservationsEnabled,
-    deliveryEnabled: rawData.deliveryEnabled,
-    deliverySettings: rawData.deliverySettings,
-    translations: rawData.translations
-  };
-  configCache.set(`${slug}-${language}`, {
-    data,
-    expiry: Date.now() + CACHE_TTL
-  });
+function readCache(slug: string, lang: string): RestaurantConfig | null {
+  const hit = cache.get(keyOf(slug, lang));
+  return hit && Date.now() < hit.expiry ? hit.data : null;
 }
 
-// ✅ API call directo al worker
-async function fetchReelsData(slug: string, language = 'es'): Promise<RestaurantConfig> {
-  const API_URL = import.meta.env.VITE_API_URL || "https://visualtasteworker.franciscotortosaestudios.workers.dev";
+/**
+ * Descarga (o devuelve de caché) la carta. Dos llamadas simultáneas para lo mismo comparten
+ * la petición. Lanza si la API falla.
+ */
+export function loadReelsConfig(slug: string, lang: string): Promise<RestaurantConfig> {
+  const cached = readCache(slug, lang);
+  if (cached) return Promise.resolve(cached);
+  const key = keyOf(slug, lang);
+  const pending = inFlight.get(key);
+  if (pending) return pending;
 
-  const url = `${API_URL}/restaurants/${slug}/reels?lang=${language}`;
-
-  console.log(`[useReelsConfig] 🔍 Fetching: ${url}`);
-
-  const response = await fetch(url, {
-    headers: { 'Accept': 'application/json' }
-  });
-
-  if (!response.ok) {
-    const error = await response.json().catch(() => ({ message: 'Network error' }));
-    throw new Error(error.message || `HTTP ${response.status}`);
-  }
-
-  const data = await response.json();
-
-  if (!data.success) {
-    throw new Error(data.message || 'API returned error');
-  }
-
-  return {
-    restaurant: data.restaurant,
-    sections: data.sections,
-    dishesBySection: data.dishesBySection,
-    languages: data.languages,
-    template: data.template,
-    config: data.config || {},
-    overrides: data.overrides || {}, // ✅ NEW: Reel color overrides (reel_* prefixed)
-    marketing: data.marketing, // ✅ Include marketing data
-    reservationsEnabled: data.reservationsEnabled, // ✅ Include reservations status
-    deliveryEnabled: data.deliveryEnabled, // ✅ NEW: Delivery enabled
-    deliverySettings: data.deliverySettings, // ✅ NEW: Full delivery config
-    translations: data.translations // ✅ Include global translations
-  };
+  const p = (async () => {
+    const res = await fetch(`${API_URL}/restaurants/${encodeURIComponent(slug)}/reels?lang=${encodeURIComponent(lang)}`, {
+      headers: { Accept: 'application/json' },
+    });
+    const data = await res.json().catch(() => null);
+    if (!res.ok || !data?.success) throw new Error(data?.message || `HTTP ${res.status}`);
+    const config: RestaurantConfig = {
+      restaurant: data.restaurant,
+      sections: data.sections || [],
+      languages: data.languages || [],
+      marketing: data.marketing,
+      reservationsEnabled: data.reservationsEnabled,
+      deliveryEnabled: data.deliveryEnabled,
+      deliverySettings: data.deliverySettings,
+      translations: data.translations,
+      loyalty: data.loyalty,
+      userStatus: data.userStatus,
+    };
+    cache.set(key, { data: config, expiry: Date.now() + CACHE_TTL });
+    return config;
+  })();
+  inFlight.set(key, p);
+  p.finally(() => inFlight.delete(key)).catch(() => { /* lo maneja quien espera */ });
+  return p;
 }
 
-// ✅ Default fallback
-function getDefaultConfig(): RestaurantConfig {
+// Lo que se enseña si la API falla: una carta vacía ("no hay carta disponible"), no un
+// esqueleto de carga eterno.
+function emptyConfig(slug: string): RestaurantConfig {
   return {
     restaurant: {
-      id: 'default',
-      name: 'Cargando...',
-      slug: 'loading',
-      branding: {
-        primaryColor: '#FF6B6B',
-        secondaryColor: '#4ECDC4',
-        textColor: '#FFFFFF',
-        backgroundColor: '#000000',
-        fontFamily: 'Inter, sans-serif'
-      }
+      id: '',
+      name: '',
+      slug,
+      branding: { primaryColor: '', secondaryColor: '', textColor: '', backgroundColor: '', fontFamily: '' },
     },
     sections: [],
-    dishesBySection: {},
     languages: [],
-    template: {
-      id: 'tpl_classic',
-      name: 'Classic',
-      description: 'Default template',
-      isPremium: false
-    },
-    config: {},
-    overrides: {} // ✅ Default empty overrides
   };
 }
 
-// ✅ HOOK CORREGIDO: language como dependencia
 export function useReelsConfig(slug: string | undefined, language = 'es') {
-  const [config, setConfig] = useState<RestaurantConfig | null>(null);
-  const [loading, setLoading] = useState(true);
+  // Si App.tsx ya la trajo, se pinta en el primer render sin pasar por "cargando".
+  const [config, setConfig] = useState<RestaurantConfig | null>(() => (slug ? readCache(slug, language) : null));
+  const [loading, setLoading] = useState(() => !config);
   const [error, setError] = useState<Error | null>(null);
 
-  // ✅ Cleanup and deduplication
-  const mountedRef = useRef(true);
-  const requestIdRef = useRef<string | null>(null);
-
-  useEffect(() => {
-    return () => { mountedRef.current = false; };
-  }, []);
-
-  const loadConfig = useCallback(async (targetSlug: string, lang: string) => {
-    const requestId = `${targetSlug}-${lang}`;
-
-    // ✅ Prevent duplicate requests
-    if (requestIdRef.current === requestId) return;
-    requestIdRef.current = requestId;
-
-    try {
-      // ✅ Check simple cache first
-      const cacheKey = `${targetSlug}-${lang}`;
-      const cached = configCache.get(cacheKey);
-
-      if (cached && Date.now() < cached.expiry) {
-        console.log(`[useReelsConfig] ✨ Cache hit: ${cacheKey}`);
-        if (mountedRef.current) {
-          setConfig(cached.data);
-          setLoading(false);
-          setError(null);
-        }
-        return;
-      }
-
-      console.log(`[useReelsConfig] 🔍 Fetching: ${targetSlug}, language: ${lang}`);
-      setLoading(true);
-      setError(null);
-
-      const data = await fetchReelsData(targetSlug, lang);
-
-      if (!mountedRef.current) return;
-
-      // ✅ Cache the result
-      configCache.set(cacheKey, {
-        data,
-        expiry: Date.now() + CACHE_TTL
-      });
-
-      setConfig(data);
-      setError(null);
-      console.log(`[useReelsConfig] ✅ Loaded: ${data.template?.name}, language: ${lang}`);
-
-    } catch (err) {
-      if (!mountedRef.current) return;
-
-      console.error('[useReelsConfig] ❌ Error:', err);
-      const error = err instanceof Error ? err : new Error('Unknown error');
-      setError(error);
-
-      // ✅ Fallback to default
-      const defaultConfig = getDefaultConfig();
-      setConfig(defaultConfig);
-
-    } finally {
-      if (mountedRef.current) {
-        setLoading(false);
-        requestIdRef.current = null;
-      }
-    }
-  }, []);
-
-  // ✅ CRÍTICO: language como dependencia para reaccionar a cambios
   useEffect(() => {
     if (!slug) {
-      console.warn('[useReelsConfig] No slug provided');
-      setConfig(getDefaultConfig());
+      setConfig(emptyConfig(''));
       setLoading(false);
       return;
     }
-
-    console.log(`[useReelsConfig] 🌍 Effect triggered - slug: ${slug}, language: ${language}`);
-    loadConfig(slug, language);
-  }, [slug, language, loadConfig]); // ✅ AÑADIDO: language como dependencia
-
-  // ✅ Simple refetch
-  const refetch = useCallback(() => {
-    if (slug) {
-      const cacheKey = `${slug}-${language}`;
-      configCache.delete(cacheKey);
-      loadConfig(slug, language);
+    const cached = readCache(slug, language);
+    if (cached) {
+      setConfig(cached);
+      setLoading(false);
+      setError(null);
+      return;
     }
-  }, [slug, language, loadConfig]);
+    // `live` evita la carrera al cambiar de idioma deprisa: la respuesta que llega tarde
+    // del idioma anterior ya no pisa a la del actual. Mientras llega la nueva se sigue
+    // enseñando la carta que había (sin volver a "cargando").
+    let live = true;
+    setLoading(true);
+    loadReelsConfig(slug, language)
+      .then((data) => {
+        if (!live) return;
+        setConfig(data);
+        setError(null);
+      })
+      .catch((err: unknown) => {
+        if (!live) return;
+        console.error('[useReelsConfig]', err);
+        setError(err instanceof Error ? err : new Error('Unknown error'));
+        setConfig((prev) => prev || emptyConfig(slug));
+      })
+      .finally(() => {
+        if (live) setLoading(false);
+      });
+    return () => { live = false; };
+  }, [slug, language]);
 
-  return { config, loading, error, refetch };
+  return { config, loading, error };
 }
-
-// ✅ Simple cache clear
-export const clearConfigCache = () => {
-  configCache.clear();
-  console.log('[useReelsConfig] 🧹 Cache cleared');
-};
 
 export type { RestaurantConfig, Language };
 export type ReelColors = RestaurantBranding;

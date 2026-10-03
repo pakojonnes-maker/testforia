@@ -163,7 +163,7 @@ export default function AboutPremiumSection({
           lineHeight: 1.1,
           color: theme.text_color,
           m: 0,
-          fontFamily: '"Fraunces", "Playfair Display", serif',
+          fontFamily: '"Fraunces Variable", "Fraunces", "Playfair Display", serif',
           letterSpacing: '-0.02em',
         }}
       >

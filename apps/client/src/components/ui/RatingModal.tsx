@@ -2,8 +2,9 @@ import React, { useState } from 'react';
 import { Box, Typography, Button, IconButton, Modal, Fade, TextField } from '@mui/material';
 import { Star, StarBorder, Close } from '@mui/icons-material';
 import { motion } from 'framer-motion';
+import { useTranslation } from '../../contexts/TranslationContext';
 
-interface RatingModalProps {
+export interface RatingModalProps {
     open: boolean;
     onClose: () => void;
     onSubmit: (rating: number, comment: string) => void;
@@ -12,6 +13,7 @@ interface RatingModalProps {
 }
 
 const RatingModal: React.FC<RatingModalProps> = ({ open, onClose, onSubmit, googleReviewUrl, previousRating }) => {
+    const { t } = useTranslation();
     const [rating, setRating] = useState<number>(previousRating || 0);
     const [hover, setHover] = useState<number>(-1);
     const [comment, setComment] = useState('');
@@ -29,8 +31,6 @@ const RatingModal: React.FC<RatingModalProps> = ({ open, onClose, onSubmit, goog
             setComment('');
         }
     }, [open, previousRating]);
-
-
 
     const handleSubmit = () => {
         if (rating === 0) return;
@@ -89,7 +89,8 @@ const RatingModal: React.FC<RatingModalProps> = ({ open, onClose, onSubmit, goog
                 >
                     <IconButton
                         onClick={onClose}
-                        sx={{ position: 'absolute', right: 8, top: 8, color: 'text.secondary' }}
+                        aria-label={t('button_close', 'Cerrar')}
+                        sx={{ position: 'absolute', insetInlineEnd: 8, top: 8, color: 'text.secondary' }}
                     >
                         <Close />
                     </IconButton>
@@ -97,20 +98,23 @@ const RatingModal: React.FC<RatingModalProps> = ({ open, onClose, onSubmit, goog
                     {!submitted && !showGoogleLink ? (
                         <>
                             <Typography variant="h6" sx={{ mb: 1, fontWeight: 600 }}>
-                                {previousRating ? 'Tu calificación' : '¿Qué te ha parecido?'}
+                                {previousRating ? t('carta_rt_title_prev', 'Tu valoración') : t('carta_rt_title', '¿Qué te ha parecido?')}
                             </Typography>
                             <Typography variant="body2" sx={{ mb: 3, color: 'text.secondary' }}>
-                                Tu opinión nos ayuda a mejorar.
+                                {t('carta_rt_sub', 'Tu opinión nos ayuda a mejorar.')}
                             </Typography>
 
                             <Box sx={{ display: 'flex', justifyContent: 'center', gap: 1, mb: 3 }}>
                                 {[1, 2, 3, 4, 5].map((star) => (
                                     <IconButton
                                         key={star}
+                                        aria-label={t('carta_rt_star', '{n} de 5').replace('{n}', String(star))}
+                                        aria-pressed={rating === star}
                                         onPointerDown={() => {
                                             setRating(star);
                                             setHover(-1);
                                         }}
+                                        onClick={() => setRating(star)}
                                         onMouseEnter={() => setHover(star)}
                                         onMouseLeave={() => setHover(-1)}
                                         sx={{
@@ -136,7 +140,7 @@ const RatingModal: React.FC<RatingModalProps> = ({ open, onClose, onSubmit, goog
                                     fullWidth
                                     multiline
                                     rows={2}
-                                    placeholder="¿En qué podemos mejorar?"
+                                    placeholder={t('carta_rt_improve', '¿En qué podemos mejorar?')}
                                     value={comment}
                                     onChange={(e) => setComment(e.target.value)}
                                     sx={{
@@ -164,7 +168,7 @@ const RatingModal: React.FC<RatingModalProps> = ({ open, onClose, onSubmit, goog
                                     '&.Mui-disabled': { bgcolor: 'rgba(255,255,255,0.1)', color: 'rgba(255,255,255,0.3)' }
                                 }}
                             >
-                                Enviar
+                                {t('carta_rt_send', 'Enviar')}
                             </Button>
                         </>
                     ) : (
@@ -176,34 +180,38 @@ const RatingModal: React.FC<RatingModalProps> = ({ open, onClose, onSubmit, goog
                                 <>
                                     <Typography variant="h5" sx={{ mb: 2 }}>🎉</Typography>
                                     <Typography variant="h6" sx={{ mb: 1, fontWeight: 600 }}>
-                                        ¡Nos alegra que te haya gustado!
+                                        {t('carta_rt_glad', '¡Nos alegra que te haya gustado!')}
                                     </Typography>
-                                    <Typography variant="body2" sx={{ mb: 3, color: 'text.secondary' }}>
-                                        Te invitamos a compartir tu experiencia en Google para ayudarnos a crecer.
-                                    </Typography>
-                                    <Button
-                                        fullWidth
-                                        variant="contained"
-                                        onClick={handleGoogleRedirect}
-                                        endIcon={<Star sx={{ color: '#FFD700' }} />}
-                                        sx={{
-                                            bgcolor: '#4285F4', // Google Blue
-                                            color: 'white',
-                                            fontWeight: 600,
-                                            '&:hover': { bgcolor: '#3367D6' }
-                                        }}
-                                    >
-                                        Escribir reseña en Google
-                                    </Button>
+                                    {googleReviewUrl && (
+                                        <>
+                                            <Typography variant="body2" sx={{ mb: 3, color: 'text.secondary' }}>
+                                                {t('carta_rt_google_invite', 'Te invitamos a compartir tu experiencia en Google para ayudarnos a crecer.')}
+                                            </Typography>
+                                            <Button
+                                                fullWidth
+                                                variant="contained"
+                                                onClick={handleGoogleRedirect}
+                                                endIcon={<Star sx={{ color: '#FFD700' }} />}
+                                                sx={{
+                                                    bgcolor: '#4285F4', // Google Blue
+                                                    color: 'white',
+                                                    fontWeight: 600,
+                                                    '&:hover': { bgcolor: '#3367D6' }
+                                                }}
+                                            >
+                                                {t('carta_rt_google_btn', 'Escribir reseña en Google')}
+                                            </Button>
+                                        </>
+                                    )}
                                 </>
                             ) : (
                                 <>
                                     <Typography variant="h5" sx={{ mb: 2 }}>🙏</Typography>
                                     <Typography variant="h6" sx={{ mb: 1, fontWeight: 600 }}>
-                                        ¡Gracias por tu feedback!
+                                        {t('carta_rt_thanks', '¡Gracias por tu opinión!')}
                                     </Typography>
                                     <Typography variant="body2" sx={{ color: 'text.secondary' }}>
-                                        Tomamos nota para seguir mejorando.
+                                        {t('carta_rt_thanks_sub', 'Tomamos nota para seguir mejorando.')}
                                     </Typography>
                                 </>
                             )}

@@ -78,22 +78,12 @@ export default function MenuVideoGallerySection({ theme, translations: _translat
   const txt = theme?.text_color || autoContrast(bg);
   const fontHead = theme?.font_accent || '"Fraunces Variable",Georgia,serif';
 
-  useEffect(() => {
-    console.log('[MenuVideoGallery] premium payload:', premium);
-    console.log('[MenuVideoGallery] apiUrl:', apiUrl);
-  }, [premium, apiUrl]);
 
-  if (!premium) {
-    console.error('[MenuVideoGallery] ❌ premium is undefined');
-    return null;
-  }
 
   const items: MenuItem[] = useMemo(() => {
     const raw = premium?.videos || [];
-    console.log('[MenuVideoGallery] raw videos:', raw);
 
     if (!raw.length) {
-      console.warn('[MenuVideoGallery] ⚠️ No videos found');
       return [];
     }
 
@@ -159,7 +149,10 @@ export default function MenuVideoGallerySection({ theme, translations: _translat
   const onTouchStart = (e: React.TouchEvent) => (startX.current = e.touches[0].clientX);
   const onTouchEnd = (e: React.TouchEvent) => {
     const dx = e.changedTouches[0].clientX - startX.current;
-    if (Math.abs(dx) > 50) dx > 0 ? prev() : next();
+    if (Math.abs(dx) > 50) {
+      if (dx > 0) prev();
+      else next();
+    }
   };
 
   const vRefs = useRef<Record<string, HTMLVideoElement | null>>({});
@@ -186,10 +179,9 @@ export default function MenuVideoGallerySection({ theme, translations: _translat
 
   const isSingle = items.length === 1;
 
-  if (!items.length) {
-    console.warn('[MenuVideoGallery] ⚠️ No items to display');
-    return null;
-  }
+  // Sin premium o sin vídeos no hay sección. Va aquí, después de todos los hooks: antes había
+  // un return al principio y los hooks se llamaban unas veces sí y otras no.
+  if (!premium || !items.length) return null;
 
   const styles = `
 .mvg-root{position:relative;background:${bg};color:${txt};padding:48px 16px 64px;overflow:hidden;}

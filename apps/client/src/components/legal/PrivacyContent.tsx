@@ -112,15 +112,29 @@ export const PrivacyContent = () => {
                             'Mientras dura la visita.',
                         ],
                         [
-                            'Analítica de uso',
+                            'Medición de audiencia',
                             <>
-                                Identificador de visitante (UUID aleatorio), platos vistos, tiempo de
-                                visionado, secciones, profundidad de scroll, favoritos, valoraciones
-                                y sus comentarios, tipo de dispositivo, sistema operativo, navegador,
-                                idioma, país y ciudad aproximados, origen de la visita (QR, campaña o
-                                guía de alojamiento).
+                                Platos vistos y tiempo de visionado, secciones, profundidad de scroll,
+                                «me gusta», valoraciones y sus comentarios, tipo de dispositivo, sistema
+                                operativo, navegador, idioma, país y ciudad aproximados y origen de la
+                                visita (QR, campaña o guía de alojamiento). Para no contarte dos veces el
+                                mismo día, tu visita se identifica con un código que calcula nuestro
+                                servidor a partir de tu IP y tu navegador mezclados con un valor aleatorio
+                                que cambia cada día y se destruye: al día siguiente ese código ya no se
+                                puede relacionar con el de hoy, ni siquiera por nosotros. Con ese mismo
+                                código sabemos si ese día abriste antes la guía de tu alojamiento.
                             </>,
-                            <><strong>Tu consentimiento</strong> (art. 6.1.a). Si no lo das, no se crea ninguna sesión ni se envía ningún evento.</>,
+                            <>Interés legítimo (art. 6.1.f): estadísticas del propio servicio, <strong>sin guardar nada en tu dispositivo</strong>.</>,
+                            '12 meses.',
+                        ],
+                        [
+                            'Reconocerte cuando vuelves (opcional)',
+                            <>
+                                Un identificador aleatorio guardado en tu dispositivo, para que el
+                                restaurante sepa que has vuelto otro día y para atribuir tus visitas a la
+                                guía del alojamiento desde la que llegaste la primera vez.
+                            </>,
+                            <><strong>Tu consentimiento</strong> (art. 6.1.a). Solo si contestas «Sí» a «¿Te reconocemos la próxima vez que vengas?» o lo activas aquí arriba.</>,
                             'Hasta 12 meses desde tu última visita.',
                         ],
                         [
@@ -160,38 +174,46 @@ export const PrivacyContent = () => {
             <Section title="3. Qué guardamos en tu dispositivo">
                 La ley exige tu permiso para guardar o leer información en tu dispositivo, y eso
                 incluye el almacenamiento local del navegador, no solo las cookies (art. 22.2 LSSI
-                y art. 5.3 de la Directiva 2002/58/CE). Esto es todo lo que usamos:
+                y art. 5.3 de la Directiva 2002/58/CE), salvo lo estrictamente necesario para algo
+                que tú pides. Por eso la carta no te recibe con un aviso de cookies: para medir no
+                guarda nada. Esto es todo lo que puede llegar a guardar:
                 <Table
                     head={['Nombre', 'Tipo', 'Para qué', 'Duración']}
                     rows={[
                         [
                             <code>vt_consent_analytics</code>,
                             'Almacenamiento local',
-                            'Recordar si aceptaste o rechazaste la analítica. Necesaria: sin ella tendríamos que volver a preguntarte en cada visita.',
+                            'Tu respuesta a «¿Te reconocemos la próxima vez?», para no volver a preguntarte. Solo se escribe cuando contestas.',
                             '12 meses',
                         ],
                         [
                             <code>vt_visitor_id</code>,
                             'Almacenamiento local',
-                            'Identificador aleatorio para reconocer visitas repetidas y sostener tu tarjeta de fidelización. Requiere consentimiento.',
+                            'Identificador aleatorio. Con tu «Sí», para reconocerte cuando vuelves. También lo crea tu primer sello de la tarjeta de fidelización, porque sin él no se puede guardar la tarjeta; en ese caso solo sirve para la tarjeta.',
                             '12 meses',
                         ],
                         [
                             <code>vt_offline_events</code>,
                             'Almacenamiento local',
-                            'Cola temporal de eventos que no se pudieron enviar (por ejemplo, si perdiste cobertura). Requiere consentimiento.',
+                            'Cola temporal de eventos que no se pudieron enviar (por ejemplo, si perdiste cobertura). Solo con tu «Sí».',
                             'Hasta el siguiente envío correcto',
                         ],
                         [
                             <code>vt_guide_ref</code>,
                             'Cookie propia',
-                            'La escribe la guía del alojamiento o la TV para saber que vienes de allí. Requiere consentimiento.',
+                            'La escribe la guía del alojamiento, si allí lo autorizaste, para saber que vienes de ella.',
                             '30 días',
+                        ],
+                        [
+                            <><code>vt_likes_…</code>, <code>vt_avoid_allergens</code>, <code>vt_lang_…</code></>,
+                            'Almacenamiento local',
+                            'Tus «me gusta», los alérgenos que marcas para evitar y el idioma que eliges. Solo se guardan cuando los tocas y no salen de tu dispositivo.',
+                            'Hasta que los borres',
                         ],
                         [
                             <code>vt_push_pending</code>,
                             'Almacenamiento local',
-                            'Recordar que pediste activar notificaciones antes de instalar la app en iOS.',
+                            'Recordar que pediste activar notificaciones antes de instalar la carta en iOS.',
                             'Hasta que se completa la activación',
                         ],
                     ]}
@@ -200,21 +222,21 @@ export const PrivacyContent = () => {
                 creamos huellas digitales de tu dispositivo con fines publicitarios.</strong> Tampoco
                 vendemos ni cedemos tus datos a terceros para que te hagan publicidad.
                 <Box component="p" sx={{ mt: 1.5 }}>
-                    Puedes cambiar de opinión cuando quieras desde{' '}
-                    <strong>Configuración de Privacidad</strong>, en el menú de la aplicación. Al
-                    revocar el permiso dejamos de enviar datos inmediatamente y pedimos al servidor
-                    que desvincule de tu identificador las sesiones ya registradas.
+                    Puedes cambiar de opinión cuando quieras con el interruptor del principio de esta
+                    página. Si lo desactivas, dejamos de enviar tu identificador inmediatamente y
+                    pedimos al servidor que lo desvincule de las sesiones ya registradas.
                 </Box>
             </Section>
 
             <Section title="4. Una aclaración honesta sobre el anonimato">
-                Verás que llamamos «anónimos» a muy pocos datos, y es a propósito. El identificador
-                de visitante es un número aleatorio que no contiene tu nombre ni tu correo, pero
-                mientras dura permite reconocer que una misma persona ha vuelto. Eso, técnicamente,
-                es un <strong>dato seudonimizado, no anónimo</strong>, y por eso lo tratamos con
-                todas las garantías del RGPD en lugar de escudarnos en la palabra «anónimo».
+                Verás que llamamos «anónimos» a muy pocos datos, y es a propósito. Si aceptas que te
+                reconozcamos, el identificador de visitante es un número aleatorio que no contiene tu
+                nombre ni tu correo, pero mientras dura permite reconocer que una misma persona ha
+                vuelto. Eso, técnicamente, es un <strong>dato seudonimizado, no anónimo</strong>, y
+                por eso lo tratamos con todas las garantías del RGPD en lugar de escudarnos en la
+                palabra «anónimo».
                 <Box component="p" sx={{ mt: 1.5 }}>
-                    Sí es cierto que tu dirección IP nunca se almacena tal cual: se transforma
+                    Si no lo aceptas, tu dirección IP nunca se almacena tal cual: se transforma
                     mediante un código que cambia cada 24 horas, de modo que no puede usarse para
                     reconstruir tu navegación entre días distintos.
                 </Box>

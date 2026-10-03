@@ -33,35 +33,42 @@ body {
   flex-direction: column;
 }
 
-/* Para la experiencia de reels - Prevenir scroll del body */
-html.reels-mode,
-body.reels-mode {
-  overflow: hidden !important;
-  overscroll-behavior: none !important;
-  position: fixed !important;
-  width: 100% !important;
-  height: 100% !important;
-  height: 100svh !important;
-  touch-action: none !important;
-  background-color: black;
+/* Carga y error del arranque. Sin MUI: la carta no lo descarga. */
+.vt-loader {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #000;
 }
 
-body.reels-mode #root {
-  overflow: hidden !important;
-  height: 100% !important;
-  height: 100svh !important;
+.vt-loader span {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  border: 3px solid rgba(255, 255, 255, 0.15);
+  border-top-color: rgba(255, 255, 255, 0.85);
+  animation: vt-spin 0.8s linear infinite;
 }
 
-.swiper-container {
-  width: 100%;
-  height: 100%;
-  touch-action: none;
+@keyframes vt-spin {
+  to { transform: rotate(360deg); }
 }
 
-.swiper-slide {
-  overflow: hidden;
-  position: relative;
-  touch-action: none;
+@media (prefers-reduced-motion: reduce) {
+  .vt-loader span { animation-duration: 2.4s; }
 }
 
-/* 📱 FORCED MOBILE VIEW ON DESKTOP REMOVED FOR FULL RESPONSIVE SUPPORT */
+.vt-error {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  background: #000;
+  color: #fff;
+  text-align: center;
+  font-size: 16px;
+}

@@ -1,15 +1,20 @@
-// apps/client/src/App.tsx - OPTIMIZADO: Lazy Loading & Subdomains
-import React, { useEffect, useState, useMemo, Suspense } from 'react';
+// apps/client/src/App.tsx
+//
+// Un solo build sirve visualtastes.com (portada y landing de cada restaurante) y
+// menu.visualtastes.com (la carta). La carta no usa MUI: el arranque no lo carga, y solo
+// las páginas que sí lo usan (portada, landing, reservas, legal…) lo traen en su chunk
+// dentro de <MuiShell>. Antes MUI + framer-motion + axios iban en el arranque de todas:
+// ~235 KB comprimidos antes de pedir la carta.
+import React, { useEffect, useMemo, useState, Suspense } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { CssBaseline, ThemeProvider, createTheme, Box, CircularProgress, Typography } from '@mui/material';
-import { apiClient } from './lib/apiClient';
-import { seedReelsConfigCache } from './hooks/useReelsConfig';
+import { loadReelsConfig } from './hooks/useReelsConfig';
 import { TrackingAndPushProvider } from './providers/TrackingAndPushProvider';
-import { SplashScreen } from './components/ui/SplashScreen';
-import { CookieConsentBanner } from './components/ui/CookieConsentBanner';
-import '@fontsource-variable/fraunces/index.css'
+import { RestaurantProvider } from './contexts/RestaurantContext';
+import type { RestaurantData } from './contexts/RestaurantContext';
+import { pickInitialLanguage } from './carta/usePrefs';
 
-// ✅ Lazy Loading para Code Splitting (Mejora masiva de performance)
+const MuiShell = React.lazy(() => import('./components/MuiShell'));
+const SplashScreen = React.lazy(() => import('./components/ui/SplashScreen'));
 const HomePage = React.lazy(() => import('./pages/HomePage'));
 const ReelsView = React.lazy(() => import('./pages/ReelsView'));
 const RestaurantLanding = React.lazy(() => import('./pages/RestaurantLanding'));
@@ -18,298 +23,147 @@ const PrivacyPolicyPage = React.lazy(() => import('./pages/PrivacyPolicyPage'));
 const ReservePage = React.lazy(() => import('./pages/ReservePage'));
 const RedemptionPage = React.lazy(() => import('./pages/RedemptionPage'));
 
-// ✅ Tema personalizado adaptable
-const createCustomTheme = (primaryColor?: string, secondaryColor?: string) => createTheme({
-  palette: {
-    mode: 'dark',
-    primary: { main: primaryColor || '#9c27b0' },
-    secondary: { main: secondaryColor || '#2196f3' },
-  },
-  typography: {
-    fontFamily: '"Inter", "Roboto", "Helvetica", "Arial", sans-serif',
-    h1: { fontWeight: 500 },
-  },
-});
+type Page = 'home' | 'privacy' | 'legal-notice' | 'reserve' | 'redemption' | 'notfound' | 'reels' | 'landing';
 
-import { RestaurantProvider } from './contexts/RestaurantContext';
-import type { RestaurantData } from './contexts/RestaurantContext';
-
-// Loader Global para Suspense
 const GlobalLoader = () => (
-  <Box display="flex" justifyContent="center" alignItems="center" height="100vh" bgcolor="#000">
-    <CircularProgress sx={{ color: '#9c27b0' }} />
-  </Box>
+  <div className="vt-loader" role="progressbar" aria-busy="true"><span /></div>
 );
 
-// ✅ COMPONENTE PRINCIPAL
+/** Ruta → página. La carta del dominio menu. sale siempre como carta; en el principal, como landing. */
+function resolvePage(path: string, isMenuDomain: boolean): { page: Page; slug: string | null } {
+  if (path === '/' && !isMenuDomain) return { page: 'home', slug: null };
+  if (path.startsWith('/legal/privacy')) return { page: 'privacy', slug: null };
+  // Aviso legal (art. 10 LSSI). Se acepta /legal/aviso y /legal/legal-notice porque el
+  // enlace se pinta en apps con idiomas distintos.
+  if (path.startsWith('/legal/aviso') || path.startsWith('/legal/legal-notice')) return { page: 'legal-notice', slug: null };
+  if (path.startsWith('/reserve/')) return { page: 'reserve', slug: path.split('/')[2] || null };
+  // Canje de ofertas (magic link): /r/{token} (antiguo) y /{slug}/oferta/{token}
+  if (/^\/r\/[a-zA-Z0-9]{16}$/.test(path) || /^\/[^/]+\/oferta\/[a-zA-Z0-9]{16}$/.test(path)) return { page: 'redemption', slug: null };
+  // /r/{slug}: formato antiguo de la carta
+  if (path.startsWith('/r/')) return { page: 'reels', slug: path.split('/')[2] || null };
+  const slug = path.match(/^\/([^/]+)/)?.[1] || null;
+  if (!slug) return { page: 'notfound', slug: null };
+  return { page: isMenuDomain ? 'reels' : 'landing', slug };
+}
+
 function App() {
   const location = useLocation();
-  const [restaurantData, setRestaurantData] = useState<RestaurantData | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-
-  // ✅ 1. Detectar Subdominio y Slug
-  const { isMenuDomain, slug, isLegacyReels, hasInvalidDeepPath } = useMemo(() => {
-    const hostname = window.location.hostname;
-    // Detectar si estamos en menu.visualtaste.com (o equivalentes locales/staging)
-    const isMenuDomain = hostname.startsWith('menu.');
-
-    const path = location.pathname;
-    let slug: string | null = null;
-    let isLegacyReels = false;
-    let hasInvalidDeepPath = false;
-
-    // Lógica para extraer slug
-    // Check for magic link redemption first (16-char alphanumeric token)
-    const redemptionMatch = path.match(/^\/r\/([a-zA-Z0-9]{16})$/);
-    if (redemptionMatch) {
-      // This is a magic link, not a restaurant slug
-      slug = null;
-    } else if (path === '/') {
-      slug = null;
-    } else if (path.startsWith('/legal/')) {
-      slug = null;
-    } else if (path.startsWith('/reserve/')) {
-      slug = path.split('/')[2];
-    } else if (path.startsWith('/r/')) {
-      // Legacy Format: /r/slug (restaurant reels)
-      isLegacyReels = true;
-      slug = path.split('/')[2];
-    } else {
-      // Standard Format: /slug or /slug/...
-      const matches = path.match(/^\/([^\/]+)/);
-      if (matches) {
-        slug = matches[1];
-        // Check for deep paths that are not valid known patterns
-        // Valid patterns: /{slug}, /{slug}/oferta/{token}
-        // Invalid: /{slug}/dish/{id}, /{slug}/section/{id}, /{slug}/anything-else
-        const pathSegments = path.split('/').filter(Boolean);
-        if (pathSegments.length > 1) {
-          const subPath = pathSegments[1];
-          const validSubPaths = ['oferta'];
-          if (!validSubPaths.includes(subPath)) {
-            // This is an invalid deep path like /xpecado/dish/123
-            hasInvalidDeepPath = true;
-            console.warn(`[App] Invalid deep path detected: ${path}, will redirect to /${slug}`);
-          }
-        }
-      }
-    }
-
-    return { isMenuDomain, slug, isLegacyReels, hasInvalidDeepPath };
-  }, [location.pathname]);
-
-  // ✅ 2. Determinar qué página mostrar
-  const currentPage = useMemo(() => {
-    const path = location.pathname;
-
-    if (path === '/' && !isMenuDomain) return 'home'; // Home solo en dominio principal
-    if (path.startsWith('/legal/privacy')) return 'privacy';
-    // Aviso legal (art. 10 LSSI). Se acepta /legal/aviso y /legal/legal-notice
-    // porque el enlace se pinta en apps con idiomas distintos.
-    if (path.startsWith('/legal/aviso') || path.startsWith('/legal/legal-notice')) return 'legal-notice';
-    if (path.startsWith('/reserve/')) return 'reserve';
-
-    // Magic link redemption - two formats:
-    // 1. Legacy: /r/{16-char-token}
-    // 2. New: /{slug}/oferta/{16-char-token}
-    if (path.match(/^\/r\/[a-zA-Z0-9]{16}$/)) return 'redemption';
-    if (path.match(/^\/[^/]+\/oferta\/[a-zA-Z0-9]{16}$/)) return 'redemption';
-
-    if (!slug) return 'notfound';
-
-
-    // REGLAS DE ENRUTAMIENTO:
-
-    // Caso A: Dominio "menu." -> SIEMPRE muestra Reels (Menu)
-    // For deep paths like /slug/dish/x or /slug/section/x, we also show reels
-    // but the data loading logic will validate if the dish/section exists
-    if (isMenuDomain) {
-      return 'reels';
-    }
-
-    // Caso B: Ruta Legacy "/r/" -> SIEMPRE muestra Reels
-    if (isLegacyReels || path.includes('/section/') || path.includes('/dish/')) {
-      return 'reels';
-    }
-
-
-    // Caso C: Default en dominio principal -> LANDING (Marketing)
-    return 'landing';
-  }, [location.pathname, slug, isMenuDomain, isLegacyReels]);
-
-  // ✅ Redirect invalid deep paths to restaurant root
   const navigate = useNavigate();
+  const isMenuDomain = window.location.hostname.startsWith('menu.');
+  const { page, slug } = useMemo(() => resolvePage(location.pathname, isMenuDomain), [location.pathname, isMenuDomain]);
+
+  // Una ruta más honda que /{slug} (p. ej. /xpecado/dish/123, enlaces de la carta antigua)
+  // se reduce a la carta del restaurante: no hay pantallas por plato.
   useEffect(() => {
-    if (hasInvalidDeepPath && slug) {
-      console.log(`[App] Redirecting invalid deep path to /${slug}`);
-      navigate(`/${slug}`, { replace: true });
+    const parts = location.pathname.split('/').filter(Boolean);
+    if ((page === 'reels' || page === 'landing') && slug && parts.length > 1 && parts[0] !== 'r') {
+      navigate(`/${slug}${location.search}`, { replace: true });
     }
-  }, [hasInvalidDeepPath, slug, navigate]);
+  }, [page, slug, location.pathname, location.search, navigate]);
 
-  // ⭐ Cargar datos del restaurante SOLO para REELS
+  // La app instalada en un iPhone arranca en la raíz (start_url del manifest). Si el cliente
+  // la instaló para activar avisos desde una carta, se le devuelve a esa carta.
   useEffect(() => {
-    // Si no es página de reels ni de reservas, no cargamos datos pesados
-    if ((currentPage !== 'reels' && currentPage !== 'reserve') || !slug) {
-      setRestaurantData(null);
-      setLoading(false);
-      return;
-    }
+    if (!isMenuDomain || location.pathname !== '/') return;
+    try {
+      const pending = localStorage.getItem('vt_push_pending');
+      if (pending && pending !== 'true') navigate(`/${pending}`, { replace: true });
+    } catch { /* ignorar */ }
+  }, [isMenuDomain, location.pathname, navigate]);
 
-    // Cargar datos para el menú
-    let isMounted = true;
+  // Datos del restaurante: solo la carta y las reservas. La carta se pide ya en el idioma del
+  // cliente (el que eligió antes o el de su móvil): antes se pedía siempre en español y, para
+  // un extranjero, después llegaba una segunda descarga entera en su idioma.
+  const [restaurantData, setRestaurantData] = useState<RestaurantData | null>(null);
+  const [loadedFor, setLoadedFor] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const needsData = (page === 'reels' || page === 'reserve') && !!slug;
 
-    async function loadRestaurant() {
-      try {
-        setLoading(true);
-        setError(null);
-
-        console.log('🚀 [App] Cargando menú para:', slug);
-
-        const result = await apiClient.getRestaurantReelsData(slug!, 'es');
-
-        if (!isMounted) return;
-
-        if (result?.restaurant) {
-          console.log('✅ [App] Datos cargados:', result.restaurant.name);
-
-          // ✅ Precargar la caché de useReelsConfig con esta misma respuesta ('es'),
-          // así ReelsContainer/ReservePage no repiten la petición pesada a /reels al montar.
-          seedReelsConfigCache(slug!, 'es', result);
-
-          setRestaurantData({
-            ...result,
-            reelsConfig: (result as any).reelsConfig || null
-          });
-        } else {
-          throw new Error('No se encontraron datos del restaurante');
-        }
-
-      } catch (err) {
-        if (!isMounted) return;
-        const message = err instanceof Error ? err.message : 'Error desconocido';
-        console.error('❌ [App] Error:', message);
-        setError(message);
+  useEffect(() => {
+    if (!needsData || !slug) return;
+    let live = true;
+    const lang = page === 'reels' ? pickInitialLanguage(slug) : 'es';
+    setError(null);
+    const first = loadReelsConfig(slug, lang);
+    // El español también hace falta ("Para el camarero", y es la caída si el idioma del móvil
+    // no está en esta carta): se pide en paralelo, después del idioma del cliente.
+    if (page === 'reels' && lang !== 'es') loadReelsConfig(slug, 'es').catch(() => { });
+    first
+      .then((cfg) => {
+        if (!live) return;
+        if (!cfg?.restaurant) throw new Error('No se encontraron datos del restaurante');
+        setRestaurantData({ restaurant: cfg.restaurant, sections: cfg.sections, languages: cfg.languages, dishesBySection: {} });
+        setLoadedFor(slug);
+      })
+      .catch((err: unknown) => {
+        if (!live) return;
+        setError(err instanceof Error ? err.message : 'Error desconocido');
         setRestaurantData(null);
-      } finally {
-        if (isMounted) setLoading(false);
-      }
-    }
+        setLoadedFor(slug);
+      });
+    return () => { live = false; };
+  }, [needsData, slug, page]);
 
-    loadRestaurant();
+  const loading = needsData && loadedFor !== slug;
 
-    return () => { isMounted = false; };
-  }, [slug, currentPage]);
-
-  // ✅ Tema dinámico
-  // ✅ Tema dinámico
-  const theme = useMemo(() => {
-    const primaryColor = restaurantData?.reelsConfig?.colors?.primary;
-    const secondaryColor = restaurantData?.reelsConfig?.colors?.secondary;
-
-    // Buscar el mejor candidato para el fondo (priorizar acento/amarillo)
-    // Try to find the accent color first, then fall back to primary
-    const accentCandidate =
-      restaurantData?.reelsConfig?.colors?.accent ||
-      restaurantData?.reelsConfig?.colors?.accent_color ||
-      restaurantData?.restaurant?.branding?.accentColor ||
-      restaurantData?.restaurant?.branding?.accent_color ||
-      primaryColor ||
-      restaurantData?.restaurant?.branding?.primaryColor;
-
-    // ✅ Set global CSS variable for desktop background
-    if (accentCandidate) {
-      document.documentElement.style.setProperty('--primary-color', accentCandidate);
-    }
-
-    return createCustomTheme(primaryColor, secondaryColor);
-  }, [restaurantData]);
-
-  // ✅ RENDERIZADO OPTIMIZADO CON SUSPENSE
-  const renderContent = () => {
-    return (
-      <Suspense fallback={<GlobalLoader />}>
-        {_renderPageContent()}
-      </Suspense>
-    );
-  };
-
-  const _renderPageContent = () => {
-    if (currentPage === 'home') return <HomePage />;
-    if (currentPage === 'privacy') return <PrivacyPolicyPage doc="privacy" />;
-    if (currentPage === 'legal-notice') return <PrivacyPolicyPage doc="legal-notice" />;
-    if (currentPage === 'notfound') return <NotFoundPage />;
-
-    if (currentPage === 'landing') {
-      console.log('🏠 [App] Renderizando LANDING para:', slug);
-      return <RestaurantLanding slugProp={slug || undefined} />;
-    }
-
-    if (currentPage === 'reserve') {
-      if (loading) return <GlobalLoader />;
-      if (error || !restaurantData?.restaurant) return <NotFoundPage />;
-
-      return (
-        <RestaurantProvider value={restaurantData}>
-          <TrackingAndPushProvider restaurantId={restaurantData.restaurant.id}>
-            <ReservePage />
-            <CookieConsentBanner />
-          </TrackingAndPushProvider>
-        </RestaurantProvider>
-      );
-    }
-
-    if (currentPage === 'redemption') {
-      return <RedemptionPage />;
-    }
-
-    // --- LOGICA REELS VIEW ---
-    // Note: We don't return GlobalLoader here if loading is true, 
-    // because we want the content to be ready behind the splash screen.
-    // However, if we return null, the splash screen covers it.
+  // --- La carta: sin MUI ---
+  if (page === 'reels') {
     if (loading) return <GlobalLoader />;
-
     if (error || !restaurantData?.restaurant) {
       return (
-        <Box display="flex" flexDirection="column" alignItems="center" justifyContent="center" minHeight="100vh" bgcolor="#000" color="#fff" p={3}>
-          <Typography variant="h4" color="error" gutterBottom>⚠️ Error</Typography>
-          <Typography variant="body1" color="textSecondary" align="center">{error || `Restaurante "${slug}" no encontrado`}</Typography>
-        </Box>
+        <div className="vt-error">
+          <p>{error || `Restaurante "${slug}" no encontrado`}</p>
+        </div>
       );
     }
-
-    console.log('🎬 [App] Renderizando MENÚ DIGITAL para:', slug);
     return (
       <RestaurantProvider value={restaurantData}>
         <TrackingAndPushProvider restaurantId={restaurantData.restaurant.id}>
-          <ReelsView />
-          {!showSplash && <CookieConsentBanner />}
+          <Suspense fallback={<GlobalLoader />}>
+            <ReelsView />
+          </Suspense>
         </TrackingAndPushProvider>
       </RestaurantProvider>
     );
-  };
+  }
 
-  // State for Splash Screen
-  const [showSplash, setShowSplash] = useState(true);
-
-  // If loading is true, app is NOT ready.
-  // Exception: Landing page handles its own loading, so for 'landing' currentPage, loading is false in App.
-  // But we might want to show splash for landing too? 
-  // For now, respect App's loading state.
+  // --- El resto de páginas: MUI con el tema oscuro de siempre ---
+  const content = (() => {
+    switch (page) {
+      case 'home': return <HomePage />;
+      case 'privacy': return <PrivacyPolicyPage doc="privacy" />;
+      case 'legal-notice': return <PrivacyPolicyPage doc="legal-notice" />;
+      case 'redemption': return <RedemptionPage />;
+      case 'landing': return <RestaurantLanding slugProp={slug || undefined} />;
+      case 'reserve':
+        if (loading) return <GlobalLoader />;
+        if (error || !restaurantData?.restaurant) return <NotFoundPage />;
+        return (
+          <RestaurantProvider value={restaurantData}>
+            <TrackingAndPushProvider restaurantId={restaurantData.restaurant.id}>
+              <ReservePage />
+            </TrackingAndPushProvider>
+          </RestaurantProvider>
+        );
+      default: return <NotFoundPage />;
+    }
+  })();
 
   return (
-    <ThemeProvider theme={theme}>
-      <CssBaseline />
-      {showSplash && (
-        <SplashScreen
-          isAppReady={!loading}
-          onComplete={() => setShowSplash(false)}
-          disableConsent={currentPage === 'landing' || currentPage === 'home'}
-        />
-      )}
-      {renderContent()}
-    </ThemeProvider>
+    <Suspense fallback={<GlobalLoader />}>
+      <MuiShell>
+        {(page === 'home' || page === 'landing') && <SplashOnce />}
+        <Suspense fallback={<GlobalLoader />}>{content}</Suspense>
+      </MuiShell>
+    </Suspense>
   );
 }
+
+/** El logo girando de la portada y las landings (la carta ya no lo lleva). */
+const SplashOnce = () => {
+  const [show, setShow] = useState(true);
+  if (!show) return null;
+  return <SplashScreen isAppReady onComplete={() => setShow(false)} />;
+};
 
 export default App;
