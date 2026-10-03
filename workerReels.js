@@ -560,6 +560,7 @@ function buildDishResponse(dish, mediaList = [], allergensList = []) {
         is_featured: !!dish.is_featured,
         has_half_portion: !!dish.has_half_portion,
         half_price: dish.half_price || null,
+        favorite_count: dish.favorite_count || 0,
         position: dish.order_index,
         media,
         allergens: allergensList,
