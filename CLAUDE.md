@@ -294,7 +294,10 @@ privacidad de la cabecera (el pie no se renderiza en Explorar ni en Chat).
   si cambias una, cambia la otra). Iconos: solo alérgenos (los SVG del servidor) y el corazón.
 - Textos: `localization_strings` (context `reels`, claves `carta_*`, migración 0099) con el español
   de respaldo en `src/carta/strings.ts`. La respuesta de `/restaurants/:slug/reels` va en KV: tras
-  cambiar textos o la forma del JSON, sube `ver:restaurant:<slug>` (§3).
+  cambiar textos o la forma del JSON, sube `ver:restaurant:<slug>` (§3). **Todo endpoint que guarde
+  algo de esa respuesta debe llamar a `touchMenuVersion`** (platos, secciones y `workerRestaurants`
+  lo hacen; marketing, delivery, sellos, reservas e idiomas aún no): si no, el admin guarda y la
+  carta sigue igual hasta 24 h.
 - Build: `tsc -b && vite build`.
 
 ### `apps/guide` — Guidebook
