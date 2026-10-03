@@ -74,12 +74,12 @@ async function handleAnalyticsSummary(env, restaurantId, url) {
   const periodMetrics = (start, end) => env.DB.prepare(`
     SELECT
       COALESCE(COUNT(*), 0) as sessions,
-      COALESCE(COUNT(DISTINCT COALESCE(s.visitor_id, s.id)), 0) as views,
+      COALESCE(COUNT(DISTINCT COALESCE(s.visitor_id, s.visitor_day_hash, s.id)), 0) as views,
       COALESCE(AVG(COALESCE(s.duration_seconds, 0)), 0) as avgDuration
     FROM sessions s
     WHERE s.restaurant_id = ?
       AND s.started_at BETWEEN ? AND ?
-      AND s.is_internal = 0 AND s.consent_analytics = 1
+      AND s.is_internal = 0 AND (s.consent_analytics = 1 OR s.visitor_day_hash IS NOT NULL)
   `).bind(restaurantId, start + 'T00:00:00', end + 'T23:59:59').first();
   const currentMetrics = await periodMetrics(currentStart, currentEnd);
   const previousMetrics = await periodMetrics(previousStart, previousEnd);
@@ -433,7 +433,7 @@ async function handleDashboardPulse(env, restaurantId) {
       FROM sessions s
       WHERE s.restaurant_id = ?
         AND DATE(s.started_at) = ?
-        AND s.is_internal = 0 AND s.consent_analytics = 1
+        AND s.is_internal = 0 AND (s.consent_analytics = 1 OR s.visitor_day_hash IS NOT NULL)
     `).bind(restaurantId, yesterdayStr).first()
   ]);
   // Determine Open/Closed Status

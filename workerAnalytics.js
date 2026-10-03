@@ -2,11 +2,16 @@
 //   - is_internal: dispositivos de desarrollo/pruebas y personal del local.
 //     Un solo visitor_id acumulaba 184 de las 1009 sesiones históricas (18%) y
 //     contaminaba todas las medias del panel.
-//   - consent_analytics = 0: visitantes que rechazaron el banner de cookies.
+//   - Sesiones históricas de quien rechazó el banner de cookies (consent_analytics = 0
+//     y sin visitor_day_hash). Desde la migración 0101 la carta mide de forma anónima,
+//     como la guía: toda sesión nueva lleva visitor_day_hash (hash diario calculado en
+//     el servidor, nada en el móvil) y cuenta aunque no haya consentimiento;
+//     consent_analytics = 1 solo dice que además hay un visitor_id de 12 meses.
+// Los únicos se cuentan con COALESCE(visitor_id, visitor_day_hash, id).
 // SESSION_FILTER asume que la tabla está aliasada como `s`; SESSION_FILTER_RAW
 // es la variante sin alias.
-const SESSION_FILTER = 'AND s.is_internal = 0 AND s.consent_analytics = 1';
-const SESSION_FILTER_RAW = 'AND is_internal = 0 AND consent_analytics = 1';
+const SESSION_FILTER = 'AND s.is_internal = 0 AND (s.consent_analytics = 1 OR s.visitor_day_hash IS NOT NULL)';
+const SESSION_FILTER_RAW = 'AND is_internal = 0 AND (consent_analytics = 1 OR visitor_day_hash IS NOT NULL)';
 
 export async function handleAnalyticsRequests(request, env) {
     const url = new URL(request.url);
@@ -121,7 +126,7 @@ export async function handleAnalyticsRequests(request, env) {
             const sessionStats = await env.DB.prepare(
                 `SELECT
                    COUNT(*) AS total_sessions,
-                   COUNT(DISTINCT COALESCE(visitor_id, id)) AS unique_visitors,
+                   COUNT(DISTINCT COALESCE(visitor_id, visitor_day_hash, id)) AS unique_visitors,
                    AVG(
                        COALESCE(
                            duration_seconds,
@@ -171,7 +176,7 @@ export async function handleAnalyticsRequests(request, env) {
                    SUM(CASE WHEN first_visit = 1 AND visit_days = 1 THEN 1 ELSE 0 END) AS new_visitors,
                    SUM(CASE WHEN first_visit > 1 OR visit_days > 1 THEN 1 ELSE 0 END) AS returning_visitors
                  FROM (
-                   SELECT COALESCE(visitor_id, id) AS vid,
+                   SELECT COALESCE(visitor_id, visitor_day_hash, id) AS vid,
                           MIN(visit_count) AS first_visit,
                           COUNT(DISTINCT DATE(started_at)) AS visit_days
                    FROM sessions s
@@ -195,7 +200,7 @@ export async function handleAnalyticsRequests(request, env) {
                 `SELECT s.referral_apartment_id AS apartment_id,
                         a.name AS apartment_name,
                         COUNT(*) AS sessions,
-                        COUNT(DISTINCT COALESCE(s.visitor_id, s.id)) AS visitors,
+                        COUNT(DISTINCT COALESCE(s.visitor_id, s.visitor_day_hash, s.id)) AS visitors,
                         SUM(CASE WHEN cs.id IS NOT NULL THEN 1 ELSE 0 END) AS with_cart
                  FROM sessions s
                  LEFT JOIN guide_apartments a ON a.id = s.referral_apartment_id
@@ -233,7 +238,7 @@ export async function handleAnalyticsRequests(request, env) {
                 `SELECT
                     DATE(s.started_at) as date,
                     COUNT(*) as total_sessions,
-                    COUNT(DISTINCT COALESCE(s.visitor_id, s.id)) as unique_visitors,
+                    COUNT(DISTINCT COALESCE(s.visitor_id, s.visitor_day_hash, s.id)) as unique_visitors,
                     COUNT(*) as total_views
                  FROM sessions s
                  WHERE s.restaurant_id = ? AND s.started_at BETWEEN ? AND ? ${SESSION_FILTER}

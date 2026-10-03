@@ -48,7 +48,9 @@ function generateId(prefix = 'evt') {
 // ============================================
 const EVENT_HANDLERS = {
     'viewdish': { field: 'view_count', shouldIncrement: true },
-    'favorite': { field: 'favorite_count', shouldIncrement: v => v === true || v === 'true' },
+    // El «me gusta» de la carta se puede quitar: true suma y false resta (nunca por debajo de 0,
+    // ver el UPDATE con MAX). Antes solo sumaba, así que quitar y volver a poner contaba dos.
+    'favorite': { field: 'favorite_count', shouldIncrement: v => (v === true || v === 'true' ? 1 : v === false || v === 'false' ? -1 : 0) },
     'rating': {
         field: 'rating_count',
         shouldIncrement: true,
@@ -114,12 +116,23 @@ async function handleSessionStart(request, env) {
             referralSource = null,
             referralApartmentId = null,
             referralSessionId = null,
-            // El cliente manda su decisión del banner de cookies. Si no la manda
-            // (versiones antiguas), asumimos 1 para no romper el histórico.
-            consentAnalytics = true
+            // true = el comensal activó "recordar este dispositivo" (visitor_id de 12
+            // meses) en la página de privacidad. Sin eso la sesión es anónima.
+            consentAnalytics = false
         } = data;
-        // ✅ FIX: Generate visitor_id if client doesn't have one (first visit)
-        const visitorId = clientVisitorId || generateUUID();
+        // Medición anónima, como la guía (migración 0090 y 0101): toda sesión lleva el
+        // hash del día calculado aquí, sin escribir nada en el móvil, y por eso no hace
+        // falta banner. Solo quien lo ha activado tiene además un visitor_id de 12 meses
+        // (visitas recurrentes, días distintos). Antes la carta no abría NINGUNA sesión sin
+        // un "Aceptar": 16 sesiones en 30 días entre las 4 cartas (oct-2026).
+        const consented = consentAnalytics === true;
+        const visitorId = consented ? (clientVisitorId || generateUUID()) : null;
+        let visitorDayHash = null;
+        try {
+            visitorDayHash = await computeVisitorDayHash(request, env);
+        } catch (err) {
+            console.error('[Tracking] Hash del día falló:', err.message);
+        }
         if (!restaurantId) {
             return errorResponse('restaurantId es requerido');
         }
@@ -142,19 +155,11 @@ async function handleSessionStart(request, env) {
         // Ahora cuenta DÍAS DISTINTOS de visita, que es lo que un hostelero
         // entiende por "ha vuelto". Todas las sesiones del mismo día comparten
         // visit_count, así que el reparto nuevo/recurrente deja de solaparse.
-        let visitCount = 1;
-        let isInternal = 0;
-        if (visitorId) {
-            const prior = await env.DB.prepare(`
-                SELECT COUNT(DISTINCT DATE(started_at)) AS prior_days,
-                       MAX(is_internal) AS was_internal
-                FROM sessions
-                WHERE visitor_id = ? AND restaurant_id = ? AND DATE(started_at) <> ?
-            `).bind(visitorId, restaurantId, today).first();
-            visitCount = (prior?.prior_days || 0) + 1;
-            // Un visitante marcado como interno lo sigue siendo en sesiones futuras.
-            isInternal = prior?.was_internal ? 1 : 0;
-        }
+        const history = visitorId
+            ? await visitorHistory(env, visitorId, restaurantId, today)
+            : { visitCount: 1, isInternal: 0, inherited: null };
+        const visitCount = history.visitCount;
+        const isInternal = history.isInternal;
         // Atribución guide → carta cuando la URL no trae nada.
         //
         // El camino normal (el huésped toca el restaurante DENTRO de la guía) ya
@@ -177,15 +182,14 @@ async function handleSessionStart(request, env) {
         let attributedSessionId = referralSessionId;
         if (!attributedApartmentId) {
             try {
-                const dayHash = await computeVisitorDayHash(request, env);
-                if (dayHash) {
+                if (visitorDayHash) {
                     const guideSession = await env.DB.prepare(`
                         SELECT id, apartment_id
                         FROM guide_sessions
                         WHERE visitor_day_hash = ? AND DATE(started_at) = ?
                         ORDER BY started_at DESC
                         LIMIT 1
-                    `).bind(dayHash, today).first();
+                    `).bind(visitorDayHash, today).first();
                     if (guideSession) {
                         attributedSource = 'guide_sameday';
                         attributedApartmentId = guideSession.apartment_id;
@@ -196,6 +200,13 @@ async function handleSessionStart(request, env) {
                 // La atribución es un extra: si falla, la sesión de menú se abre igual.
                 console.error('[Tracking] Join guide mismo día falló:', err.message);
             }
+        }
+        // Visitante reconocido (con permiso) que ya llegó a esta carta desde la guía: sus
+        // visitas siguientes conservan el alojamiento de origen. Ver visitorHistory().
+        if (!attributedApartmentId && history.inherited) {
+            attributedSource = 'guide_returning';
+            attributedApartmentId = history.inherited.apartmentId;
+            attributedSessionId = history.inherited.sessionId;
         }
 
         // ✅ FIX: el parámetro ?qr= se guardaba a ciegas en qr_code_id (FK a
@@ -215,8 +226,9 @@ async function handleSessionStart(request, env) {
                 country, city, referrer, utm_source, utm_medium, utm_campaign,
                 started_at, language_code, timezone_offset, network_type,
                 pwa_installed, consent_analytics, qr_code_id, visitor_id, visit_count,
-                referral_source, referral_apartment_id, referral_session_id, is_internal
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                referral_source, referral_apartment_id, referral_session_id, is_internal,
+                visitor_day_hash
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         `).bind(
             sessionId, finalUserId, restaurantId, devicetype, osname, browser,
             country, city, referrer, utm.source || null, utm.medium || null, utm.campaign || null,
@@ -224,9 +236,10 @@ async function handleSessionStart(request, env) {
             // ("Europe/Madrid") que acababa guardado como texto en una columna
             // numérica. Ahora se normaliza a minutos de offset.
             now, languages, normalizeTimezoneOffset(timezone), networktype,
-            ispwa ? 1 : 0, consentAnalytics === false ? 0 : 1,
+            ispwa ? 1 : 0, consented ? 1 : 0,
             validQrCodeId, visitorId, visitCount,
-            attributedSource, attributedApartmentId, attributedSessionId, isInternal
+            attributedSource, attributedApartmentId, attributedSessionId, isInternal,
+            visitorDayHash
         ).run();
         if (validQrCodeId) {
             await env.DB.prepare(
@@ -247,6 +260,85 @@ async function handleSessionStart(request, env) {
         return errorResponse('Error creating session', 500, error.message);
     }
 }
+// Lo que se sabe de un visitante reconocido (visitor_id de 12 meses, solo con su "Sí")
+// en ESTE restaurante:
+//   - visitCount: días distintos en que ha abierto la carta, contando hoy. Es lo que un
+//     hostelero entiende por "ha vuelto" (recargar o volver de WhatsApp no cuenta).
+//   - isInternal: un dispositivo marcado como interno lo sigue siendo.
+//   - inherited: el alojamiento de la guía desde el que llegó la última vez (30 días). El
+//     huésped que abrió la carta desde la guía el martes y vuelve a cenar el jueves
+//     escaneando el QR de la mesa sigue contando para ese alojamiento. Se marca
+//     'guide_returning', aparte de 'guide' (clic declarado) y 'guide_sameday' (hash del día).
+const GUIDE_INHERIT_DAYS = 30;
+async function visitorHistory(env, visitorId, restaurantId, today) {
+    const since = new Date(Date.now() - GUIDE_INHERIT_DAYS * 86400000).toISOString();
+    const [prior, lastRef] = await Promise.all([
+        env.DB.prepare(`
+            SELECT COUNT(DISTINCT DATE(started_at)) AS prior_days,
+                   MAX(is_internal) AS was_internal
+            FROM sessions
+            WHERE visitor_id = ? AND restaurant_id = ? AND DATE(started_at) <> ?
+        `).bind(visitorId, restaurantId, today).first(),
+        env.DB.prepare(`
+            SELECT referral_apartment_id, referral_session_id
+            FROM sessions
+            WHERE visitor_id = ? AND restaurant_id = ? AND referral_apartment_id IS NOT NULL
+              AND started_at >= ?
+            ORDER BY started_at DESC
+            LIMIT 1
+        `).bind(visitorId, restaurantId, since).first()
+    ]);
+    return {
+        visitCount: (prior?.prior_days || 0) + 1,
+        isInternal: prior?.was_internal ? 1 : 0,
+        inherited: lastRef ? { apartmentId: lastRef.referral_apartment_id, sessionId: lastRef.referral_session_id } : null
+    };
+}
+
+// POST /track/session/identify — el comensal acaba de decir "Sí, recuérdame" con la sesión
+// ya abierta (anónima). Se le da un visitor_id (o se reutiliza el que ya tenía, p. ej. el de
+// su tarjeta de sellos) y la sesión en curso pasa a ser suya, con su recurrencia y la
+// atribución heredada. Sin esto, el "Sí" no contaría hasta la visita siguiente.
+async function handleSessionIdentify(request, env) {
+    try {
+        const { sessionId, visitorId: clientVisitorId = null } = await request.json();
+        if (!sessionId || typeof sessionId !== 'string') {
+            return errorResponse('sessionId es requerido');
+        }
+        const session = await env.DB.prepare(
+            'SELECT id, restaurant_id, visitor_id, referral_apartment_id, started_at FROM sessions WHERE id = ?'
+        ).bind(sessionId).first();
+        if (!session) {
+            return errorResponse('Session not found', 404);
+        }
+        if (session.visitor_id) {
+            return jsonResponse({ success: true, visitorId: session.visitor_id, alreadyIdentified: true });
+        }
+        const visitorId = typeof clientVisitorId === 'string' && clientVisitorId ? clientVisitorId : generateUUID();
+        const today = toSqlDateUTC();
+        const history = await visitorHistory(env, visitorId, session.restaurant_id, today);
+        const inherit = !session.referral_apartment_id && history.inherited;
+        await env.DB.prepare(`
+            UPDATE sessions
+            SET visitor_id = ?, consent_analytics = 1, visit_count = ?, is_internal = ?,
+                referral_source = CASE WHEN ? THEN 'guide_returning' ELSE referral_source END,
+                referral_apartment_id = CASE WHEN ? THEN ? ELSE referral_apartment_id END,
+                referral_session_id = CASE WHEN ? THEN ? ELSE referral_session_id END
+            WHERE id = ? AND visitor_id IS NULL
+        `).bind(
+            visitorId, history.visitCount, history.isInternal,
+            inherit ? 1 : 0,
+            inherit ? 1 : 0, inherit ? history.inherited.apartmentId : null,
+            inherit ? 1 : 0, inherit ? history.inherited.sessionId : null,
+            sessionId
+        ).run();
+        return jsonResponse({ success: true, visitorId, visitCount: history.visitCount });
+    } catch (error) {
+        console.error('[SessionIdentify] Error:', error);
+        return errorResponse('Error identifying session', 500, error.message);
+    }
+}
+
 // Acepta tanto un offset numérico en minutos como un identificador IANA
 // ("Europe/Madrid") y devuelve siempre minutos respecto a UTC, o null.
 function normalizeTimezoneOffset(timezone) {
@@ -374,8 +466,9 @@ async function handleEvents(request, env, ctx) {
                         const shouldInc = typeof handler.shouldIncrement === 'function'
                             ? handler.shouldIncrement(event.value)
                             : handler.shouldIncrement;
-                        if (shouldInc) {
-                            dishUpdate.updates[handler.field] = (dishUpdate.updates[handler.field] || 0) + 1;
+                        const delta = typeof shouldInc === 'number' ? shouldInc : (shouldInc ? 1 : 0);
+                        if (delta) {
+                            dishUpdate.updates[handler.field] = (dishUpdate.updates[handler.field] || 0) + delta;
                         }
                     }
                     // Daily metrics
@@ -453,7 +546,7 @@ async function handleEvents(request, env, ctx) {
         // Dish counter updates (batched)
         for (const [dishId, updateInfo] of dishUpdates) {
             if (Object.keys(updateInfo.updates).length > 0) {
-                const setClauses = Object.keys(updateInfo.updates).map(f => `${f} = ${f} + ?`).join(', ');
+                const setClauses = Object.keys(updateInfo.updates).map(f => `${f} = MAX(0, COALESCE(${f}, 0) + ?)`).join(', ');
                 const values = [...Object.values(updateInfo.updates), dishId];
                 updateStatements.push(
                     env.DB.prepare(`UPDATE dishes SET ${setClauses} WHERE id = ?`).bind(...values)
@@ -723,6 +816,7 @@ export async function handleTracking(request, env, ctx) {
     try {
         if (url.pathname === '/track/session/start' && request.method === 'POST') return await handleSessionStart(request, env);
         if (url.pathname === '/track/session/end' && request.method === 'POST') return await handleSessionEnd(request, env);
+        if (url.pathname === '/track/session/identify' && request.method === 'POST') return await handleSessionIdentify(request, env);
         if (url.pathname === '/track/events' && request.method === 'POST') return await handleEvents(request, env, ctx);
         if (url.pathname.startsWith('/track/analytics/') && request.method === 'GET') return await handleAnalyticsQuery(request, env);
         if (url.pathname === '/track/privacy/forget' && request.method === 'POST') return await handlePrivacyForget(request, env);

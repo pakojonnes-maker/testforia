@@ -1,0 +1,33 @@
+-- 0101_menu_anonymous_measurement.sql
+-- ============================================================================
+-- POR QUÉ EXISTE
+--
+-- La carta digital seguía con el modelo que la guía abandonó en la 0090: no se
+-- abría ninguna sesión sin un "Aceptar" explícito en un splash de privacidad
+-- que, además, solo estaba en español (el turista coreano veía un diálogo legal
+-- en español antes de la carta). Resultado medido el 2026-10-03: 16 sesiones en
+-- 30 días entre las 4 cartas en producción. Y de esas sesiones colgaba también
+-- el contador de "me gusta" de cada plato.
+--
+-- QUÉ AÑADE
+--
+-- `sessions.visitor_day_hash`: el mismo valor que guide_sessions.visitor_day_hash,
+-- SHA-256(salt_del_día || IP || User-Agent) calculado en el servidor
+-- (workerVisitorHash.js). Toda sesión de carta nueva lo lleva, haya o no
+-- consentimiento, y es lo que permite contar únicos del día sin escribir nada
+-- en el móvil. consent_analytics = 1 pasa a significar solo "además tiene un
+-- visitor_id de 12 meses" (lo activa el comensal en la página de privacidad).
+--
+-- Los filtros de workerAnalytics.js / workerDashboard.js cuentan una sesión si
+-- consent_analytics = 1 O tiene visitor_day_hash: las sesiones históricas de
+-- quien rechazó el banner (consent 0, sin hash) siguen fuera.
+--
+-- IDEMPOTENTE: no. ALTER TABLE ADD COLUMN falla si la columna ya existe. Antes:
+--   npx wrangler d1 execute restaurant-menu-saas --remote \
+--     --command="SELECT sql FROM sqlite_master WHERE name='sessions'"
+--
+-- ORDEN: aplicar ANTES de desplegar el worker que escribe la columna.
+-- CACHÉ KV: no cambia la forma de ninguna respuesta cacheada.
+-- ============================================================================
+
+ALTER TABLE sessions ADD COLUMN visitor_day_hash TEXT;

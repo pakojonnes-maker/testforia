@@ -3453,6 +3453,12 @@ async function getStatsExperiences(env, zoneId, params) {
 // esa referencia varios días (ver apps/guide/src/lib/api.ts setReferralCookie
 // y apps/client TrackingAndPushProvider.tsx) — así se captura el caso real de
 // "vio el restaurante en la guía, fue a cenar dos días después".
+// Orígenes de una sesión de carta que vienen de la guía: 'guide' es el clic declarado
+// (?ref=guide en la URL, o la cookie vt_guide_ref que el huésped autorizó en la guía);
+// 'guide_sameday' lo deduce el servidor por el hash del día (mismo móvil, mismo día) y
+// 'guide_returning' es un visitante reconocido que ya llegó antes desde la guía
+// (workerTracking.js, visitorHistory). Las dos últimas cuentan, pero se dan aparte.
+const GUIDE_SOURCES = "'guide', 'guide_sameday', 'guide_returning'";
 async function getRestaurantConversions(env, params) {
     const days = Math.min(parseInt(params.get('days') || '30', 10) || 30, 365);
     const fromTs = new Date(Date.now() - days * 86400000).toISOString();
@@ -3476,18 +3482,19 @@ async function getRestaurantConversions(env, params) {
             FROM sessions s
             LEFT JOIN restaurants r ON r.id = s.restaurant_id
             LEFT JOIN guide_apartments a ON a.id = s.referral_apartment_id
-            WHERE s.referral_source = 'guide' AND s.referral_apartment_id IS NOT NULL AND s.started_at >= ?
+            WHERE s.referral_source IN (${GUIDE_SOURCES}) AND s.referral_apartment_id IS NOT NULL AND s.started_at >= ?
             GROUP BY s.restaurant_id, s.referral_apartment_id
         `).bind(fromTs).all(),
 
         env.DB.prepare(`
             SELECT s.restaurant_id, r.name AS restaurant_name,
                    s.referral_apartment_id AS apartment_id, a.name AS apartment_name,
-                   COUNT(*) AS converted
+                   COUNT(*) AS converted,
+                   SUM(CASE WHEN s.referral_source = 'guide' THEN 0 ELSE 1 END) AS converted_inferred
             FROM sessions s
             LEFT JOIN restaurants r ON r.id = s.restaurant_id
             LEFT JOIN guide_apartments a ON a.id = s.referral_apartment_id
-            WHERE s.referral_source = 'guide' AND s.referral_apartment_id IS NOT NULL
+            WHERE s.referral_source IN (${GUIDE_SOURCES}) AND s.referral_apartment_id IS NOT NULL
                 AND s.qr_code_id IS NOT NULL AND s.started_at >= ?
             GROUP BY s.restaurant_id, s.referral_apartment_id
         `).bind(fromTs).all(),
@@ -3501,10 +3508,11 @@ async function getRestaurantConversions(env, params) {
             merged[k] = {
                 restaurant_id: row.restaurant_id, restaurant_name: row.restaurant_name || row.restaurant_id,
                 apartment_id: row.apartment_id, apartment_name: row.apartment_name || row.apartment_id,
-                clicks: 0, landed: 0, converted: 0
+                clicks: 0, landed: 0, converted: 0, converted_inferred: 0
             };
         }
         merged[k][field] = row[field];
+        if (field === 'converted') merged[k].converted_inferred = row.converted_inferred || 0;
     };
     for (const row of (clicks.results || [])) upsert(row, 'clicks');
     for (const row of (landed.results || [])) upsert(row, 'landed');

@@ -38,7 +38,8 @@ export function getCorsHeaders(request) {
         'Content-Type': 'application/json',
         'Access-Control-Allow-Origin': allowedOrigin,
         'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS, PATCH',
-        'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+        // X-Visitor-Id: la tarjeta de sellos de la carta lo manda en cabecera y no en la URL.
+        'Access-Control-Allow-Headers': 'Content-Type, Authorization, X-Visitor-Id',
         'Vary': 'Origin',
     };
 }

@@ -293,8 +293,10 @@ export async function handleMediaRequests(request, env) {
         }
       });
       
-      // Determinar dimensiones (en un entorno real, esto requeriría procesamiento de imagen/video)
-      const dimensions = await getDimensionsFromBuffer(arrayBuffer, mediaType);
+      // Medidas reales: las lee el navegador del admin al preparar el archivo (lib/mediaPrep.ts).
+      // Antes se guardaba siempre 800×600 (o 1280×720 en vídeo) y la carta tomaba por apaisadas
+      // las fotos verticales hasta que terminaban de cargar. Sin dato, null.
+      const dimensions = readDimensions(formData);
       
       // Guardar en base de datos con el nuevo campo de rol
       await env.DB.prepare(`
@@ -522,67 +524,79 @@ export async function handleMediaRequests(request, env) {
   // =============================================
   
   // Endpoint para servir medios - Optimizado
-  if (request.method === "GET" && url.pathname.startsWith('/media/')) {
+  if ((request.method === "GET" || request.method === "HEAD") && url.pathname.startsWith('/media/')) {
     try {
-      const key = decodeURIComponent(url.pathname.replace('/media/', ''));
-      console.log(`[Media] Sirviendo: ${key}`);
-      
-      // Obtener objeto de R2
-      const object = await env.R2_BUCKET.get(key);
-      
+      const notFound = () => new Response('Archivo no encontrado', {
+        status: 404,
+        headers: {
+          "Access-Control-Allow-Origin": "*",
+          "Content-Type": "text/plain"
+        }
+      });
+
+      let key;
+      try {
+        key = decodeURIComponent(url.pathname.slice('/media/'.length));
+      } catch {
+        return notFound(); // %-secuencia rota: ninguna clave de R2 puede llamarse así
+      }
+
+      // Range de verdad. Antes se leía el objeto entero y se llamaba a body.slice(), que no
+      // existe en un ReadableStream: la excepción caía al 200 con el archivo completo, así que
+      // pedir 2 bytes de un vídeo bajaba 8 MB, y el navegador tenía que descargarlo todo antes
+      // del primer fotograma (Safari exige 206 para reproducir).
+      const range = parseByteRange(request.headers.get('Range'));
+      let object;
+      try {
+        object = await env.R2_BUCKET.get(key, range ? { range } : undefined);
+      } catch (rangeError) {
+        // Un rango que se sale del archivo: R2 lo rechaza. Se mira el tamaño para contestar
+        // 416 (si empieza fuera) o recortarlo al final (si solo termina fuera).
+        const head = range ? await env.R2_BUCKET.head(key) : null;
+        if (!head) throw rangeError;
+        const fixed = range.offset != null && range.offset < head.size
+          ? { offset: range.offset, length: head.size - range.offset }
+          : null;
+        if (!fixed) {
+          return new Response(null, {
+            status: 416,
+            headers: { 'Content-Range': `bytes */${head.size}`, 'Access-Control-Allow-Origin': '*' }
+          });
+        }
+        object = await env.R2_BUCKET.get(key, { range: fixed });
+      }
+
       if (!object) {
         console.error(`[Media] Archivo no encontrado: ${key}`);
-        return new Response('Archivo no encontrado', { 
-          status: 404,
-          headers: {
-            "Access-Control-Allow-Origin": "*",
-            "Content-Type": "text/plain"
-          }
-        });
+        return notFound();
       }
-      
+
       // Determinar si es un video
       const isVideo = object.httpMetadata?.contentType?.startsWith('video/') || key.endsWith('.mp4');
-      
+
       // Headers para streaming optimizado CON CORS
       const headers = new Headers({
         'Content-Type': object.httpMetadata?.contentType || (isVideo ? 'video/mp4' : 'application/octet-stream'),
         'Cache-Control': 'public, max-age=86400',
         'Accept-Ranges': 'bytes',
         'Access-Control-Allow-Origin': '*',
-        'Access-Control-Allow-Methods': 'GET',
+        'Access-Control-Allow-Methods': 'GET, HEAD',
         'Access-Control-Allow-Headers': 'Range',
+        'Access-Control-Expose-Headers': 'Content-Range, Content-Length, Accept-Ranges',
         'Cross-Origin-Resource-Policy': 'cross-origin',
-        'ETag': object.etag,
+        'ETag': object.httpEtag || object.etag,
       });
-      
-      // Soporte optimizado para Range requests (streaming)
-      const range = request.headers.get('Range');
-      if (range && isVideo) {
-        try {
-          const rangeValues = range.match(/bytes=(\d+)-(\d*)/);
-          if (rangeValues) {
-            const start = parseInt(rangeValues[1]);
-            const end = rangeValues[2] ? parseInt(rangeValues[2]) : object.size - 1;
-            
-            if (start >= 0 && end < object.size && start <= end) {
-              const contentLength = end - start + 1;
-              headers.set('Content-Range', `bytes ${start}-${end}/${object.size}`);
-              headers.set('Content-Length', contentLength.toString());
-              
-              return new Response(object.body.slice(start, end + 1), {
-                status: 206,
-                headers
-              });
-            }
-          }
-        } catch (rangeError) {
-          console.error(`[Media] Error procesando Range:`, rangeError);
-        }
+      const body = request.method === 'HEAD' ? null : object.body;
+
+      if (range) {
+        const { start, end } = servedRange(object.range || range, object.size);
+        headers.set('Content-Range', `bytes ${start}-${end}/${object.size}`);
+        headers.set('Content-Length', String(end - start + 1));
+        return new Response(body, { status: 206, headers });
       }
-      
-      // Retornar archivo completo
-      return new Response(object.body, { headers });
+
+      headers.set('Content-Length', String(object.size));
+      return new Response(body, { headers });
     } catch (error) {
       console.error(`[Media] Error al servir medio: ${error.message}`, error);
       return new Response(JSON.stringify({
@@ -640,6 +654,31 @@ function findThumbnailUrl(mediaResults, dishId, origin) {
   return primaryImage ? `${origin}/media/${primaryImage.r2_key}` : null;
 }
 
+/**
+ * Cabecera Range → R2Range. Solo un rango por petición (lo único que piden los navegadores
+ * para vídeo); varios rangos, unidades raras o basura → null, y se sirve el archivo entero.
+ */
+export function parseByteRange(header) {
+  const m = /^bytes=(\d*)-(\d*)$/.exec((header || '').trim());
+  if (!m || (m[1] === '' && m[2] === '')) return null;
+  if (m[1] === '') {
+    const suffix = Number(m[2]);
+    return suffix > 0 ? { suffix } : null; // "bytes=-500": los últimos 500
+  }
+  const offset = Number(m[1]);
+  if (m[2] === '') return { offset }; // "bytes=1000-": hasta el final
+  const end = Number(m[2]);
+  return end >= offset ? { offset, length: end - offset + 1 } : null;
+}
+
+/** Primer y último byte que salen de verdad, con el tamaño ya conocido (Content-Range). */
+export function servedRange(range, size) {
+  if (range.suffix != null) return { start: Math.max(0, size - range.suffix), end: size - 1 };
+  const start = range.offset || 0;
+  const end = range.length != null ? Math.min(size, start + range.length) - 1 : size - 1;
+  return { start, end };
+}
+
 // Función para obtener la extensión del tipo de contenido
 function getExtensionFromContentType(contentType) {
   const map = {
@@ -654,15 +693,13 @@ function getExtensionFromContentType(contentType) {
   return map[contentType] || 'bin';
 }
 
-// Función para simular obtención de dimensiones (en producción, esto requeriría procesamiento real)
-async function getDimensionsFromBuffer(buffer, mediaType) {
-  // Este es un placeholder - en producción usarías una biblioteca para analizar el archivo
-  // Por ejemplo: sharp para imágenes, ffprobe para videos
-  return {
-    width: mediaType === 'video' ? 1280 : 800,
-    height: mediaType === 'video' ? 720 : 600,
-    duration: mediaType === 'video' ? 15000 : null // 15 segundos para videos
+// width/height (px) y duration (ms) del formulario de subida, si son números razonables.
+function readDimensions(formData) {
+  const num = (name, max) => {
+    const v = Number(formData.get(name));
+    return Number.isInteger(v) && v > 0 && v <= max ? v : null;
   };
+  return { width: num('width', 20000), height: num('height', 20000), duration: num('duration', 24 * 3600 * 1000) };
 }
 
 // Función auxiliar para crear respuestas

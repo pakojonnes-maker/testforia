@@ -334,13 +334,23 @@ export async function handleReelsRequests(request, env) {
             if (!rating || rating < 1 || rating > 5) {
                 return createResponse({ success: false, message: "Invalid rating" }, 400);
             }
-            if (!visitor_id) {
-                return createResponse({ success: false, message: "Visitor ID required" }, 400);
+            // Ruta pública (worker.js, PUBLIC_ROUTES): antes no lo era y toda valoración de un
+            // comensal acababa en 401, mientras la carta le decía "¡gracias!". Además exigía
+            // visitor_id, que solo tiene quien activa "recordar este dispositivo". Ahora basta la
+            // sesión de la carta (toda visita tiene una, anónima), y se comprueba que exista y sea
+            // de este restaurante: es lo que impide valorar sin haber abierto la carta.
+            if (!session_id || typeof session_id !== 'string') {
+                return createResponse({ success: false, message: "Session required" }, 400);
             }
             // Get Restaurant ID
             const restaurant = await env.DB.prepare("SELECT id FROM restaurants WHERE slug = ?").bind(slug).first();
             if (!restaurant) {
                 return createResponse({ success: false, message: "Restaurant not found" }, 404);
+            }
+            const session = await env.DB.prepare("SELECT id FROM sessions WHERE id = ? AND restaurant_id = ?")
+                .bind(session_id, restaurant.id).first();
+            if (!session) {
+                return createResponse({ success: false, message: "Unknown session" }, 400);
             }
             // Insert Rating
             const id = crypto.randomUUID();
@@ -356,7 +366,7 @@ export async function handleReelsRequests(request, env) {
             await env.DB.prepare(`
                 INSERT INTO restaurant_ratings (id, restaurant_id, rating, comment, visitor_id, session_id)
                 VALUES (?, ?, ?, ?, ?, ?)
-            `).bind(id, restaurant.id, rating, comment || null, visitor_id, session_id || null).run();
+            `).bind(id, restaurant.id, rating, comment || null, visitor_id || null, session_id || null).run();
             return createResponse({ success: true, message: "Rating saved" });
         } catch (error) {
             console.error("[Reels] ❌ Error saving rating:", error);
@@ -389,24 +399,20 @@ async function getSectionsWithTranslations(env, menuId, langCode) {
     const sectionsQuery = await env.DB.prepare(`
     SELECT 
       s.id, s.order_index, s.icon_url, s.bg_color,
-      GROUP_CONCAT(
-        CASE WHEN t.language_code = ? THEN 
-          t.field || ':' || t.value 
-        END, '|'
-      ) as translations
+      ${TRANSLATIONS_CONCAT} as translations
     FROM sections s
-    LEFT JOIN translations t ON t.entity_id = s.id 
+    LEFT JOIN translations t ON t.entity_id = s.id
       AND t.entity_type = 'section'
-      AND t.language_code = ?
+      AND t.language_code IN (?, 'es', 'en')
     WHERE s.menu_id = ?
       AND s.is_visible = TRUE
     GROUP BY s.id, s.order_index, s.icon_url, s.bg_color
     ORDER BY s.order_index
-  `).bind(langCode, langCode, menuId).all();
+  `).bind(langCode, menuId).all();
     const sections = sectionsQuery.results || [];
     sections.forEach(section => {
-        const translations = parseTranslations(section.translations);
-        section.name = translations.name || `Section ${section.id}`;
+        const translations = parseTranslations(section.translations, langCode);
+        section.name = translations.name || '';
         section.description = translations.description || '';
         delete section.translations;
     });
@@ -420,25 +426,22 @@ async function getDishesWithTranslations(env, sectionIds, langCode) {
       d.is_new, d.is_featured, d.calories, d.preparation_time,
       d.half_price, d.has_half_portion, d.favorite_count,
       sd.section_id, sd.order_index,
-      GROUP_CONCAT(
-        CASE WHEN t.language_code = ? THEN 
-          t.field || ':' || t.value 
-        END, '|'
-      ) as translations
+      ${TRANSLATIONS_CONCAT} as translations
     FROM section_dishes sd
     JOIN dishes d ON sd.dish_id = d.id
-    LEFT JOIN translations t ON t.entity_id = d.id 
+    LEFT JOIN translations t ON t.entity_id = d.id
       AND t.entity_type = 'dish'
-      AND t.language_code = ?
+      AND t.language_code IN (?, 'es', 'en')
     WHERE sd.section_id IN (${sectionIds.map(() => '?').join(',')})
       AND d.status = 'active'
     GROUP BY d.id, sd.section_id, sd.order_index
     ORDER BY sd.section_id, sd.order_index
-  `).bind(langCode, langCode, ...sectionIds).all();
+  `).bind(langCode, ...sectionIds).all();
     const dishes = dishesQuery.results || [];
     dishes.forEach(dish => {
-        const translations = parseTranslations(dish.translations);
-        dish.name = translations.name || `Dish ${dish.id}`;
+        const translations = parseTranslations(dish.translations, langCode);
+        // Sin nombre en ningún idioma: vacío, y la carta pone "Plato sin nombre" en el del cliente.
+        dish.name = translations.name || '';
         dish.description = translations.description || '';
         dish.ingredients = translations.ingredients || '';
         delete dish.translations;
@@ -464,18 +467,16 @@ async function getDishMedia(env, dishIds, origin) {
 async function getDishAllergens(env, dishIds, langCode) {
     const allergensQuery = await env.DB.prepare(`
     SELECT 
-      da.dish_id, a.id as allergen_id, 
-      GROUP_CONCAT(
-        CASE WHEN t.language_code = ? THEN t.value END
-      ) as allergen_name
+      da.dish_id, a.id as allergen_id,
+      ${TRANSLATIONS_CONCAT} as allergen_names
     FROM dish_allergens da
     JOIN allergens a ON da.allergen_id = a.id
-    LEFT JOIN translations t ON t.entity_id = a.id 
-      AND t.entity_type = 'allergen' 
-      AND t.language_code = ?
+    LEFT JOIN translations t ON t.entity_id = a.id
+      AND t.entity_type = 'allergen'
+      AND t.language_code IN (?, 'es', 'en')
     WHERE da.dish_id IN (${dishIds.map(() => '?').join(',')})
     GROUP BY da.dish_id, a.id
-  `).bind(langCode, langCode, ...dishIds).all();
+  `).bind(langCode, ...dishIds).all();
     const origin = 'https://visualtasteworker.franciscotortosaestudios.workers.dev';
     // Mapeo de casos especiales para nombres de archivos
     const filenameOverrides = {
@@ -499,7 +500,8 @@ async function getDishAllergens(env, dishIds, langCode) {
         const iconUrl = `${origin}/media/System/allergens/${filename}`;
         allergensByDish[item.dish_id].push({
             id: item.allergen_id,
-            name: item.allergen_name || item.allergen_id,
+            // El idioma pedido, si no el español o el inglés (antes salía el id: "allergen_celery").
+            name: parseTranslations(item.allergen_names, langCode).name || item.allergen_id,
             icon_url: iconUrl
         });
     });
@@ -598,17 +600,26 @@ async function buildTemplateConfig(env, templateId, configOverrides) {
     Object.assign(templateConfig, nonColorOverrides);
     return templateConfig;
 }
-function parseTranslations(translationsString) {
+// Traducciones de secciones y platos: el idioma pedido y, si falta un campo, el español y luego
+// el inglés. Antes solo se leía el idioma pedido y lo que faltaba salía como "Dish dish_xxx" o
+// "Section sect_xxx" (las secciones de Yucas en árabe, oct-2026). Los separadores son los
+// caracteres de control 30 y 31, que no aparecen en un texto: antes eran ':' y '|', y
+// split(':', 2) cortaba cualquier descripción en su segundo ':' ("Ingredientes: pan: …").
+const TRANSLATIONS_CONCAT = "GROUP_CONCAT(t.language_code || char(30) || t.field || char(30) || t.value, char(31))";
+function parseTranslations(translationsString, langCode) {
+    const rank = (lang) => (lang === langCode ? 0 : lang === 'es' ? 1 : lang === 'en' ? 2 : 3);
+    const best = {};
     const translations = {};
     if (translationsString) {
-        translationsString.split('|').forEach(pair => {
-            if (pair && pair.includes(':')) {
-                const [field, value] = pair.split(':', 2);
-                if (field && value) {
-                    translations[field] = value;
-                }
+        for (const row of translationsString.split('\u001f')) {
+            const [lang, field, ...rest] = row.split('\u001e');
+            const value = rest.join('\u001e');
+            if (!field || !value) continue;
+            if (best[field] === undefined || rank(lang) < best[field]) {
+                best[field] = rank(lang);
+                translations[field] = value;
             }
-        });
+        }
     }
     return translations;
 }

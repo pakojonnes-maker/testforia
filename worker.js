@@ -76,6 +76,9 @@ const PUBLIC_ROUTES = [
     { method: 'GET', pattern: /^\/allergens$/ },
     { method: 'GET', pattern: /^\/media\// },
     { method: 'GET', pattern: /^\/restaurants\/[^/]+\/reels/ },
+    // Valoración del comensal desde la carta (workerReels.js exige una sesión de carta válida).
+    // No estaba en la lista y todas acababan en 401 mientras la carta decía "¡gracias!".
+    { method: 'POST', pattern: /^\/restaurants\/[^/]+\/rating$/ },
     { method: 'GET', pattern: /^\/restaurants\/[^/]+\/landing$/ },
     { method: 'GET', pattern: /^\/restaurants\/[^/]+\/sections$/ },
     { method: 'GET', pattern: /^\/restaurants\/[^/]+\/menus$/ },

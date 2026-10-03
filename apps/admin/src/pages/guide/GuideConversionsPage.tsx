@@ -24,6 +24,8 @@ interface ConversionRow {
   clicks: number;
   landed: number;
   converted: number;
+  /** Parte de `converted` deducida (mismo móvil el mismo día, o visitante reconocido que vuelve), no un clic declarado. */
+  converted_inferred?: number;
 }
 
 const RANGE_OPTIONS = [
@@ -74,7 +76,7 @@ export default function GuideConversionsPage() {
           <Box>
             <Typography variant="h4" fontWeight={700}>Conversión Guía → Restaurante</Typography>
             <Typography variant="body2" color="text.secondary">
-              Clic en la guía → aterrizó en el menú → confirmado con el QR físico de mesa. Solo superadmin.
+              Clic en la guía → aterrizó en el menú → confirmado con el QR físico de mesa. «Deducidas»: el mismo móvil abrió la guía ese día, o un cliente reconocido que ya vino desde la guía. Solo superadmin.
             </Typography>
           </Box>
         </Box>
@@ -117,6 +119,11 @@ export default function GuideConversionsPage() {
                     <TableCell align="right">{r.landed}</TableCell>
                     <TableCell align="right">
                       <Chip size="small" color={r.converted > 0 ? 'success' : 'default'} label={r.converted} />
+                      {!!r.converted_inferred && (
+                        <Typography variant="caption" color="text.secondary" sx={{ display: 'block' }}>
+                          {r.converted_inferred} deducidas
+                        </Typography>
+                      )}
                     </TableCell>
                     <TableCell align="right">{rate}%</TableCell>
                   </TableRow>
