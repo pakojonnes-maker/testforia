@@ -2,17 +2,15 @@
 -- BDschemaFinal.sql — ESQUEMA REAL DE PRODUCCION
 -- =====================================================
 -- Base de datos D1: restaurant-menu-saas (7e8d1efe-2a54-4849-9a06-4c47152392bd)
--- Exportado el 2026-09-30 desde la BD en produccion, tras aplicar la
--- migracion 0096 (presupuesto diario de Workers AI):
---   · ai_usage_daily (day, scope, neurons, calls): gasto en neuronas REALES
---     por dia UTC y ambito ('chat', 'translate', 'chat:apt:<id>'). El chat del
---     guidebook y el traductor comparten el cupo gratis de la cuenta y cortan
---     antes de llegar a el (workerAiBudget.js). Va en D1 y no en KV porque en
---     el plan Workers Free KV admite solo 1.000 escrituras/dia para toda la cuenta.
--- Antes, 0095 (restaurantes traidos de Google): guide_pois gana google_types,
--- google_primary_type, business_status, price_level y google_raw (JSON de
--- Place Details SIN fotos ni resenas; purgarlo es UPDATE ... SET google_raw = NULL).
--- 87 tablas (una mas: ai_usage_daily).
+-- Exportado el 2026-10-03 desde la BD en produccion, tras aplicar la
+-- migracion 0101 (medicion anonima de la carta):
+--   · sessions.visitor_day_hash: el mismo hash diario calculado en el servidor
+--     que guide_sessions (workerVisitorHash.js). Toda sesion de carta lo lleva;
+--     visitor_id (12 meses) solo con el "Si" a "¿Te reconocemos la proxima vez?".
+-- 0102 (textos carta_* en 13 idiomas) y 0103 (medios de las cartas optimizados)
+-- solo tocan datos. Antes, 0096: ai_usage_daily (presupuesto diario de Workers AI,
+-- en D1 y no en KV: en Workers Free KV admite 1.000 escrituras/dia por cuenta).
+-- 87 tablas.
 --
 -- NO editar a mano. Para regenerar:
 --   npx wrangler d1 export restaurant-menu-saas --remote --no-data --output BDschemaFinal.sql
@@ -304,7 +302,7 @@ CREATE TABLE sessions (
   network_type TEXT,
   pwa_installed INTEGER DEFAULT 0,         -- 0/1
   qr_code_id TEXT,
-  consent_analytics INTEGER DEFAULT 1, visitor_id TEXT, visit_count INTEGER DEFAULT 1, referral_source TEXT, referral_apartment_id TEXT, referral_session_id TEXT, is_internal INTEGER DEFAULT 0,     -- 0/1
+  consent_analytics INTEGER DEFAULT 1, visitor_id TEXT, visit_count INTEGER DEFAULT 1, referral_source TEXT, referral_apartment_id TEXT, referral_session_id TEXT, is_internal INTEGER DEFAULT 0, visitor_day_hash TEXT,     -- 0/1
   FOREIGN KEY (user_id) REFERENCES users(id),
   FOREIGN KEY (restaurant_id) REFERENCES restaurants(id),
   FOREIGN KEY (qr_code_id) REFERENCES qr_codes(id)
@@ -941,7 +939,7 @@ CREATE TABLE guide_poi_media (
   duration INTEGER,
   file_size INTEGER,
   order_index INTEGER DEFAULT 0,
-  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, source_url TEXT, author TEXT, license TEXT, license_url TEXT,
   FOREIGN KEY (poi_id) REFERENCES guide_pois(id) ON DELETE CASCADE
 );
 CREATE TABLE guide_zone_restaurants (
@@ -1264,7 +1262,6 @@ CREATE TABLE ai_usage_daily (
 );
 CREATE INDEX idx_dishes_restaurant ON dishes(restaurant_id);
 CREATE INDEX idx_sections_restaurant ON sections(restaurant_id);
-CREATE INDEX idx_translations_entity ON translations(entity_id, entity_type);
 CREATE INDEX idx_translations_language ON translations(language_code);
 CREATE INDEX idx_translations_lookup ON translations(entity_type, language_code);
 CREATE INDEX idx_user_favorites_user ON user_favorites(user_id);
@@ -1312,7 +1309,6 @@ CREATE INDEX idx_delivery_orders_status ON delivery_orders(status);
 CREATE INDEX idx_delivery_orders_created ON delivery_orders(created_at DESC);
 CREATE INDEX idx_guide_apartments_zone ON guide_apartments(zone_id, is_active);
 CREATE INDEX idx_guide_apartments_agency ON guide_apartments(agency_id);
-CREATE INDEX idx_guide_apartments_slug ON guide_apartments(slug);
 CREATE INDEX idx_guide_zone_rest_zone ON guide_zone_restaurants(zone_id, is_active);
 CREATE INDEX idx_guide_zone_rest_tier ON guide_zone_restaurants(zone_id, tier, is_active);
 CREATE INDEX idx_guide_intents_apartment ON guide_affiliate_intents(apartment_id, created_at);
@@ -1322,7 +1318,6 @@ CREATE INDEX idx_guide_ledger_agency ON guide_commission_ledger(agency_id, statu
 CREATE INDEX idx_guide_sessions_apartment ON guide_sessions(apartment_id, started_at);
 CREATE INDEX idx_guide_sessions_zone ON guide_sessions(zone_id, started_at);
 CREATE INDEX idx_guide_agency_staff_user ON guide_agency_staff(user_id);
-CREATE INDEX idx_guide_sessions_fingerprint ON guide_sessions(device_fingerprint, apartment_id);
 CREATE INDEX idx_guide_section_views_apt ON guide_section_views(apartment_id, section, created_at);
 CREATE INDEX idx_guide_section_views_session ON guide_section_views(session_id);
 CREATE INDEX idx_guide_info_steps ON guide_info_steps(apartment_info_id, step_number);
@@ -1330,7 +1325,6 @@ CREATE INDEX idx_guide_step_media ON guide_info_step_media(step_id, order_index)
 CREATE INDEX idx_guide_pois_zone_active ON guide_pois(zone_id, is_active, order_index);
 CREATE INDEX idx_guide_welcome_modals_apartment ON guide_welcome_modals(apartment_id, is_active);
 CREATE INDEX idx_guide_tv_devices_apartment ON guide_tv_devices(apartment_id);
-CREATE INDEX idx_guide_tv_devices_pairing_code ON guide_tv_devices(pairing_code);
 CREATE INDEX idx_guide_tv_events_apartment ON guide_tv_events(apartment_id, created_at);
 CREATE INDEX idx_guide_tv_events_type ON guide_tv_events(event_type);
 CREATE UNIQUE INDEX idx_loyalty_cards_open
@@ -1375,3 +1369,9 @@ CREATE INDEX idx_guide_store_items_promoted
   ON guide_store_items(is_active, promotion_rank);
 CREATE INDEX idx_guide_apt_items_lookup
     ON guide_apartment_items(apartment_id, item_type, is_hidden);
+CREATE INDEX idx_guide_poi_media_poi ON guide_poi_media(poi_id, order_index);
+CREATE INDEX idx_guide_apartment_media_info ON guide_apartment_media(apartment_info_id, order_index);
+CREATE INDEX idx_guide_sessions_started ON guide_sessions(started_at);
+CREATE INDEX idx_guide_section_views_created ON guide_section_views(created_at);
+CREATE INDEX idx_guide_tv_events_created ON guide_tv_events(created_at);
+CREATE INDEX idx_guide_intents_created ON guide_affiliate_intents(created_at);
