@@ -2,6 +2,24 @@ import { createInvitation } from './workerAuthentication.js';
 import { requireRole } from './workerAuthz.js';
 import { sendEmail, invitationEmailHtml } from './workerEmail.js';
 import { logSecurityEvent } from './workerAudit.js';
+import { touchMenuVersion } from './workerGuideCache.js';
+
+/**
+ * La respuesta de GET /restaurants/:slug/reels va cacheada en KV con la versión
+ * ver:restaurant:{slug}; sin subirla, un cambio guardado (colores, tema, nombre, web…)
+ * no se ve en la carta hasta que caduca la entrada (24 h). Nunca hace fallar el guardado:
+ * KV del plan Free admite 1.000 escrituras al día para toda la cuenta.
+ */
+async function touchMenuOf(env, { id, themeId }) {
+    try {
+        const rows = themeId
+            ? (await env.DB.prepare(`SELECT slug FROM restaurants WHERE theme_id = ?`).bind(themeId).all()).results || []
+            : [await env.DB.prepare(`SELECT slug FROM restaurants WHERE id = ? OR slug = ?`).bind(id, id).first()];
+        for (const r of rows) if (r?.slug) await touchMenuVersion(env, r.slug);
+    } catch (err) {
+        console.warn('[Restaurant] No se pudo refrescar la caché de la carta:', err.message);
+    }
+}
 
 /**
  * URL del enlace de invitación/reset que verá el destinatario. Apunta al
@@ -290,6 +308,7 @@ async function updateRestaurantStyling(env, restaurantId, request) {
         VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
       `).bind(`reel_config_${restaurantId}`, restaurantId, 'tpl_classic', configJson).run();
         }
+        await touchMenuOf(env, { id: restaurantId });
         return createResponse({ success: true, message: 'Colores de reels actualizados' });
     } catch (error) {
         console.error('[Styling PUT] Error:', error);
@@ -320,6 +339,8 @@ async function updateRestaurantTheme(env, restaurantId, request) {
             body.override_fonts?.font_accent || 'serif',
             restaurant.theme_id
         ).run();
+        // Un tema puede estar compartido: se refresca la carta de todos los que lo usan
+        await touchMenuOf(env, { themeId: restaurant.theme_id });
         return createResponse({ success: true, message: "Theme updated successfully" });
     } catch (error) {
         console.error("[Theme PUT] Error:", error);
@@ -774,6 +795,7 @@ async function updateRestaurant(env, restaurantId, request) {
                 body.tripadvisor_url || null
             ).run();
         }
+        await touchMenuOf(env, { id: restaurant.id });
         return createResponse({ success: true, message: "Restaurant updated successfully" });
     } catch (error) {
         console.error("[Restaurant PUT] Error:", error);
