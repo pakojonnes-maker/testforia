@@ -10,6 +10,8 @@
 //   POST /guide/admin/tv/devices                 — protegido: empareja una TV nueva a un
 //                                                   apartamento (genera pairing_code).
 //   GET  /guide/admin/tv/devices?apartment_id=X  — protegido: lista TVs emparejadas.
+//   GET  /guide/admin/tv/fleet                   — protegido: TODAS las TVs visibles para el
+//                                                   usuario con su última señal (resumen global).
 //   GET  /guide/admin/tv/stats/:apartment_id     — protegido: KPIs agregados para el host.
 //   PATCH /guide/admin/tv/devices/:id            — protegido: activa/desactiva una TV
 //                                                   (soft, conserva el pairing_code).
@@ -82,6 +84,9 @@ export async function handleTvScreenRequests(request, env) {
             }
             if (url.pathname === '/guide/admin/tv/devices' && request.method === 'GET') {
                 return await handleListDevices(request, env, auth);
+            }
+            if (url.pathname === '/guide/admin/tv/fleet' && request.method === 'GET') {
+                return await handleFleet(env, auth);
             }
             const statsMatch = url.pathname.match(/^\/guide\/admin\/tv\/stats\/([^/]+)$/);
             if (statsMatch && request.method === 'GET') {
@@ -357,6 +362,36 @@ async function handleListDevices(request, env, auth) {
     `).bind(apartmentId).all();
 
     return jsonResponse({ success: true, devices: devices.results || [] });
+}
+
+/**
+ * GET /guide/admin/tv/fleet — el parque entero de un vistazo: ¿qué teles siguen
+ * vivas? Superadmin ve todas; el personal de agencia, las de sus agencias.
+ *
+ * No hace falta un latido nuevo: una TV encendida repide su config cada 30 min
+ * (apps/tv/src/lib/useGuidebook.ts) y handleTvConfig escribe last_seen_at en cada
+ * una. Qué cuenta como «conectada» o «sin señal» lo decide el admin, no esto.
+ */
+async function handleFleet(env, auth) {
+    if (!auth.isSuperAdmin && auth.agencyIds.length === 0) {
+        return jsonResponse({ success: true, devices: [] });
+    }
+    const scope = auth.isSuperAdmin
+        ? ''
+        : `WHERE a.agency_id IN (${auth.agencyIds.map(() => '?').join(', ')})`;
+
+    const rows = await env.DB.prepare(`
+        SELECT d.id, d.pairing_code, d.device_label, d.is_active, d.paired_at, d.last_seen_at,
+               a.id AS apartment_id, a.name AS apartment_name,
+               g.id AS agency_id, g.name AS agency_name
+        FROM guide_tv_devices d
+        JOIN guide_apartments a ON a.id = d.apartment_id
+        LEFT JOIN guide_agencies g ON g.id = a.agency_id
+        ${scope}
+        ORDER BY d.last_seen_at IS NOT NULL, d.last_seen_at ASC
+    `).bind(...(auth.isSuperAdmin ? [] : auth.agencyIds)).all();
+
+    return jsonResponse({ success: true, devices: rows.results || [] });
 }
 
 async function handleUpdateDeviceStatus(request, env, deviceId, auth) {

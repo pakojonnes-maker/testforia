@@ -33,6 +33,8 @@ import {
 } from '@mui/icons-material';
 import QRCodeGenerator, { type QRCodeHandle } from '../../components/QRCodeGenerator';
 import { TvTileImages } from './TvTileImages';
+import { TvFleetStatus } from './TvFleetStatus';
+import { formatLastSeen, tvHealth, TV_HEALTH } from './tvHealth';
 
 ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, ChartTitle, ChartTooltip, Legend, Filler);
 
@@ -114,6 +116,8 @@ export default function GuideTvPage() {
   const [deviceLabelInput, setDeviceLabelInput] = useState('');
   const [newDevice, setNewDevice] = useState<{ pairingCode: string; deviceLabel: string | null } | null>(null);
   const tvQrRef = useRef<QRCodeHandle>(null);
+  // Sube al emparejar o (des)activar una TV: el resumen global se recarga.
+  const [fleetVersion, setFleetVersion] = useState(0);
 
   // Carga la lista de apartamentos de la agencia para el selector.
   useEffect(() => {
@@ -194,6 +198,7 @@ export default function GuideTvPage() {
       });
       setNewDevice({ pairingCode: res.device.pairingCode, deviceLabel: res.device.deviceLabel });
       setDeviceLabelInput('');
+      setFleetVersion(v => v + 1);
       await Promise.all([loadTvDevices(aptId), loadTvStats(aptId, tvRange)]);
     } catch (err: any) {
       setTvError(err.message || 'Error al emparejar la TV');
@@ -214,26 +219,11 @@ export default function GuideTvPage() {
         method: 'PATCH',
         body: JSON.stringify({ isActive: nextActive }),
       });
+      setFleetVersion(v => v + 1);
     } catch (err: any) {
       setTvError(err.message || 'Error al actualizar la TV');
       setTvDevices(prev => prev.map(d => d.id === deviceId ? { ...d, is_active: !nextActive } : d)); // revert
     }
-  };
-
-  const isRecentlySeen = (lastSeenAt: string | null) => {
-    if (!lastSeenAt) return false;
-    return Date.now() - new Date(lastSeenAt).getTime() < 15 * 60 * 1000; // 15 min
-  };
-
-  const formatRelativeTime = (iso: string | null) => {
-    if (!iso) return 'Nunca conectada';
-    const diffMs = Date.now() - new Date(iso).getTime();
-    const mins = Math.floor(diffMs / 60000);
-    if (mins < 1) return 'Ahora mismo';
-    if (mins < 60) return `Hace ${mins} min`;
-    const hours = Math.floor(mins / 60);
-    if (hours < 24) return `Hace ${hours} h`;
-    return `Hace ${Math.floor(hours / 24)} d`;
   };
 
   // Exporta la serie diaria a CSV (extracción de datos para el anfitrión/agencia).
@@ -443,6 +433,12 @@ export default function GuideTvPage() {
         )}
       </Box>
 
+      <TvFleetStatus
+        refreshKey={fleetVersion}
+        apartmentIds={apartments.map(a => a.id)}
+        onSelectApartment={setAptId}
+      />
+
       {!aptId ? null : (
         <>
           {selectedApartment && (
@@ -532,13 +528,15 @@ export default function GuideTvPage() {
                 {tvDevices.map(d => (
                   <Card key={d.id} elevation={0} sx={{ border: '1px solid', borderColor: 'divider', borderRadius: 3, opacity: d.is_active ? 1 : 0.55 }}>
                     <CardContent sx={{ display: 'flex', alignItems: 'center', gap: 2, p: '12px 16px !important' }}>
-                      <DotIcon sx={{ fontSize: 14, color: isRecentlySeen(d.last_seen_at) ? 'success.main' : 'text.disabled' }} />
+                      <Tooltip title={TV_HEALTH[tvHealth(d)].hint}>
+                        <DotIcon sx={{ fontSize: 14, color: TV_HEALTH[tvHealth(d)].color }} />
+                      </Tooltip>
                       <Box sx={{ flexGrow: 1, minWidth: 0 }}>
                         <Typography variant="subtitle2" fontWeight={600}>
                           {d.device_label || 'TV sin nombre'}
                         </Typography>
                         <Typography variant="caption" color="text.secondary">
-                          Última conexión: {formatRelativeTime(d.last_seen_at)}
+                          {TV_HEALTH[tvHealth(d)].label} · última señal: {formatLastSeen(d.last_seen_at).toLowerCase()}
                         </Typography>
                       </Box>
                       <Chip label={d.pairing_code} size="small" sx={{ fontFamily: 'monospace', fontWeight: 700 }} />
