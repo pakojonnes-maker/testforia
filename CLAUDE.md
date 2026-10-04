@@ -353,6 +353,11 @@ identifica la sesión en curso (`/track/session/identify`). Nunca un id persiste
   `screens/HomeScreen.tsx` no cambia nada de lo que se ve**. Comparten `lib/` (datos, mando, i18n,
   tracking). `?reposo=<s>` cambia los 90 s del salvapantallas (0 lo apaga). Las clases genéricas de
   `index.css` (`.rail`) se cuelan en `.mir`: al añadir una clase a `mir.css`, búscala allí antes.
+- **Mirador: el lienzo 1920×1080 es la zona segura y no recorta.** Lo que es fondo y tiene que llegar al
+  borde de una pantalla que no es 16:9 se estira con `--bleed-x/--bleed-y` (bloque SANGRADO de `mir.css`):
+  con `inset: 0` vuelve el marco liso. Un `<img>` así necesita `max-width: none` (preflight de Tailwind).
+  La letra escala en proporción a la pantalla, sin ajuste por pulgadas (decidido en oct-2026), y no
+  baja de 26 px del lienzo (salvo una clave de WiFi muy larga en la placa del inicio, que se encoge para no cortarse).
 - Build: `tsc -b && vite build`.
 
 ### `apps/tv-landing` — Landing de VisualTaste TV

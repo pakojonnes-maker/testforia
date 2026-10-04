@@ -90,11 +90,12 @@ export function Ficha({ data, entry, lang, rtl, onBack }: FichaProps) {
   useEffect(() => { if (order === 'ready') setFocused('back') }, [order, setFocused])
 
   // ---- datos ----
+  // Ni web ni horarios (oct-2026): una URL en la tele no se puede abrir (lo que
+  // se hace desde el sofá ya lo lleva el QR) y el horario que llega es texto
+  // libre, largo y a menudo desfasado. La clásica (`?diseno=clasico`) aún los enseña.
   const contact: Array<[string, string]> = []
   if (entry.address) contact.push([getTvString('address', lang), entry.address])
   if (entry.phone) contact.push([getTvString('phone', lang), entry.phone])
-  if (entry.website) contact.push([getTvString('website', lang), entry.website])
-  if (entry.openingHours) contact.push([getTvString('opening_hours', lang), entry.openingHours])
 
   const distance = [entry.distanceText, entry.travelTimeText].filter(Boolean).join(' · ')
   const qr = entry.qr ?? (order === 'ready' && orderQr

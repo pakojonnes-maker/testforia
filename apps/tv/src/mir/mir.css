@@ -59,7 +59,16 @@
   -webkit-font-smoothing: antialiased;
   text-rendering: optimizeLegibility;
 }
-.mir-canvas { position: absolute; left: 0; top: 0; width: 1920px; height: 1080px; overflow: hidden; transform-origin: top left; }
+/* El lienzo NO recorta: lo hace `.mir`, en el borde real de la pantalla. Así lo que
+   sangra (ver SANGRADO) puede salir del 16:9 y tapar las franjas sobrantes. */
+.mir-canvas { position: absolute; left: 0; top: 0; width: 1920px; height: 1080px; overflow: visible; transform-origin: top left; }
+
+/* ====== SANGRADO ======
+   --bx / --by (MirApp, Stage): cuánto sobra a cada lado de la pantalla cuando no es
+   16:9, en px del lienzo. Solo se estira el FONDO; el contenido se queda en la zona
+   segura de 1920×1080. En una tele 16:9 valen 0. Se declaran en el lienzo, que es
+   donde Stage pone --bx/--by: en `.mir` el var() se resolvería a 0. */
+.mir-canvas { --bleed-y: calc(-1 * var(--by, 0px)); --bleed-x: calc(-1 * var(--bx, 0px)); }
 .mir *, .mir *::before, .mir *::after { box-sizing: border-box; scrollbar-width: none; }
 .mir ::-webkit-scrollbar { display: none; }
 .mir :is(h1, h2, h3, p, ul, ol, li, figure, dl, dd) { margin: 0; padding: 0; }
@@ -85,18 +94,18 @@
 }
 
 /* ====== MURO Y SOL ====== */
-.mir .wall { position: absolute; inset: 0; background-color: var(--wall-tint); background-size: auto 132%; background-position: 36% 100%; background-repeat: no-repeat; background-blend-mode: multiply; }
+.mir .wall { position: absolute; inset: var(--bleed-y) var(--bleed-x); background-color: var(--wall-tint); background-size: auto 132%; background-position: 36% 100%; background-repeat: no-repeat; background-blend-mode: multiply; }
 /* Foto de fondo subida por el anfitrión (Pantalla TV → fondo): es una foto, no una
    textura de papel, y el texto va directamente encima. El velo, del color del muro de
    cada luz del día, la deja de fondo sin que se pierda una sola letra. */
 .mir .wall.custom::before { content: ""; position: absolute; inset: 0; background: var(--bg); opacity: .9; }
-.mir .wall::after { content: ""; position: absolute; inset: 0; background: radial-gradient(circle at var(--gx, 1750px) var(--gy, 140px), var(--glow, rgba(255, 214, 140, .42)), rgba(255, 214, 140, 0) 560px); }
+.mir .wall::after { content: ""; position: absolute; inset: 0; background: radial-gradient(circle at calc(var(--gx, 1750px) + var(--bx, 0px)) calc(var(--gy, 140px) + var(--by, 0px)), var(--glow, rgba(255, 214, 140, .42)), rgba(255, 214, 140, 0) 560px); }
 .mir .sun { position: absolute; border-radius: 50%; background: var(--sun); }
 .mir .sun::after { content: ""; position: absolute; inset: -26px; border-radius: 50%; border: 4px solid var(--sun); opacity: .45; }
 
 /* ====== ARCO (portada del inicio) ====== */
-.mir .arch { position: absolute; inset-inline-start: 936px; top: 40px; width: 912px; height: 1040px; border-radius: 456px 456px 0 0; overflow: hidden; background: var(--arena); box-shadow: 0 50px 90px -40px rgba(6, 26, 38, .6); }
-.mir .arch-ring { position: absolute; inset-inline-start: 936px; top: 40px; width: 912px; height: 1040px; border-radius: 456px 456px 0 0; outline: 4px solid var(--sun); outline-offset: 18px; pointer-events: none; }
+.mir .arch { position: absolute; inset-inline-start: 936px; top: 40px; width: 912px; bottom: var(--bleed-y); border-radius: 456px 456px 0 0; overflow: hidden; background: var(--arena); box-shadow: 0 50px 90px -40px rgba(6, 26, 38, .6); }
+.mir .arch-ring { position: absolute; inset-inline-start: 936px; top: 40px; width: 912px; bottom: var(--bleed-y); border-radius: 456px 456px 0 0; outline: 4px solid var(--sun); outline-offset: 18px; pointer-events: none; }
 /* El fundido es una TRANSICIÓN entre clases, no una animación de entrada: si el
    reloj de animaciones se para (WebView en segundo plano) la foto anterior se
    queda, que es un fallo inocuo. Ver CLAUDE.md §4 (apps/tv). */
@@ -123,7 +132,7 @@
 .mir .bname { font: 700 34px/1.1 var(--ff-d); color: var(--ink); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 420px; }
 .mir .clk { display: flex; flex-direction: column; align-items: flex-end; line-height: 1; flex: none; }
 .mir .clk .t { font: 700 64px/1 var(--ff-d); font-variant-numeric: lining-nums tabular-nums; color: var(--acc-t); }
-.mir .clk .d { font: 600 24px/1.2 var(--ff-b); color: var(--ink-2); margin-top: 6px; }
+.mir .clk .d { font: 600 26px/1.2 var(--ff-b); color: var(--ink-2); margin-top: 6px; }
 .mir .hero { margin-top: 34px; }
 .mir .hero .hi { font: italic 500 112px/1 var(--ff-d); letter-spacing: -.02em; color: var(--ink); }
 .mir .hero .nm { font: 700 54px/1.1 var(--ff-d); color: var(--acc-t); margin-top: 14px; }
@@ -159,7 +168,7 @@
 /* minmax(0, 1fr): sin él la columna de la rejilla crece hasta el ancho del texto y un
    valor largo se sale de la placa en vez de cortarse. */
 .mir .cred { margin-top: 14px; display: grid; grid-template-columns: minmax(0, 1fr); gap: 8px; }
-.mir .cred .l { font: 700 24px/1.1 var(--ff-b); letter-spacing: .14em; text-transform: uppercase; color: var(--ink-3); }
+.mir .cred .l { font: 700 26px/1.1 var(--ff-b); letter-spacing: .14em; text-transform: uppercase; color: var(--ink-3); }
 .mir .cred .v { font: 600 40px/1.12 var(--ff-m); color: var(--ink); word-break: break-all; }
 /* La placa del inicio mide 256 px y no crece: una credencial larga en varias líneas
    se salía por arriba y pisaba el índice. Una línea, más pequeña y, si aún no cabe,
@@ -174,7 +183,7 @@
 /* ====== REPISA (datos sobre el arco) ====== */
 .mir .sill { position: absolute; inset-inline-start: 976px; bottom: 56px; width: 832px; display: flex; gap: 20px; }
 .mir .chip { flex: 1; border-radius: 26px; padding: 16px 28px 18px; background: var(--paper); box-shadow: 0 22px 36px -22px rgba(6, 26, 38, .7); display: flex; flex-direction: column; gap: 4px; min-width: 0; }
-.mir .chip .l { font: 700 24px/1.15 var(--ff-b); letter-spacing: .12em; text-transform: uppercase; color: var(--ink-3); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.mir .chip .l { font: 700 26px/1.15 var(--ff-b); letter-spacing: .12em; text-transform: uppercase; color: var(--ink-3); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .mir .chip .v { font: 700 60px/1.05 var(--ff-d); font-variant-numeric: lining-nums tabular-nums; color: var(--ink); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .mir .chip .v.m { font-size: 46px; }
 .mir .chip .v.s { font-size: 34px; }
@@ -190,7 +199,7 @@
 .mir .btn[data-focused="true"] { box-shadow: 0 0 0 4px var(--acc), 0 0 0 12px var(--acc-halo), 0 0 22px var(--acc-glow), 0 10px 24px -12px rgba(0, 0, 0, .5); transform: scale(1.035); transition: transform .17s cubic-bezier(.2, .8, .2, 1); }
 .mir .h1 { font: 700 88px/1.02 var(--ff-d); letter-spacing: -.02em; color: var(--ink); }
 .mir .h2 { font: 700 72px/1.05 var(--ff-d); letter-spacing: -.015em; color: var(--ink); }
-.mir .lbl { font: 700 24px/1.2 var(--ff-b); letter-spacing: .16em; text-transform: uppercase; color: var(--acc-t); }
+.mir .lbl { font: 700 26px/1.2 var(--ff-b); letter-spacing: .16em; text-transform: uppercase; color: var(--acc-t); }
 .mir .lbl.g { color: var(--ink-3); }
 .mir .body { font: 500 30px/1.5 var(--ff-b); color: var(--ink-2); }
 .mir .abs { position: absolute; }
@@ -202,7 +211,7 @@
 .mir .wf-none { margin-top: 56px; padding: 56px 64px; max-width: 1240px; }
 .mir .wf-none p { font: 600 48px/1.3 var(--ff-b); color: var(--ink); }
 .mir .crv { font: 600 76px/1.12 var(--ff-m); color: var(--ink); word-break: break-all; margin-top: 8px; }
-.mir .wq { position: absolute; inset-inline-start: 1148px; top: 150px; width: 700px; height: 930px; border-radius: 350px 350px 0 0; background: var(--acc); padding: 16px 16px 0; box-shadow: 0 50px 90px -40px rgba(6, 26, 38, .6); }
+.mir .wq { position: absolute; inset-inline-start: 1148px; top: 150px; width: 700px; bottom: var(--bleed-y); border-radius: 350px 350px 0 0; background: var(--acc); padding: 16px 16px 0; box-shadow: 0 50px 90px -40px rgba(6, 26, 38, .6); }
 .mir .wq .in { height: 100%; border-radius: 334px 334px 0 0; background: var(--paper); display: flex; flex-direction: column; align-items: center; padding-top: 170px; }
 .mir .cta { display: inline-flex; align-items: center; height: 76px; padding: 0 44px; border-radius: 999px; background: var(--acc); color: var(--acc-ink); font: 700 30px/1 var(--ff-b); margin-top: 44px; }
 
@@ -210,7 +219,7 @@
 .mir .qrp { width: 372px; background: var(--acc); border-radius: 32px; padding: 8px; box-shadow: 0 28px 40px -28px rgba(6, 26, 38, .6); flex: none; }
 .mir .qrp .in { background: var(--paper); border-radius: 25px; padding: 22px 20px 24px; display: flex; flex-direction: column; align-items: center; gap: 18px; text-align: center; }
 .mir .qrp .cp { font: 600 26px/1.3 var(--ff-b); color: var(--ink); }
-.mir .qrp .ad { font: 500 24px/1.3 var(--ff-b); color: var(--ink-3); }
+.mir .qrp .ad { font: 500 26px/1.3 var(--ff-b); color: var(--ink-3); }
 
 /* ====== HOJA, PASTILLAS Y LISTAS DE DATOS ====== */
 .mir .sheet { background: var(--paper); border-radius: 40px; box-shadow: 0 40px 80px -34px rgba(12, 42, 55, .5), 0 4px 14px rgba(12, 42, 55, .08); }
@@ -218,8 +227,8 @@
 .mir .pill { display: inline-flex; align-items: center; height: 52px; padding: 0 24px; border-radius: 999px; background: var(--paper); color: var(--ink-2); font: 600 26px/1 var(--ff-b); box-shadow: inset 0 0 0 2px var(--line); }
 .mir .pill.a { background: var(--acc2); color: var(--acc2-ink); box-shadow: none; }
 .mir .dl { display: grid; grid-template-columns: auto 1fr; gap: 12px 28px; align-items: baseline; }
-.mir .dl dt { font: 700 24px/1.3 var(--ff-b); letter-spacing: .12em; text-transform: uppercase; color: var(--ink-3); }
-.mir .dl dd { font: 600 28px/1.35 var(--ff-b); color: var(--ink); word-break: break-word; }
+.mir .dl dt { font: 700 26px/1.3 var(--ff-b); letter-spacing: .12em; text-transform: uppercase; color: var(--ink-3); }
+.mir .dl dd { font: 600 30px/1.35 var(--ff-b); color: var(--ink); word-break: break-word; }
 
 /* ====== COLECCIONES: tarjetas en arco ====== */
 /* Dos contenedores con scroll anidados (columna y carril) recortan CADA UNO por sus
@@ -228,8 +237,10 @@
    está DENTRO de cada caja y las tarjetas siguen alineadas con su rótulo. */
 /* El relleno inferior deja que la ÚLTIMA fila también suba hasta el título (sin él el
    scroll se para en el final del contenido y asoman los pies de la fila anterior). */
-.mir .cbody { position: absolute; inset-inline: 0; padding-inline: 72px; padding-bottom: 200px; top: 250px; bottom: 0; overflow-y: auto; }
-.mir .rw { overflow-x: auto; padding: 72px 72px 60px; margin: -39px -72px -8px; }
+/* Con sangrado, la caja llega al borde real y el relleno devuelve las tarjetas a la
+   zona segura: el carrusel corre hasta el canto de la pantalla, no hasta el del 16:9. */
+.mir .cbody { position: absolute; inset-inline: var(--bleed-x); padding-inline: calc(72px + var(--bx, 0px)); padding-bottom: calc(200px + var(--by, 0px)); top: 250px; bottom: var(--bleed-y); overflow-y: auto; }
+.mir .rw { overflow-x: auto; padding: 72px calc(72px + var(--bx, 0px)) 60px; margin: -39px calc(-72px - var(--bx, 0px)) -8px; }
 /* La fila siguiente empieza en y=968 (rótulo) en el diseño: asoma justo lo necesario por abajo. */
 .mir .sect + .sect { margin-top: 43px; }
 /* `.rail` también existe en index.css (la app clásica) con overflow-x: auto. Sin este
@@ -243,7 +254,7 @@
 .mir .card .nm { font: 700 38px/1.1 var(--ff-d); margin-top: 22px; color: var(--ink); display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
 .mir .card .sb { font: 600 26px/1.3 var(--ff-b); color: var(--ink-2); margin-top: 8px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .mir .card.off .a::after { content: ""; position: absolute; inset: 0; background: rgba(248, 243, 233, .55); }
-.mir .tag { position: absolute; inset-inline-start: 50%; transform: translateX(-50%); bottom: 24px; padding: 10px 22px; border-radius: 999px; background: var(--acc2); color: var(--acc2-ink); font: 700 24px/1 var(--ff-b); letter-spacing: .1em; text-transform: uppercase; white-space: nowrap; z-index: 2; }
+.mir .tag { position: absolute; inset-inline-start: 50%; transform: translateX(-50%); bottom: 24px; padding: 10px 22px; border-radius: 999px; background: var(--acc2); color: var(--acc2-ink); font: 700 26px/1 var(--ff-b); letter-spacing: .1em; text-transform: uppercase; white-space: nowrap; max-width: calc(100% - 32px); overflow: hidden; text-overflow: ellipsis; z-index: 2; }
 .mir[dir=rtl] .tag { transform: translateX(50%); }
 .mir .empty { position: absolute; inset-inline: 72px; top: 330px; padding: 80px 72px; text-align: center; }
 .mir .empty p { font: 600 46px/1.35 var(--ff-b); color: var(--ink-2); max-width: 26ch; margin: 0 auto; }
@@ -251,7 +262,7 @@
 /* ====== GUÍAS RÁPIDAS (la casa) ====== */
 /* El relleno izquierdo y superior es sitio para el halo de foco de la píldora, que
    overflow:hidden recortaría (mismo problema que los carriles de colecciones). */
-.mir .gl { position: absolute; inset-inline-start: 32px; top: 292px; width: 700px; padding-inline-start: 40px; padding-top: 10px; bottom: 0; overflow: hidden; -webkit-mask-image: linear-gradient(180deg, #000 82%, transparent); mask-image: linear-gradient(180deg, #000 82%, transparent); }
+.mir .gl { position: absolute; inset-inline-start: 32px; top: 292px; width: 700px; padding-inline-start: 40px; padding-top: 10px; bottom: var(--bleed-y); overflow: hidden; -webkit-mask-image: linear-gradient(180deg, #000 82%, transparent); mask-image: linear-gradient(180deg, #000 82%, transparent); }
 .mir .list { display: flex; flex-direction: column; }
 .mir .li { display: grid; grid-template-columns: 64px 1fr; align-items: center; height: 72px; padding: 0 32px; margin-inline-start: -32px; width: calc(100% + 32px); border-radius: 999px; cursor: pointer; }
 .mir .li .n { font: italic 600 28px/1 var(--ff-d); color: var(--acc-t); }
@@ -260,7 +271,7 @@
 .mir .li[data-focused="true"] .n { color: var(--acc-ink); opacity: .9; }
 .mir[dir=rtl] .li .n { font-style: normal; }
 .mir .codebox { border-radius: 30px; background: var(--acc); color: var(--acc-ink); padding: 18px 32px 20px; display: flex; flex-direction: column; gap: 2px; box-shadow: 0 24px 36px -24px rgba(6, 26, 38, .55); }
-.mir .codebox .l { font: 700 24px/1.2 var(--ff-b); letter-spacing: .14em; text-transform: uppercase; opacity: .92; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.mir .codebox .l { font: 700 26px/1.2 var(--ff-b); letter-spacing: .14em; text-transform: uppercase; opacity: .92; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .mir .codebox .v { font: 700 64px/1.05 var(--ff-d); font-variant-numeric: lining-nums tabular-nums; letter-spacing: .12em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .mir .codebox .v.m { font-size: 46px; letter-spacing: .06em; }
 .mir .codebox .v.s { font-size: 34px; letter-spacing: 0; }
@@ -273,7 +284,7 @@
 .mir .parch { position: relative; flex: none; width: 300px; height: 400px; border-radius: 150px 150px 0 0; overflow: hidden; background: var(--arena); box-shadow: 0 40px 60px -36px rgba(12, 42, 55, .6); }
 
 /* ====== FICHA ====== */
-.mir .farch { position: absolute; inset-inline-start: 72px; top: 150px; width: 600px; height: 930px; border-radius: 300px 300px 0 0; overflow: hidden; background: var(--arena); box-shadow: 0 40px 60px -36px rgba(12, 42, 55, .6); }
+.mir .farch { position: absolute; inset-inline-start: 72px; top: 150px; width: 600px; bottom: var(--bleed-y); border-radius: 300px 300px 0 0; overflow: hidden; background: var(--arena); box-shadow: 0 40px 60px -36px rgba(12, 42, 55, .6); }
 .mir .farch::after { content: ""; position: absolute; inset: 0; border-radius: inherit; box-shadow: inset 0 70px 90px -50px rgba(6, 26, 38, .42); pointer-events: none; }
 .mir .farch .l { position: absolute; inset: 0; opacity: 0; transition: opacity .9s ease; }
 .mir .farch .l.on { opacity: 1; }
@@ -310,9 +321,13 @@
 .mir .load .h1 { font-size: 72px; }
 
 /* ====== REPOSO ====== */
-.mir .rp { position: absolute; inset: 0; overflow: hidden; color: #F8F3E9; z-index: 20; }
+/* El reposo coloca su contenido respecto a su caja (la zona segura); la foto y el velo
+   sangran hasta el borde real. Sin overflow:hidden propio: el zum de la foto lo recorta `.mir`.
+   La foto es un <img>: el `max-width: 100%` del preflight de Tailwind la toparía en 1920. */
+.mir .rp { position: absolute; inset: 0; color: #F8F3E9; z-index: 20; }
+.mir .rp > :is(.ph, .v1) { inset: var(--bleed-y) var(--bleed-x); width: calc(100% + 2 * var(--bx, 0px)); height: calc(100% + 2 * var(--by, 0px)); max-width: none; }
 .mir .rp .ph { animation: mir-kb 48s ease-in-out infinite alternate; }
-.mir .rp .v1 { position: absolute; inset: 0; background: linear-gradient(90deg, rgba(6, 26, 38, .72) 0, rgba(6, 26, 38, .45) 42%, rgba(6, 26, 38, 0) 78%), linear-gradient(0deg, rgba(6, 26, 38, .55), rgba(6, 26, 38, 0) 40%); }
+.mir .rp .v1 { position: absolute; background: linear-gradient(90deg, rgba(6, 26, 38, .72) 0, rgba(6, 26, 38, .45) 42%, rgba(6, 26, 38, 0) 78%), linear-gradient(0deg, rgba(6, 26, 38, .55), rgba(6, 26, 38, 0) 40%); }
 [dir=rtl] .mir .rp .v1, .mir[dir=rtl] .rp .v1 { transform: scaleX(-1); }
 .mir .rp .rb { position: absolute; inset-inline-start: 96px; top: 64px; display: flex; align-items: center; gap: 20px; font: 700 36px/1 var(--ff-d); color: #F8F3E9; }
 .mir .rp .rb .logo { background: #F8F3E9; color: #0C2A37; }

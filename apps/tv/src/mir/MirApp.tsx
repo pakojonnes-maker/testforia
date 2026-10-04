@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from 'react'
 import { FocusProvider } from '../lib/spatialNav'
 import { useGuidebook } from '../lib/useGuidebook'
 import { buildCollections, findCollection } from '../lib/collections'
@@ -40,7 +40,21 @@ import './mir.css'
 const STAGE_W = 1920
 const STAGE_H = 1080
 
-/** Escala el lienzo de 1920×1080 a la pantalla real, centrado y sin deformar. */
+/** Sangrado del lienzo hasta el borde real, en px del lienzo; 0 si la pantalla es 16:9. */
+function bleed(gap: number, scale: number): number {
+  return gap < 0.5 ? 0 : Math.ceil(gap / scale) + 1
+}
+
+/**
+ * Escala el lienzo de 1920×1080 a la pantalla real, centrado y sin deformar.
+ *
+ * El lienzo es la ZONA SEGURA: todo el contenido cabe en él. Si la pantalla no
+ * es 16:9 (un navegador con barras, un portátil 16:10), sobran franjas a los
+ * lados o arriba y abajo; antes se veían como un marco de color liso. Ahora
+ * `--bx`/`--by` dicen cuánto sobra por cada lado y lo que es fondo (muro,
+ * arcos que nacen del suelo, carruseles, reposo) se estira hasta el borde con
+ * ellas (ver «SANGRADO» en mir.css). En una tele 16:9 valen 0: nada cambia.
+ */
 function Stage({ children }: { children: ReactNode }) {
   const [box, setBox] = useState({ scale: 1, x: 0, y: 0 })
 
@@ -58,8 +72,13 @@ function Stage({ children }: { children: ReactNode }) {
 
   // El centrado va en la propia transformación: un elemento de 1920 px dentro de
   // un contenedor más estrecho DESBORDA y ni grid ni flex lo centran (ver App.tsx).
+  const style = {
+    transform: `translate(${box.x}px, ${box.y}px) scale(${box.scale})`,
+    '--bx': `${bleed(box.x, box.scale)}px`,
+    '--by': `${bleed(box.y, box.scale)}px`,
+  } as CSSProperties
   return (
-    <div className="mir-canvas" style={{ transform: `translate(${box.x}px, ${box.y}px) scale(${box.scale})` }}>
+    <div className="mir-canvas" style={style}>
       {children}
     </div>
   )
