@@ -124,6 +124,7 @@ await check('Beto cambia el delivery de Ana', '/delivery/config/rest_A', BETO, '
     { method: 'PUT', body: { is_enabled: true } });
 await check('Beto cambia las traducciones de delivery de Ana', '/delivery/translations/rest_A', BETO, 'DENY',
     { method: 'PUT', body: { es: { custom_message: 'x' } } });
+await check('Beto lee los ajustes de delivery de Ana', '/delivery/settings/rest_A', BETO, 'DENY');
 await check('Beto lee los pedidos de Ana', '/delivery/orders/rest_A', BETO, 'DENY');
 await check('Ana lee sus pedidos', '/delivery/orders/rest_A', ANA, 'ALLOW');
 await check('Beto cambia el estado de un pedido de Ana', '/delivery/orders/ord_A1/status', BETO, 'DENY',

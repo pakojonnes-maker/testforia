@@ -28,6 +28,14 @@ export async function handleDeliveryRequests(request, env) {
     // ============================================
     // ADMIN ENDPOINTS
     // ============================================
+    // GET /delivery/settings/:restaurantId - Lo guardado, tal cual (admin). La
+    // ruta pública /delivery/config resuelve los números de respaldo y no dice
+    // nada si el delivery está apagado: el panel cargaba eso, y al guardar
+    // fijaba el teléfono del restaurante como "propio" o borraba horarios y costes.
+    if (method === "GET" && pathname.match(/^\/delivery\/settings\/[\w-]+$/)) {
+        const restaurantId = pathname.split('/')[3];
+        return getDeliverySettingsAdmin(env, restaurantId);
+    }
     // PUT /delivery/config/:restaurantId - Actualizar configuración
     if (method === "PUT" && pathname.match(/^\/delivery\/config\/[\w-]+$/)) {
         const restaurantId = pathname.split('/')[3];
@@ -230,6 +238,45 @@ async function checkDeliveryAvailability(env, slugOrId) {
         });
     } catch (error) {
         console.error('[Delivery] Error checkAvailability:', error);
+        return createResponse({ success: false, message: error.message }, 500);
+    }
+}
+// ============================================
+// GET DELIVERY SETTINGS (Admin)
+// ============================================
+async function getDeliverySettingsAdmin(env, restaurantRef) {
+    try {
+        const row = await env.DB.prepare(`
+            SELECT ds.is_enabled, ds.show_whatsapp, ds.show_phone, ds.custom_whatsapp, ds.custom_phone,
+                   ds.payment_methods, ds.shipping_cost, ds.free_shipping_threshold, ds.minimum_order,
+                   ds.delivery_hours, ds.closed_dates
+            FROM restaurants r
+            LEFT JOIN delivery_settings ds ON ds.restaurant_id = r.id
+            WHERE r.id = ? OR r.slug = ?
+        `).bind(restaurantRef, restaurantRef).first();
+        if (!row) return createResponse({ success: false, message: "Restaurant not found" }, 404);
+        const json = (value, fallback) => {
+            try { return value ? JSON.parse(value) : fallback; } catch { return fallback; }
+        };
+        return createResponse({
+            success: true,
+            settings: {
+                is_enabled: row.is_enabled === 1,
+                // Sin fila todavía: los mismos valores por defecto que aplica el PUT.
+                show_whatsapp: row.show_whatsapp == null ? true : row.show_whatsapp === 1,
+                show_phone: row.show_phone === 1,
+                custom_whatsapp: row.custom_whatsapp || '',
+                custom_phone: row.custom_phone || '',
+                payment_methods: json(row.payment_methods, { cash: true, card: false }),
+                shipping_cost: row.shipping_cost || 0,
+                free_shipping_threshold: row.free_shipping_threshold || 0,
+                minimum_order: row.minimum_order || 0,
+                delivery_hours: json(row.delivery_hours, {}),
+                closed_dates: json(row.closed_dates, []),
+            },
+        });
+    } catch (error) {
+        console.error('[Delivery] Error getDeliverySettingsAdmin:', error);
         return createResponse({ success: false, message: error.message }, 500);
     }
 }

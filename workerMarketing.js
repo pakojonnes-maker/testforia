@@ -215,9 +215,20 @@ export async function handleMarketingRequests(request, env) {
         const restaurantId = pathname.split('/')[3];
         try {
             const { pin } = await request.json();
-            await env.DB.prepare(
-                'UPDATE restaurant_details SET redeem_pin = ? WHERE restaurant_id = ?'
-            ).bind(pin || null, restaurantId).run();
+            if (pin && !/^\d{4}$/.test(String(pin))) {
+                return createResponse({ success: false, message: "El PIN son 4 dígitos" }, 400);
+            }
+            const restaurant = await env.DB.prepare('SELECT id FROM restaurants WHERE id = ? OR slug = ?')
+                .bind(restaurantId, restaurantId).first();
+            if (!restaurant) return createResponse({ success: false, message: "Restaurant not found" }, 404);
+            // Upsert: con un UPDATE a secas, un restaurante sin fila en
+            // restaurant_details no guardaba nada y el panel decía "PIN guardado"
+            // (y sin PIN no se puede sumar ni un sello).
+            await env.DB.prepare(`
+                INSERT INTO restaurant_details (id, restaurant_id, redeem_pin)
+                VALUES (?, ?, ?)
+                ON CONFLICT(restaurant_id) DO UPDATE SET redeem_pin = excluded.redeem_pin, modified_at = CURRENT_TIMESTAMP
+            `).bind(crypto.randomUUID(), restaurant.id, pin ? String(pin) : null).run();
             return createResponse({ success: true });
         } catch (error) {
             return createResponse({ success: false, message: error.message }, 500);

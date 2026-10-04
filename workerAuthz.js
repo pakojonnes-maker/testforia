@@ -105,8 +105,8 @@ export function extractRestaurantRef(pathname) {
 const TENANT_PATH_ROUTES = [
     // /reservations/config/{restaurante}
     (s) => (s[0] === 'reservations' && s[1] === 'config' && s.length === 3 ? s[2] : null),
-    // /delivery/config/{restaurante}, /delivery/translations/{restaurante}
-    (s) => (s[0] === 'delivery' && (s[1] === 'config' || s[1] === 'translations') && s.length === 3 ? s[2] : null),
+    // /delivery/config|settings|translations/{restaurante}
+    (s) => (s[0] === 'delivery' && ['config', 'settings', 'translations'].includes(s[1]) && s.length === 3 ? s[2] : null),
     // GET /delivery/orders/{restaurante} lista los pedidos. Con cuatro segmentos
     // (/delivery/orders/{pedido}/status) es un recurso hijo: lo resuelve la capa 2.
     (s) => (s[0] === 'delivery' && s[1] === 'orders' && s.length === 3 ? s[2] : null),
