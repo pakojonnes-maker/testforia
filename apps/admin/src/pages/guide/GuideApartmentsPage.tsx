@@ -41,7 +41,7 @@ interface Zone {
 }
 
 export default function GuideApartmentsPage() {
-  const { currentAgency, user } = useAuth();
+  const { currentAgency } = useAuth();
   const navigate = useNavigate();
   const [apartments, setApartments] = useState<Apartment[]>([]);
   const [zones, setZones] = useState<Zone[]>([]);

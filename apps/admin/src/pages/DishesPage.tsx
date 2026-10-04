@@ -1,22 +1,21 @@
-import React, { useState, useMemo, useCallback } from 'react';
+import { useState, useMemo, useCallback, type MouseEvent } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '../contexts/AuthContext';
-import { apiClient } from '../lib/apiClient'; // import nombrado para evitar error de default export
+import { apiClient } from '../lib/apiClient';
 import { useTheme } from '@mui/material/styles';
 import useMediaQuery from '@mui/material/useMediaQuery';
 import MultimediaTab from '../components/media/MultimediaTab';
 import MenuManagementTab from '../components/menu/MenuManagementTab';
-
-
+import { PageHeader } from '../components/common/PageHeader';
 
 // MUI
 import {
-  Box, Button, Container, Typography, Paper, Table, TableBody, TableCell, TableContainer, TableHead, TableRow,
+  Box, Button, Typography, Paper, Table, TableBody, TableCell, TableContainer, TableHead, TableRow,
   IconButton, Chip, TextField, InputAdornment, Grid, Card, CardMedia, CardContent, CardActions,
-  Alert, Menu, MenuItem, ListItemIcon, ListItemText, Tooltip, Dialog, DialogTitle, DialogContent,
-  DialogContentText, DialogActions, Snackbar, CircularProgress, Skeleton, Fab, Avatar,
-  useScrollTrigger, Zoom, ToggleButtonGroup, ToggleButton, Tabs, Tab,
+  Alert, Menu, MenuItem, ListItemIcon, ListItemText, Dialog, DialogTitle, DialogContent,
+  DialogContentText, DialogActions, Snackbar, CircularProgress, Skeleton, Avatar,
+  ToggleButtonGroup, ToggleButton, Tabs, Tab,
 } from '@mui/material';
 
 // Icons
@@ -27,25 +26,24 @@ import {
   Search as SearchIcon,
   CheckCircle as ActiveIcon,
   Warning as InactiveIcon,
-  SortByAlpha as SortIcon,
   Refresh as RefreshIcon,
   GridView as GridViewIcon,
   ViewList as ViewListIcon,
   DragIndicator as DragIcon,
-  Save as SaveIcon,
   Close as CloseIcon,
   Visibility as VisibilityIcon,
   Restaurant as RestaurantIcon,
-  NewReleases as NewIcon,
-  NaturePeople as VeganIcon,
-  Spa as VegetarianIcon,
-  DoNotTouch as GlutenFreeIcon,
+  MenuBook as DishesIcon,
   ArrowUpward as ArrowUpIcon,
   ArrowDownward as ArrowDownIcon,
   AttachMoney as PriceIcon,
-  ViewModule as SectionOrderIcon,
-  PhotoLibrary as PhotoLibraryIcon,
 } from '@mui/icons-material';
+
+const TAB_SUBTITLES = [
+  'Los platos de tu carta',
+  'Menús, secciones y el orden de los platos',
+  'Fotos y vídeos de cada plato',
+];
 
 // ===== Helper para imagen de plato =====
 const getDishDisplayImage = (dish: any) => {
@@ -77,7 +75,6 @@ export default function DishesPage() {
 
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
-  const trigger = useScrollTrigger({ disableHysteresis: true, threshold: 100 });
 
   // Filtros/orden
   const [searchTerm, setSearchTerm] = useState('');
@@ -119,9 +116,9 @@ export default function DishesPage() {
   });
 
   // Handlers UI
-  const handleFilterClick = (e: React.MouseEvent<HTMLButtonElement>) => setFilterAnchorEl(e.currentTarget);
+  const handleFilterClick = (e: MouseEvent<HTMLButtonElement>) => setFilterAnchorEl(e.currentTarget);
   const handleFilterClose = () => setFilterAnchorEl(null);
-  const handleSortClick = (e: React.MouseEvent<HTMLButtonElement>) => setSortAnchorEl(e.currentTarget);
+  const handleSortClick = (e: MouseEvent<HTMLButtonElement>) => setSortAnchorEl(e.currentTarget);
   const handleSortClose = () => setSortAnchorEl(null);
   const handleOpenDeleteDialog = (dish: any) => { setDishToDelete(dish); setDeleteDialogOpen(true); };
   const handleCloseDeleteDialog = () => { setDeleteDialogOpen(false); setDishToDelete(null); };
@@ -164,105 +161,67 @@ export default function DishesPage() {
   const filteredCount = sortedAndFilteredDishes?.length || 0;
 
   // UI estados de carga/error
+  const header = (
+    <PageHeader
+      icon={<DishesIcon />}
+      title="Platos"
+      subtitle={TAB_SUBTITLES[currentTab]}
+      actions={error
+        ? <Button variant="outlined" startIcon={<RefreshIcon />} onClick={() => refetch()}>Reintentar</Button>
+        : currentTab === 0 && (
+          <Button variant="contained" startIcon={<AddIcon />} onClick={() => navigate('/dishes/new')}>
+            {isMobile ? 'Nuevo' : 'Nuevo plato'}
+          </Button>
+        )}
+    />
+  );
+
   if (isLoading) {
     return (
-      <Container maxWidth="lg" sx={{ py: { xs: 2, md: 4 } }}>
-        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
-          <Typography variant="h5" component="h1">Platos</Typography>
-          <Skeleton variant="rounded" width={120} height={36} />
-        </Box>
-        <Skeleton variant="rounded" height={40} sx={{ mb: 2 }} />
-        <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
-          <Skeleton variant="text" width={100} />
-          <Skeleton variant="text" width={150} />
-        </Box>
+      <Box>
+        {header}
+        <Skeleton variant="rectangular" height={40} sx={{ mb: 2 }} />
         <Grid container spacing={2} sx={{ mt: 1 }}>
           {Array.from({ length: isMobile ? 3 : 6 }).map((_, i) => (
             <Grid item xs={12} sm={6} md={4} key={i}>
-              <Skeleton variant="rounded" height={300} />
+              <Skeleton variant="rectangular" height={300} />
             </Grid>
           ))}
         </Grid>
-      </Container>
+      </Box>
     );
   }
 
   if (error) {
     return (
-      <Container maxWidth="lg" sx={{ py: { xs: 2, md: 4 } }}>
-        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
-          <Typography variant="h5" component="h1">Platos</Typography>
-          <Button variant="contained" startIcon={<RefreshIcon />} onClick={() => refetch()}>Reintentar</Button>
-        </Box>
-        <Alert severity="error" sx={{ mb: 3 }}>
+      <Box>
+        {header}
+        <Alert severity="error">
           <Typography variant="subtitle1" fontWeight={600}>Error al cargar los platos</Typography>
-          <Typography variant="body2">{(error as any)?.message}</Typography>
+          <Typography variant="body2">{(error as Error)?.message}</Typography>
         </Alert>
-      </Container>
+      </Box>
     );
   }
 
   return (
-    <Container maxWidth="lg" sx={{ py: { xs: 2, md: 4 }, pb: 2 }}>
-      {/* Sistema de Tabs */}
-      <Paper sx={{ mb: 3 }}>
-        <Tabs
-          value={currentTab}
-          onChange={(_, newValue) => setCurrentTab(newValue)}
-          variant="scrollable"
-          scrollButtons="auto"
-          sx={{ borderBottom: 1, borderColor: 'divider' }}
-        >
-          <Tab label="Platos" icon={<RestaurantIcon />} iconPosition="start" />
-          <Tab label="Gestionar Menú" icon={<SectionOrderIcon />} iconPosition="start" />
-          <Tab label="Multimedia" icon={<PhotoLibraryIcon />} iconPosition="start" />
-        </Tabs>
-      </Paper>
-
-      {/* Tab 0: Header Platos */}
-      {currentTab === 0 && (
-        <Box sx={{
-          display: 'flex', flexDirection: { xs: 'column', sm: 'row' },
-          justifyContent: 'space-between', alignItems: { xs: 'stretch', sm: 'center' }, mb: 3, gap: 2,
-        }}>
-          <Typography variant="h5" component="h1" sx={{ fontWeight: 600 }}>
-            Platos
-          </Typography>
-          <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
-            <Button variant="contained" color="primary" startIcon={<AddIcon />} onClick={() => navigate('/dishes/new')}>
-              {isMobile ? 'Nuevo' : 'Nuevo plato'}
-            </Button>
-          </Box>
-        </Box>
-      )}
-
-      {/* Tab 1: Header Gestionar Menú */}
-      {currentTab === 1 && (
-        <Box sx={{ mb: 2 }}>
-          <Typography variant="h5" component="h1" sx={{ fontWeight: 600, mb: 1 }}>
-            Gestión de menú
-          </Typography>
-          <Typography variant="body2" color="text.secondary">
-            Organiza tus menús, secciones y platos
-          </Typography>
-        </Box>
-      )}
-
-      {/* Tab 2: Header Multimedia */}
-      {currentTab === 2 && (
-        <Box sx={{ mb: 3 }}>
-          <Typography variant="h5" component="h1" sx={{ fontWeight: 600, mb: 1 }}>
-            Multimedia
-          </Typography>
-          <Typography variant="body2" color="text.secondary">
-            Gestiona imágenes y videos de tus platos
-          </Typography>
-        </Box>
-      )}
+    <Box>
+      {header}
+      <Tabs
+        value={currentTab}
+        onChange={(_, newValue) => setCurrentTab(newValue)}
+        variant="scrollable"
+        scrollButtons="auto"
+        sx={{ mb: 3, borderBottom: 1, borderColor: 'divider' }}
+      >
+        <Tab label="Platos" />
+        <Tab label="Gestionar menú" />
+        <Tab label="Multimedia" />
+      </Tabs>
 
       {/* Barra de búsqueda y filtros (solo fuera de modo ordenar) */}
       {currentTab === 0 && (
-        <Paper sx={{ p: { xs: 2, md: 3 }, mb: 3, borderRadius: 2 }} elevation={1}>
+        <Paper sx={{ p: { xs: 2, md: 3 }, mb: 3 }}>
           <Grid container spacing={2} alignItems="center">
             <Grid item xs={12} sm={6} md={5}>
               <TextField
@@ -280,7 +239,7 @@ export default function DishesPage() {
                     </InputAdornment>
                   ) : null
                 }}
-                sx={{ '& .MuiOutlinedInput-root': { borderRadius: 28 } }}
+
               />
             </Grid>
             <Grid item xs={12} sm={6} md={7}>
@@ -291,7 +250,7 @@ export default function DishesPage() {
                   size="small"
                   onClick={(e) => handleFilterClick(e as any)}
                   color={filterStatus !== 'all' ? 'secondary' : 'inherit'}
-                  sx={{ borderRadius: 28, textTransform: 'none' }}
+
                 >
                   Filtrar
                 </Button>
@@ -299,7 +258,7 @@ export default function DishesPage() {
                   variant="outlined"
                   size="small"
                   onClick={(e) => handleSortClick(e as any)}
-                  sx={{ borderRadius: 28, textTransform: 'none' }}
+
                 >
                   Ordenar
                 </Button>
@@ -342,7 +301,7 @@ export default function DishesPage() {
                   <Card sx={{ height: '100%', display: 'flex', flexDirection: 'column', borderRadius: 2, overflow: 'hidden' }}>
                     <CardMedia component="div" sx={{
                       height: 180, backgroundImage: `url(${getDishDisplayImage(dish)})`,
-                      backgroundSize: 'contain', backgroundPosition: 'center', backgroundRepeat: 'no-repeat', backgroundColor: '#f5f5f5'
+                      backgroundSize: 'contain', backgroundPosition: 'center', backgroundRepeat: 'no-repeat', bgcolor: 'background.default'
                     }} />
                     <CardContent sx={{ flexGrow: 1, pt: 2 }}>
                       <Typography variant="h6" sx={{ mb: 1, fontWeight: 600 }} noWrap>
@@ -503,28 +462,10 @@ export default function DishesPage() {
 
       {
         currentTab === 2 && (
-          <MultimediaTab restaurantId={restaurantId!} dishes={dishes} />
+          <MultimediaTab dishes={dishes} />
         )
       }
 
-
-      {/* FABs eliminados - la navegación ahora es a través del header */}
-
-      {/* Scroll to top en móvil/desktop */}
-      <Zoom in={trigger}>
-        <Fab
-          color="default" size="small" aria-label="scroll back to top"
-          sx={{
-            position: 'fixed',
-            bottom: isMobile ? 80 : 16,
-            right: isMobile ? 16 : 76,
-            zIndex: (t) => t.zIndex.appBar + 2
-          }}
-          onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
-        >
-          <ArrowUpIcon />
-        </Fab>
-      </Zoom>
 
       {/* Menú de filtros desktop */}
       <Menu
@@ -587,7 +528,7 @@ export default function DishesPage() {
       <Dialog
         open={deleteDialogOpen}
         onClose={handleCloseDeleteDialog}
-        PaperProps={{ sx: { borderRadius: 2, boxShadow: '0 8px 24px rgba(0,0,0,0.15)' } }}
+
       >
         <DialogTitle sx={{ pb: 1 }}>
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
@@ -633,6 +574,6 @@ export default function DishesPage() {
           {snackbar.message}
         </Alert>
       </Snackbar>
-    </Container >
+    </Box>
   );
 }

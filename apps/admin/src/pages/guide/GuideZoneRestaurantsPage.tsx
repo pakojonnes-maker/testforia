@@ -297,7 +297,7 @@ export default function GuideZoneRestaurantsPage() {
   };
 
   return (
-    <Box sx={{ p: { xs: 2, md: 0 } }}>
+    <Box>
       <Box sx={{ mb: 4, display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 2 }}>
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
           <RestaurantIcon sx={{ fontSize: 32, color: 'primary.main' }} />

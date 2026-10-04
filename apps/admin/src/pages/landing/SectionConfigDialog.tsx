@@ -123,7 +123,7 @@ export default function SectionConfigDialog({ open, onClose, section, onSave }: 
             </Typography>
             <Slider
               value={value || prop.min || 0}
-              onChange={(e, newValue) => setConfig({ ...config, [prop.key]: newValue })}
+              onChange={(_, newValue) => setConfig({ ...config, [prop.key]: newValue })}
               min={prop.min || 0}
               max={prop.max || 100}
               step={prop.step || 1}
@@ -296,7 +296,7 @@ export default function SectionConfigDialog({ open, onClose, section, onSave }: 
             fontWeight: 600,
             borderRadius: 2,
             px: 3,
-            background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+            bgcolor: 'primary.main',
           }}
         >
           Guardar Cambios

@@ -1,37 +1,12 @@
 // apps/admin/src/pages/AnalyticsPage.tsx
 import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import {
-  Box,
-  Container,
-  Typography,
-  Grid,
-  Card,
-  CardContent,
-  Button,
-  Tabs,
-  Tab,
-  Stack,
-  Divider,
-  Alert,
-} from '@mui/material';
-import {
-  Chart as ChartJS,
-  CategoryScale,
-  LinearScale,
-  BarElement,
-  Title,
-  Tooltip as ChartTooltip,
-  Legend,
-  ArcElement,
-  PointElement,
-  LineElement,
-  Filler,
-} from 'chart.js';
+import { Alert, Box, CircularProgress, Grid, Tab, Tabs, ToggleButton, ToggleButtonGroup } from '@mui/material';
+import { BarChart as StatsIcon } from '@mui/icons-material';
 import { useAuth } from '../contexts/AuthContext';
 import { apiClient } from '../lib/apiClient';
+import { PageHeader } from '../components/common/PageHeader';
 
-// Components - Updated imports
 import SummaryKPIs from '../components/analytics/SummaryKPIs';
 import TimeSeriesChart from '../components/analytics/TimeSeriesChart';
 import HourlyTrafficChart from '../components/analytics/HourlyTrafficChart';
@@ -40,243 +15,111 @@ import AttributionPanel from '../components/analytics/AttributionPanel';
 import TopDishesChart from '../components/analytics/TopDishesChart';
 import ConversionFunnel from '../components/analytics/ConversionFunnel';
 import TopCitiesChart from '../components/analytics/TopCitiesChart';
-
-// Tabs
 import DishesTab from '../components/analytics/DishesTab';
 import SectionsTab from '../components/analytics/SectionsTab';
 import SessionsTab from '../components/analytics/SessionsTab';
 
-ChartJS.register(
-  CategoryScale,
-  LinearScale,
-  BarElement,
-  Title,
-  ChartTooltip,
-  Legend,
-  ArcElement,
-  PointElement,
-  LineElement,
-  Filler
-);
-
 type TimeRange = 'today' | 'week' | 'month' | 'quarter';
-type TabValue = 'dishes' | 'kpis' | 'sections' | 'sessions';
+type TabValue = 'kpis' | 'dishes' | 'sections' | 'sessions';
+
+const RANGES: Array<{ key: TimeRange; label: string }> = [
+  { key: 'today', label: 'Hoy' },
+  { key: 'week', label: '7 días' },
+  { key: 'month', label: '30 días' },
+  { key: 'quarter', label: '3 meses' },
+];
 
 export default function AnalyticsPage() {
   const { currentRestaurant } = useAuth();
-  const restaurantId = currentRestaurant?.id;
-
   const [timeRange, setTimeRange] = useState<TimeRange>('today');
   const [activeTab, setActiveTab] = useState<TabValue>('kpis');
 
-  // Query principal para KPIs y resumen (se mantiene para la tab de KPIs)
-  const { data, isLoading, error } = useQuery({
-    queryKey: ['analytics', restaurantId, timeRange],
-    queryFn: async () => {
-      if (!restaurantId) throw new Error('No restaurant selected');
-      return await apiClient.getAnalytics(restaurantId, {
-        timeRange,
-        top: 20,
-        lang: 'es',
-      });
-    },
-    enabled: !!restaurantId,
-    staleTime: 5 * 60 * 1000,
-  });
-
-  if (isLoading && !data) {
-    return <LoadingState />;
-  }
-
-  if (error) {
-    return <ErrorState error={error} />;
-  }
-
   return (
-    <Container maxWidth="xl" sx={{ py: 4 }}>
-      {/* Header */}
-      <Box sx={{ mb: 5, display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', flexWrap: 'wrap', gap: 2 }}>
-        <Box>
-          <Typography variant="h4" component="h1" gutterBottom sx={{ fontWeight: 800, letterSpacing: '-0.02em' }}>
-            Analytics
-          </Typography>
-          <Typography variant="body1" color="text.secondary">
-            Visión completa del rendimiento de tu negocio
-          </Typography>
-        </Box>
+    <Box>
+      <PageHeader
+        icon={<StatsIcon />}
+        title="Estadísticas"
+        subtitle="Cómo usan tus clientes la carta"
+        actions={
+          <ToggleButtonGroup size="small" exclusive value={timeRange} onChange={(_, v) => v && setTimeRange(v)}>
+            {RANGES.map((r) => <ToggleButton key={r.key} value={r.key}>{r.label}</ToggleButton>)}
+          </ToggleButtonGroup>
+        }
+      />
 
-        <Stack direction="row" spacing={1} alignItems="center" sx={{ bgcolor: 'background.paper', p: 0.5, borderRadius: 3, boxShadow: '0 2px 8px rgba(0,0,0,0.04)' }}>
-          {[
-            { key: 'today', label: 'Hoy' },
-            { key: 'week', label: '7 días' },
-            { key: 'month', label: '30 días' },
-            { key: 'quarter', label: '3 meses' },
-          ].map(option => (
-            <Button
-              key={option.key}
-              variant={timeRange === option.key ? 'contained' : 'text'}
-              color={timeRange === option.key ? 'primary' : 'inherit'}
-              onClick={() => setTimeRange(option.key as TimeRange)}
-              sx={{
-                borderRadius: 2.5,
-                px: 3,
-                py: 1,
-                minWidth: 'auto',
-                boxShadow: timeRange === option.key ? '0 2px 8px rgba(0,122,255,0.25)' : 'none',
-                bgcolor: timeRange === option.key ? 'primary.main' : 'transparent',
-                '&:hover': {
-                  bgcolor: timeRange === option.key ? 'primary.dark' : 'rgba(0,0,0,0.04)',
-                }
-              }}
-            >
-              {option.label}
-            </Button>
-          ))}
-        </Stack>
-      </Box>
+      <Tabs value={activeTab} onChange={(_, v) => setActiveTab(v)} variant="scrollable" sx={{ mb: 3, borderBottom: 1, borderColor: 'divider' }}>
+        <Tab label="Resumen" value="kpis" />
+        <Tab label="Platos" value="dishes" />
+        <Tab label="Secciones" value="sections" />
+        <Tab label="Sesiones" value="sessions" />
+      </Tabs>
 
-      {/* Tabs de Navegación */}
-      <Box sx={{ mb: 4 }}>
-        <Tabs
-          value={activeTab}
-          onChange={(_, v) => setActiveTab(v)}
-          sx={{
-            '& .MuiTabs-indicator': {
-              height: 3,
-              borderRadius: '3px 3px 0 0',
-            },
-            '& .MuiTab-root': {
-              fontSize: '1rem',
-              mr: 2,
-              textTransform: 'none',
-              fontWeight: 600
-            }
-          }}
-        >
-          <Tab label="Platos" value="dishes" />
-          <Tab label="KPIs" value="kpis" />
-          <Tab label="Secciones" value="sections" />
-          <Tab label="Sesiones" value="sessions" />
-        </Tabs>
-        <Divider sx={{ mt: '-1px' }} />
-      </Box>
-
-      {/* Contenido de Tabs */}
-
-      {/* 1. Platos */}
-      {activeTab === 'dishes' && (
-        <DishesTab timeRange={timeRange} />
+      {!currentRestaurant?.id ? (
+        <Alert severity="info">Selecciona un restaurante para ver sus estadísticas.</Alert>
+      ) : (
+        <>
+          {activeTab === 'kpis' && <KpisTab restaurantId={currentRestaurant.id} timeRange={timeRange} />}
+          {activeTab === 'dishes' && <DishesTab timeRange={timeRange} />}
+          {activeTab === 'sections' && <SectionsTab timeRange={timeRange} />}
+          {activeTab === 'sessions' && <SessionsTab timeRange={timeRange} />}
+        </>
       )}
-
-      {/* 2. KPIs */}
-      {activeTab === 'kpis' && data && (
-        <KPIsTab data={data} timeRange={timeRange} />
-      )}
-
-      {/* 3. Secciones */}
-      {activeTab === 'sections' && (
-        <SectionsTab timeRange={timeRange} />
-      )}
-
-      {/* 4. Sesiones */}
-      {activeTab === 'sessions' && (
-        <SessionsTab timeRange={timeRange} />
-      )}
-
-    </Container>
+    </Box>
   );
 }
 
-// ==================== KPI TAB (Rediseñada) ====================
+// Solo se pide el resumen cuando se mira esta pestaña (antes se cargaba
+// siempre, y bloqueaba toda la página mientras tanto).
+function KpisTab({ restaurantId, timeRange }: { restaurantId: string; timeRange: TimeRange }) {
+  const { data, isLoading, error } = useQuery({
+    queryKey: ['analytics', restaurantId, timeRange],
+    queryFn: () => apiClient.getAnalytics(restaurantId, { timeRange, top: 10, lang: 'es' }),
+    staleTime: 5 * 60 * 1000,
+  });
 
-function KPIsTab({ data, timeRange }: any) {
-  // Prepare funnel data
-  const funnelData = {
-    totalSessions: data.summary?.totalSessions || data.summary?.total_sessions || 0,
-    dishViews: data.summary?.dishViews || data.summary?.dish_views || 0,
-    favorites: data.summary?.favorites || 0,
-    cartItems: data.cartMetrics?.totalItems || 0,
-  };
+  if (isLoading) return <Box sx={{ display: 'flex', justifyContent: 'center', py: 8 }}><CircularProgress /></Box>;
+  if (error || !data) {
+    return <Alert severity="error">No se pudieron cargar las estadísticas: {(error as Error)?.message || 'error desconocido'}</Alert>;
+  }
 
+  const { summary } = data;
   return (
     <Grid container spacing={3}>
-      {/* Row 1: Summary KPIs */}
       <Grid item xs={12}>
-        <SummaryKPIs
-          data={data.summary}
-          timeRange={timeRange}
-          cartMetrics={data.cartMetrics}
-        />
+        <SummaryKPIs data={summary} cartMetrics={data.cartMetrics} />
       </Grid>
-
-      {/* Row 2: Evolución de Tráfico (8 cols) + Horas Pico (4 cols) */}
       <Grid item xs={12} lg={8}>
-        <TimeSeriesChart data={data.timeseries} timeRange={timeRange} />
+        <TimeSeriesChart data={data.timeseries} />
       </Grid>
       <Grid item xs={12} lg={4}>
         <HourlyTrafficChart data={data.trafficByHour} />
       </Grid>
-
-      {/* Row 3: Recurrencia (6 cols) + Funnel de Conversión (6 cols) */}
       <Grid item xs={12} md={6}>
         <RecurrencePanel
-          newVisitors={data.summary?.new_visitors || 0}
-          returningVisitors={data.summary?.returning_visitors || 0}
-          uniqueVisitors={data.summary?.uniqueVisitors || data.summary?.unique_visitors || 0}
-          totalSessions={data.summary?.totalSessions || data.summary?.total_sessions || 0}
+          newVisitors={summary.new_visitors}
+          returningVisitors={summary.returning_visitors}
+          uniqueVisitors={summary.uniqueVisitors}
+          totalSessions={summary.totalSessions}
         />
       </Grid>
       <Grid item xs={12} md={6}>
-        <ConversionFunnel data={funnelData} />
+        <ConversionFunnel data={{
+          totalSessions: summary.totalSessions,
+          dishViews: summary.dishViews,
+          favorites: summary.favorites,
+          cartItems: data.cartMetrics.totalItems,
+        }} />
       </Grid>
-
-      {/* Origen del tráfico: guidebook / TV / QR / directo, y qué alojamientos
-          envían más clientes. */}
+      {/* Origen del tráfico: guidebook / TV / QR / directo, y qué alojamientos envían más clientes. */}
       <Grid item xs={12} md={6}>
-        <AttributionPanel
-          attribution={data.attribution || []}
-          topApartments={data.topApartments || []}
-        />
-      </Grid>
-
-      {/* Row 4: Top Platos (6 cols) + Top Ciudades (6 cols) */}
-      <Grid item xs={12} md={6}>
-        <TopDishesChart dishes={data.topDishes || []} />
+        <AttributionPanel attribution={data.attribution} topApartments={data.topApartments} />
       </Grid>
       <Grid item xs={12} md={6}>
-        <TopCitiesChart
-          cities={data.breakdowns?.cities || []}
-          countries={data.breakdowns?.countries || []}
-        />
+        <TopDishesChart dishes={data.topDishes} />
+      </Grid>
+      <Grid item xs={12} md={6}>
+        <TopCitiesChart cities={data.cities} totalSessions={summary.totalSessions} />
       </Grid>
     </Grid>
-  );
-}
-
-// ==================== ESTADOS ====================
-
-function LoadingState() {
-  return (
-    <Container maxWidth="xl" sx={{ py: 3 }}>
-      <Typography variant="h4" gutterBottom>Cargando Analytics...</Typography>
-      <Grid container spacing={3}>
-        {[...Array(3)].map((_, i) => (
-          <Grid item xs={12} key={i}>
-            <Card><CardContent sx={{ height: 200 }} /></Card>
-          </Grid>
-        ))}
-      </Grid>
-    </Container>
-  );
-}
-
-function ErrorState({ error }: any) {
-  return (
-    <Container maxWidth="xl" sx={{ py: 3, textAlign: 'center' }}>
-      <Alert severity="error" sx={{ mb: 3 }}>
-        <Typography variant="h6">Error al cargar analytics</Typography>
-        <Typography>{error?.message || 'Error desconocido'}</Typography>
-      </Alert>
-    </Container>
   );
 }

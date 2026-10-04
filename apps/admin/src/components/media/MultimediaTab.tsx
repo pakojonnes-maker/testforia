@@ -1,6 +1,6 @@
 // apps/admin/src/components/media/MultimediaTab.tsx
 
-import React, { useState, useMemo } from 'react';
+import { useState, useMemo, type ReactNode } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import type { DishMedia } from '@visualtaste/api';
 import { apiClient } from '../../lib/apiClient';
@@ -12,7 +12,6 @@ import {
     Paper,
     Grid,
     Card,
-    CardMedia,
     CardContent,
     CardActions,
     Button,
@@ -21,12 +20,9 @@ import {
     AlertTitle,
     TextField,
     InputAdornment,
-    CircularProgress,
     IconButton,
     Skeleton,
     Snackbar,
-    Stack,
-    Divider,
     Autocomplete,
 } from '@mui/material';
 import {
@@ -41,15 +37,13 @@ import {
     CheckCircle as CompleteIcon,
     Warning as WarningIcon,
     ErrorOutline as ErrorIcon,
-    Close as CloseIcon,
 } from '@mui/icons-material';
 
 interface MultimediaTabProps {
-    restaurantId: string;
     dishes: any[];
 }
 
-export default function MultimediaTab({ restaurantId, dishes }: MultimediaTabProps) {
+export default function MultimediaTab({ dishes }: MultimediaTabProps) {
     const queryClient = useQueryClient();
     const [selectedDish, setSelectedDish] = useState<any | null>(null);
     const [uploadDialogOpen, setUploadDialogOpen] = useState(false);
@@ -370,6 +364,7 @@ export default function MultimediaTab({ restaurantId, dishes }: MultimediaTabPro
                     refetchMedia();
                 }}
                 onUpload={handleUpload}
+                initialRole={uploadRole}
             />
 
             {/* Diálogo de edición */}
@@ -418,7 +413,7 @@ function MediaCard({
 }: {
     title: string;
     media: DishMedia | null;
-    icon: React.ReactNode;
+    icon: ReactNode;
     color: 'primary' | 'secondary' | 'error' | 'info';
     description: string;
     onEdit: () => void;

@@ -1,6 +1,7 @@
 
-import React, { useEffect, useRef, useImperativeHandle, forwardRef } from "react";
-import QRCodeStyling, {
+import { useEffect, useRef, useImperativeHandle, forwardRef } from "react";
+import QRCodeStyling from "qr-code-styling";
+import type {
     DrawType,
     DotType,
     CornerSquareType,
@@ -36,6 +37,8 @@ export interface QRCodeGeneratorProps {
         margin?: number;
         imageSize?: number;
     };
+    /** Redundancia del QR: con logo encima conviene 'H'. */
+    errorCorrectionLevel?: 'L' | 'M' | 'Q' | 'H';
 }
 
 export interface QRCodeHandle {
@@ -43,12 +46,12 @@ export interface QRCodeHandle {
 }
 
 const QRCodeGenerator = forwardRef<QRCodeHandle, QRCodeGeneratorProps>(
-    ({ data, size = 300, image, dotsOptions, cornersSquareOptions, cornersDotOptions, backgroundOptions, imageOptions = {} }, ref) => {
+    ({ data, size = 300, image, dotsOptions, cornersSquareOptions, cornersDotOptions, backgroundOptions, imageOptions = {}, errorCorrectionLevel = 'M' }, ref) => {
         // qr-code-styling lee imageOptions.hideBackgroundDots internamente sin comprobar
         // undefined; sin este default, omitir la prop (como no requiere imagen) revienta
         // el constructor con "Cannot read properties of undefined (reading 'hideBackgroundDots')".
         const refContainer = useRef<HTMLDivElement>(null);
-        const qrCode = useRef<QRCodeStyling>();
+        const qrCode = useRef<QRCodeStyling | undefined>(undefined);
 
         // Initial Setup
         useEffect(() => {
@@ -62,7 +65,8 @@ const QRCodeGenerator = forwardRef<QRCodeHandle, QRCodeGeneratorProps>(
                 cornersSquareOptions: cornersSquareOptions,
                 cornersDotOptions: cornersDotOptions,
                 backgroundOptions: backgroundOptions,
-                imageOptions: imageOptions
+                imageOptions: imageOptions,
+                qrOptions: { errorCorrectionLevel }
             });
 
             if (refContainer.current) {
@@ -84,9 +88,10 @@ const QRCodeGenerator = forwardRef<QRCodeHandle, QRCodeGeneratorProps>(
                 cornersSquareOptions: cornersSquareOptions,
                 cornersDotOptions: cornersDotOptions,
                 backgroundOptions: backgroundOptions,
-                imageOptions: imageOptions
+                imageOptions: imageOptions,
+                qrOptions: { errorCorrectionLevel }
             });
-        }, [data, size, image, JSON.stringify(dotsOptions), JSON.stringify(cornersSquareOptions), JSON.stringify(cornersDotOptions), JSON.stringify(backgroundOptions), JSON.stringify(imageOptions)]);
+        }, [data, size, image, errorCorrectionLevel, JSON.stringify(dotsOptions), JSON.stringify(cornersSquareOptions), JSON.stringify(cornersDotOptions), JSON.stringify(backgroundOptions), JSON.stringify(imageOptions)]);
 
         // Expose methods to parent
         useImperativeHandle(ref, () => ({

@@ -1,6 +1,6 @@
 // apps/admin/src/components/media/MediaUploadDialog.tsx
 
-import React, { useState, useCallback, useEffect } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import { useDropzone } from 'react-dropzone';
 import {
     Dialog,
@@ -18,7 +18,6 @@ import {
     IconButton,
     Alert,
     AlertTitle,
-    Chip,
     Stack,
 } from '@mui/material';
 import {
@@ -42,6 +41,8 @@ interface MediaUploadDialogProps {
     existingPrimaryImage: boolean;
     onUploadComplete: () => void;
     onUpload: (file: File, role: string, meta?: { width?: number; height?: number; duration?: number }) => Promise<void>;
+    /** Rol del botón con el que se abrió (vídeo principal, imagen principal, galería). */
+    initialRole: string;
 }
 
 const ROLE_LABELS = {
@@ -59,36 +60,38 @@ const ROLE_DESCRIPTIONS = {
 export default function MediaUploadDialog({
     open,
     onClose,
-    dishId,
     dishName,
     existingPrimaryVideo,
     existingPrimaryImage,
     onUploadComplete,
     onUpload,
+    initialRole,
 }: MediaUploadDialogProps) {
     const [files, setFiles] = useState<File[]>([]);
-    const [selectedRole, setSelectedRole] = useState<string>('GALLERY_IMAGE');
+    const [selectedRole, setSelectedRole] = useState<string>(initialRole);
     const [isUploading, setIsUploading] = useState(false);
     const [uploadProgress, setUploadProgress] = useState<Record<string, number>>({});
     const [error, setError] = useState<string>('');
     const [notes, setNotes] = useState<Record<string, string>>({});
 
-    // Auto-detectar rol según tipo de archivo
+    // Cada apertura parte del rol del botón pulsado.
     useEffect(() => {
-        if (files.length > 0) {
-            const firstFile = files[0];
-            const isVideo = firstFile.type.startsWith('video/');
+        if (open) setSelectedRole(initialRole);
+    }, [open, initialRole]);
 
-            // Auto-seleccionar rol basado en el tipo y lo que ya existe
-            if (isVideo && !existingPrimaryVideo) {
-                setSelectedRole('PRIMARY_VIDEO');
-            } else if (!isVideo && !existingPrimaryImage) {
-                setSelectedRole('PRIMARY_IMAGE');
-            } else {
-                setSelectedRole('GALLERY_IMAGE');
-            }
-        }
-    }, [files, existingPrimaryVideo, existingPrimaryImage]);
+    // Solo se corrige el rol si el archivo no encaja con él: un vídeo siempre es
+    // el principal, y una imagen no puede ir al hueco del vídeo. Antes se
+    // adivinaba siempre por el tipo, y una imagen para la galería acababa como
+    // principal si aún no había una.
+    useEffect(() => {
+        if (files.length === 0) return;
+        const isVideo = files[0].type.startsWith('video/');
+        setSelectedRole((role) => {
+            if (isVideo) return 'PRIMARY_VIDEO';
+            if (role === 'PRIMARY_VIDEO') return existingPrimaryImage ? 'GALLERY_IMAGE' : 'PRIMARY_IMAGE';
+            return role;
+        });
+    }, [files, existingPrimaryImage]);
 
     const { getRootProps, getInputProps, isDragActive } = useDropzone({
         accept: {

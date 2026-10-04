@@ -16,7 +16,7 @@ import {
   Place as PlaceIcon,
 } from '@mui/icons-material';
 import {
-  CatalogItem, BADGE_LABELS, isExperience, isTrue, priceLabel, displayName, coverImage,
+  type CatalogItem, BADGE_LABELS, isExperience, isTrue, priceLabel, displayName, coverImage,
 } from './catalogTypes';
 
 type SortKey = 'name' | 'category' | 'order' | 'type';

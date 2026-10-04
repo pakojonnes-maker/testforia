@@ -273,17 +273,19 @@ identifica la sesión en curso (`/track/session/identify`). Nunca un id persiste
 ⚠️ **Regla crítica de separación por app.** El styling NO es intercambiable:
 
 ### `apps/admin` — Panel de administración
-- **React 18** + Vite 4 + **TypeScript**.
+- **React 18** + Vite 4 + **TypeScript** (en ejecución va la 19: plugin-react deduplica; los tipos son los 18 de la raíz).
 - **Styling: Tailwind CSS + Material UI (MUI)**. `@mui/x-data-grid` para tablas.
+- **Un solo tema para los dos modos** (`src/theme/index.ts`, el del guidebook: papel, cobalto, Newsreader, plano).
+  Colores de datos y estados en `DATA`/`STATUS_COLORS` (legibles sobre el papel), nunca hex sueltos. Pantallas con
+  `components/common/` (`PageHeader`, `Panel`, `StatCard`); menús de la barra lateral en `components/layout/navigation.tsx`.
 - Estado servidor: **React Query** (`@tanstack/react-query` v4). Estado global: **Zustand**.
 - Formularios: **react-hook-form + zod** (`@hookform/resolvers`).
 - Charts: `chart.js` + `react-chartjs-2`. Drag&drop: `@dnd-kit`. Iconos: `@mui/icons-material`.
 - QR: `qr-code-styling` (config, no imágenes estáticas). Fechas: `date-fns`.
-- Usa `@visualtaste/api` (workspace; compílalo antes: `npm run build -w packages/api`). Build: `tsc && vite build`,
-  pero ese `tsc` **no comprueba nada** (el `tsconfig.json` es de referencias, `files: []`, y no lleva `-b`): el
-  typecheck real es `npx tsc -p tsconfig.app.json --noEmit` (arrastra ~99 errores previos de otras pantallas: mira solo
-  los de tus ficheros). En un worktree nuevo, `npm ci -w apps/admin -w packages/api` primero (35 s) o el build falla
-  por `@tanstack/react-query`.
+- Usa `@visualtaste/api` (workspace; compílalo antes: `npm run build -w packages/api`). Build:
+  `tsc -p tsconfig.app.json --noEmit && vite build`: el typecheck es real y está a **0 errores** (oct-2026), así que un
+  error de tipos rompe el build. `apiClient` declara cada método; no hay Proxy que reenvíe lo desconocido. En un
+  worktree nuevo, `npm ci -w apps/admin -w packages/api` primero (35 s) o el build falla por `@tanstack/react-query`.
 
 ### `apps/client` — Carta digital "Gravy"
 - **React 19** + Vite 7 + TypeScript.
@@ -322,7 +324,7 @@ identifica la sesión en curso (`/track/session/identify`). Nunca un id persiste
   padre (por eso `.g-full` no lleva padding-bottom); texto del anfitrión con números en RTL → `<bdi>` o
   `unicode-bidi: plaintext`.
 - Mapas: **Leaflet + react-leaflet**. Dev port fijo: **5175**.
-- Las opciones de color y fuente que ofrece el admin salen de `apps/admin/src/theme/guideTheme.ts`.
+- Las opciones de color y fuente que ofrece el admin salen de `apps/admin/src/lib/guideDesign.ts`.
 - El contenido de una guía (`apartment_info.content`) es **texto plano**: `lib/text.ts` lo parte en
   párrafos y títulos numerados, sin parser de markdown (un `**negrita**` sale con los asteriscos literales).
 - Build: `tsc -b && vite build && node scripts/prerender-landing.mjs`. El último paso mete la landing (SSR) y su

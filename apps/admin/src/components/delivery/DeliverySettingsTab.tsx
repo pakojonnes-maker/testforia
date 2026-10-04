@@ -1,65 +1,17 @@
 // apps/admin/src/components/delivery/DeliverySettingsTab.tsx
-// Componente para configuración de Delivery en Admin Panel
+// Configuración de Delivery (pestaña de DeliveryPage).
 
-import { useState, useEffect } from 'react';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useEffect, useState } from 'react';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
-    Box,
-    Grid,
-    Card,
-    CardContent,
-    CardHeader,
-    TextField,
-    Switch,
-    FormControlLabel,
-    Typography,
-    Alert,
-    CircularProgress,
-    Divider,
-    Chip,
-    alpha,
-    Accordion,
-    AccordionSummary,
-    AccordionDetails,
-    InputAdornment,
+    Accordion, AccordionDetails, AccordionSummary, Alert, Box, Button, Chip, CircularProgress, Divider,
+    FormControlLabel, Grid, InputAdornment, Stack, Switch, TextField, Typography,
 } from '@mui/material';
-import {
-    TwoWheeler,
-    WhatsApp,
-    Phone,
-    CreditCard,
-    Money,
-    Schedule,
-    LocationOn,
-    ExpandMore,
-    LocalShipping,
-} from '@mui/icons-material';
+import { CreditCard, ExpandMore, LocationOn, Schedule, TwoWheeler } from '@mui/icons-material';
+import { apiClient, type DeliverySettings } from '../../lib/apiClient';
+import { Panel } from '../common/Panel';
 
-interface DeliverySettingsTabProps {
-    restaurantId: string;
-    neonColor: string;
-}
-
-interface DeliverySettings {
-    is_enabled: boolean;
-    show_whatsapp: boolean;
-    show_phone: boolean;
-    custom_whatsapp: string;
-    custom_phone: string;
-    payment_methods: { cash: boolean; card: boolean };
-    shipping_cost: number;
-    free_shipping_threshold: number;
-    minimum_order: number;
-    delivery_hours: Record<string, Array<{ start: string; end: string }>>;
-    closed_dates: string[];
-}
-
-interface DeliveryTranslations {
-    [lang: string]: {
-        delivery_zones: string;
-        custom_message: string;
-    };
-}
+type Translations = Record<string, { delivery_zones: string; custom_message: string }>;
 
 const DAYS = [
     { key: 'monday', label: 'Lunes' },
@@ -76,533 +28,188 @@ const LANGUAGES = [
     { code: 'en', label: 'English' },
 ];
 
-export default function DeliverySettingsTab({ restaurantId, neonColor }: DeliverySettingsTabProps) {
+const emptyTranslation = { delivery_zones: '', custom_message: '' };
+
+export default function DeliverySettingsTab({ restaurantId }: { restaurantId: string }) {
     const queryClient = useQueryClient();
-    const [settings, setSettings] = useState<DeliverySettings>({
-        is_enabled: false,
-        show_whatsapp: true,
-        show_phone: false,
-        custom_whatsapp: '',
-        custom_phone: '',
-        payment_methods: { cash: true, card: false },
-        shipping_cost: 0,
-        free_shipping_threshold: 0,
-        minimum_order: 0,
-        delivery_hours: {},
-        closed_dates: [],
-    });
-    const [translations, setTranslations] = useState<DeliveryTranslations>({
-        es: { delivery_zones: '', custom_message: '' },
-        en: { delivery_zones: '', custom_message: '' },
-    });
-    const [hasChanges, setHasChanges] = useState(false);
+    const [settings, setSettings] = useState<DeliverySettings | null>(null);
+    const [translations, setTranslations] = useState<Translations>({ es: emptyTranslation, en: emptyTranslation });
+    const [dirty, setDirty] = useState(false);
 
-    // Query: Get delivery settings
-    const { data: configData, isLoading } = useQuery({
+    const settingsQuery = useQuery({
         queryKey: ['delivery-settings', restaurantId],
-        queryFn: async () => {
-            const response = await fetch(
-                `${import.meta.env.VITE_API_URL || 'https://visualtasteworker.franciscotortosaestudios.workers.dev'}/delivery/config/${restaurantId}`,
-                { headers: { 'Content-Type': 'application/json' } }
-            );
-            return response.json();
-        },
-        enabled: !!restaurantId,
+        queryFn: async () => (await apiClient.getDeliverySettings(restaurantId)).settings,
     });
-
-    // Query: Get translations
-    const { data: translationsData } = useQuery({
+    const translationsQuery = useQuery({
         queryKey: ['delivery-translations', restaurantId],
-        queryFn: async () => {
-            const response = await fetch(
-                `${import.meta.env.VITE_API_URL || 'https://visualtasteworker.franciscotortosaestudios.workers.dev'}/delivery/translations/${restaurantId}`,
-                { headers: { 'Content-Type': 'application/json' } }
-            );
-            return response.json();
-        },
-        enabled: !!restaurantId,
+        queryFn: async () => (await apiClient.getDeliveryTranslations(restaurantId)).translations ?? {},
     });
 
-    // Load data into state
     useEffect(() => {
-        if (configData) {
-            setSettings({
-                is_enabled: configData.is_enabled || false,
-                show_whatsapp: configData.show_whatsapp !== false,
-                show_phone: configData.show_phone || false,
-                custom_whatsapp: configData.whatsapp_number || '',
-                custom_phone: configData.phone_number || '',
-                payment_methods: configData.payment_methods || { cash: true, card: false },
-                shipping_cost: configData.shipping_cost || 0,
-                free_shipping_threshold: configData.free_shipping_threshold || 0,
-                minimum_order: configData.minimum_order || 0,
-                delivery_hours: configData.delivery_hours || {},
-                closed_dates: configData.closed_dates || [],
-            });
-        }
-    }, [configData]);
-
+        if (settingsQuery.data) setSettings(settingsQuery.data);
+    }, [settingsQuery.data]);
     useEffect(() => {
-        if (translationsData?.translations) {
-            setTranslations({
-                es: translationsData.translations.es || { delivery_zones: '', custom_message: '' },
-                en: translationsData.translations.en || { delivery_zones: '', custom_message: '' },
-            });
-        }
-    }, [translationsData]);
+        const t = translationsQuery.data;
+        if (t) setTranslations({ es: t.es || emptyTranslation, en: t.en || emptyTranslation });
+    }, [translationsQuery.data]);
 
-    // Mutations
-    const settingsMutation = useMutation({
-        mutationFn: async () => {
-            const response = await fetch(
-                `${import.meta.env.VITE_API_URL || 'https://visualtasteworker.franciscotortosaestudios.workers.dev'}/delivery/config/${restaurantId}`,
-                {
-                    method: 'PUT',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(settings),
-                }
-            );
-            return response.json();
-        },
+    const save = useMutation({
+        mutationFn: () => Promise.all([
+            apiClient.updateDeliveryConfig(restaurantId, settings),
+            apiClient.updateDeliveryTranslations(restaurantId, translations),
+        ]),
         onSuccess: () => {
+            setDirty(false);
             queryClient.invalidateQueries({ queryKey: ['delivery-settings', restaurantId] });
-        },
-    });
-
-    const translationsMutation = useMutation({
-        mutationFn: async () => {
-            const response = await fetch(
-                `${import.meta.env.VITE_API_URL || 'https://visualtasteworker.franciscotortosaestudios.workers.dev'}/delivery/translations/${restaurantId}`,
-                {
-                    method: 'PUT',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(translations),
-                }
-            );
-            return response.json();
-        },
-        onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ['delivery-translations', restaurantId] });
+            queryClient.invalidateQueries({ queryKey: ['delivery-enabled', restaurantId] });
         },
     });
 
-    const handleSave = async () => {
-        await Promise.all([settingsMutation.mutateAsync(), translationsMutation.mutateAsync()]);
-        setHasChanges(false);
-    };
+    if (settingsQuery.isError) return <Alert severity="error">No se pudo cargar la configuración de delivery.</Alert>;
+    if (!settings) return <Box sx={{ display: 'flex', justifyContent: 'center', py: 4 }}><CircularProgress /></Box>;
 
-    const updateSetting = <K extends keyof DeliverySettings>(key: K, value: DeliverySettings[K]) => {
-        setSettings(prev => ({ ...prev, [key]: value }));
-        setHasChanges(true);
+    const update = <K extends keyof DeliverySettings>(key: K, value: DeliverySettings[K]) => {
+        setSettings({ ...settings, [key]: value });
+        setDirty(true);
     };
-
     const updateTranslation = (lang: string, field: 'delivery_zones' | 'custom_message', value: string) => {
-        setTranslations(prev => ({
-            ...prev,
-            [lang]: { ...prev[lang], [field]: value },
-        }));
-        setHasChanges(true);
+        setTranslations((prev) => ({ ...prev, [lang]: { ...(prev[lang] ?? emptyTranslation), [field]: value } }));
+        setDirty(true);
     };
-
-    if (isLoading) {
-        return (
-            <Box sx={{ display: 'flex', justifyContent: 'center', py: 4 }}>
-                <CircularProgress />
-            </Box>
-        );
-    }
-
-    const isSaving = settingsMutation.isPending || translationsMutation.isPending;
+    const setHours = (day: string, part: 'start' | 'end', value: string) => {
+        const current = settings.delivery_hours[day]?.[0] ?? { start: '', end: '' };
+        update('delivery_hours', { ...settings.delivery_hours, [day]: [{ ...current, [part]: value }] });
+    };
+    const togglePayment = (method: 'cash' | 'card') =>
+        update('payment_methods', { ...settings.payment_methods, [method]: !settings.payment_methods[method] });
+    const euro = { endAdornment: <InputAdornment position="end">€</InputAdornment> };
 
     return (
-        <Box>
-            {/* Save Button (floating) */}
-            {hasChanges && (
+        <Stack spacing={3}>
+            {(dirty || save.isSuccess || save.isError) && (
                 <Alert
-                    severity="info"
-                    sx={{ mb: 3 }}
-                    action={
-                        <Box
-                            component="button"
-                            onClick={handleSave}
-                            disabled={isSaving}
-                            sx={{
-                                px: 3,
-                                py: 1,
-                                borderRadius: 2,
-                                border: 'none',
-                                bgcolor: neonColor,
-                                color: 'white',
-                                fontWeight: 600,
-                                cursor: 'pointer',
-                                '&:disabled': { opacity: 0.5 },
-                            }}
-                        >
-                            {isSaving ? 'Guardando...' : 'Guardar'}
-                        </Box>
-                    }
+                    severity={save.isError ? 'error' : dirty ? 'info' : 'success'}
+                    action={dirty && (
+                        <Button color="inherit" size="small" onClick={() => save.mutate()} disabled={save.isPending}>
+                            {save.isPending ? 'Guardando…' : 'Guardar'}
+                        </Button>
+                    )}
                 >
-                    Tienes cambios sin guardar
-                </Alert>
-            )}
-
-            {(settingsMutation.isSuccess || translationsMutation.isSuccess) && (
-                <Alert severity="success" sx={{ mb: 3 }}>
-                    ✅ Configuración de Delivery guardada
+                    {save.isError ? 'No se pudo guardar' : dirty ? 'Tienes cambios sin guardar' : 'Configuración guardada'}
                 </Alert>
             )}
 
             <Grid container spacing={3}>
-                {/* Master Toggle & Contact */}
                 <Grid item xs={12} md={6}>
-                    <Card
-                        elevation={0}
-                        sx={{
-                            background: `linear-gradient(135deg, ${alpha(neonColor, 0.08)} 0%, ${alpha(neonColor, 0.02)} 100%)`,
-                            border: `1px solid ${alpha(neonColor, 0.15)}`,
-                        }}
-                    >
-                        <CardHeader
-                            title="Configuración General"
-                            titleTypographyProps={{ variant: 'h6', fontWeight: 700, color: neonColor }}
-                            avatar={
-                                <Box sx={{ p: 1, borderRadius: 2, bgcolor: alpha(neonColor, 0.12) }}>
-                                    <TwoWheeler sx={{ color: neonColor }} />
-                                </Box>
-                            }
+                    <Panel icon={<TwoWheeler />} title="General">
+                        <FormControlLabel
+                            control={<Switch checked={settings.is_enabled} onChange={(e) => update('is_enabled', e.target.checked)} />}
+                            label={<Typography fontWeight={600}>{settings.is_enabled ? 'Delivery activo' : 'Delivery desactivado'}</Typography>}
                         />
-                        <CardContent>
-                            <FormControlLabel
-                                control={
-                                    <Switch
-                                        checked={settings.is_enabled}
-                                        onChange={(e) => updateSetting('is_enabled', e.target.checked)}
-                                        color="primary"
-                                    />
-                                }
-                                label={
-                                    <Typography fontWeight={600}>
-                                        {settings.is_enabled ? 'Delivery Activo' : 'Delivery Desactivado'}
-                                    </Typography>
-                                }
-                                sx={{ mb: 3 }}
-                            />
-
-                            <Divider sx={{ my: 2 }} />
-
-                            <Typography variant="subtitle2" color="text.secondary" sx={{ mb: 2 }}>
-                                Opciones de Contacto
-                            </Typography>
-
-                            <FormControlLabel
-                                control={
-                                    <Switch
-                                        checked={settings.show_whatsapp}
-                                        onChange={(e) => updateSetting('show_whatsapp', e.target.checked)}
-                                    />
-                                }
-                                label={
-                                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                                        <WhatsApp sx={{ color: '#25D366', fontSize: 20 }} />
-                                        <span>Mostrar WhatsApp</span>
-                                    </Box>
-                                }
-                            />
-                            {settings.show_whatsapp && (
-                                <TextField
-                                    fullWidth
-                                    size="small"
-                                    label="WhatsApp (override)"
-                                    value={settings.custom_whatsapp}
-                                    onChange={(e) => updateSetting('custom_whatsapp', e.target.value)}
-                                    placeholder="34612345678"
-                                    sx={{ mt: 1, mb: 2 }}
-                                    InputProps={{
-                                        startAdornment: (
-                                            <InputAdornment position="start">
-                                                <WhatsApp sx={{ color: '#25D366', fontSize: 18 }} />
-                                            </InputAdornment>
-                                        ),
-                                    }}
-                                />
-                            )}
-
-                            <FormControlLabel
-                                control={
-                                    <Switch
-                                        checked={settings.show_phone}
-                                        onChange={(e) => updateSetting('show_phone', e.target.checked)}
-                                    />
-                                }
-                                label={
-                                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                                        <Phone sx={{ fontSize: 20 }} />
-                                        <span>Mostrar Teléfono</span>
-                                    </Box>
-                                }
-                            />
-                            {settings.show_phone && (
-                                <TextField
-                                    fullWidth
-                                    size="small"
-                                    label="Teléfono (override)"
-                                    value={settings.custom_phone}
-                                    onChange={(e) => updateSetting('custom_phone', e.target.value)}
-                                    placeholder="912345678"
-                                    sx={{ mt: 1 }}
-                                    InputProps={{
-                                        startAdornment: (
-                                            <InputAdornment position="start">
-                                                <Phone sx={{ fontSize: 18 }} />
-                                            </InputAdornment>
-                                        ),
-                                    }}
-                                />
-                            )}
-                        </CardContent>
-                    </Card>
+                        <Divider sx={{ my: 2 }} />
+                        <Typography variant="overline" color="text.secondary">Contacto en la carta</Typography>
+                        <FormControlLabel
+                            sx={{ display: 'flex' }}
+                            control={<Switch checked={settings.show_whatsapp} onChange={(e) => update('show_whatsapp', e.target.checked)} />}
+                            label="Mostrar WhatsApp"
+                        />
+                        {settings.show_whatsapp && (
+                            <TextField fullWidth size="small" label="WhatsApp propio para pedidos" placeholder="34612345678"
+                                helperText="Vacío = el WhatsApp del restaurante" sx={{ mt: 1, mb: 2 }}
+                                value={settings.custom_whatsapp} onChange={(e) => update('custom_whatsapp', e.target.value)} />
+                        )}
+                        <FormControlLabel
+                            sx={{ display: 'flex' }}
+                            control={<Switch checked={settings.show_phone} onChange={(e) => update('show_phone', e.target.checked)} />}
+                            label="Mostrar teléfono"
+                        />
+                        {settings.show_phone && (
+                            <TextField fullWidth size="small" label="Teléfono propio para pedidos" placeholder="912345678"
+                                helperText="Vacío = el teléfono del restaurante" sx={{ mt: 1 }}
+                                value={settings.custom_phone} onChange={(e) => update('custom_phone', e.target.value)} />
+                        )}
+                    </Panel>
                 </Grid>
 
-                {/* Payment & Costs */}
                 <Grid item xs={12} md={6}>
-                    <Card
-                        elevation={0}
-                        sx={{
-                            background: `linear-gradient(135deg, ${alpha(neonColor, 0.08)} 0%, ${alpha(neonColor, 0.02)} 100%)`,
-                            border: `1px solid ${alpha(neonColor, 0.15)}`,
-                        }}
-                    >
-                        <CardHeader
-                            title="Pagos y Costes"
-                            titleTypographyProps={{ variant: 'h6', fontWeight: 700, color: neonColor }}
-                            avatar={
-                                <Box sx={{ p: 1, borderRadius: 2, bgcolor: alpha(neonColor, 0.12) }}>
-                                    <CreditCard sx={{ color: neonColor }} />
-                                </Box>
-                            }
-                        />
-                        <CardContent>
-                            <Typography variant="subtitle2" color="text.secondary" sx={{ mb: 2 }}>
-                                Métodos de Pago
-                            </Typography>
-                            <Box sx={{ display: 'flex', gap: 2, mb: 3 }}>
+                    <Panel icon={<CreditCard />} title="Pagos y costes">
+                        <Typography variant="overline" color="text.secondary">Métodos de pago</Typography>
+                        <Stack direction="row" spacing={1} sx={{ mt: 0.5, mb: 3 }}>
+                            {(['cash', 'card'] as const).map((method) => (
                                 <Chip
-                                    icon={<Money />}
-                                    label={settings.payment_methods.cash ? '✓ Efectivo' : 'Efectivo'}
-                                    variant="filled"
-                                    onClick={() =>
-                                        updateSetting('payment_methods', {
-                                            ...settings.payment_methods,
-                                            cash: !settings.payment_methods.cash,
-                                        })
-                                    }
-                                    sx={{
-                                        cursor: 'pointer',
-                                        fontWeight: 600,
-                                        bgcolor: settings.payment_methods.cash ? alpha('#22c55e', 0.2) : 'rgba(255,255,255,0.05)',
-                                        color: settings.payment_methods.cash ? '#22c55e' : 'rgba(255,255,255,0.5)',
-                                        border: `2px solid ${settings.payment_methods.cash ? '#22c55e' : 'rgba(255,255,255,0.1)'}`,
-                                        '&:hover': {
-                                            bgcolor: settings.payment_methods.cash ? alpha('#22c55e', 0.3) : 'rgba(255,255,255,0.1)',
-                                        }
-                                    }}
+                                    key={method}
+                                    label={method === 'cash' ? 'Efectivo' : 'Tarjeta'}
+                                    color={settings.payment_methods[method] ? 'primary' : 'default'}
+                                    variant={settings.payment_methods[method] ? 'filled' : 'outlined'}
+                                    onClick={() => togglePayment(method)}
                                 />
-                                <Chip
-                                    icon={<CreditCard />}
-                                    label={settings.payment_methods.card ? '✓ Tarjeta' : 'Tarjeta'}
-                                    variant="filled"
-                                    onClick={() =>
-                                        updateSetting('payment_methods', {
-                                            ...settings.payment_methods,
-                                            card: !settings.payment_methods.card,
-                                        })
-                                    }
-                                    sx={{
-                                        cursor: 'pointer',
-                                        fontWeight: 600,
-                                        bgcolor: settings.payment_methods.card ? alpha('#3b82f6', 0.2) : 'rgba(255,255,255,0.05)',
-                                        color: settings.payment_methods.card ? '#3b82f6' : 'rgba(255,255,255,0.5)',
-                                        border: `2px solid ${settings.payment_methods.card ? '#3b82f6' : 'rgba(255,255,255,0.1)'}`,
-                                        '&:hover': {
-                                            bgcolor: settings.payment_methods.card ? alpha('#3b82f6', 0.3) : 'rgba(255,255,255,0.1)',
-                                        }
-                                    }}
-                                />
-                            </Box>
-
-                            <Divider sx={{ my: 2 }} />
-
-                            <Grid container spacing={2}>
-                                <Grid item xs={12} sm={4}>
-                                    <TextField
-                                        fullWidth
-                                        size="small"
-                                        label="Coste de Envío"
-                                        type="number"
-                                        value={settings.shipping_cost}
-                                        onChange={(e) => updateSetting('shipping_cost', parseFloat(e.target.value) || 0)}
-                                        InputProps={{
-                                            endAdornment: <InputAdornment position="end">€</InputAdornment>,
-                                            startAdornment: (
-                                                <InputAdornment position="start">
-                                                    <LocalShipping sx={{ fontSize: 18 }} />
-                                                </InputAdornment>
-                                            ),
-                                        }}
-                                    />
-                                </Grid>
-                                <Grid item xs={12} sm={4}>
-                                    <TextField
-                                        fullWidth
-                                        size="small"
-                                        label="Envío Gratis desde"
-                                        type="number"
-                                        value={settings.free_shipping_threshold}
-                                        onChange={(e) => updateSetting('free_shipping_threshold', parseFloat(e.target.value) || 0)}
-                                        InputProps={{
-                                            endAdornment: <InputAdornment position="end">€</InputAdornment>,
-                                        }}
-                                        helperText="0 = siempre cobrar"
-                                    />
-                                </Grid>
-                                <Grid item xs={12} sm={4}>
-                                    <TextField
-                                        fullWidth
-                                        size="small"
-                                        label="Pedido Mínimo"
-                                        type="number"
-                                        value={settings.minimum_order}
-                                        onChange={(e) => updateSetting('minimum_order', parseFloat(e.target.value) || 0)}
-                                        InputProps={{
-                                            endAdornment: <InputAdornment position="end">€</InputAdornment>,
-                                        }}
-                                    />
-                                </Grid>
-                            </Grid>
-                        </CardContent>
-                    </Card>
-                </Grid>
-
-                {/* Delivery Zones & Translations */}
-                <Grid item xs={12}>
-                    <Card
-                        elevation={0}
-                        sx={{
-                            background: `linear-gradient(135deg, ${alpha(neonColor, 0.08)} 0%, ${alpha(neonColor, 0.02)} 100%)`,
-                            border: `1px solid ${alpha(neonColor, 0.15)}`,
-                        }}
-                    >
-                        <CardHeader
-                            title="Zonas y Mensajes"
-                            titleTypographyProps={{ variant: 'h6', fontWeight: 700, color: neonColor }}
-                            avatar={
-                                <Box sx={{ p: 1, borderRadius: 2, bgcolor: alpha(neonColor, 0.12) }}>
-                                    <LocationOn sx={{ color: neonColor }} />
-                                </Box>
-                            }
-                        />
-                        <CardContent>
-                            {LANGUAGES.map((lang) => (
-                                <Accordion key={lang.code} defaultExpanded={lang.code === 'es'}>
-                                    <AccordionSummary expandIcon={<ExpandMore />}>
-                                        <Typography fontWeight={600}>{lang.label}</Typography>
-                                    </AccordionSummary>
-                                    <AccordionDetails>
-                                        <Grid container spacing={2}>
-                                            <Grid item xs={12} md={6}>
-                                                <TextField
-                                                    fullWidth
-                                                    label="Zona de Reparto"
-                                                    value={translations[lang.code]?.delivery_zones || ''}
-                                                    onChange={(e) => updateTranslation(lang.code, 'delivery_zones', e.target.value)}
-                                                    placeholder="Málaga capital y alrededores"
-                                                    helperText="Describe dónde entregas"
-                                                />
-                                            </Grid>
-                                            <Grid item xs={12} md={6}>
-                                                <TextField
-                                                    fullWidth
-                                                    label="Mensaje Personalizado"
-                                                    value={translations[lang.code]?.custom_message || ''}
-                                                    onChange={(e) => updateTranslation(lang.code, 'custom_message', e.target.value)}
-                                                    placeholder="Entrega en 30-45 min"
-                                                    helperText="Mensaje opcional para el cliente"
-                                                />
-                                            </Grid>
-                                        </Grid>
-                                    </AccordionDetails>
-                                </Accordion>
                             ))}
-                        </CardContent>
-                    </Card>
+                        </Stack>
+                        <Grid container spacing={2}>
+                            <Grid item xs={12} sm={4}>
+                                <TextField fullWidth size="small" type="number" label="Coste de envío" InputProps={euro}
+                                    value={settings.shipping_cost} onChange={(e) => update('shipping_cost', parseFloat(e.target.value) || 0)} />
+                            </Grid>
+                            <Grid item xs={12} sm={4}>
+                                <TextField fullWidth size="small" type="number" label="Envío gratis desde" InputProps={euro} helperText="0 = siempre se cobra"
+                                    value={settings.free_shipping_threshold} onChange={(e) => update('free_shipping_threshold', parseFloat(e.target.value) || 0)} />
+                            </Grid>
+                            <Grid item xs={12} sm={4}>
+                                <TextField fullWidth size="small" type="number" label="Pedido mínimo" InputProps={euro}
+                                    value={settings.minimum_order} onChange={(e) => update('minimum_order', parseFloat(e.target.value) || 0)} />
+                            </Grid>
+                        </Grid>
+                    </Panel>
                 </Grid>
 
-                {/* Schedule */}
                 <Grid item xs={12}>
-                    <Card
-                        elevation={0}
-                        sx={{
-                            background: `linear-gradient(135deg, ${alpha(neonColor, 0.08)} 0%, ${alpha(neonColor, 0.02)} 100%)`,
-                            border: `1px solid ${alpha(neonColor, 0.15)}`,
-                        }}
-                    >
-                        <CardHeader
-                            title="Horarios de Reparto"
-                            titleTypographyProps={{ variant: 'h6', fontWeight: 700, color: neonColor }}
-                            avatar={
-                                <Box sx={{ p: 1, borderRadius: 2, bgcolor: alpha(neonColor, 0.12) }}>
-                                    <Schedule sx={{ color: neonColor }} />
-                                </Box>
-                            }
-                        />
-                        <CardContent>
-                            <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-                                Configura los horarios de disponibilidad para cada día. Deja vacío para no ofrecer delivery ese día.
-                            </Typography>
-                            <Grid container spacing={2}>
-                                {DAYS.map((day) => (
-                                    <Grid item xs={12} sm={6} md={4} key={day.key}>
-                                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                                            <Typography sx={{ width: 90, fontWeight: 500 }}>{day.label}</Typography>
-                                            <TextField
-                                                size="small"
-                                                type="time"
-                                                placeholder="12:00"
-                                                value={settings.delivery_hours[day.key]?.[0]?.start || ''}
-                                                onChange={(e) => {
-                                                    const currentSlots = settings.delivery_hours[day.key] || [];
-                                                    const newSlot = { start: e.target.value, end: currentSlots[0]?.end || '' };
-                                                    updateSetting('delivery_hours', {
-                                                        ...settings.delivery_hours,
-                                                        [day.key]: [newSlot],
-                                                    });
-                                                }}
-                                                sx={{ width: 100 }}
-                                            />
-                                            <Typography>-</Typography>
-                                            <TextField
-                                                size="small"
-                                                type="time"
-                                                placeholder="22:00"
-                                                value={settings.delivery_hours[day.key]?.[0]?.end || ''}
-                                                onChange={(e) => {
-                                                    const currentSlots = settings.delivery_hours[day.key] || [];
-                                                    const newSlot = { start: currentSlots[0]?.start || '', end: e.target.value };
-                                                    updateSetting('delivery_hours', {
-                                                        ...settings.delivery_hours,
-                                                        [day.key]: [newSlot],
-                                                    });
-                                                }}
-                                                sx={{ width: 100 }}
-                                            />
-                                        </Box>
+                    <Panel icon={<LocationOn />} title="Zonas y mensajes">
+                        {LANGUAGES.map((lang) => (
+                            <Accordion key={lang.code} defaultExpanded={lang.code === 'es'} disableGutters variant="outlined" sx={{ mb: 1 }}>
+                                <AccordionSummary expandIcon={<ExpandMore />}>
+                                    <Typography fontWeight={600}>{lang.label}</Typography>
+                                </AccordionSummary>
+                                <AccordionDetails>
+                                    <Grid container spacing={2}>
+                                        <Grid item xs={12} md={6}>
+                                            <TextField fullWidth label="Zona de reparto" placeholder="Málaga capital y alrededores" helperText="Dónde entregas"
+                                                value={translations[lang.code]?.delivery_zones || ''}
+                                                onChange={(e) => updateTranslation(lang.code, 'delivery_zones', e.target.value)} />
+                                        </Grid>
+                                        <Grid item xs={12} md={6}>
+                                            <TextField fullWidth label="Mensaje para el cliente" placeholder="Entrega en 30–45 min" helperText="Opcional"
+                                                value={translations[lang.code]?.custom_message || ''}
+                                                onChange={(e) => updateTranslation(lang.code, 'custom_message', e.target.value)} />
+                                        </Grid>
                                     </Grid>
-                                ))}
-                            </Grid>
-                        </CardContent>
-                    </Card>
+                                </AccordionDetails>
+                            </Accordion>
+                        ))}
+                    </Panel>
+                </Grid>
+
+                <Grid item xs={12}>
+                    <Panel icon={<Schedule />} title="Horario de reparto" subtitle="Deja un día vacío para no ofrecer delivery ese día.">
+                        <Grid container spacing={2}>
+                            {DAYS.map((day) => (
+                                <Grid item xs={12} sm={6} md={4} key={day.key}>
+                                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                                        <Typography sx={{ width: 90, fontWeight: 500 }}>{day.label}</Typography>
+                                        <TextField size="small" type="time" sx={{ width: 120 }}
+                                            value={settings.delivery_hours[day.key]?.[0]?.start || ''}
+                                            onChange={(e) => setHours(day.key, 'start', e.target.value)} />
+                                        <Typography color="text.secondary">–</Typography>
+                                        <TextField size="small" type="time" sx={{ width: 120 }}
+                                            value={settings.delivery_hours[day.key]?.[0]?.end || ''}
+                                            onChange={(e) => setHours(day.key, 'end', e.target.value)} />
+                                    </Box>
+                                </Grid>
+                            ))}
+                        </Grid>
+                    </Panel>
                 </Grid>
             </Grid>
-        </Box>
+        </Stack>
     );
 }

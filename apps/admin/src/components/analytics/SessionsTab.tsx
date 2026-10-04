@@ -1,342 +1,208 @@
-import React, { useState } from 'react';
+import { Fragment, useMemo, useState, type ChangeEvent } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import {
-    Box,
-    Card,
-    Table,
-    TableBody,
-    TableCell,
-    TableContainer,
-    TableHead,
-    TableRow,
-    Typography,
-    CircularProgress,
-    Alert,
-    Chip,
-    IconButton,
-    Collapse,
-    TablePagination,
-    Stack,
-    Grid,
-    Tooltip
+    Alert, Box, Chip, CircularProgress, Collapse, Grid, IconButton, Stack, Table, TableBody, TableCell,
+    TableContainer, TableHead, TablePagination, TableRow, Tooltip, Typography,
 } from '@mui/material';
 import {
     KeyboardArrowDown as KeyboardArrowDownIcon,
     KeyboardArrowUp as KeyboardArrowUpIcon,
     Smartphone as SmartphoneIcon,
     Computer as ComputerIcon,
-    Public as PublicIcon,
-    AccessTime as AccessTimeIcon,
-    ShoppingCart as ShoppingCartIcon,
-    Favorite as FavoriteIcon,
-    Visibility as VisibilityIcon,
-    FiberNew as FiberNewIcon,
-    Loop as LoopIcon,
-    Language as LanguageIcon
+    History as HistoryIcon,
 } from '@mui/icons-material';
-import { apiClient } from '../../lib/apiClient';
-import { useAuth } from '../../contexts/AuthContext';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
+import { apiClient } from '../../lib/apiClient';
+import { useAuth } from '../../contexts/AuthContext';
+import { Panel } from '../common/Panel';
+import { DATA } from '../../theme';
 
-interface SessionsTabProps {
-    timeRange: string;
+interface SessionRowData {
+    id: string;
+    started_at: string;
+    duration_seconds: number | null;
+    device_type: string | null;
+    os_name: string | null;
+    browser: string | null;
+    country: string | null;
+    city: string | null;
+    visit_count: number | null;
+    language_code: string | null;
+    referrer: string | null;
+    pwa_installed: number | null;
+    user_name: string | null;
+    cart_value: number | null;
+    events: Record<string, number>;
+    liked_dishes: string[];
 }
 
-// ✅ NEW: Recurrence badge component
-function RecurrenceBadge({ visitCount }: { visitCount?: number }) {
+function RecurrenceBadge({ visitCount }: { visitCount: number | null }) {
     const count = visitCount || 1;
     if (count <= 1) {
-        return (
-            <Chip
-                icon={<FiberNewIcon sx={{ fontSize: 14 }} />}
-                label="Nueva"
-                size="small"
-                sx={{
-                    bgcolor: 'rgba(34, 197, 94, 0.12)',
-                    color: '#22c55e',
-                    fontWeight: 600,
-                    fontSize: '0.7rem',
-                    height: 24,
-                    border: '1px solid rgba(34, 197, 94, 0.25)',
-                    '& .MuiChip-icon': { color: '#22c55e' }
-                }}
-            />
-        );
+        return <Chip label="Nueva" size="small" variant="outlined" sx={{ color: DATA.olive, borderColor: DATA.olive, fontWeight: 600 }} />;
     }
     return (
-        <Tooltip title={`Este visitante ha venido ${count} veces`} arrow>
-            <Chip
-                icon={<LoopIcon sx={{ fontSize: 14 }} />}
-                label={`x${count}`}
-                size="small"
-                sx={{
-                    bgcolor: 'rgba(139, 92, 246, 0.12)',
-                    color: '#8b5cf6',
-                    fontWeight: 700,
-                    fontSize: '0.7rem',
-                    height: 24,
-                    border: '1px solid rgba(139, 92, 246, 0.25)',
-                    '& .MuiChip-icon': { color: '#8b5cf6' }
-                }}
-            />
+        <Tooltip title={`Este visitante ha venido ${count} veces`}>
+            <Chip label={`×${count}`} size="small" sx={{ bgcolor: DATA.cobalt, color: '#FFFFFF', fontWeight: 700 }} />
         </Tooltip>
     );
 }
 
-function SessionRow({ row, defaultOpen = false }: { row: any; defaultOpen?: boolean }) {
+const formatDuration = (seconds: number | null) => {
+    if (!seconds) return '—';
+    return `${Math.floor(seconds / 60)} m ${seconds % 60} s`;
+};
+
+const joinParts = (parts: Array<string | null>, empty: string) => parts.filter(Boolean).join(' · ') || empty;
+
+function SessionRow({ row, defaultOpen }: { row: SessionRowData; defaultOpen: boolean }) {
     const [open, setOpen] = useState(defaultOpen);
-    const getDeviceIcon = (type: string) => {
-        if (type?.toLowerCase().includes('mobile')) return <SmartphoneIcon fontSize="small" />;
-        return <ComputerIcon fontSize="small" />;
-    };
-    const formatDuration = (seconds: number) => {
-        if (!seconds) return '-';
-        const mins = Math.floor(seconds / 60);
-        const secs = seconds % 60;
-        return `${mins}m ${secs}s`;
-    };
+    const isMobileDevice = row.device_type?.toLowerCase().includes('mobile');
     return (
-        <React.Fragment>
-            <TableRow sx={{ '& > *': { borderBottom: 'unset' } }} hover onClick={() => setOpen(!open)} style={{ cursor: 'pointer' }}>
-                <TableCell>
-                    <IconButton
-                        aria-label="expand row"
-                        size="small"
-                        onClick={(e) => {
-                            e.stopPropagation();
-                            setOpen(!open);
-                        }}
-                    >
+        <Fragment>
+            <TableRow hover onClick={() => setOpen(!open)} sx={{ cursor: 'pointer', '& > *': { borderBottom: open ? 'unset' : undefined } }}>
+                <TableCell padding="checkbox">
+                    <IconButton size="small" aria-label={open ? 'Plegar' : 'Desplegar'}>
                         {open ? <KeyboardArrowUpIcon /> : <KeyboardArrowDownIcon />}
                     </IconButton>
                 </TableCell>
-                <TableCell component="th" scope="row">
-                    <Stack direction="row" spacing={1} alignItems="center">
-                        <AccessTimeIcon fontSize="small" color="action" />
-                        <Typography variant="body2">
-                            {format(new Date(row.started_at), "d MMM HH:mm", { locale: es })}
-                        </Typography>
-                    </Stack>
-                </TableCell>
+                <TableCell>{format(new Date(row.started_at), 'd MMM HH:mm', { locale: es })}</TableCell>
                 <TableCell>{row.user_name || 'Invitado'}</TableCell>
-                {/* ✅ NEW: Recurrence column */}
-                <TableCell>
-                    <RecurrenceBadge visitCount={row.visit_count} />
-                </TableCell>
+                <TableCell><RecurrenceBadge visitCount={row.visit_count} /></TableCell>
                 <TableCell>
                     <Stack direction="row" spacing={1} alignItems="center">
-                        {getDeviceIcon(row.device_type)}
-                        <Typography variant="body2">{row.os_name} - {row.browser}</Typography>
+                        {isMobileDevice ? <SmartphoneIcon fontSize="small" color="action" /> : <ComputerIcon fontSize="small" color="action" />}
+                        <Typography variant="body2">{joinParts([row.os_name, row.browser], 'Desconocido')}</Typography>
                     </Stack>
                 </TableCell>
-                <TableCell>
-                    <Stack direction="row" spacing={1} alignItems="center">
-                        <PublicIcon fontSize="small" color="action" />
-                        <Typography variant="body2">{row.city}, {row.country}</Typography>
-                    </Stack>
-                </TableCell>
+                <TableCell>{joinParts([row.city, row.country], '—')}</TableCell>
                 <TableCell align="right">{formatDuration(row.duration_seconds)}</TableCell>
                 <TableCell align="right">
-                    {row.cart_value > 0 ? (
-                        <Chip
-                            icon={<ShoppingCartIcon fontSize="small" />}
-                            label={`${row.cart_value.toFixed(2)}€`}
-                            color="success"
-                            size="small"
-                            variant="outlined"
-                        />
-                    ) : '-'}
+                    {row.cart_value && row.cart_value > 0 ? (
+                        <Typography variant="body2" sx={{ fontWeight: 700, color: DATA.olive }}>{row.cart_value.toFixed(2)} €</Typography>
+                    ) : '—'}
                 </TableCell>
             </TableRow>
             <TableRow>
-                <TableCell style={{ paddingBottom: 0, paddingTop: 0 }} colSpan={8}>
+                <TableCell sx={{ py: 0 }} colSpan={8}>
                     <Collapse in={open} timeout="auto" unmountOnExit>
-                        <Box sx={{ margin: 2 }}>
-                            <Typography variant="subtitle2" gutterBottom component="div">
-                                Detalles de la Sesión
-                            </Typography>
-                            <Grid container spacing={2}>
-                                <Grid item xs={12} md={4}>
-                                    <Typography variant="caption" color="text.secondary" display="block" gutterBottom>
-                                        INTERACCIONES
-                                    </Typography>
-                                    <Stack direction="row" spacing={1} sx={{ mb: 2 }} flexWrap="wrap" useFlexGap>
-                                        <Chip icon={<VisibilityIcon />} label={`${row.events?.viewdish || 0} Platos vistos`} size="small" />
-                                        <Chip icon={<FavoriteIcon />} label={`${row.events?.favorite || 0} Favoritos`} size="small" />
-                                        <Chip label={`${row.events?.view_section || 0} Secciones`} size="small" variant="outlined" />
-                                    </Stack>
-                                </Grid>
-                                <Grid item xs={12} md={4}>
-                                    <Typography variant="caption" color="text.secondary" display="block" gutterBottom>
-                                        PLATOS QUE GUSTARON
-                                    </Typography>
-                                    {row.liked_dishes && row.liked_dishes.length > 0 ? (
-                                        <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
-                                            {row.liked_dishes.map((dish: string, idx: number) => (
-                                                <Chip key={idx} label={dish} size="small" color="primary" variant="outlined" />
-                                            ))}
-                                        </Stack>
-                                    ) : (
-                                        <Typography variant="body2" color="text.secondary">Ninguno</Typography>
-                                    )}
-                                </Grid>
-                                {/* ✅ NEW: Session metadata with recurrence context */}
-                                <Grid item xs={12} md={4}>
-                                    <Typography variant="caption" color="text.secondary" display="block" gutterBottom>
-                                        CONTEXTO
-                                    </Typography>
-                                    <Stack spacing={0.5}>
-                                        {row.visit_count > 1 && (
-                                            <Typography variant="body2" sx={{ color: '#8b5cf6' }}>
-                                                🔄 Visita nº {row.visit_count}
-                                            </Typography>
-                                        )}
-                                        {row.language_code && (
-                                            <Stack direction="row" spacing={0.5} alignItems="center">
-                                                <LanguageIcon sx={{ fontSize: 14, color: 'text.secondary' }} />
-                                                <Typography variant="body2" color="text.secondary">
-                                                    {row.language_code.toUpperCase()}
-                                                </Typography>
-                                            </Stack>
-                                        )}
-                                        {row.referrer && (
-                                            <Typography variant="body2" color="text.secondary" noWrap sx={{ maxWidth: 200 }}>
-                                                📎 {row.referrer}
-                                            </Typography>
-                                        )}
-                                        {row.pwa_installed === 1 && (
-                                            <Chip label="PWA" size="small" sx={{
-                                                bgcolor: 'rgba(99, 102, 241, 0.12)',
-                                                color: '#6366f1',
-                                                fontWeight: 600,
-                                                fontSize: '0.65rem',
-                                                height: 20,
-                                                width: 'fit-content'
-                                            }} />
-                                        )}
-                                    </Stack>
-                                </Grid>
+                        <Grid container spacing={3} sx={{ py: 2 }}>
+                            <Grid item xs={12} md={4}>
+                                <Typography variant="overline" color="text.secondary">Interacciones</Typography>
+                                <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap sx={{ mt: 0.5 }}>
+                                    <Chip label={`${row.events?.viewdish || 0} platos vistos`} size="small" variant="outlined" />
+                                    <Chip label={`${row.events?.favorite || 0} favoritos`} size="small" variant="outlined" />
+                                    <Chip label={`${row.events?.view_section || 0} secciones`} size="small" variant="outlined" />
+                                </Stack>
                             </Grid>
-                        </Box>
+                            <Grid item xs={12} md={4}>
+                                <Typography variant="overline" color="text.secondary">Platos que gustaron</Typography>
+                                {row.liked_dishes?.length > 0 ? (
+                                    <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap sx={{ mt: 0.5 }}>
+                                        {row.liked_dishes.map((dish) => <Chip key={dish} label={dish} size="small" color="primary" variant="outlined" />)}
+                                    </Stack>
+                                ) : (
+                                    <Typography variant="body2" color="text.secondary">Ninguno</Typography>
+                                )}
+                            </Grid>
+                            <Grid item xs={12} md={4}>
+                                <Typography variant="overline" color="text.secondary">Contexto</Typography>
+                                <Stack spacing={0.5} sx={{ mt: 0.5 }}>
+                                    {(row.visit_count ?? 0) > 1 && <Typography variant="body2">Visita nº {row.visit_count}</Typography>}
+                                    {row.language_code && <Typography variant="body2" color="text.secondary">Idioma: {row.language_code.toUpperCase()}</Typography>}
+                                    {row.referrer && (
+                                        <Typography variant="body2" color="text.secondary" noWrap sx={{ maxWidth: 260 }}>Viene de: {row.referrer}</Typography>
+                                    )}
+                                    {row.pwa_installed === 1 && <Chip label="App instalada (PWA)" size="small" variant="outlined" sx={{ width: 'fit-content' }} />}
+                                </Stack>
+                            </Grid>
+                        </Grid>
                     </Collapse>
                 </TableCell>
             </TableRow>
-        </React.Fragment>
+        </Fragment>
     );
 }
 
-export default function SessionsTab({ timeRange }: SessionsTabProps) {
+export default function SessionsTab({ timeRange }: { timeRange: string }) {
     const { currentRestaurant } = useAuth();
     const [page, setPage] = useState(0);
     const [rowsPerPage, setRowsPerPage] = useState(10);
-    const { data, isLoading, error } = useQuery({
+    const { data, isLoading, isError } = useQuery({
         queryKey: ['analytics-sessions', currentRestaurant?.id, timeRange, page, rowsPerPage],
-        queryFn: async () => {
-            if (!currentRestaurant?.id) throw new Error('No restaurant selected');
-            return await apiClient.getSessionAnalytics(currentRestaurant.id, {
-                timeRange,
-                page: page + 1,
-                limit: rowsPerPage
-            });
-        },
+        queryFn: () => apiClient.getSessionAnalytics(currentRestaurant!.id, { timeRange, page: page + 1, limit: rowsPerPage }),
         enabled: !!currentRestaurant?.id,
         keepPreviousData: true,
     });
-    const handleChangePage = (event: unknown, newPage: number) => {
-        setPage(newPage);
-    };
-    const handleChangeRowsPerPage = (event: React.ChangeEvent<HTMLInputElement>) => {
-        setRowsPerPage(parseInt(event.target.value, 10));
-        setPage(0);
-    };
+    const rows: SessionRowData[] = data?.data ?? [];
 
-    // ✅ NEW: Calculate recurrence summary from loaded sessions
-    const recurrenceSummary = React.useMemo(() => {
-        if (!data?.data) return null;
-        const sessions = data.data;
-        const newCount = sessions.filter((s: any) => !s.visit_count || s.visit_count <= 1).length;
-        const returningCount = sessions.filter((s: any) => s.visit_count > 1).length;
-        return { newCount, returningCount, total: sessions.length };
-    }, [data?.data]);
+    // Nuevas/recurrentes de la página cargada.
+    const summary = useMemo(() => ({
+        newCount: rows.filter((s) => !s.visit_count || s.visit_count <= 1).length,
+        returningCount: rows.filter((s) => (s.visit_count ?? 0) > 1).length,
+    }), [rows]);
 
-    if (isLoading && !data) return <Box sx={{ display: 'flex', justifyContent: 'center', p: 4 }}><CircularProgress /></Box>;
-    if (error) return <Alert severity="error">Error al cargar sesiones</Alert>;
     return (
-        <Card>
-            <Box sx={{ p: 3 }}>
-                <Typography variant="h6" gutterBottom>Sesiones de Usuarios</Typography>
-                <Stack direction="row" spacing={2} alignItems="center">
-                    <Typography variant="body2" color="text.secondary">
-                        Registro detallado de visitas y comportamiento de usuarios.
-                    </Typography>
-                    {/* ✅ NEW: Inline recurrence summary */}
-                    {recurrenceSummary && recurrenceSummary.total > 0 && (
-                        <Stack direction="row" spacing={1}>
-                            <Chip
-                                icon={<FiberNewIcon sx={{ fontSize: 14 }} />}
-                                label={`${recurrenceSummary.newCount} nuevas`}
-                                size="small"
-                                sx={{
-                                    bgcolor: 'rgba(34, 197, 94, 0.08)',
-                                    color: '#22c55e',
-                                    fontSize: '0.7rem',
-                                    '& .MuiChip-icon': { color: '#22c55e' }
-                                }}
-                            />
-                            <Chip
-                                icon={<LoopIcon sx={{ fontSize: 14 }} />}
-                                label={`${recurrenceSummary.returningCount} recurrentes`}
-                                size="small"
-                                sx={{
-                                    bgcolor: 'rgba(139, 92, 246, 0.08)',
-                                    color: '#8b5cf6',
-                                    fontSize: '0.7rem',
-                                    '& .MuiChip-icon': { color: '#8b5cf6' }
-                                }}
-                            />
-                        </Stack>
-                    )}
+        <Panel
+            flush
+            icon={<HistoryIcon />}
+            title="Sesiones"
+            subtitle="Registro de visitas a la carta y lo que hizo cada una."
+            action={rows.length > 0 && (
+                <Stack direction="row" spacing={1}>
+                    <Chip size="small" variant="outlined" label={`${summary.newCount} nuevas`} sx={{ color: DATA.olive, borderColor: DATA.olive }} />
+                    <Chip size="small" variant="outlined" label={`${summary.returningCount} recurrentes`} sx={{ color: DATA.cobalt, borderColor: DATA.cobalt }} />
                 </Stack>
-            </Box>
-            <TableContainer>
-                <Table>
-                    <TableHead>
-                        <TableRow>
-                            <TableCell />
-                            <TableCell>Fecha</TableCell>
-                            <TableCell>Usuario</TableCell>
-                            <TableCell>Visita</TableCell>
-                            <TableCell>Dispositivo</TableCell>
-                            <TableCell>Ubicación</TableCell>
-                            <TableCell align="right">Duración</TableCell>
-                            <TableCell align="right">Carrito</TableCell>
-                        </TableRow>
-                    </TableHead>
-                    <TableBody>
-                        {data?.data?.map((row: any, index: number) => (
-                            <SessionRow key={row.id} row={row} defaultOpen={index === 0} />
-                        ))}
-                        {(!data?.data || data.data.length === 0) && (
-                            <TableRow>
-                                <TableCell colSpan={8} align="center" sx={{ py: 4 }}>
-                                    <Typography color="text.secondary">No hay sesiones registradas en este periodo</Typography>
-                                </TableCell>
-                            </TableRow>
-                        )}
-                    </TableBody>
-                </Table>
-            </TableContainer>
-            <TablePagination
-                rowsPerPageOptions={[10, 25, 50]}
-                component="div"
-                count={data?.pagination?.total || 0}
-                rowsPerPage={rowsPerPage}
-                page={page}
-                onPageChange={handleChangePage}
-                onRowsPerPageChange={handleChangeRowsPerPage}
-                labelRowsPerPage="Filas por página"
-            />
-        </Card>
+            )}
+        >
+            {isLoading && !data ? (
+                <Box sx={{ display: 'flex', justifyContent: 'center', p: 4 }}><CircularProgress /></Box>
+            ) : isError ? (
+                <Alert severity="error" sx={{ m: 3 }}>No se pudieron cargar las sesiones</Alert>
+            ) : (
+                <>
+                    <TableContainer>
+                        <Table>
+                            <TableHead>
+                                <TableRow>
+                                    <TableCell padding="checkbox" />
+                                    <TableCell>Fecha</TableCell>
+                                    <TableCell>Usuario</TableCell>
+                                    <TableCell>Visita</TableCell>
+                                    <TableCell>Dispositivo</TableCell>
+                                    <TableCell>Ubicación</TableCell>
+                                    <TableCell align="right">Duración</TableCell>
+                                    <TableCell align="right">Carrito</TableCell>
+                                </TableRow>
+                            </TableHead>
+                            <TableBody>
+                                {rows.map((row, index) => <SessionRow key={row.id} row={row} defaultOpen={index === 0} />)}
+                                {rows.length === 0 && (
+                                    <TableRow>
+                                        <TableCell colSpan={8} align="center" sx={{ py: 4 }}>
+                                            <Typography color="text.secondary">No hay sesiones en este periodo</Typography>
+                                        </TableCell>
+                                    </TableRow>
+                                )}
+                            </TableBody>
+                        </Table>
+                    </TableContainer>
+                    <TablePagination
+                        rowsPerPageOptions={[10, 25, 50]}
+                        component="div"
+                        count={data?.pagination?.total || 0}
+                        rowsPerPage={rowsPerPage}
+                        page={page}
+                        onPageChange={(_, newPage) => setPage(newPage)}
+                        onRowsPerPageChange={(e: ChangeEvent<HTMLInputElement>) => {
+                            setRowsPerPage(parseInt(e.target.value, 10));
+                            setPage(0);
+                        }}
+                        labelRowsPerPage="Filas por página"
+                    />
+                </>
+            )}
+        </Panel>
     );
 }

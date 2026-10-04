@@ -1,5 +1,5 @@
 import { Routes, Route, Navigate } from 'react-router-dom';
-import { Suspense, lazy } from 'react';
+import { lazy, type ReactNode } from 'react';
 import { LinearProgress, ThemeProvider, CssBaseline } from '@mui/material';
 import DashboardLayout from './components/layout/DashboardLayout';
 import LoginPage from './pages/LoginPage';
@@ -7,23 +7,20 @@ import AcceptInvitePage from './pages/AcceptInvitePage';
 import { useAuth } from './contexts/AuthContext';
 import theme from './theme';
 
-// Importaciones habituales
-
-import DishesPage from './pages/DishesPage';
-import DishFormPage from './pages/DishFormPage';
+// Todas las pantallas del panel se cargan bajo demanda; el <Suspense> que las
+// envuelve está en DashboardLayout, alrededor del <Outlet />.
+const AnalyticsPage = lazy(() => import('./pages/AnalyticsPage'));
+const DishesPage = lazy(() => import('./pages/DishesPage'));
+const DishFormPage = lazy(() => import('./pages/DishFormPage'));
 const WebPage = lazy(() => import('./pages/WebPage'));
-
-// Importaciones con carga diferida para las nuevas páginas
 const ConfigurationPage = lazy(() => import('./pages/ConfigurationPage'));
-const StylingPage = lazy(() => import('./pages/StylingPage'));
 const MarketingPage = lazy(() => import('./pages/MarketingPage'));
 const LoyaltyPage = lazy(() => import('./pages/LoyaltyPage'));
-const AnalyticsPage = lazy(() => import('./pages/AnalyticsPage'));
 const UsersPage = lazy(() => import('./pages/UsersPage'));
 const QRGeneratorPage = lazy(() => import('./pages/QRGeneratorPage'));
 const ReservationsPage = lazy(() => import('./pages/ReservationsPage'));
 const DeliveryPage = lazy(() => import('./pages/DeliveryPage'));
-// ✅ Guidebook Admin Pages
+// Guidebook
 const GuideAgencyDashboard = lazy(() => import('./pages/guide/GuideAgencyDashboard'));
 const GuideApartmentsPage = lazy(() => import('./pages/guide/GuideApartmentsPage'));
 const GuideApartmentDetail = lazy(() => import('./pages/guide/GuideApartmentDetail'));
@@ -38,11 +35,7 @@ const GuideZoneRestaurantsPage = lazy(() => import('./pages/guide/GuideZoneResta
 const GuideConversionsPage = lazy(() => import('./pages/guide/GuideConversionsPage'));
 const GuideTvPage = lazy(() => import('./pages/guide/GuideTvPage'));
 
-
-import { guideTheme } from './theme/guideTheme';
-
-// Componente para proteger rutas
-const ProtectedRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+function ProtectedRoute({ children }: { children: ReactNode }) {
   const { isAuthenticated, isLoading } = useAuth();
 
   if (isLoading) {
@@ -54,13 +47,11 @@ const ProtectedRoute: React.FC<{ children: React.ReactNode }> = ({ children }) =
   }
 
   return <>{children}</>;
-};
+}
 
 function App() {
-  const { adminMode } = useAuth();
-
   return (
-    <ThemeProvider theme={adminMode === 'agency' ? guideTheme : theme}>
+    <ThemeProvider theme={theme}>
       <CssBaseline />
       <Routes>
         <Route path="/login" element={<LoginPage />} />
@@ -73,176 +64,33 @@ function App() {
             </ProtectedRoute>
           }
         >
-          <Route index element={
-            <Suspense fallback={<LinearProgress />}>
-              <AnalyticsPage />
-            </Suspense>
-          } />
+          <Route index element={<AnalyticsPage />} />
           <Route path="dishes" element={<DishesPage />} />
           <Route path="dishes/new" element={<DishFormPage />} />
           <Route path="dishes/:id" element={<DishFormPage />} />
-          <Route
-            path="/admin/landing"
-            element={
-              <Suspense fallback={<LinearProgress />}>
-                <WebPage />
-              </Suspense>
-            }
-          />
+          <Route path="admin/landing" element={<WebPage />} />
+          <Route path="settings" element={<ConfigurationPage />} />
+          <Route path="marketing" element={<MarketingPage />} />
+          <Route path="loyalty" element={<LoyaltyPage />} />
+          <Route path="users" element={<UsersPage />} />
+          <Route path="qr-generator" element={<QRGeneratorPage />} />
+          <Route path="reservations" element={<ReservationsPage />} />
+          <Route path="delivery" element={<DeliveryPage />} />
 
-          {/* Nuevas rutas */}
-          <Route
-            path="settings"
-            element={
-              <Suspense fallback={<LinearProgress />}>
-                <ConfigurationPage />
-              </Suspense>
-            }
-          />
-          <Route
-            path="settings/styling"
-            element={
-              <Suspense fallback={<LinearProgress />}>
-                <StylingPage />
-              </Suspense>
-            }
-          />
-          <Route
-            path="marketing"
-            element={
-              <Suspense fallback={<LinearProgress />}>
-                <MarketingPage />
-              </Suspense>
-            }
-          />
-          <Route
-            path="loyalty"
-            element={
-              <Suspense fallback={<LinearProgress />}>
-                <LoyaltyPage />
-              </Suspense>
-            }
-          />
-
-          <Route
-            path="users"
-            element={
-              <Suspense fallback={<LinearProgress />}>
-                <UsersPage />
-              </Suspense>
-            }
-          />
-          <Route
-            path="qr-generator"
-            element={
-              <Suspense fallback={<LinearProgress />}>
-                <QRGeneratorPage />
-              </Suspense>
-            }
-          />
-          <Route
-            path="reservations"
-            element={
-              <Suspense fallback={<LinearProgress />}>
-                <ReservationsPage />
-              </Suspense>
-            }
-          />
-          <Route
-            path="delivery"
-            element={
-              <Suspense fallback={<LinearProgress />}>
-                <DeliveryPage />
-              </Suspense>
-            }
-          />
-
-          {/* ✅ Guidebook Admin Routes */}
-          <Route
-            path="guide"
-            element={
-              <Suspense fallback={<LinearProgress />}>
-                <GuideAgencyDashboard />
-              </Suspense>
-            }
-          />
-          <Route
-            path="guide/apartments"
-            element={
-              <Suspense fallback={<LinearProgress />}>
-                <GuideApartmentsPage />
-              </Suspense>
-            }
-          />
-          <Route
-            path="guide/apartments/:id"
-            element={
-              <Suspense fallback={<LinearProgress />}>
-                <GuideApartmentDetail />
-              </Suspense>
-            }
-          />
-          <Route
-            path="guide/tv"
-            element={
-              <Suspense fallback={<LinearProgress />}>
-                <GuideTvPage />
-              </Suspense>
-            }
-          />
-          <Route
-            path="guide/design"
-            element={
-              <Suspense fallback={<LinearProgress />}>
-                <GuideDesignPage />
-              </Suspense>
-            }
-          />
-          <Route
-            path="guide/catalog"
-            element={
-              <Suspense fallback={<LinearProgress />}>
-                <GuideCatalogPage />
-              </Suspense>
-            }
-          />
+          <Route path="guide" element={<GuideAgencyDashboard />} />
+          <Route path="guide/apartments" element={<GuideApartmentsPage />} />
+          <Route path="guide/apartments/:id" element={<GuideApartmentDetail />} />
+          <Route path="guide/tv" element={<GuideTvPage />} />
+          <Route path="guide/design" element={<GuideDesignPage />} />
+          <Route path="guide/catalog" element={<GuideCatalogPage />} />
           {/* Alias de las rutas antiguas: enlaces guardados o abiertos en otra
               pestaña siguen funcionando en vez de dar un 404 de React Router. */}
           <Route path="guide/pois" element={<Navigate to="/guide/catalog" replace />} />
           <Route path="guide/experiences" element={<Navigate to="/guide/catalog" replace />} />
-          <Route
-            path="guide/store"
-            element={
-              <Suspense fallback={<LinearProgress />}>
-                <GuideStorePage />
-              </Suspense>
-            }
-          />
-          <Route
-            path="guide/categories"
-            element={
-              <Suspense fallback={<LinearProgress />}>
-                <GuideCategoriesPage />
-              </Suspense>
-            }
-          />
-          <Route
-            path="guide/restaurants"
-            element={
-              <Suspense fallback={<LinearProgress />}>
-                <GuideZoneRestaurantsPage />
-              </Suspense>
-            }
-          />
-          <Route
-            path="guide/conversions"
-            element={
-              <Suspense fallback={<LinearProgress />}>
-                <GuideConversionsPage />
-              </Suspense>
-            }
-          />
-
+          <Route path="guide/store" element={<GuideStorePage />} />
+          <Route path="guide/categories" element={<GuideCategoriesPage />} />
+          <Route path="guide/restaurants" element={<GuideZoneRestaurantsPage />} />
+          <Route path="guide/conversions" element={<GuideConversionsPage />} />
         </Route>
       </Routes>
     </ThemeProvider>

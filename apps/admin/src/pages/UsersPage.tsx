@@ -33,6 +33,7 @@ import {
 } from '@mui/icons-material';
 import { apiClient } from '../lib/apiClient';
 import { useAuth } from '../contexts/AuthContext';
+import { PageHeader } from '../components/common/PageHeader';
 
 interface User {
     id: string;
@@ -193,20 +194,17 @@ const UsersPage: React.FC = () => {
     }
 
     return (
-        <Box p={3}>
-            <Box display="flex" justifyContent="space-between" alignItems="center" mb={3}>
-                <Typography variant="h4" component="h1">
-                    Gestión de Usuarios
-                </Typography>
-                <Button
-                    variant="contained"
-                    startIcon={<AddIcon />}
-                    onClick={() => setOpenDialog(true)}
-                    disabled={users.length >= 5}
-                >
-                    Añadir Usuario ({users.length}/5)
-                </Button>
-            </Box>
+        <Box>
+            <PageHeader
+                icon={<PersonIcon />}
+                title="Usuarios"
+                subtitle="El personal con acceso a este restaurante (hasta 5)"
+                actions={
+                    <Button variant="contained" startIcon={<AddIcon />} onClick={() => setOpenDialog(true)} disabled={users.length >= 5}>
+                        Añadir usuario ({users.length}/5)
+                    </Button>
+                }
+            />
 
             {error && (
                 <Alert severity="error" sx={{ mb: 3 }} onClose={() => setError(null)}>

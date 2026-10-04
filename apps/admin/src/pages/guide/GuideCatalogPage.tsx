@@ -21,7 +21,7 @@ import GuideCatalogCard from '../../components/guide/GuideCatalogCard';
 import GuideCatalogTable from '../../components/guide/GuideCatalogTable';
 import GuideCatalogFormDialog from '../../components/guide/GuideCatalogFormDialog';
 import {
-  CatalogItem, CatalogKind, Zone, isExperience, isTrue, displayName,
+  type CatalogItem, type CatalogKind, type Zone, isExperience, isTrue, displayName,
 } from '../../components/guide/catalogTypes';
 import {
   Box, Typography, Paper, Alert, Button, CircularProgress, Grid, Tabs, Tab,
@@ -286,7 +286,7 @@ export default function GuideCatalogPage() {
     : 'Qué está activo ahora mismo para tus huéspedes';
 
   return (
-    <Box sx={{ p: { xs: 2, md: 0 } }}>
+    <Box>
       {/* ---------- Cabecera ---------- */}
       <Box sx={{ mb: 3, display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 2 }}>
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>

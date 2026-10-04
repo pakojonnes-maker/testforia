@@ -2,38 +2,16 @@
 import { useState, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
-  Box,
-  Container,
-  Typography,
-  Grid,
-  Card,
-  CardContent,
-  CardHeader,
-  TextField,
-  Switch,
-  FormControlLabel,
-  Button,
-  Tabs,
-  Tab,
-  Divider,
-  CircularProgress,
-  Alert,
-  alpha,
-  InputAdornment,
-  useMediaQuery,
-  useTheme,
+  Alert, Box, Button, CircularProgress, Grid, InputAdornment, Switch, Tab, Tabs, TextField, Typography,
 } from '@mui/material';
-import {
-  Restaurant,
-  LocationOn,
-  Wifi,
-  Share,
-  Save,
-  Store,
-  AdminPanelSettings,
-} from '@mui/icons-material';
+import { alpha } from '@mui/material/styles';
+import { AdminPanelSettings, LocationOn, Restaurant, Save, Settings as SettingsIcon, Share, Wifi, ContactMail } from '@mui/icons-material';
 import { useAuth } from '../contexts/AuthContext';
 import { apiClient } from '../lib/apiClient';
+import { parseFeatures } from '../components/layout/navigation';
+import { PageHeader } from '../components/common/PageHeader';
+import { Panel } from '../components/common/Panel';
+import { DATA, STATUS_COLORS } from '../theme';
 
 interface RestaurantData {
   name: string;
@@ -62,784 +40,265 @@ interface RestaurantData {
 
 type TabValue = 'info' | 'location' | 'services' | 'social' | 'features';
 
-const neonColors = {
-  info: '#6366f1',      // Purple
-  location: '#22c55e',  // Green
-  services: '#f59e0b',  // Amber
-  social: '#ec4899',    // Pink
-  features: '#ef4444',  // Red - Super Admin
-};
+// Las mismas claves que filtran el menú lateral (components/layout/navigation.tsx).
+const FEATURES = [
+  { key: 'statistics', label: 'Estadísticas', desc: 'Analítica de la carta' },
+  { key: 'menu', label: 'Platos', desc: 'Carta, secciones y multimedia' },
+  { key: 'website', label: 'Web', desc: 'Landing y colores de la carta' },
+  { key: 'qr_generator', label: 'Generador QR', desc: 'Códigos QR personalizados' },
+  { key: 'reservations', label: 'Reservas', desc: 'Reservas online' },
+  { key: 'delivery', label: 'Delivery', desc: 'Pedidos a domicilio' },
+  { key: 'marketing', label: 'Marketing', desc: 'Modal de bienvenida y push' },
+  { key: 'loyalty', label: 'Lealtad', desc: 'Tarjeta de sellos' },
+  { key: 'users', label: 'Usuarios', desc: 'Personal y permisos' },
+];
+
+const SERVICES: Array<{ key: 'has_wifi' | 'has_delivery' | 'has_outdoor_seating'; label: string; desc: string }> = [
+  { key: 'has_wifi', label: 'WiFi gratis', desc: 'Para tus clientes' },
+  { key: 'has_delivery', label: 'Delivery', desc: 'Entrega a domicilio' },
+  { key: 'has_outdoor_seating', label: 'Terraza', desc: 'Mesas al aire libre' },
+];
+
+function toForm(r: any): RestaurantData {
+  return {
+    name: r.name || '',
+    description: r.description || '',
+    email: r.email || '',
+    phone: r.phone || '',
+    website: r.website || '',
+    city: r.city || '',
+    country: r.country || '',
+    timezone: r.timezone || 'Europe/Madrid',
+    accepts_reservations: !!r.accepts_reservations,
+    reservation_url: r.reservation_url || '',
+    reservation_phone: r.reservation_phone || '',
+    reservation_email: r.reservation_email || '',
+    has_wifi: !!r.has_wifi,
+    has_delivery: !!r.has_delivery,
+    has_outdoor_seating: !!r.has_outdoor_seating,
+    capacity: r.capacity || 50,
+    google_maps_url: r.google_maps_url || '',
+    facebook_url: r.facebook_url || '',
+    instagram_handle: r.instagram_url || '',
+    tiktok_handle: r.tiktok_url || '',
+    youtube_url: r.youtube_url || '',
+    tripadvisor_url: r.tripadvisor_url || '',
+  };
+}
 
 export default function ConfigurationPage() {
-  const { currentRestaurant, user } = useAuth();
+  const { currentRestaurant, setCurrentRestaurant, user } = useAuth();
   const queryClient = useQueryClient();
-  const restaurantId = currentRestaurant?.id;
-  const theme = useTheme();
-  const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
+  const restaurantId: string | undefined = currentRestaurant?.id;
 
   const [activeTab, setActiveTab] = useState<TabValue>('info');
   const [formData, setFormData] = useState<RestaurantData | null>(null);
   const [hasChanges, setHasChanges] = useState(false);
-
-  // Feature flags state (Super Admin only)
-  const [featureFlags, setFeatureFlags] = useState<Record<string, boolean>>({
-    statistics: true,
-    menu: true,
-    marketing: true,
-    website: true,
-    users: true,
-    qr_generator: true,
-    reservations: true,
-    delivery: true,
-  });
+  const [featureFlags, setFeatureFlags] = useState<Record<string, boolean>>({});
   const [featuresChanged, setFeaturesChanged] = useState(false);
 
-  // Query: Obtener datos del restaurante
   const { data: restaurantResponse, isLoading, error } = useQuery({
     queryKey: ['restaurant-settings', restaurantId],
-    queryFn: () => apiClient.getRestaurant(restaurantId),
+    queryFn: () => apiClient.getRestaurant(restaurantId!),
     enabled: !!restaurantId,
   });
 
-  // Efecto para cargar datos del restaurante
   useEffect(() => {
-    if (restaurantResponse?.restaurant) {
-      const r = restaurantResponse.restaurant;
-      setFormData({
-        name: r.name || '',
-        description: r.description || '',
-        email: r.email || '',
-        phone: r.phone || '',
-        website: r.website || '',
-        city: r.city || '',
-        country: r.country || '',
-        timezone: r.timezone || 'Europe/Madrid',
-        accepts_reservations: !!r.accepts_reservations,
-        reservation_url: r.reservation_url || '',
-        reservation_phone: r.reservation_phone || '',
-        reservation_email: r.reservation_email || '',
-        has_wifi: !!r.has_wifi,
-        has_delivery: !!r.has_delivery,
-        has_outdoor_seating: !!r.has_outdoor_seating,
-        capacity: r.capacity || 50,
-        google_maps_url: r.google_maps_url || '',
-        facebook_url: r.facebook_url || '',
-        instagram_handle: r.instagram_url || '',
-        tiktok_handle: r.tiktok_url || '',
-        youtube_url: r.youtube_url || '',
-        tripadvisor_url: r.tripadvisor_url || ''
-      });
-      setHasChanges(false);
-
-      // Load feature flags from restaurant
-      let parsedFeatures = {};
-      if (r.features) {
-        try {
-          parsedFeatures = typeof r.features === 'string' ? JSON.parse(r.features) : r.features;
-        } catch { /* ignore parse errors */ }
-      }
-      setFeatureFlags(prev => ({
-        ...prev,
-        ...parsedFeatures,
-      }));
-      setFeaturesChanged(false);
-    }
+    const r = restaurantResponse?.restaurant;
+    if (!r) return;
+    setFormData(toForm(r));
+    setHasChanges(false);
+    const parsed = parseFeatures(r.features) as Record<string, boolean>;
+    setFeatureFlags(Object.fromEntries(FEATURES.map((f) => [f.key, parsed[f.key] !== false])));
+    setFeaturesChanged(false);
   }, [restaurantResponse]);
 
-  // Mutation: Actualizar restaurante
   const mutation = useMutation({
-    mutationFn: async (data: RestaurantData) => {
-      // Prepare clean payload for API
-      const payload = {
-        name: data.name,
-        description: data.description,
-        email: data.email,
-        phone: data.phone,
-        website: data.website,
-        city: data.city,
-        country: data.country,
-        timezone: data.timezone,
-        accepts_reservations: data.accepts_reservations,
-        reservation_url: data.reservation_url,
-        reservation_phone: data.reservation_phone,
-        reservation_email: data.reservation_email,
-        has_wifi: data.has_wifi,
-        has_delivery: data.has_delivery,
-        has_outdoor_seating: data.has_outdoor_seating,
-        capacity: data.capacity,
-        google_maps_url: data.google_maps_url,
-        facebook_url: data.facebook_url,
-        instagram_url: data.instagram_handle,
-        tiktok_url: data.tiktok_handle,
-        youtube_url: data.youtube_url,
-        tripadvisor_url: data.tripadvisor_url
-      };
-      return apiClient.updateRestaurant(restaurantId!, payload);
+    mutationFn: (data: RestaurantData) => {
+      const { instagram_handle, tiktok_handle, ...rest } = data;
+      return apiClient.updateRestaurant(restaurantId!, { ...rest, instagram_url: instagram_handle, tiktok_url: tiktok_handle });
     },
-    onSuccess: () => {
+    onSuccess: (_, data) => {
       queryClient.invalidateQueries({ queryKey: ['restaurant-settings', restaurantId] });
+      // El nombre sale en la barra superior: se actualiza sin esperar a recargar.
+      setCurrentRestaurant({ ...currentRestaurant, name: data.name });
       setHasChanges(false);
     },
   });
 
-  // Mutation: Save feature flags (Super Admin only)
   const featuresMutation = useMutation({
-    mutationFn: async (features: Record<string, boolean>) => {
-      return apiClient.updateRestaurant(restaurantId!, { features });
-    },
-    onSuccess: () => {
+    mutationFn: (features: Record<string, boolean>) => apiClient.updateRestaurant(restaurantId!, { features }),
+    onSuccess: (_, features) => {
       queryClient.invalidateQueries({ queryKey: ['restaurant-settings', restaurantId] });
-      // Also invalidate current user to refresh restaurant features in context
-      queryClient.invalidateQueries({ queryKey: ['current-user'] });
+      // El menú lateral se filtra con currentRestaurant.features. Antes se invalidaba
+      // una consulta 'current-user' que no existe y el menú no cambiaba hasta recargar.
+      setCurrentRestaurant({ ...currentRestaurant, features: { ...parseFeatures(currentRestaurant?.features), ...features } });
       setFeaturesChanged(false);
     },
   });
 
-  const toggleFeature = (key: string) => {
-    setFeatureFlags(prev => ({ ...prev, [key]: !prev[key] }));
-    setFeaturesChanged(true);
-  };
-
-  const handleSaveFeatures = () => {
-    featuresMutation.mutate(featureFlags);
-  };
-
-  const updateField = (field: keyof RestaurantData, value: string | boolean | number) => {
-    setFormData(prev => prev ? { ...prev, [field]: value } : null);
+  const updateField = <K extends keyof RestaurantData>(field: K, value: RestaurantData[K]) => {
+    setFormData((prev) => (prev ? { ...prev, [field]: value } : prev));
     setHasChanges(true);
   };
+  const text = (field: keyof RestaurantData, label: string, extra: Record<string, unknown> = {}) => (
+    <TextField fullWidth label={label} value={formData?.[field] ?? ''} onChange={(e) => updateField(field, e.target.value as never)} {...extra} />
+  );
 
-  const handleSave = () => {
-    if (formData) {
-      mutation.mutate(formData);
-    }
-  };
+  if (!restaurantId) return <Alert severity="warning">No hay restaurante seleccionado.</Alert>;
+  if (error) return <Alert severity="error">Error al cargar la configuración: {(error as Error)?.message}</Alert>;
+  if (isLoading || !formData) return <Box sx={{ display: 'flex', justifyContent: 'center', py: 8 }}><CircularProgress /></Box>;
 
-  const getTabColor = () => neonColors[activeTab];
-
-  if (!restaurantId) {
-    return (
-      <Container maxWidth="xl" sx={{ py: 4 }}>
-        <Alert severity="warning">No hay restaurante seleccionado</Alert>
-      </Container>
-    );
-  }
-
-  if (error) {
-    return (
-      <Container maxWidth="xl" sx={{ py: 4 }}>
-        <Alert severity="error">Error al cargar la configuración: {(error as Error)?.message}</Alert>
-      </Container>
-    );
-  }
-
-  if (isLoading || !formData) {
-    return (
-      <Container maxWidth="xl" sx={{ py: 4, display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '50vh' }}>
-        <CircularProgress size={48} />
-      </Container>
-    );
-  }
+  const at = { InputProps: { startAdornment: <InputAdornment position="start">@</InputAdornment> }, placeholder: 'usuario' };
 
   return (
-    <Container maxWidth="xl" sx={{ py: 4 }}>
-      {/* Header */}
-      <Box sx={{ mb: 5, display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', flexWrap: 'wrap', gap: 2 }}>
-        <Box>
-          <Typography variant="h4" component="h1" gutterBottom sx={{ fontWeight: 800, letterSpacing: '-0.02em' }}>
-            Configuración
-          </Typography>
-          <Typography variant="body1" color="text.secondary">
-            Personaliza la información de tu restaurante
-          </Typography>
-        </Box>
-
-        <Button
-          variant="contained"
-          size="large"
-          startIcon={mutation.isPending ? <CircularProgress size={20} color="inherit" /> : <Save />}
-          onClick={handleSave}
-          disabled={!hasChanges || mutation.isPending}
-          sx={{
-            px: 4,
-            py: 1.5,
-            borderRadius: 3,
-            fontWeight: 600,
-            background: hasChanges ? `linear-gradient(135deg, ${neonColors.info} 0%, ${alpha(neonColors.info, 0.8)} 100%)` : undefined,
-            boxShadow: hasChanges ? `0 4px 20px ${alpha(neonColors.info, 0.4)}` : 'none',
-            '&:hover': {
-              boxShadow: hasChanges ? `0 6px 24px ${alpha(neonColors.info, 0.5)}` : 'none',
-            }
-          }}
-        >
-          {mutation.isPending ? 'Guardando...' : 'Guardar cambios'}
-        </Button>
-      </Box>
-
-      {/* Success/Error Messages */}
-      {mutation.isSuccess && (
-        <Alert severity="success" sx={{ mb: 3 }}>
-          ✅ Cambios guardados correctamente
-        </Alert>
-      )}
-      {mutation.isError && (
-        <Alert severity="error" sx={{ mb: 3 }}>
-          ❌ Error al guardar: {(mutation.error as Error)?.message}
-        </Alert>
-      )}
-
-      {/* Tabs */}
-      <Box sx={{ mb: 4 }}>
-        <Tabs
-          value={activeTab}
-          onChange={(_, v) => setActiveTab(v)}
-          variant={isMobile ? 'scrollable' : 'standard'}
-          scrollButtons={isMobile ? 'auto' : false}
-          allowScrollButtonsMobile
-          sx={{
-            '& .MuiTabs-indicator': {
-              height: 3,
-              borderRadius: '3px 3px 0 0',
-              background: getTabColor(),
-              boxShadow: `0 0 10px ${getTabColor()}`,
-            },
-            '& .MuiTab-root': {
-              fontSize: '1rem',
-              mr: 2,
-              textTransform: 'none',
-              fontWeight: 600,
-              minHeight: 48,
-              '&.Mui-selected': {
-                color: getTabColor(),
-              }
-            }
-          }}
-        >
-          <Tab icon={<Store sx={{ mr: 1 }} />} iconPosition="start" label="Información" value="info" />
-          <Tab icon={<LocationOn sx={{ mr: 1 }} />} iconPosition="start" label="Localización" value="location" />
-          <Tab icon={<Wifi sx={{ mr: 1 }} />} iconPosition="start" label="Servicios" value="services" />
-          <Tab icon={<Share sx={{ mr: 1 }} />} iconPosition="start" label="Redes Sociales" value="social" />
-          {user?.is_superadmin && (
-            <Tab
-              icon={<AdminPanelSettings sx={{ mr: 1 }} />}
-              iconPosition="start"
-              label="Funcionalidades"
-              value="features"
-              sx={{ color: neonColors.features }}
-            />
-          )}
-        </Tabs>
-        <Divider sx={{ mt: '-1px' }} />
-      </Box>
-
-      {/* Tab Content */}
-      <Box>
-        {/* Información Básica */}
-        {activeTab === 'info' && (
-          <Grid container spacing={3}>
-            <Grid item xs={12} md={6}>
-              <Card
-                elevation={0}
-                sx={{
-                  height: '100%',
-                  background: `linear-gradient(135deg, ${alpha(neonColors.info, 0.08)} 0%, ${alpha(neonColors.info, 0.02)} 100%)`,
-                  border: `1px solid ${alpha(neonColors.info, 0.15)}`,
-                  transition: 'all 0.25s ease',
-                  '&:hover': {
-                    borderColor: alpha(neonColors.info, 0.3),
-                    boxShadow: `0 8px 24px ${alpha(neonColors.info, 0.15)}`,
-                  }
-                }}
-              >
-                <CardHeader
-                  title="Datos del Restaurante"
-                  titleTypographyProps={{ variant: 'h6', fontWeight: 700, color: neonColors.info }}
-                  avatar={
-                    <Box sx={{
-                      p: 1,
-                      borderRadius: 2,
-                      bgcolor: alpha(neonColors.info, 0.12),
-                      boxShadow: `0 2px 8px ${alpha(neonColors.info, 0.2)}`
-                    }}>
-                      <Restaurant sx={{ color: neonColors.info }} />
-                    </Box>
-                  }
-                />
-                <CardContent>
-                  <Grid container spacing={2.5}>
-                    <Grid item xs={12}>
-                      <TextField
-                        fullWidth
-                        label="Nombre del restaurante"
-                        value={formData.name}
-                        onChange={(e) => updateField('name', e.target.value)}
-                        required
-                      />
-                    </Grid>
-                    <Grid item xs={12}>
-                      <TextField
-                        fullWidth
-                        label="Descripción"
-                        value={formData.description}
-                        onChange={(e) => updateField('description', e.target.value)}
-                        multiline
-                        rows={4}
-                        placeholder="Describe tu restaurante..."
-                      />
-                    </Grid>
-                  </Grid>
-                </CardContent>
-              </Card>
-            </Grid>
-
-            <Grid item xs={12} md={6}>
-              <Card
-                elevation={0}
-                sx={{
-                  height: '100%',
-                  background: `linear-gradient(135deg, ${alpha(neonColors.info, 0.08)} 0%, ${alpha(neonColors.info, 0.02)} 100%)`,
-                  border: `1px solid ${alpha(neonColors.info, 0.15)}`,
-                  transition: 'all 0.25s ease',
-                  '&:hover': {
-                    borderColor: alpha(neonColors.info, 0.3),
-                    boxShadow: `0 8px 24px ${alpha(neonColors.info, 0.15)}`,
-                  }
-                }}
-              >
-                <CardHeader
-                  title="Contacto"
-                  titleTypographyProps={{ variant: 'h6', fontWeight: 700, color: neonColors.info }}
-                />
-                <CardContent>
-                  <Grid container spacing={2.5}>
-                    <Grid item xs={12}>
-                      <TextField
-                        fullWidth
-                        label="Email"
-                        type="email"
-                        value={formData.email}
-                        onChange={(e) => updateField('email', e.target.value)}
-                      />
-                    </Grid>
-                    <Grid item xs={12} sm={6}>
-                      <TextField
-                        fullWidth
-                        label="Teléfono"
-                        type="tel"
-                        value={formData.phone}
-                        onChange={(e) => updateField('phone', e.target.value)}
-                      />
-                    </Grid>
-                    <Grid item xs={12} sm={6}>
-                      <TextField
-                        fullWidth
-                        label="Sitio web"
-                        type="url"
-                        value={formData.website}
-                        onChange={(e) => updateField('website', e.target.value)}
-                        placeholder="https://..."
-                      />
-                    </Grid>
-                  </Grid>
-                </CardContent>
-              </Card>
-            </Grid>
-          </Grid>
+    <Box>
+      <PageHeader
+        icon={<SettingsIcon />}
+        title="Configuración"
+        subtitle="Los datos de tu restaurante"
+        actions={activeTab !== 'features' && (
+          <Button variant="contained" startIcon={mutation.isPending ? <CircularProgress size={18} color="inherit" /> : <Save />}
+            onClick={() => mutation.mutate(formData)} disabled={!hasChanges || mutation.isPending}>
+            {mutation.isPending ? 'Guardando…' : 'Guardar cambios'}
+          </Button>
         )}
+      />
 
-        {/* Localización */}
-        {activeTab === 'location' && (
-          <Card
-            elevation={0}
-            sx={{
-              background: `linear-gradient(135deg, ${alpha(neonColors.location, 0.08)} 0%, ${alpha(neonColors.location, 0.02)} 100%)`,
-              border: `1px solid ${alpha(neonColors.location, 0.15)}`,
-              transition: 'all 0.25s ease',
-              '&:hover': {
-                borderColor: alpha(neonColors.location, 0.3),
-                boxShadow: `0 8px 24px ${alpha(neonColors.location, 0.15)}`,
-              }
-            }}
-          >
-            <CardHeader
-              title="Ubicación"
-              titleTypographyProps={{ variant: 'h6', fontWeight: 700, color: neonColors.location }}
-              avatar={
-                <Box sx={{
-                  p: 1,
-                  borderRadius: 2,
-                  bgcolor: alpha(neonColors.location, 0.12),
-                  boxShadow: `0 2px 8px ${alpha(neonColors.location, 0.2)}`
-                }}>
-                  <LocationOn sx={{ color: neonColors.location }} />
-                </Box>
-              }
-            />
-            <CardContent>
+      {mutation.isSuccess && !hasChanges && <Alert severity="success" sx={{ mb: 3 }}>Cambios guardados.</Alert>}
+      {mutation.isError && <Alert severity="error" sx={{ mb: 3 }}>Error al guardar: {(mutation.error as Error)?.message}</Alert>}
+
+      <Tabs value={activeTab} onChange={(_, v) => setActiveTab(v)} variant="scrollable" allowScrollButtonsMobile sx={{ mb: 3, borderBottom: 1, borderColor: 'divider' }}>
+        <Tab label="Información" value="info" />
+        <Tab label="Localización" value="location" />
+        <Tab label="Servicios" value="services" />
+        <Tab label="Redes sociales" value="social" />
+        {user?.is_superadmin && <Tab label="Funcionalidades" value="features" />}
+      </Tabs>
+
+      {activeTab === 'info' && (
+        <Grid container spacing={3}>
+          <Grid item xs={12} md={6}>
+            <Panel icon={<Restaurant />} title="Datos del restaurante">
               <Grid container spacing={2.5}>
-                <Grid item xs={12} sm={6} md={4}>
-                  <TextField
-                    fullWidth
-                    label="Ciudad"
-                    value={formData.city}
-                    onChange={(e) => updateField('city', e.target.value)}
-                  />
-                </Grid>
-                <Grid item xs={12} sm={6} md={4}>
-                  <TextField
-                    fullWidth
-                    label="País"
-                    value={formData.country}
-                    onChange={(e) => updateField('country', e.target.value)}
-                  />
-                </Grid>
-                <Grid item xs={12} sm={6} md={4}>
-                  <TextField
-                    fullWidth
-                    label="Zona horaria"
-                    select
-                    value={formData.timezone}
-                    onChange={(e) => updateField('timezone', e.target.value)}
-                    SelectProps={{ native: true }}
-                  >
-                    <option value="Europe/Madrid">Europe/Madrid (CET)</option>
-                    <option value="Europe/London">Europe/London (GMT)</option>
-                    <option value="America/New_York">America/New_York (EST)</option>
-                    <option value="America/Los_Angeles">America/Los_Angeles (PST)</option>
-                  </TextField>
-                </Grid>
-                <Grid item xs={12}>
-                  <TextField
-                    fullWidth
-                    label="URL de Google Maps"
-                    type="url"
-                    value={formData.google_maps_url}
-                    onChange={(e) => updateField('google_maps_url', e.target.value)}
-                    placeholder="https://maps.google.com/..."
-                  />
-                </Grid>
+                <Grid item xs={12}>{text('name', 'Nombre del restaurante', { required: true })}</Grid>
+                <Grid item xs={12}>{text('description', 'Descripción', { multiline: true, rows: 4, placeholder: 'Describe tu restaurante…' })}</Grid>
               </Grid>
-            </CardContent>
-          </Card>
-        )}
-
-        {/* Servicios */}
-        {activeTab === 'services' && (
-          <Grid container spacing={3}>
-            <Grid item xs={12} md={8}>
-              <Card
-                elevation={0}
-                sx={{
-                  background: `linear-gradient(135deg, ${alpha(neonColors.services, 0.08)} 0%, ${alpha(neonColors.services, 0.02)} 100%)`,
-                  border: `1px solid ${alpha(neonColors.services, 0.15)}`,
-                }}
-              >
-                <CardHeader
-                  title="Servicios disponibles"
-                  titleTypographyProps={{ variant: 'h6', fontWeight: 700, color: neonColors.services }}
-                  avatar={
-                    <Box sx={{
-                      p: 1,
-                      borderRadius: 2,
-                      bgcolor: alpha(neonColors.services, 0.12),
-                      boxShadow: `0 2px 8px ${alpha(neonColors.services, 0.2)}`
-                    }}>
-                      <Wifi sx={{ color: neonColors.services }} />
-                    </Box>
-                  }
-                />
-                <CardContent>
-                  <Grid container spacing={2}>
-                    {[
-                      { key: 'has_wifi', label: 'WiFi Gratis', desc: 'Ofreces WiFi a tus clientes', color: '#10b981' },
-                      { key: 'has_delivery', label: 'Delivery', desc: 'Servicio de entrega a domicilio', color: '#3b82f6' },
-                      { key: 'has_outdoor_seating', label: 'Terraza exterior', desc: 'Mesas al aire libre', color: '#f59e0b' },
-                    ].map((service) => (
-                      <Grid item xs={12} sm={4} key={service.key}>
-                        <Box
-                          sx={{
-                            display: 'flex',
-                            flexDirection: 'column',
-                            alignItems: 'center',
-                            textAlign: 'center',
-                            p: 3,
-                            borderRadius: 3,
-                            bgcolor: formData[service.key as keyof RestaurantData] ? alpha(service.color, 0.12) : 'transparent',
-                            border: '1px solid',
-                            borderColor: formData[service.key as keyof RestaurantData] ? alpha(service.color, 0.4) : 'divider',
-                            boxShadow: formData[service.key as keyof RestaurantData] ? `0 4px 16px ${alpha(service.color, 0.2)}` : 'none',
-                            transition: 'all 0.3s ease',
-                          }}
-                        >
-                          <Typography variant="subtitle1" fontWeight={700} sx={{ color: formData[service.key as keyof RestaurantData] ? service.color : 'text.primary' }}>
-                            {service.label}
-                          </Typography>
-                          <Typography variant="caption" color="text.secondary" sx={{ mb: 2 }}>
-                            {service.desc}
-                          </Typography>
-                          <Switch
-                            checked={formData[service.key as keyof RestaurantData] as boolean}
-                            onChange={(e) => updateField(service.key as keyof RestaurantData, e.target.checked)}
-                            sx={{
-                              '& .MuiSwitch-switchBase.Mui-checked': {
-                                color: service.color,
-                              },
-                              '& .MuiSwitch-switchBase.Mui-checked + .MuiSwitch-track': {
-                                backgroundColor: service.color,
-                              },
-                            }}
-                          />
-                        </Box>
-                      </Grid>
-                    ))}
-                  </Grid>
-                </CardContent>
-              </Card>
-            </Grid>
-
-            <Grid item xs={12} md={4}>
-              <Card
-                elevation={0}
-                sx={{
-                  height: '100%',
-                  background: `linear-gradient(135deg, ${alpha('#8b5cf6', 0.08)} 0%, ${alpha('#8b5cf6', 0.02)} 100%)`,
-                  border: `1px solid ${alpha('#8b5cf6', 0.15)}`,
-                }}
-              >
-                <CardHeader
-                  title="Capacidad"
-                  titleTypographyProps={{ variant: 'h6', fontWeight: 700, color: '#8b5cf6' }}
-                />
-                <CardContent sx={{ display: 'flex', flexDirection: 'column', justifyContent: 'center', height: 'calc(100% - 72px)' }}>
-                  <Box sx={{ textAlign: 'center', mb: 3 }}>
-                    <Typography variant="h2" fontWeight={800} sx={{ color: '#8b5cf6' }}>
-                      {formData.capacity}
-                    </Typography>
-                    <Typography variant="body2" color="text.secondary">
-                      personas máximo
-                    </Typography>
-                  </Box>
-                  <TextField
-                    fullWidth
-                    label="Capacidad total"
-                    type="number"
-                    value={formData.capacity}
-                    onChange={(e) => updateField('capacity', parseInt(e.target.value) || 0)}
-                    InputProps={{
-                      endAdornment: <InputAdornment position="end">👥</InputAdornment>,
-                    }}
-                  />
-                </CardContent>
-              </Card>
-            </Grid>
+            </Panel>
           </Grid>
-        )}
-
-        {/* Redes Sociales */}
-        {activeTab === 'social' && (
-          <Card
-            elevation={0}
-            sx={{
-              background: `linear-gradient(135deg, ${alpha(neonColors.social, 0.08)} 0%, ${alpha(neonColors.social, 0.02)} 100%)`,
-              border: `1px solid ${alpha(neonColors.social, 0.15)}`,
-              transition: 'all 0.25s ease',
-              '&:hover': {
-                borderColor: alpha(neonColors.social, 0.3),
-                boxShadow: `0 8px 24px ${alpha(neonColors.social, 0.15)}`,
-              }
-            }}
-          >
-            <CardHeader
-              title="Redes Sociales"
-              titleTypographyProps={{ variant: 'h6', fontWeight: 700, color: neonColors.social }}
-              avatar={
-                <Box sx={{
-                  p: 1,
-                  borderRadius: 2,
-                  bgcolor: alpha(neonColors.social, 0.12),
-                  boxShadow: `0 2px 8px ${alpha(neonColors.social, 0.2)}`
-                }}>
-                  <Share sx={{ color: neonColors.social }} />
-                </Box>
-              }
-            />
-            <CardContent>
+          <Grid item xs={12} md={6}>
+            <Panel icon={<ContactMail />} title="Contacto">
               <Grid container spacing={2.5}>
-                <Grid item xs={12} sm={6}>
-                  <TextField
-                    fullWidth
-                    label="Facebook"
-                    type="url"
-                    value={formData.facebook_url}
-                    onChange={(e) => updateField('facebook_url', e.target.value)}
-                    placeholder="https://facebook.com/..."
-                  />
-                </Grid>
-                <Grid item xs={12} sm={6}>
-                  <TextField
-                    fullWidth
-                    label="Instagram"
-                    value={formData.instagram_handle}
-                    onChange={(e) => updateField('instagram_handle', e.target.value)}
-                    placeholder="@usuario"
-                    InputProps={{
-                      startAdornment: <InputAdornment position="start">@</InputAdornment>,
-                    }}
-                  />
-                </Grid>
-                <Grid item xs={12} sm={6}>
-                  <TextField
-                    fullWidth
-                    label="TikTok"
-                    value={formData.tiktok_handle}
-                    onChange={(e) => updateField('tiktok_handle', e.target.value)}
-                    placeholder="@usuario"
-                    InputProps={{
-                      startAdornment: <InputAdornment position="start">@</InputAdornment>,
-                    }}
-                  />
-                </Grid>
-                <Grid item xs={12} sm={6}>
-                  <TextField
-                    fullWidth
-                    label="YouTube"
-                    type="url"
-                    value={formData.youtube_url}
-                    onChange={(e) => updateField('youtube_url', e.target.value)}
-                    placeholder="https://youtube.com/..."
-                  />
-                </Grid>
-                <Grid item xs={12}>
-                  <TextField
-                    fullWidth
-                    label="Tripadvisor"
-                    type="url"
-                    value={formData.tripadvisor_url}
-                    onChange={(e) => updateField('tripadvisor_url', e.target.value)}
-                    placeholder="https://tripadvisor.com/..."
-                  />
-                </Grid>
+                <Grid item xs={12}>{text('email', 'Email', { type: 'email' })}</Grid>
+                <Grid item xs={12} sm={6}>{text('phone', 'Teléfono', { type: 'tel' })}</Grid>
+                <Grid item xs={12} sm={6}>{text('website', 'Sitio web', { type: 'url', placeholder: 'https://…' })}</Grid>
               </Grid>
-            </CardContent>
-          </Card>
-        )}
+            </Panel>
+          </Grid>
+        </Grid>
+      )}
 
-        {/* Funcionalidades (Super Admin Only) */}
-        {activeTab === 'features' && user?.is_superadmin && (
-          <Card
-            elevation={0}
-            sx={{
-              background: `linear-gradient(135deg, ${alpha(neonColors.features, 0.08)} 0%, ${alpha(neonColors.features, 0.02)} 100%)`,
-              border: `1px solid ${alpha(neonColors.features, 0.15)}`,
-              transition: 'all 0.25s ease',
-              '&:hover': {
-                borderColor: alpha(neonColors.features, 0.3),
-                boxShadow: `0 8px 24px ${alpha(neonColors.features, 0.15)}`,
-              }
-            }}
-          >
-            <CardHeader
-              title="Control de Funcionalidades"
-              subheader="Activa o desactiva secciones del panel de administración para este restaurante"
-              titleTypographyProps={{ variant: 'h6', fontWeight: 700, color: neonColors.features }}
-              avatar={
-                <Box sx={{
-                  p: 1,
-                  borderRadius: 2,
-                  bgcolor: alpha(neonColors.features, 0.12),
-                  boxShadow: `0 2px 8px ${alpha(neonColors.features, 0.2)}`
-                }}>
-                  <AdminPanelSettings sx={{ color: neonColors.features }} />
-                </Box>
-              }
-              action={
-                <Button
-                  variant="contained"
-                  size="small"
-                  startIcon={featuresMutation.isPending ? <CircularProgress size={16} color="inherit" /> : <Save />}
-                  onClick={handleSaveFeatures}
-                  disabled={!featuresChanged || featuresMutation.isPending}
-                  sx={{
-                    bgcolor: neonColors.features,
-                    '&:hover': { bgcolor: alpha(neonColors.features, 0.85) },
-                    mt: 1,
-                    mr: 1,
-                  }}
-                >
-                  Guardar
-                </Button>
-              }
-            />
-            <CardContent>
-              {featuresMutation.isSuccess && (
-                <Alert severity="success" sx={{ mb: 3 }}>
-                  ✅ Funcionalidades actualizadas correctamente
-                </Alert>
-              )}
-              {featuresMutation.isError && (
-                <Alert severity="error" sx={{ mb: 3 }}>
-                  ❌ Error al guardar: {(featuresMutation.error as Error)?.message}
-                </Alert>
-              )}
+      {activeTab === 'location' && (
+        <Panel icon={<LocationOn />} title="Ubicación">
+          <Grid container spacing={2.5}>
+            <Grid item xs={12} sm={6} md={4}>{text('city', 'Ciudad')}</Grid>
+            <Grid item xs={12} sm={6} md={4}>{text('country', 'País')}</Grid>
+            <Grid item xs={12} sm={6} md={4}>
+              <TextField fullWidth select label="Zona horaria" value={formData.timezone}
+                onChange={(e) => updateField('timezone', e.target.value)} SelectProps={{ native: true }}>
+                <option value="Europe/Madrid">Europe/Madrid (CET)</option>
+                <option value="Europe/London">Europe/London (GMT)</option>
+                <option value="America/New_York">America/New_York (EST)</option>
+                <option value="America/Los_Angeles">America/Los_Angeles (PST)</option>
+              </TextField>
+            </Grid>
+            <Grid item xs={12}>{text('google_maps_url', 'URL de Google Maps', { type: 'url', placeholder: 'https://maps.google.com/…' })}</Grid>
+          </Grid>
+        </Panel>
+      )}
+
+      {activeTab === 'services' && (
+        <Grid container spacing={3}>
+          <Grid item xs={12} md={8}>
+            <Panel icon={<Wifi />} title="Servicios">
               <Grid container spacing={2}>
-                {[
-                  { key: 'statistics', label: 'Estadísticas', desc: 'Dashboard de analytics y KPIs', icon: '📊' },
-                  { key: 'menu', label: 'Platos', desc: 'Gestión de menú y platos', icon: '🍽️' },
-                  { key: 'marketing', label: 'Marketing', desc: 'Campañas y captación de leads', icon: '📣' },
-                  { key: 'website', label: 'Web', desc: 'Landing page del restaurante', icon: '🌐' },
-                  { key: 'users', label: 'Usuarios', desc: 'Gestión de staff y permisos', icon: '👥' },
-                  { key: 'qr_generator', label: 'Generador QR', desc: 'Creación de códigos QR', icon: '📱' },
-                  { key: 'reservations', label: 'Reservas', desc: 'Sistema de reservas online', icon: '📅' },
-                  { key: 'delivery', label: 'Delivery', desc: 'Pedidos a domicilio', icon: '🛵' },
-                ].map((feature) => (
-                  <Grid item xs={12} sm={6} md={4} key={feature.key}>
-                    <Box
-                      sx={{
-                        display: 'flex',
-                        justifyContent: 'space-between',
-                        alignItems: 'center',
-                        p: 2.5,
-                        borderRadius: 3,
-                        bgcolor: featureFlags[feature.key] ? alpha('#22c55e', 0.08) : alpha('#ef4444', 0.05),
-                        border: '1px solid',
-                        borderColor: featureFlags[feature.key] ? alpha('#22c55e', 0.3) : alpha('#ef4444', 0.2),
-                        transition: 'all 0.3s ease',
-                      }}
-                    >
-                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
-                        <Typography variant="h5" sx={{ lineHeight: 1 }}>{feature.icon}</Typography>
-                        <Box>
-                          <Typography variant="subtitle2" fontWeight={700}>
-                            {feature.label}
-                          </Typography>
-                          <Typography variant="caption" color="text.secondary">
-                            {feature.desc}
-                          </Typography>
-                        </Box>
+                {SERVICES.map((service) => {
+                  const on = formData[service.key];
+                  return (
+                    <Grid item xs={12} sm={4} key={service.key}>
+                      <Box sx={{
+                        p: 2.5, textAlign: 'center', border: 1, borderColor: on ? 'primary.main' : 'divider',
+                        bgcolor: on ? alpha(DATA.cobalt, 0.05) : 'transparent', transition: 'all 0.2s',
+                      }}>
+                        <Typography variant="subtitle1" fontWeight={600}>{service.label}</Typography>
+                        <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 1 }}>{service.desc}</Typography>
+                        <Switch checked={on} onChange={(e) => updateField(service.key, e.target.checked)} inputProps={{ 'aria-label': service.label }} />
                       </Box>
-                      <Switch
-                        checked={featureFlags[feature.key] !== false}
-                        onChange={() => toggleFeature(feature.key)}
-                        sx={{
-                          '& .MuiSwitch-switchBase.Mui-checked': {
-                            color: '#22c55e',
-                          },
-                          '& .MuiSwitch-switchBase.Mui-checked + .MuiSwitch-track': {
-                            backgroundColor: '#22c55e',
-                          },
-                        }}
-                      />
-                    </Box>
-                  </Grid>
-                ))}
+                    </Grid>
+                  );
+                })}
               </Grid>
-              <Alert severity="warning" sx={{ mt: 3 }}>
-                ⚠️ <strong>Nota:</strong> Desactivar una funcionalidad la ocultará del menú lateral para todos los usuarios de este restaurante (excepto Super Admins).
-              </Alert>
-            </CardContent>
-          </Card>
-        )}
-      </Box>
-    </Container>
+            </Panel>
+          </Grid>
+          <Grid item xs={12} md={4}>
+            <Panel title="Capacidad">
+              <Typography variant="h2" sx={{ textAlign: 'center', color: DATA.cobalt }}>{formData.capacity}</Typography>
+              <Typography variant="body2" color="text.secondary" sx={{ textAlign: 'center', mb: 3 }}>personas como máximo</Typography>
+              <TextField fullWidth type="number" label="Capacidad total" value={formData.capacity}
+                onChange={(e) => updateField('capacity', parseInt(e.target.value, 10) || 0)} />
+            </Panel>
+          </Grid>
+        </Grid>
+      )}
+
+      {activeTab === 'social' && (
+        <Panel icon={<Share />} title="Redes sociales">
+          <Grid container spacing={2.5}>
+            <Grid item xs={12} sm={6}>{text('facebook_url', 'Facebook', { type: 'url', placeholder: 'https://facebook.com/…' })}</Grid>
+            <Grid item xs={12} sm={6}>{text('instagram_handle', 'Instagram', at)}</Grid>
+            <Grid item xs={12} sm={6}>{text('tiktok_handle', 'TikTok', at)}</Grid>
+            <Grid item xs={12} sm={6}>{text('youtube_url', 'YouTube', { type: 'url', placeholder: 'https://youtube.com/…' })}</Grid>
+            <Grid item xs={12}>{text('tripadvisor_url', 'Tripadvisor', { type: 'url', placeholder: 'https://tripadvisor.com/…' })}</Grid>
+          </Grid>
+        </Panel>
+      )}
+
+      {activeTab === 'features' && user?.is_superadmin && (
+        <Panel
+          icon={<AdminPanelSettings />}
+          title="Funcionalidades"
+          subtitle="Qué secciones del panel ve el personal de este restaurante (el superadmin las ve todas)."
+          action={
+            <Button variant="contained" size="small" startIcon={<Save />} onClick={() => featuresMutation.mutate(featureFlags)}
+              disabled={!featuresChanged || featuresMutation.isPending}>
+              {featuresMutation.isPending ? 'Guardando…' : 'Guardar'}
+            </Button>
+          }
+        >
+          {featuresMutation.isSuccess && !featuresChanged && <Alert severity="success" sx={{ mb: 3 }}>Funcionalidades actualizadas.</Alert>}
+          {featuresMutation.isError && <Alert severity="error" sx={{ mb: 3 }}>Error al guardar: {(featuresMutation.error as Error)?.message}</Alert>}
+          <Grid container spacing={2}>
+            {FEATURES.map((feature) => {
+              const on = featureFlags[feature.key] !== false;
+              return (
+                <Grid item xs={12} sm={6} md={4} key={feature.key}>
+                  <Box sx={{
+                    display: 'flex', justifyContent: 'space-between', alignItems: 'center', p: 2, border: 1,
+                    borderColor: on ? alpha(STATUS_COLORS.confirmed, 0.4) : 'divider', bgcolor: on ? alpha(STATUS_COLORS.confirmed, 0.05) : 'transparent',
+                  }}>
+                    <Box>
+                      <Typography variant="subtitle2" fontWeight={700}>{feature.label}</Typography>
+                      <Typography variant="caption" color="text.secondary">{feature.desc}</Typography>
+                    </Box>
+                    <Switch checked={on} inputProps={{ 'aria-label': feature.label }}
+                      onChange={() => { setFeatureFlags((prev) => ({ ...prev, [feature.key]: !on })); setFeaturesChanged(true); }} />
+                  </Box>
+                </Grid>
+              );
+            })}
+          </Grid>
+        </Panel>
+      )}
+    </Box>
   );
 }

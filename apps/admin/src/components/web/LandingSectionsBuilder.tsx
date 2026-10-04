@@ -19,7 +19,7 @@ import {
     PointerSensor,
     useSensor,
     useSensors,
-    DragEndEvent,
+    type DragEndEvent,
 } from '@dnd-kit/core';
 import {
     arrayMove,
@@ -268,7 +268,7 @@ export default function LandingSectionsBuilder() {
                                 startIcon={<Add />}
                                 onClick={() => setAddDialogOpen(true)}
                                 sx={{
-                                    background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+                                    bgcolor: 'primary.main',
                                     borderRadius: 2,
                                     textTransform: 'none',
                                     fontWeight: 600,
@@ -310,7 +310,7 @@ export default function LandingSectionsBuilder() {
                         color="primary"
                         onClick={() => setAddDialogOpen(true)}
                         sx={{
-                            background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+                            bgcolor: 'primary.main',
                             boxShadow: '0 8px 24px rgba(102, 126, 234, 0.4)',
                         }}
                     >

@@ -1,560 +1,417 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import { useMemo, useState, type ReactNode } from 'react';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
-    Box, Typography, Paper, Switch, FormControlLabel,
-    Button, Dialog, DialogTitle, DialogContent, DialogActions,
-    Table, TableBody, TableCell, TableContainer, TableHead, TableRow,
-    Tabs, Tab, Chip, IconButton, CircularProgress,
-    TextField, Grid, Select, MenuItem, InputLabel, FormControl,
-    Card, CardContent, Avatar, Tooltip, alpha, useTheme, useMediaQuery,
-    Stack, Collapse, Badge
+    Alert, Box, Button, Chip, CircularProgress, Collapse, Dialog, DialogActions, DialogContent, DialogTitle,
+    FormControl, Grid, IconButton, InputLabel, MenuItem, Select, Stack, Switch, Tab, Tabs, TextField, Typography,
 } from '@mui/material';
+import { alpha } from '@mui/material/styles';
 import {
-    People, AccessTime, CheckCircle, Cancel, EventSeat,
-    Warning, Refresh, History, ThumbDown, PlaylistAddCheck,
-    Email, Phone, Edit, CalendarViewDay, TrendingUp,
-    Restaurant, EventAvailable, HourglassEmpty, Block,
-    ExpandMore, ExpandLess, TableRestaurant, Notes,
-    ChevronLeft, ChevronRight
+    People, CheckCircle, EventSeat, HourglassEmpty, Edit, Email, Phone, ExpandMore, ExpandLess,
+    ChevronLeft, ChevronRight, EventAvailable, History, TableRestaurant,
 } from '@mui/icons-material';
+import {
+    addMonths, eachDayOfInterval, endOfMonth, format, getDay, isSameMonth, parseISO, startOfMonth,
+} from 'date-fns';
+import { es } from 'date-fns/locale';
 import { useAuth } from '../contexts/AuthContext';
-import { apiClient } from '../lib/apiClient';
-import { ReservationCalendar } from '../components/reservations/ReservationCalendar';
+import { apiClient, type Reservation, type ReservationUpdate } from '../lib/apiClient';
+import { PageHeader } from '../components/common/PageHeader';
+import { Panel } from '../components/common/Panel';
+import { StatCard } from '../components/common/StatCard';
 import { ReservationSettings } from '../components/reservations/ReservationSettings';
+import { DATA, STATUS_COLORS } from '../theme';
 
-interface Reservation {
-    id: string;
-    client_name: string;
-    client_email: string;
-    client_phone: string;
-    reservation_date: string;
-    reservation_time: string;
-    party_size: number;
-    status: string;
-    special_requests?: string;
-    admin_notes?: string;
-    table_assignment?: string;
-    created_at: string;
+type TabKey = 'calendar' | 'list' | 'logs' | 'settings';
+
+const STATUS: Record<string, { label: string; color: string }> = {
+    pending: { label: 'Pendiente', color: STATUS_COLORS.pending },
+    confirmed: { label: 'Confirmada', color: STATUS_COLORS.confirmed },
+    completed: { label: 'Completada', color: STATUS_COLORS.completed },
+    cancelled: { label: 'Cancelada', color: STATUS_COLORS.cancelled },
+    cancelled_restaurant: { label: 'Denegada', color: STATUS_COLORS.cancelled },
+    cancelled_user: { label: 'Cancelada por el cliente', color: STATUS_COLORS.cancelled },
+    no_show: { label: 'No se presentó', color: STATUS_COLORS.no_show },
+    waitlist: { label: 'En espera', color: STATUS_COLORS.waitlist },
+};
+const statusOf = (status: string) => STATUS[status] ?? { label: status, color: DATA.muted };
+
+// Fechas siempre en local: `toISOString()` sobre una medianoche local daba el
+// día anterior en España, y las reservas del 3 salían en la casilla del 4.
+const dayKey = (date: Date) => format(date, 'yyyy-MM-dd');
+const WEEK_DAYS = ['L', 'M', 'X', 'J', 'V', 'S', 'D'];
+
+function StatusChip({ status }: { status: string }) {
+    const s = statusOf(status);
+    return <Chip size="small" label={s.label} sx={{ bgcolor: alpha(s.color, 0.1), color: s.color, fontWeight: 600 }} />;
 }
 
-const ReservationsPage: React.FC = () => {
-    const { currentRestaurant } = useAuth();
-    const theme = useTheme();
-    const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
-    const isTablet = useMediaQuery(theme.breakpoints.down('md'));
-
-    // Main Data State
-    const [reservations, setReservations] = useState<Reservation[]>([]);
-    const [allReservations, setAllReservations] = useState<Reservation[]>([]);
-    const [logs, setLogs] = useState<any[]>([]);
-
-    // UI State
-    const [currentTab, setCurrentTab] = useState(0);
-    const [listLoading, setListLoading] = useState(false);
-    const [expandedCard, setExpandedCard] = useState<string | null>(null);
-
-    // Settings Toggle State
-    const [isEnabled, setIsEnabled] = useState(false);
-    const [showSafetyDialog, setShowSafetyDialog] = useState(false);
-    const [toggleLoading, setToggleLoading] = useState(false);
-
-    // Calendar State
-    const [calendarMonth, setCalendarMonth] = useState(new Date());
-    const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
-
-    const restaurantId = currentRestaurant?.id;
-
-    // Edit Dialog State
-    const [editDialogOpen, setEditDialogOpen] = useState(false);
-    const [editingReservation, setEditingReservation] = useState<Reservation | null>(null);
-    const [editForm, setEditForm] = useState({
-        date: '', time: '', party_size: 2, status: '',
-        client_name: '', client_email: '', client_phone: '',
-        special_requests: '', admin_notes: '', table_assignment: ''
-    });
-
-    // Load Settings
-    useEffect(() => {
-        if (restaurantId) {
-            apiClient.getReservationSettings(restaurantId)
-                .then(settings => setIsEnabled(settings?.is_enabled || false))
-                .catch(err => console.error(err));
-        }
-    }, [restaurantId]);
-
-    // Load Data on Tab Change
-    useEffect(() => {
-        if (!restaurantId) return;
-        if (currentTab === 0) {
-            loadReservations();
-            loadAllReservationsForCalendar();
-        } else if (currentTab === 1) loadReservationsAll();
-        else if (currentTab === 3) loadLogs();
-    }, [restaurantId, currentTab, selectedDate]);
-
-    const loadReservations = async () => {
-        setListLoading(true);
-        try {
-            const data = await apiClient.getReservationsList(restaurantId!, selectedDate);
-            if (data.success) setReservations(data.reservations);
-        } catch (error) { console.error(error); }
-        finally { setListLoading(false); }
-    };
-
-    const loadAllReservationsForCalendar = async () => {
-        try {
-            const data = await apiClient.getReservationsList(restaurantId!);
-            if (data.success) setAllReservations(data.reservations);
-        } catch (error) { console.error(error); }
-    };
-
-    const loadReservationsAll = async () => {
-        setListLoading(true);
-        try {
-            const data = await apiClient.getReservationsList(restaurantId!);
-            if (data.success) setReservations(data.reservations);
-        } catch (error) { console.error(error); }
-        finally { setListLoading(false); }
-    };
-
-    const loadLogs = async () => {
-        setListLoading(true);
-        try {
-            const data = await apiClient.getReservationLogs(restaurantId!);
-            if (data.success) setLogs(data.logs);
-        } catch (error) { console.error(error); }
-        finally { setListLoading(false); }
-    };
-
-    const handleStatusChange = async (id: string, newStatus: string) => {
-        try {
-            await apiClient.reservations.updateReservation(id, { status: newStatus });
-            loadReservations();
-            loadAllReservationsForCalendar();
-        } catch (error) { console.error(error); }
-    };
-
-    const handleEditClick = (res: Reservation) => {
-        setEditingReservation(res);
-        setEditForm({
-            date: res.reservation_date, time: res.reservation_time,
-            party_size: res.party_size, status: res.status,
-            client_name: res.client_name, client_email: res.client_email,
-            client_phone: res.client_phone, special_requests: res.special_requests || '',
-            admin_notes: res.admin_notes || '', table_assignment: res.table_assignment || ''
-        });
-        setEditDialogOpen(true);
-    };
-
-    const handleEditSave = async () => {
-        if (!editingReservation) return;
-        try {
-            await apiClient.reservations.updateReservation(editingReservation.id, editForm);
-            setEditDialogOpen(false);
-            setEditingReservation(null);
-            loadReservations();
-            loadAllReservationsForCalendar();
-        } catch (error) { console.error("Failed to update", error); }
-    };
-
-    const handleToggleConfirm = async (newState: boolean) => {
-        if (!restaurantId) return;
-        setToggleLoading(true);
-        try {
-            await apiClient.toggleReservations(restaurantId, newState);
-            setIsEnabled(newState);
-            setShowSafetyDialog(false);
-        } catch (error) { console.error(error); }
-        finally { setToggleLoading(false); }
-    };
-
-    const getStatusConfig = (status: string) => {
-        const configs: Record<string, { color: string; bg: string; icon: React.ReactNode; label: string }> = {
-            confirmed: { color: '#10b981', bg: 'rgba(16, 185, 129, 0.15)', icon: <CheckCircle fontSize="small" />, label: 'Confirmada' },
-            pending: { color: '#f59e0b', bg: 'rgba(245, 158, 11, 0.15)', icon: <HourglassEmpty fontSize="small" />, label: 'Pendiente' },
-            cancelled: { color: '#ef4444', bg: 'rgba(239, 68, 68, 0.15)', icon: <Cancel fontSize="small" />, label: 'Cancelada' },
-            cancelled_restaurant: { color: '#ef4444', bg: 'rgba(239, 68, 68, 0.15)', icon: <Block fontSize="small" />, label: 'Denegada' },
-            cancelled_user: { color: '#f87171', bg: 'rgba(239, 68, 68, 0.1)', icon: <Cancel fontSize="small" />, label: 'Cancelada' },
-            no_show: { color: '#64748b', bg: 'rgba(100, 116, 139, 0.15)', icon: <ThumbDown fontSize="small" />, label: 'No Show' },
-            completed: { color: '#3b82f6', bg: 'rgba(59, 130, 246, 0.15)', icon: <EventAvailable fontSize="small" />, label: 'Completada' },
-            waitlist: { color: '#8b5cf6', bg: 'rgba(139, 92, 246, 0.15)', icon: <PlaylistAddCheck fontSize="small" />, label: 'Espera' },
-        };
-        return configs[status] || { color: '#94a3b8', bg: 'rgba(148, 163, 184, 0.1)', icon: null, label: status };
-    };
-
-    // Stats
-    const todayStats = {
-        total: reservations.length,
-        confirmed: reservations.filter(r => r.status === 'confirmed').length,
-        pending: reservations.filter(r => r.status === 'pending').length,
-        covers: reservations.filter(r => ['confirmed', 'pending'].includes(r.status)).reduce((sum, r) => sum + r.party_size, 0),
-    };
-
-    // Calendar data - group reservations by date
-    const reservationsByDate = useMemo(() => {
-        const map: Record<string, Reservation[]> = {};
-        allReservations.forEach(r => {
-            if (!map[r.reservation_date]) map[r.reservation_date] = [];
-            map[r.reservation_date].push(r);
-        });
-        return map;
-    }, [allReservations]);
-
-    // Calendar Helper
-    const getCalendarDays = () => {
-        const year = calendarMonth.getFullYear();
-        const month = calendarMonth.getMonth();
-        const firstDay = new Date(year, month, 1);
-        const lastDay = new Date(year, month + 1, 0);
-        const startPadding = firstDay.getDay() === 0 ? 6 : firstDay.getDay() - 1; // Monday start
-
-        const days: (Date | null)[] = [];
-        for (let i = 0; i < startPadding; i++) days.push(null);
-        for (let d = 1; d <= lastDay.getDate(); d++) days.push(new Date(year, month, d));
-        return days;
-    };
-
-    const formatDateKey = (date: Date) => date.toISOString().split('T')[0];
-
-    // Mobile Reservation Card
-    const MobileReservationCard = ({ res }: { res: Reservation }) => {
-        const status = getStatusConfig(res.status);
-        const isExpanded = expandedCard === res.id;
-
-        return (
-            <Paper elevation={0} sx={{ mb: 2, borderRadius: 3, border: `1px solid ${alpha(status.color, 0.3)}`, bgcolor: alpha(status.color, 0.05), overflow: 'hidden' }}>
-                <Box sx={{ p: 2, display: 'flex', alignItems: 'center', gap: 2, cursor: 'pointer' }} onClick={() => setExpandedCard(isExpanded ? null : res.id)}>
-                    <Box sx={{ minWidth: 60, textAlign: 'center', py: 1, px: 1, borderRadius: 2, bgcolor: alpha('#3b82f6', 0.15) }}>
-                        <Typography variant="subtitle2" fontWeight="800" color="#60a5fa">{res.reservation_time}</Typography>
-                    </Box>
-                    <Box flex={1} overflow="hidden">
-                        <Typography variant="subtitle1" fontWeight="700" noWrap>{res.client_name}</Typography>
-                        <Box display="flex" alignItems="center" gap={1}>
-                            <People fontSize="small" sx={{ color: '#94a3b8', fontSize: 16 }} />
-                            <Typography variant="body2" color="text.secondary">{res.party_size}</Typography>
-                            {res.table_assignment && (
-                                <Chip icon={<TableRestaurant sx={{ fontSize: 14 }} />} label={res.table_assignment} size="small" sx={{ height: 20, fontSize: '0.65rem' }} />
-                            )}
-                        </Box>
-                    </Box>
-                    <Chip label={status.label} size="small" sx={{ bgcolor: status.bg, color: status.color, fontWeight: 600, fontSize: '0.7rem' }} />
-                    {isExpanded ? <ExpandLess /> : <ExpandMore />}
-                </Box>
-
-                <Collapse in={isExpanded}>
-                    <Box sx={{ px: 2, pb: 2, pt: 1, borderTop: '1px solid rgba(255,255,255,0.05)' }}>
-                        <Stack spacing={1} mb={2}>
-                            <Button fullWidth variant="outlined" size="small" startIcon={<Phone />} href={`tel:${res.client_phone}`} sx={{ justifyContent: 'flex-start', color: '#f8fafc' }}>
-                                {res.client_phone}
-                            </Button>
-                            <Button fullWidth variant="outlined" size="small" startIcon={<Email />} href={`mailto:${res.client_email}`} sx={{ justifyContent: 'flex-start', color: '#94a3b8' }}>
-                                {res.client_email}
-                            </Button>
-                        </Stack>
-                        {res.special_requests && <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>📝 Cliente: {res.special_requests}</Typography>}
-                        {res.admin_notes && <Typography variant="body2" sx={{ mb: 1, p: 1, bgcolor: 'rgba(59,130,246,0.1)', borderRadius: 1 }}>🔒 Staff: {res.admin_notes}</Typography>}
-
-                        <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
-                            <Button size="small" variant="contained" startIcon={<Edit />} onClick={() => handleEditClick(res)}>Editar</Button>
-                            {res.status === 'pending' && (
-                                <>
-                                    <Button size="small" color="success" variant="outlined" onClick={() => handleStatusChange(res.id, 'confirmed')}>✓</Button>
-                                    <Button size="small" color="error" variant="outlined" onClick={() => handleStatusChange(res.id, 'cancelled_restaurant')}>✗</Button>
-                                </>
-                            )}
-                        </Stack>
-                    </Box>
-                </Collapse>
-            </Paper>
-        );
-    };
-
-    // Stat Card
-    const StatCard = ({ icon, label, value, color }: { icon: React.ReactNode; label: string; value: number | string; color: string }) => (
-        <Card sx={{ background: `linear-gradient(135deg, rgba(30, 41, 59, 0.8), ${alpha(color, 0.2)})`, border: 'none' }}>
-            <CardContent sx={{ p: isMobile ? 1.5 : 2, '&:last-child': { pb: isMobile ? 1.5 : 2 } }}>
-                <Box display="flex" alignItems="center" gap={isMobile ? 1.5 : 2}>
-                    <Avatar sx={{ bgcolor: alpha(color, 0.2), color: color, width: isMobile ? 40 : 44, height: isMobile ? 40 : 44 }}>{icon}</Avatar>
-                    <Box>
-                        <Typography variant={isMobile ? "h5" : "h4"} fontWeight="800" color="#fff">{value}</Typography>
-                        <Typography variant="caption" sx={{ color: alpha('#fff', 0.7), fontWeight: 500 }}>{label}</Typography>
-                    </Box>
-                </Box>
-            </CardContent>
-        </Card>
-    );
-
-    // Desktop Calendar Component
-    const DesktopCalendar = () => {
-        const days = getCalendarDays();
-        const weekDays = ['Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb', 'Dom'];
-        const today = new Date().toISOString().split('T')[0];
-
-        return (
-            <Paper elevation={0} sx={{ p: 2, borderRadius: 2, mb: 3 }}>
-                {/* Calendar Header */}
-                <Box display="flex" justifyContent="space-between" alignItems="center" mb={2}>
-                    <IconButton onClick={() => setCalendarMonth(new Date(calendarMonth.getFullYear(), calendarMonth.getMonth() - 1))}>
-                        <ChevronLeft />
-                    </IconButton>
-                    <Typography variant="h6" fontWeight="700">
-                        {calendarMonth.toLocaleDateString('es-ES', { month: 'long', year: 'numeric' })}
-                    </Typography>
-                    <IconButton onClick={() => setCalendarMonth(new Date(calendarMonth.getFullYear(), calendarMonth.getMonth() + 1))}>
-                        <ChevronRight />
-                    </IconButton>
-                </Box>
-
-                {/* Week Day Headers */}
-                <Grid container spacing={0.5} mb={1}>
-                    {weekDays.map(d => (
-                        <Grid item xs={12 / 7} key={d}>
-                            <Typography variant="caption" color="text.secondary" align="center" display="block" fontWeight="600">{d}</Typography>
-                        </Grid>
-                    ))}
-                </Grid>
-
-                {/* Calendar Days Grid */}
-                <Grid container spacing={0.5}>
-                    {days.map((day, idx) => {
-                        if (!day) return <Grid item xs={12 / 7} key={`empty-${idx}`}><Box sx={{ height: 70 }} /></Grid>;
-
-                        const dateKey = formatDateKey(day);
-                        const dayReservations = reservationsByDate[dateKey] || [];
-                        const isToday = dateKey === today;
-                        const isSelected = dateKey === selectedDate;
-                        const confirmed = dayReservations.filter(r => r.status === 'confirmed').length;
-                        const pending = dayReservations.filter(r => r.status === 'pending').length;
-
-                        return (
-                            <Grid item xs={12 / 7} key={dateKey}>
-                                <Paper
-                                    elevation={0}
-                                    onClick={() => setSelectedDate(dateKey)}
-                                    sx={{
-                                        height: 70,
-                                        p: 1,
-                                        cursor: 'pointer',
-                                        borderRadius: 2,
-                                        border: isSelected ? '2px solid #3b82f6' : '1px solid rgba(255,255,255,0.05)',
-                                        bgcolor: isSelected ? 'rgba(59,130,246,0.15)' : isToday ? 'rgba(16,185,129,0.1)' : 'transparent',
-                                        transition: 'all 0.2s',
-                                        '&:hover': { bgcolor: 'rgba(255,255,255,0.05)' }
-                                    }}
-                                >
-                                    <Typography variant="body2" fontWeight={isToday ? 700 : 500} color={isToday ? '#10b981' : 'text.primary'}>
-                                        {day.getDate()}
-                                    </Typography>
-                                    {dayReservations.length > 0 && (
-                                        <Box display="flex" gap={0.5} mt={0.5} flexWrap="wrap">
-                                            {confirmed > 0 && <Chip label={confirmed} size="small" sx={{ height: 18, fontSize: '0.65rem', bgcolor: 'rgba(16,185,129,0.3)', color: '#10b981' }} />}
-                                            {pending > 0 && <Chip label={pending} size="small" sx={{ height: 18, fontSize: '0.65rem', bgcolor: 'rgba(245,158,11,0.3)', color: '#f59e0b' }} />}
-                                        </Box>
-                                    )}
-                                </Paper>
-                            </Grid>
-                        );
-                    })}
-                </Grid>
-            </Paper>
-        );
-    };
-
+function ReservationCard({ res, onEdit, onStatus, busy }: {
+    res: Reservation;
+    onEdit: (res: Reservation) => void;
+    onStatus: (res: Reservation, status: string) => void;
+    busy: boolean;
+}) {
+    const [open, setOpen] = useState(false);
+    const color = statusOf(res.status).color;
     return (
-        <Box sx={{ minHeight: '100vh', px: isMobile ? 1 : 0 }}>
-            {/* Header */}
-            <Box sx={{ display: 'flex', flexDirection: isMobile ? 'column' : 'row', justifyContent: 'space-between', alignItems: isMobile ? 'stretch' : 'center', gap: 2, mb: 3, pb: 2, borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
-                <Box>
-                    <Typography variant={isMobile ? "h5" : "h4"} fontWeight="800" sx={{ background: 'linear-gradient(135deg, #f8fafc 0%, #94a3b8 100%)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>
-                        Reservas
+        <Box sx={{ border: 1, borderColor: 'divider', borderLeft: `3px solid ${color}`, mb: 1.5, bgcolor: 'background.paper' }}>
+            <Box sx={{ p: 2, display: 'flex', alignItems: 'center', gap: 2, cursor: 'pointer' }} onClick={() => setOpen(!open)}>
+                <Box sx={{ minWidth: 64, textAlign: 'center' }}>
+                    <Typography variant="subtitle1" fontWeight={700} color="primary.main">{res.reservation_time}</Typography>
+                    <Typography variant="caption" color="text.secondary">
+                        {format(parseISO(res.reservation_date), 'd MMM', { locale: es })}
                     </Typography>
                 </Box>
-                <Paper elevation={0} sx={{ p: isMobile ? 1.5 : 2, display: 'flex', alignItems: 'center', gap: 1.5, borderRadius: 2, bgcolor: isEnabled ? 'rgba(16, 185, 129, 0.1)' : 'rgba(239, 68, 68, 0.1)', border: `1px solid ${isEnabled ? 'rgba(16, 185, 129, 0.3)' : 'rgba(239, 68, 68, 0.3)'}` }}>
-                    <Box sx={{ width: 8, height: 8, borderRadius: '50%', bgcolor: isEnabled ? '#10b981' : '#ef4444', boxShadow: `0 0 8px ${isEnabled ? '#10b981' : '#ef4444'}` }} />
-                    <Typography variant="body2" fontWeight="600" color={isEnabled ? '#10b981' : '#ef4444'}>{isEnabled ? 'Activo' : 'Inactivo'}</Typography>
-                    <Switch checked={isEnabled} onChange={() => isEnabled ? setShowSafetyDialog(true) : handleToggleConfirm(true)} disabled={toggleLoading} size="small" />
-                </Paper>
-            </Box>
-
-            {/* Stats */}
-            {currentTab === 0 && (
-                <Grid container spacing={isMobile ? 1.5 : 2} sx={{ mb: 3 }}>
-                    <Grid item xs={6} md={3}><StatCard icon={<EventSeat />} label="Total" value={todayStats.total} color="#3b82f6" /></Grid>
-                    <Grid item xs={6} md={3}><StatCard icon={<CheckCircle />} label="Confirmadas" value={todayStats.confirmed} color="#10b981" /></Grid>
-                    <Grid item xs={6} md={3}><StatCard icon={<HourglassEmpty />} label="Pendientes" value={todayStats.pending} color="#f59e0b" /></Grid>
-                    <Grid item xs={6} md={3}><StatCard icon={<People />} label="Comensales" value={todayStats.covers} color="#8b5cf6" /></Grid>
-                </Grid>
-            )}
-
-            {/* Tabs */}
-            <Paper elevation={0} sx={{ mb: 2, borderRadius: 2, overflow: 'hidden' }}>
-                <Tabs value={currentTab} onChange={(_, v) => setCurrentTab(v)} variant={isMobile ? "scrollable" : "standard"} scrollButtons={isMobile ? "auto" : false} sx={{ '& .MuiTab-root': { minWidth: isMobile ? 'auto' : 120, py: 1.5, px: isMobile ? 2 : 3 } }}>
-                    <Tab icon={<Restaurant />} iconPosition="start" label={isMobile ? "" : "Calendario"} />
-                    <Tab icon={<TrendingUp />} iconPosition="start" label={isMobile ? "" : "Lista"} />
-                    <Tab icon={<PlaylistAddCheck />} iconPosition="start" label={isMobile ? "" : "Espera"} />
-                    <Tab icon={<History />} iconPosition="start" label={isMobile ? "" : "Logs"} />
-                    <Tab label="⚙️" />
-                </Tabs>
-            </Paper>
-
-            {/* Main Content */}
-            <Box>
-                {/* Tab 0: Calendar + Day View */}
-                {currentTab === 0 && (
-                    <Grid container spacing={3}>
-                        {/* Calendar - PC Only */}
-                        {!isMobile && (
-                            <Grid item md={5} lg={4}>
-                                <DesktopCalendar />
-                            </Grid>
+                <Box sx={{ flex: 1, minWidth: 0 }}>
+                    <Typography variant="subtitle1" fontWeight={600} noWrap>{res.client_name}</Typography>
+                    <Stack direction="row" spacing={1.5} alignItems="center">
+                        <Stack direction="row" spacing={0.5} alignItems="center">
+                            <People sx={{ fontSize: 16, color: 'text.secondary' }} />
+                            <Typography variant="body2" color="text.secondary">{res.party_size}</Typography>
+                        </Stack>
+                        {res.table_assignment && (
+                            <Stack direction="row" spacing={0.5} alignItems="center">
+                                <TableRestaurant sx={{ fontSize: 16, color: 'text.secondary' }} />
+                                <Typography variant="body2" color="text.secondary">{res.table_assignment}</Typography>
+                            </Stack>
                         )}
-
-                        {/* Day View */}
-                        <Grid item xs={12} md={7} lg={8}>
-                            <Paper elevation={0} sx={{ p: isMobile ? 2 : 3, borderRadius: 2 }}>
-                                <Box display="flex" justifyContent="space-between" alignItems="center" mb={3}>
-                                    <Typography variant="h6" fontWeight="700">
-                                        {new Date(selectedDate).toLocaleDateString('es-ES', { weekday: 'long', day: 'numeric', month: 'long' })}
-                                    </Typography>
-                                    <Box display="flex" gap={1}>
-                                        {isMobile && (
-                                            <TextField type="date" size="small" value={selectedDate} onChange={(e) => setSelectedDate(e.target.value)} sx={{ width: 150 }} />
-                                        )}
-                                        <IconButton onClick={loadReservations} disabled={listLoading}><Refresh /></IconButton>
-                                    </Box>
-                                </Box>
-
-                                {listLoading ? (
-                                    <Box display="flex" justifyContent="center" py={6}><CircularProgress /></Box>
-                                ) : reservations.length === 0 ? (
-                                    <Box textAlign="center" py={6}>
-                                        <EventSeat sx={{ fontSize: 48, color: 'rgba(255,255,255,0.1)', mb: 1 }} />
-                                        <Typography color="text.secondary">No hay reservas</Typography>
-                                    </Box>
-                                ) : (
-                                    reservations.sort((a, b) => a.reservation_time.localeCompare(b.reservation_time)).map(res => (
-                                        <MobileReservationCard key={res.id} res={res} />
-                                    ))
-                                )}
-                            </Paper>
-                        </Grid>
-                    </Grid>
-                )}
-
-                {/* Tab 1: Full List */}
-                {currentTab === 1 && (
-                    <Paper elevation={0} sx={{ p: isMobile ? 2 : 3, borderRadius: 2 }}>
-                        <Box display="flex" justifyContent="space-between" alignItems="center" mb={3}>
-                            <Typography variant="h6" fontWeight="700">Todas las Reservas</Typography>
-                            <Button startIcon={<Refresh />} variant="outlined" onClick={loadReservationsAll} disabled={listLoading}>Actualizar</Button>
-                        </Box>
-                        {listLoading ? <Box display="flex" justifyContent="center" py={6}><CircularProgress /></Box> : (
-                            reservations.map(res => <MobileReservationCard key={res.id} res={res} />)
-                        )}
-                    </Paper>
-                )}
-
-                {/* Tab 2: Waitlist */}
-                {currentTab === 2 && (
-                    <Paper elevation={0} sx={{ p: 3, borderRadius: 2, textAlign: 'center', py: 8 }}>
-                        <PlaylistAddCheck sx={{ fontSize: 48, color: 'rgba(255,255,255,0.1)', mb: 1 }} />
-                        <Typography color="text.secondary">Próximamente</Typography>
-                    </Paper>
-                )}
-
-                {/* Tab 3: Logs */}
-                {currentTab === 3 && (
-                    <Paper elevation={0} sx={{ p: 2, borderRadius: 2 }}>
-                        {logs.map(log => (
-                            <Paper key={log.id} elevation={0} sx={{ p: 2, mb: 1, borderRadius: 2, bgcolor: 'rgba(255,255,255,0.02)' }}>
-                                <Box display="flex" justifyContent="space-between" alignItems="center" flexWrap="wrap" gap={1}>
-                                    <Typography variant="caption" color="text.secondary">{new Date(log.created_at).toLocaleString()}</Typography>
-                                    <Chip label={log.action} size="small" sx={{ fontWeight: 600, textTransform: 'uppercase', fontSize: '0.65rem' }} />
-                                </Box>
-                                <Typography variant="body2" mt={0.5}>{log.client_name || 'Reserva'} - {log.reason || log.new_state || '-'}</Typography>
-                            </Paper>
-                        ))}
-                    </Paper>
-                )}
-
-                {/* Tab 4: Settings */}
-                {currentTab === 4 && (
-                    <Paper elevation={0} sx={{ p: 3, borderRadius: 2 }}>
-                        <ReservationSettings restaurantId={restaurantId || ''} />
-                    </Paper>
-                )}
+                    </Stack>
+                </Box>
+                <StatusChip status={res.status} />
+                {open ? <ExpandLess /> : <ExpandMore />}
             </Box>
-
-            {/* Dialogs */}
-            <Dialog open={showSafetyDialog} onClose={() => setShowSafetyDialog(false)} fullWidth maxWidth="xs">
-                <DialogTitle><Warning color="warning" sx={{ mr: 1, verticalAlign: 'middle' }} />¿Deshabilitar?</DialogTitle>
-                <DialogContent><Typography variant="body2">Los clientes no podrán hacer nuevas reservas.</Typography></DialogContent>
-                <DialogActions>
-                    <Button onClick={() => setShowSafetyDialog(false)}>Cancelar</Button>
-                    <Button onClick={() => handleToggleConfirm(false)} color="error" variant="contained">Deshabilitar</Button>
-                </DialogActions>
-            </Dialog>
-
-            {/* Edit Dialog */}
-            <Dialog open={editDialogOpen} onClose={() => setEditDialogOpen(false)} fullWidth maxWidth="sm" fullScreen={isMobile}>
-                <DialogTitle>✏️ Editar Reserva</DialogTitle>
-                <DialogContent dividers>
-                    <Grid container spacing={2} sx={{ mt: 0.5 }}>
-                        <Grid item xs={6}><TextField label="Fecha" type="date" fullWidth InputLabelProps={{ shrink: true }} value={editForm.date} onChange={(e) => setEditForm({ ...editForm, date: e.target.value })} /></Grid>
-                        <Grid item xs={6}><TextField label="Hora" type="time" fullWidth InputLabelProps={{ shrink: true }} value={editForm.time} onChange={(e) => setEditForm({ ...editForm, time: e.target.value })} /></Grid>
-                        <Grid item xs={6}><TextField label="Personas" type="number" fullWidth value={editForm.party_size} onChange={(e) => setEditForm({ ...editForm, party_size: parseInt(e.target.value) })} /></Grid>
-                        <Grid item xs={6}>
-                            <FormControl fullWidth><InputLabel>Estado</InputLabel>
-                                <Select label="Estado" value={editForm.status} onChange={(e) => setEditForm({ ...editForm, status: e.target.value })}>
-                                    <MenuItem value="pending">Pendiente</MenuItem>
-                                    <MenuItem value="confirmed">Confirmada</MenuItem>
-                                    <MenuItem value="cancelled_restaurant">Cancelada</MenuItem>
-                                    <MenuItem value="no_show">No Show</MenuItem>
-                                    <MenuItem value="completed">Completada</MenuItem>
-                                </Select>
-                            </FormControl>
-                        </Grid>
-                        <Grid item xs={12}><TextField label="Nombre" fullWidth value={editForm.client_name} onChange={(e) => setEditForm({ ...editForm, client_name: e.target.value })} /></Grid>
-                        <Grid item xs={6}><TextField label="Teléfono" fullWidth value={editForm.client_phone} onChange={(e) => setEditForm({ ...editForm, client_phone: e.target.value })} /></Grid>
-                        <Grid item xs={6}><TextField label="Email" fullWidth value={editForm.client_email} onChange={(e) => setEditForm({ ...editForm, client_email: e.target.value })} /></Grid>
-                        <Grid item xs={12}><TextField label="Notas del cliente" fullWidth multiline rows={2} value={editForm.special_requests} onChange={(e) => setEditForm({ ...editForm, special_requests: e.target.value })} helperText="Visible para el cliente" /></Grid>
-
-                        {/* Admin-Only Fields */}
-                        <Grid item xs={12}>
-                            <Typography variant="subtitle2" color="primary" sx={{ mb: 1, display: 'flex', alignItems: 'center', gap: 1 }}>
-                                <Notes fontSize="small" /> Notas internas (solo staff)
-                            </Typography>
-                        </Grid>
-                        <Grid item xs={12} sm={4}>
-                            <TextField
-                                label="Mesa asignada"
-                                fullWidth
-                                value={editForm.table_assignment}
-                                onChange={(e) => setEditForm({ ...editForm, table_assignment: e.target.value })}
-                                placeholder="Ej: Mesa 5"
-                                InputProps={{ startAdornment: <TableRestaurant sx={{ mr: 1, color: '#94a3b8' }} /> }}
-                            />
-                        </Grid>
-                        <Grid item xs={12} sm={8}>
-                            <TextField
-                                label="Notas internas"
-                                fullWidth
-                                multiline
-                                rows={2}
-                                value={editForm.admin_notes}
-                                onChange={(e) => setEditForm({ ...editForm, admin_notes: e.target.value })}
-                                placeholder="Ej: VIP, alergia a nueces, cumpleaños..."
-                                sx={{ '& .MuiOutlinedInput-root': { bgcolor: 'rgba(59,130,246,0.05)' } }}
-                            />
-                        </Grid>
-                    </Grid>
-                </DialogContent>
-                <DialogActions sx={{ p: 2 }}>
-                    <Button onClick={() => setEditDialogOpen(false)}>Cancelar</Button>
-                    <Button onClick={handleEditSave} variant="contained">Guardar</Button>
-                </DialogActions>
-            </Dialog>
+            <Collapse in={open}>
+                <Box sx={{ px: 2, pb: 2, pt: 1.5, borderTop: 1, borderColor: 'divider' }}>
+                    <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} sx={{ mb: 2 }}>
+                        <Button variant="outlined" size="small" startIcon={<Phone />} href={`tel:${res.client_phone}`}>{res.client_phone}</Button>
+                        <Button variant="outlined" size="small" startIcon={<Email />} href={`mailto:${res.client_email}`}>{res.client_email}</Button>
+                    </Stack>
+                    {res.special_requests && (
+                        <Typography variant="body2" sx={{ mb: 1 }}><strong>Cliente:</strong> {res.special_requests}</Typography>
+                    )}
+                    {res.admin_notes && (
+                        <Typography variant="body2" sx={{ mb: 1, p: 1, bgcolor: alpha(DATA.cobalt, 0.06) }}>
+                            <strong>Solo personal:</strong> {res.admin_notes}
+                        </Typography>
+                    )}
+                    <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
+                        <Button size="small" variant="contained" startIcon={<Edit />} onClick={() => onEdit(res)}>Editar</Button>
+                        {res.status === 'pending' && (
+                            <>
+                                <Button size="small" variant="outlined" color="success" disabled={busy} onClick={() => onStatus(res, 'confirmed')}>Confirmar</Button>
+                                <Button size="small" variant="outlined" color="error" disabled={busy} onClick={() => onStatus(res, 'cancelled_restaurant')}>Denegar</Button>
+                            </>
+                        )}
+                        {res.status === 'confirmed' && (
+                            <>
+                                <Button size="small" variant="outlined" disabled={busy} onClick={() => onStatus(res, 'completed')}>Completada</Button>
+                                <Button size="small" variant="outlined" color="inherit" disabled={busy} onClick={() => onStatus(res, 'no_show')}>No se presentó</Button>
+                            </>
+                        )}
+                    </Stack>
+                </Box>
+            </Collapse>
         </Box>
     );
+}
+
+function MonthCalendar({ month, onMonth, selected, onSelect, byDate }: {
+    month: Date;
+    onMonth: (date: Date) => void;
+    selected: string;
+    onSelect: (key: string) => void;
+    byDate: Map<string, Reservation[]>;
+}) {
+    const today = dayKey(new Date());
+    const days = eachDayOfInterval({ start: startOfMonth(month), end: endOfMonth(month) });
+    const lead = (getDay(days[0]) + 6) % 7; // semana empieza en lunes
+
+    return (
+        <Panel>
+            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
+                <IconButton onClick={() => onMonth(addMonths(month, -1))} aria-label="Mes anterior"><ChevronLeft /></IconButton>
+                <Typography variant="h6" sx={{ textTransform: 'capitalize' }}>{format(month, 'LLLL yyyy', { locale: es })}</Typography>
+                <IconButton onClick={() => onMonth(addMonths(month, 1))} aria-label="Mes siguiente"><ChevronRight /></IconButton>
+            </Box>
+            <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: 0.5 }}>
+                {WEEK_DAYS.map((d) => (
+                    <Typography key={d} variant="caption" color="text.secondary" align="center" fontWeight={600}>{d}</Typography>
+                ))}
+                {Array.from({ length: lead }, (_, i) => <Box key={`pad-${i}`} />)}
+                {days.map((day) => {
+                    const key = dayKey(day);
+                    const list = byDate.get(key) ?? [];
+                    const confirmed = list.filter((r) => r.status === 'confirmed').length;
+                    const pending = list.filter((r) => r.status === 'pending').length;
+                    const isSelected = key === selected;
+                    return (
+                        <Box
+                            key={key}
+                            role="button"
+                            tabIndex={0}
+                            onClick={() => onSelect(key)}
+                            onKeyDown={(e) => (e.key === 'Enter' || e.key === ' ') && onSelect(key)}
+                            sx={{
+                                minHeight: 64, p: 0.75, cursor: 'pointer',
+                                border: 1, borderColor: isSelected ? 'primary.main' : 'divider',
+                                bgcolor: isSelected ? alpha(DATA.cobalt, 0.08) : 'transparent',
+                                opacity: isSameMonth(day, month) ? 1 : 0.4,
+                                '&:hover': { bgcolor: alpha(DATA.cobalt, 0.04) },
+                            }}
+                        >
+                            <Typography variant="body2" fontWeight={key === today ? 700 : 500} color={key === today ? 'primary.main' : 'text.primary'}>
+                                {format(day, 'd')}
+                            </Typography>
+                            <Stack direction="row" spacing={0.5} sx={{ mt: 0.5 }}>
+                                {confirmed > 0 && <Box sx={{ px: 0.5, fontSize: 11, fontWeight: 700, color: '#fff', bgcolor: STATUS_COLORS.confirmed }}>{confirmed}</Box>}
+                                {pending > 0 && <Box sx={{ px: 0.5, fontSize: 11, fontWeight: 700, color: '#1B1C1A', bgcolor: 'warning.main' }}>{pending}</Box>}
+                            </Stack>
+                        </Box>
+                    );
+                })}
+            </Box>
+        </Panel>
+    );
+}
+
+const EMPTY_FORM = {
+    date: '', time: '', party_size: 2, status: '', client_name: '', client_email: '', client_phone: '',
+    special_requests: '', admin_notes: '', table_assignment: '',
 };
 
-export default ReservationsPage;
+function EditDialog({ reservation, onClose, onSave, saving }: {
+    reservation: Reservation | null;
+    onClose: () => void;
+    onSave: (id: string, data: ReservationUpdate) => void;
+    saving: boolean;
+}) {
+    const [form, setForm] = useState(EMPTY_FORM);
+    const [loadedId, setLoadedId] = useState<string | null>(null);
+    // El formulario se rellena al abrir (y se olvida al cerrar, para no
+    // reabrir con cambios que no se guardaron).
+    if (!reservation && loadedId) setLoadedId(null);
+    if (reservation && reservation.id !== loadedId) {
+        setLoadedId(reservation.id);
+        setForm({
+            date: reservation.reservation_date, time: reservation.reservation_time, party_size: reservation.party_size,
+            status: reservation.status, client_name: reservation.client_name, client_email: reservation.client_email,
+            client_phone: reservation.client_phone, special_requests: reservation.special_requests || '',
+            admin_notes: reservation.admin_notes || '', table_assignment: reservation.table_assignment || '',
+        });
+    }
+    const field = (key: keyof typeof EMPTY_FORM) => ({
+        value: form[key],
+        onChange: (e: { target: { value: string } }) =>
+            setForm({ ...form, [key]: key === 'party_size' ? parseInt(e.target.value, 10) || 1 : e.target.value }),
+    });
+
+    return (
+        <Dialog open={!!reservation} onClose={onClose} fullWidth maxWidth="sm">
+            <DialogTitle>Editar reserva</DialogTitle>
+            <DialogContent dividers>
+                <Grid container spacing={2} sx={{ mt: 0 }}>
+                    <Grid item xs={6}><TextField label="Fecha" type="date" fullWidth InputLabelProps={{ shrink: true }} {...field('date')} /></Grid>
+                    <Grid item xs={6}><TextField label="Hora" type="time" fullWidth InputLabelProps={{ shrink: true }} {...field('time')} /></Grid>
+                    <Grid item xs={6}><TextField label="Personas" type="number" fullWidth inputProps={{ min: 1 }} {...field('party_size')} /></Grid>
+                    <Grid item xs={6}>
+                        <FormControl fullWidth>
+                            <InputLabel>Estado</InputLabel>
+                            <Select label="Estado" value={form.status} onChange={(e) => setForm({ ...form, status: e.target.value })}>
+                                {['pending', 'confirmed', 'completed', 'cancelled_restaurant', 'no_show'].map((s) => (
+                                    <MenuItem key={s} value={s}>{statusOf(s).label}</MenuItem>
+                                ))}
+                            </Select>
+                        </FormControl>
+                    </Grid>
+                    <Grid item xs={12}><TextField label="Nombre" fullWidth {...field('client_name')} /></Grid>
+                    <Grid item xs={6}><TextField label="Teléfono" fullWidth {...field('client_phone')} /></Grid>
+                    <Grid item xs={6}><TextField label="Email" fullWidth {...field('client_email')} /></Grid>
+                    <Grid item xs={12}><TextField label="Notas del cliente" fullWidth multiline rows={2} helperText="Las ve el cliente" {...field('special_requests')} /></Grid>
+                    <Grid item xs={12}><Typography variant="overline" color="text.secondary">Solo personal</Typography></Grid>
+                    <Grid item xs={12} sm={4}><TextField label="Mesa" fullWidth placeholder="Mesa 5" {...field('table_assignment')} /></Grid>
+                    <Grid item xs={12} sm={8}><TextField label="Notas internas" fullWidth multiline rows={2} placeholder="VIP, alergia, cumpleaños…" {...field('admin_notes')} /></Grid>
+                </Grid>
+            </DialogContent>
+            <DialogActions>
+                <Button onClick={onClose}>Cancelar</Button>
+                <Button variant="contained" disabled={saving} onClick={() => reservation && onSave(reservation.id, form)}>
+                    {saving ? 'Guardando…' : 'Guardar'}
+                </Button>
+            </DialogActions>
+        </Dialog>
+    );
+}
+
+export default function ReservationsPage() {
+    const { currentRestaurant } = useAuth();
+    const restaurantId: string | undefined = currentRestaurant?.id;
+    const queryClient = useQueryClient();
+    const [tab, setTab] = useState<TabKey>('calendar');
+    const [month, setMonth] = useState(() => new Date());
+    const [selectedDate, setSelectedDate] = useState(() => dayKey(new Date()));
+    const [editing, setEditing] = useState<Reservation | null>(null);
+    const [confirmDisable, setConfirmDisable] = useState(false);
+    const [error, setError] = useState<string | null>(null);
+
+    // Una sola lista: el calendario y el día seleccionado salen de ella.
+    const { data: reservations = [], isLoading, refetch } = useQuery({
+        queryKey: ['reservations', restaurantId],
+        queryFn: async () => (await apiClient.getReservationsList(restaurantId!)).reservations ?? [],
+        enabled: !!restaurantId,
+    });
+    const { data: isEnabled = false } = useQuery({
+        queryKey: ['reservation-enabled', restaurantId],
+        queryFn: async () => !!(await apiClient.getReservationSettings(restaurantId!))?.is_enabled,
+        enabled: !!restaurantId,
+    });
+    const { data: logs = [], isLoading: logsLoading } = useQuery({
+        queryKey: ['reservation-logs', restaurantId],
+        queryFn: async () => (await apiClient.getReservationLogs(restaurantId!)).logs ?? [],
+        enabled: !!restaurantId && tab === 'logs',
+    });
+
+    const invalidate = () => {
+        queryClient.invalidateQueries({ queryKey: ['reservations', restaurantId] });
+        queryClient.invalidateQueries({ queryKey: ['pending-reservations'] });
+        queryClient.invalidateQueries({ queryKey: ['reservation-logs', restaurantId] });
+    };
+    const update = useMutation({
+        mutationFn: ({ id, data }: { id: string; data: ReservationUpdate }) => apiClient.updateReservation(id, data),
+        onSuccess: () => { invalidate(); setEditing(null); },
+        onError: (e: Error) => setError(e.message || 'No se pudo guardar la reserva'),
+    });
+    const toggle = useMutation({
+        mutationFn: (enabled: boolean) => apiClient.toggleReservations(restaurantId!, enabled),
+        onSuccess: (_, enabled) => {
+            queryClient.setQueryData(['reservation-enabled', restaurantId], enabled);
+            setConfirmDisable(false);
+        },
+        onError: (e: Error) => setError(e.message || 'No se pudo cambiar el estado'),
+    });
+
+    const byDate = useMemo(() => {
+        const map = new Map<string, Reservation[]>();
+        for (const r of reservations) map.set(r.reservation_date, [...(map.get(r.reservation_date) ?? []), r]);
+        return map;
+    }, [reservations]);
+    const dayList = useMemo(
+        () => [...(byDate.get(selectedDate) ?? [])].sort((a, b) => a.reservation_time.localeCompare(b.reservation_time)),
+        [byDate, selectedDate],
+    );
+    const stats = useMemo(() => ({
+        total: dayList.length,
+        confirmed: dayList.filter((r) => r.status === 'confirmed').length,
+        pending: dayList.filter((r) => r.status === 'pending').length,
+        covers: dayList.filter((r) => r.status === 'confirmed' || r.status === 'pending').reduce((s, r) => s + r.party_size, 0),
+    }), [dayList]);
+
+    if (!restaurantId) return <Alert severity="info">Selecciona un restaurante.</Alert>;
+
+    const card = (res: Reservation) => (
+        <ReservationCard key={res.id} res={res} onEdit={setEditing} busy={update.isPending}
+            onStatus={(r, status) => update.mutate({ id: r.id, data: { status } })} />
+    );
+    const listOrEmpty = (list: Reservation[], empty: string): ReactNode =>
+        isLoading ? <Box sx={{ display: 'flex', justifyContent: 'center', py: 6 }}><CircularProgress /></Box>
+            : list.length === 0 ? (
+                <Box sx={{ textAlign: 'center', py: 6, color: 'text.disabled' }}>
+                    <EventSeat sx={{ fontSize: 44 }} />
+                    <Typography color="text.secondary">{empty}</Typography>
+                </Box>
+            ) : list.map(card);
+
+    return (
+        <Box>
+            <PageHeader
+                icon={<EventAvailable />}
+                title="Reservas"
+                subtitle={isEnabled ? 'Los clientes pueden reservar desde la carta' : 'Las reservas desde la carta están desactivadas'}
+                actions={
+                    <Stack direction="row" alignItems="center" spacing={1} sx={{ px: 1.5, py: 0.5, border: 1, borderColor: 'divider', bgcolor: 'background.paper' }}>
+                        <Typography variant="body2" fontWeight={600} sx={{ color: isEnabled ? STATUS_COLORS.confirmed : 'text.secondary' }}>
+                            {isEnabled ? 'Activas' : 'Desactivadas'}
+                        </Typography>
+                        <Switch checked={isEnabled} disabled={toggle.isPending}
+                            onChange={() => (isEnabled ? setConfirmDisable(true) : toggle.mutate(true))}
+                            inputProps={{ 'aria-label': 'Activar reservas' }} />
+                    </Stack>
+                }
+            />
+
+            {error && <Alert severity="error" onClose={() => setError(null)} sx={{ mb: 3 }}>{error}</Alert>}
+
+            <Tabs value={tab} onChange={(_, v) => setTab(v)} variant="scrollable" sx={{ mb: 3, borderBottom: 1, borderColor: 'divider' }}>
+                <Tab value="calendar" label="Calendario" />
+                <Tab value="list" label="Todas" />
+                <Tab value="logs" label="Registro" />
+                <Tab value="settings" label="Ajustes" />
+            </Tabs>
+
+            {tab === 'calendar' && (
+                <>
+                    <Grid container spacing={3} sx={{ mb: 3 }}>
+                        <Grid item xs={6} md={3}><StatCard icon={<EventSeat />} title="Reservas del día" value={stats.total} color={DATA.sea} /></Grid>
+                        <Grid item xs={6} md={3}><StatCard icon={<CheckCircle />} title="Confirmadas" value={stats.confirmed} color={STATUS_COLORS.confirmed} /></Grid>
+                        <Grid item xs={6} md={3}><StatCard icon={<HourglassEmpty />} title="Pendientes" value={stats.pending} color={STATUS_COLORS.pending} /></Grid>
+                        <Grid item xs={6} md={3}><StatCard icon={<People />} title="Comensales" value={stats.covers} color={DATA.cobalt} /></Grid>
+                    </Grid>
+                    <Grid container spacing={3}>
+                        <Grid item xs={12} md={5} lg={4}>
+                            <MonthCalendar month={month} onMonth={setMonth} selected={selectedDate} onSelect={setSelectedDate} byDate={byDate} />
+                        </Grid>
+                        <Grid item xs={12} md={7} lg={8}>
+                            <Panel
+                                title={format(parseISO(selectedDate), "EEEE d 'de' MMMM", { locale: es })}
+                                action={<Button size="small" onClick={() => refetch()}>Actualizar</Button>}
+                            >
+                                {listOrEmpty(dayList, 'No hay reservas este día')}
+                            </Panel>
+                        </Grid>
+                    </Grid>
+                </>
+            )}
+
+            {tab === 'list' && (
+                <Panel title="Todas las reservas" action={<Button size="small" onClick={() => refetch()}>Actualizar</Button>}>
+                    {listOrEmpty(reservations, 'Todavía no hay reservas')}
+                </Panel>
+            )}
+
+            {tab === 'logs' && (
+                <Panel icon={<History />} title="Registro" subtitle="Últimos 50 cambios">
+                    {logsLoading ? (
+                        <Box sx={{ display: 'flex', justifyContent: 'center', py: 6 }}><CircularProgress /></Box>
+                    ) : logs.length === 0 ? (
+                        <Typography color="text.secondary">Sin cambios registrados.</Typography>
+                    ) : logs.map((log: any) => (
+                        <Box key={log.id} sx={{ py: 1.25, borderBottom: 1, borderColor: 'divider', display: 'flex', justifyContent: 'space-between', gap: 2, flexWrap: 'wrap' }}>
+                            <Typography variant="body2">
+                                <strong>{log.client_name || 'Reserva'}</strong>
+                                {' — '}
+                                {log.previous_state ? `${statusOf(log.previous_state).label} → ` : ''}
+                                {statusOf(log.new_state || '').label || log.reason}
+                            </Typography>
+                            <Typography variant="caption" color="text.secondary">
+                                {new Date(log.created_at).toLocaleString('es-ES', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}
+                            </Typography>
+                        </Box>
+                    ))}
+                </Panel>
+            )}
+
+            {tab === 'settings' && <ReservationSettings restaurantId={restaurantId} isEnabled={isEnabled} />}
+
+            <Dialog open={confirmDisable} onClose={() => setConfirmDisable(false)} fullWidth maxWidth="xs">
+                <DialogTitle>¿Desactivar las reservas?</DialogTitle>
+                <DialogContent><Typography variant="body2">Los clientes no podrán hacer reservas nuevas desde la carta.</Typography></DialogContent>
+                <DialogActions>
+                    <Button onClick={() => setConfirmDisable(false)}>Cancelar</Button>
+                    <Button onClick={() => toggle.mutate(false)} color="error" variant="contained" disabled={toggle.isPending}>Desactivar</Button>
+                </DialogActions>
+            </Dialog>
+
+            <EditDialog reservation={editing} onClose={() => setEditing(null)} saving={update.isPending}
+                onSave={(id, data) => update.mutate({ id, data })} />
+        </Box>
+    );
+}

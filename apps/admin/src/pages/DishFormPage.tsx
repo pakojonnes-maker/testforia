@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useForm, Controller } from 'react-hook-form';
@@ -6,10 +6,10 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { apiClient } from '../lib/apiClient';
 import { useAuth } from '../contexts/AuthContext';
+import { PageHeader } from '../components/common/PageHeader';
 import { useTheme } from '@mui/material/styles';
 import useMediaQuery from '@mui/material/useMediaQuery';
 import {
-  Container,
   Box,
   Paper,
   Typography,
@@ -49,12 +49,12 @@ const dishSchema = z.object({
   // Campos básicos
   price: z.number().min(0, 'El precio debe ser mayor o igual a 0'),
   status: z.enum(['active', 'out_of_stock', 'seasonal', 'hidden']),
-  is_vegetarian: z.boolean().default(false),
-  is_vegan: z.boolean().default(false),
-  is_gluten_free: z.boolean().default(false),
-  is_new: z.boolean().default(false),
-  is_featured: z.boolean().default(false),
-  has_half_portion: z.boolean().default(false),
+  is_vegetarian: z.boolean(),
+  is_vegan: z.boolean(),
+  is_gluten_free: z.boolean(),
+  is_new: z.boolean(),
+  is_featured: z.boolean(),
+  has_half_portion: z.boolean(),
   half_price: z.number().nullable().optional(),
 
   // Traducciones básicas (solo español)
@@ -130,7 +130,7 @@ export default function DishFormPage() {
     handleSubmit,
     setValue,
     watch,
-    formState: { errors, isDirty, isSubmitting }
+    formState: { errors }
   } = useForm<DishFormData>({
     resolver: zodResolver(dishSchema),
     defaultValues: {
@@ -241,15 +241,10 @@ export default function DishFormPage() {
     }
   });
 
-  const handleSaveDish = (data: DishFormData) => {
-    console.log('[DishFormPage] handleSaveDish called with data:', data);
-    console.log('[DishFormPage] isEditMode:', isEditMode, 'id:', id);
-    saveMutation.mutate(data);
-  };
+  const handleSaveDish = (data: DishFormData) => saveMutation.mutate(data);
 
   // Handler para errores de validación
-  const onValidationError = (validationErrors: any) => {
-    console.error('[DishFormPage] Validation errors:', validationErrors);
+  const onValidationError = () => {
     setSnackbar({
       open: true,
       message: 'Por favor, corrige los errores del formulario',
@@ -263,88 +258,55 @@ export default function DishFormPage() {
   };
 
   // Estados de carga y error
+  const backButton = (
+    <IconButton edge="start" onClick={() => navigate('/dishes')} aria-label="Volver a platos">
+      <ArrowBackIcon />
+    </IconButton>
+  );
+
   if (isLoadingDish || isLoadingSections || isLoadingAllergens) {
     return (
-      <Container maxWidth="md" sx={{ py: 4 }}>
-        <Box sx={{ display: 'flex', alignItems: 'center', mb: 3 }}>
-          <IconButton
-            edge="start"
-            color="inherit"
-            onClick={() => navigate('/dishes')}
-            sx={{ mr: 2 }}
-          >
-            <ArrowBackIcon />
-          </IconButton>
-          <Typography variant="h4" component="h1">
-            {isEditMode ? 'Cargando plato...' : 'Nuevo plato'}
-          </Typography>
-        </Box>
+      <Box>
+        <PageHeader icon={backButton} title={isEditMode ? 'Cargando plato…' : 'Nuevo plato'} />
         <LinearProgress />
-      </Container>
+      </Box>
     );
   }
 
   if (dishError && isEditMode) {
     return (
-      <Container maxWidth="md" sx={{ py: 4 }}>
+      <Box>
+        <PageHeader icon={backButton} title="Editar plato" />
         <Alert severity="error" sx={{ mb: 2 }}>
           Error al cargar el plato. Por favor, inténtalo de nuevo.
         </Alert>
-        <Button
-          startIcon={<ArrowBackIcon />}
-          onClick={() => navigate('/dishes')}
-        >
+        <Button startIcon={<ArrowBackIcon />} onClick={() => navigate('/dishes')}>
           Volver a platos
         </Button>
-      </Container>
+      </Box>
     );
   }
 
   return (
-    <Container maxWidth="lg" sx={{ py: { xs: 2, sm: 4 } }}>
-      {/* Header */}
-      <Box sx={{ mb: 3, display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 2 }}>
-        <Box sx={{ display: 'flex', alignItems: 'center' }}>
-          <IconButton
-            edge="start"
-            color="inherit"
-            onClick={() => navigate('/dishes')}
-            sx={{ mr: 2 }}
-          >
-            <ArrowBackIcon />
-          </IconButton>
-          <Typography variant="h5" component="h1" sx={{ fontSize: { xs: '1.5rem', md: '2rem' } }}>
-            {isEditMode ? 'Editar plato' : 'Nuevo plato'}
-          </Typography>
-        </Box>
-        <Box sx={{ display: 'flex', gap: 1 }}>
-          {isEditMode && (
-            <Button
-              variant="outlined"
-              color="error"
-              startIcon={<DeleteIcon />}
-              onClick={() => setConfirmDeleteDialogOpen(true)}
-              disabled={deleteMutation.isPending}
-              size={isMobile ? "small" : "medium"}
-            >
-              {isMobile ? 'Eliminar' : 'Eliminar'}
+    <Box>
+      <PageHeader
+        icon={backButton}
+        title={isEditMode ? 'Editar plato' : 'Nuevo plato'}
+        actions={
+          <>
+            {isEditMode && (
+              <Button variant="outlined" color="error" startIcon={<DeleteIcon />}
+                onClick={() => setConfirmDeleteDialogOpen(true)} disabled={deleteMutation.isPending}>
+                Eliminar
+              </Button>
+            )}
+            <Button variant="contained" startIcon={<SaveIcon />}
+              onClick={() => handleSubmit(handleSaveDish, onValidationError)()} disabled={saveMutation.isPending}>
+              {saveMutation.isPending ? 'Guardando…' : (isMobile ? 'Guardar' : 'Guardar cambios')}
             </Button>
-          )}
-          <Button
-            variant="contained"
-            startIcon={<SaveIcon />}
-            onClick={() => {
-              console.log('[DishFormPage] Save button clicked');
-              console.log('[DishFormPage] Form errors:', errors);
-              handleSubmit(handleSaveDish, onValidationError)();
-            }}
-            disabled={saveMutation.isPending}
-            size={isMobile ? "small" : "medium"}
-          >
-            {saveMutation.isPending ? 'Guardando...' : (isMobile ? 'Guardar' : 'Guardar cambios')}
-          </Button>
-        </Box>
-      </Box>
+          </>
+        }
+      />
 
       {/* Formulario - SOLO PESTAÑA GENERAL */}
       <Paper sx={{ p: { xs: 2, sm: 3 }, mb: 4, borderRadius: { xs: 1, sm: 2 } }}>
@@ -878,6 +840,6 @@ export default function DishFormPage() {
           {snackbar.message}
         </Alert>
       </Snackbar>
-    </Container>
+    </Box>
   );
 }

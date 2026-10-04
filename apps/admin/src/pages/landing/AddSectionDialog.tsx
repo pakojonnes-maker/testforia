@@ -232,7 +232,7 @@ export default function AddSectionDialog({ open, onClose, library, onAdd }: Prop
             fontWeight: 600,
             borderRadius: 2,
             px: 3,
-            background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+            bgcolor: 'primary.main',
             '&:disabled': {
               background: '#ccc',
             },

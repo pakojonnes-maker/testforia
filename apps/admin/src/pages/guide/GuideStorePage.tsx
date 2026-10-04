@@ -426,7 +426,7 @@ export default function GuideStorePage() {
   };
 
   return (
-    <Box sx={{ p: { xs: 2, md: 0 } }}>
+    <Box>
       <Box sx={{ mb: 3, display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 2 }}>
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
           <StoreIcon sx={{ fontSize: 32, color: 'primary.main' }} />

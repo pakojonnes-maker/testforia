@@ -134,7 +134,7 @@ export default function GuideCategoriesPage() {
   const withImage = categories.filter(c => c.image_r2_key).length;
 
   return (
-    <Box sx={{ p: { xs: 2, md: 0 } }}>
+    <Box>
       <Box sx={{ mb: 4, display: 'flex', alignItems: 'center', gap: 2 }}>
         <CollectionsIcon sx={{ fontSize: 32, color: 'primary.main' }} />
         <Box>

@@ -1,13 +1,18 @@
 // apps/admin/src/lib/apiClient.ts
+//
+// Cliente del panel. Envuelve el @visualtaste/api compartido (axios, con el
+// token en un interceptor) y añade los endpoints propios del admin.
+//
+// Oct-2026: antes era un Proxy que reenviaba CUALQUIER propiedad desconocida al
+// cliente base. Así TypeScript no veía errores como `apiClient.reservations`,
+// que no existe y dejaba sin funcionar confirmar o editar reservas. Ahora todo
+// método que usa el panel está declarado aquí, y lo que no se usaba se quitó.
 
-import { createApiClient, getQueryDefaults, ApiClient } from "@visualtaste/api";
+import { createApiClient, type ApiClient } from "@visualtaste/api";
 import type { DishMedia } from "@visualtaste/api";
 
 // API URL desde variables de entorno o por defecto
-const API_URL = import.meta.env.VITE_API_URL || "https://visualtasteworker.franciscotortosaestudios.workers.dev";
-
-// Crear instancia base del cliente API
-const baseApiClient = createApiClient(API_URL);
+export const API_URL = import.meta.env.VITE_API_URL || "https://visualtasteworker.franciscotortosaestudios.workers.dev";
 
 /** Respuesta de GET /auth/google/config: si hay que pintar el botón "Entrar con Google". */
 export interface GoogleLoginConfig {
@@ -27,76 +32,183 @@ export interface GoogleLoginResult {
   user?: unknown;
 }
 
-/**
- * AdminApiClient extiende la funcionalidad de ApiClient para la aplicación de administración
- */
+export type ReservationStatus =
+  | 'pending' | 'confirmed' | 'cancelled' | 'cancelled_restaurant' | 'cancelled_user'
+  | 'no_show' | 'completed' | 'waitlist';
+
+export interface Reservation {
+  id: string;
+  client_name: string;
+  client_email: string;
+  client_phone: string;
+  reservation_date: string;
+  reservation_time: string;
+  party_size: number;
+  status: ReservationStatus | string;
+  special_requests?: string | null;
+  occasion?: string | null;
+  admin_notes?: string | null;
+  table_assignment?: string | null;
+  cancellation_reason?: string | null;
+  created_at: string;
+}
+
+export interface ReservationUpdate {
+  status?: string;
+  date?: string;
+  time?: string;
+  party_size?: number;
+  client_name?: string;
+  client_email?: string;
+  client_phone?: string;
+  special_requests?: string;
+  admin_notes?: string;
+  table_assignment?: string;
+  cancellation_reason?: string;
+}
+
+export type DeliveryStatus = 'pending' | 'confirmed' | 'preparing' | 'delivered' | 'cancelled';
+
+export interface DeliverySettings {
+  is_enabled: boolean;
+  show_whatsapp: boolean;
+  show_phone: boolean;
+  custom_whatsapp: string;
+  custom_phone: string;
+  payment_methods: { cash: boolean; card: boolean };
+  shipping_cost: number;
+  free_shipping_threshold: number;
+  minimum_order: number;
+  delivery_hours: Record<string, Array<{ start: string; end: string }>>;
+  closed_dates: string[];
+}
+
+export interface DeliveryOrder {
+  id: string;
+  customer_name: string | null;
+  customer_phone: string;
+  customer_address: string;
+  customer_notes: string | null;
+  items: Array<{ dish_id?: string; name: string; quantity: number; price: number }>;
+  subtotal: number;
+  shipping_cost: number;
+  total: number;
+  payment_method: string | null;
+  status: DeliveryStatus | string;
+  order_source: string;
+  created_at: string;
+  updated_at?: string;
+}
+
 class AdminApiClient {
-  // Propiedades de estado
   public authToken: string | null = localStorage.getItem('auth_token') || null;
+  private readonly base: ApiClient;
 
-  // Referencia al cliente base para acceso directo
-  private baseClient: ApiClient;
-
-  constructor(baseClient: ApiClient) {
-    this.baseClient = baseClient;
-
-    // Si hay token guardado, inicializarlo en el cliente base
-    if (this.authToken) {
-      this.baseClient.setAuthToken(this.authToken);
-    }
+  constructor(base: ApiClient) {
+    this.base = base;
+    if (this.authToken) this.base.setAuthToken(this.authToken);
   }
 
-  // Acceso directo al cliente HTTP
+  /** Cliente axios con el token ya puesto, para endpoints sin método propio. */
   public get client() {
-    return this.baseClient.client;
+    return this.base.client;
   }
 
-  /**
-   * Método para interceptar cualquier llamada al apiClient y redirigirla al cliente base
-   * Esto garantiza que cualquier método del baseClient esté disponible automáticamente
-   */
-  public async invokeBaseMethod(methodName: string, ...args: any[]): Promise<any> {
-    // Verificar si el método existe en el cliente base
-    if (typeof (this.baseClient as any)[methodName] === 'function') {
-      console.log(`[apiClient] Invocando método del cliente base: ${methodName}`);
-      return (this.baseClient as any)[methodName](...args);
-    }
-
-    console.error(`[apiClient] Método no encontrado en el cliente base: ${methodName}`);
-    throw new Error(`El método "${methodName}" no está implementado`);
-  }
-
-  // Métodos de gestión de token
+  // ============================================
+  // Sesión
+  // ============================================
   public setAuthToken(token: string): void {
     this.authToken = token;
     localStorage.setItem('auth_token', token);
-    this.baseClient.setAuthToken(token);
+    this.base.setAuthToken(token);
   }
 
   public clearAuthToken(): void {
     this.authToken = null;
     localStorage.removeItem('auth_token');
-    this.baseClient.clearAuthToken();
+    this.base.clearAuthToken();
   }
 
-  // Método para verificar autenticación
-  public isAuthenticated(): boolean {
-    return !!this.authToken;
-  }
-
-  // Método login extendido para admin que guarda el token
   public async login(email: string, password: string): Promise<any> {
-    const response = await this.baseClient.login(email, password);
-    if (response && response.token) {
-      this.setAuthToken(response.token);
-    }
+    const response: any = await this.base.login(email, password);
+    if (response?.token) this.setAuthToken(response.token);
     return response;
   }
 
-  // Relaciones plato-sección
+  public getCurrentUser(): Promise<any> {
+    return this.base.getCurrentUser();
+  }
+
+  public async logoutOnServer(): Promise<void> {
+    try {
+      await this.client.post(`/auth/logout`);
+    } catch (error) {
+      // El logout local (borrar el token) no debe bloquearse porque el
+      // servidor no responda — igualmente ya no se podrá usar el token viejo.
+      console.error('[apiClient] Error al cerrar sesión en el servidor:', error);
+    }
+  }
+
+  public async changePassword(currentPassword: string, newPassword: string): Promise<any> {
+    return (await this.client.put(`/auth/me/password`, { currentPassword, newPassword })).data;
+  }
+
+  public async mfaSetup(): Promise<{ secret: string; provisioningUri: string }> {
+    return (await this.client.post(`/auth/mfa/setup`)).data;
+  }
+
+  public async mfaEnable(secret: string, code: string): Promise<{ recoveryCodes: string[] }> {
+    return (await this.client.post(`/auth/mfa/enable`, { secret, code })).data;
+  }
+
+  public async mfaDisable(password: string): Promise<any> {
+    return (await this.client.post(`/auth/mfa/disable`, { password })).data;
+  }
+
+  public async mfaVerify(ticket: string, code: string): Promise<any> {
+    return (await this.client.post(`/auth/mfa/verify`, { ticket, code })).data;
+  }
+
+  // Login con Google (solo superadmin). El Client ID lo sirve el worker, así
+  // que no hay variable de build que mantener sincronizada con él.
+  public async getGoogleLoginConfig(): Promise<GoogleLoginConfig> {
+    return (await this.client.get<GoogleLoginConfig>(`/auth/google/config`)).data;
+  }
+
+  public async googleLogin(credential: string): Promise<GoogleLoginResult> {
+    return (await this.client.post<GoogleLoginResult>(`/auth/google`, { credential })).data;
+  }
+
+  public async getInvitation(token: string): Promise<any> {
+    return (await this.client.get(`/auth/invitations/${token}`)).data;
+  }
+
+  public async acceptInvitation(token: string, password: string): Promise<any> {
+    return (await this.client.post(`/auth/invitations/${token}/accept`, { password })).data;
+  }
+
+  // ============================================
+  // Carta: menús, secciones, platos, alérgenos
+  // ============================================
+  public async getMenus(restaurantId: string): Promise<any[]> {
+    const response = await this.client.get(`/restaurants/${restaurantId}/menus`);
+    return Array.isArray(response.data?.menus) ? response.data.menus : [];
+  }
+
+  public getSections(restaurantId: string): Promise<any[]> {
+    return this.base.getSections(restaurantId);
+  }
+
+  public createSection(sectionData: any): Promise<any> {
+    return this.base.createSection(sectionData);
+  }
+
+  public updateSection(sectionId: string, data: any): Promise<any> {
+    return this.base.updateSection(sectionId, data);
+  }
+
   public async getDishSectionRelations(restaurantId: string): Promise<any[]> {
     try {
-      console.log(`[apiClient] Obteniendo relaciones plato-sección para restaurante ${restaurantId}`);
       const response = await this.client.get(`/restaurants/${restaurantId}/dish-section-relations`);
       return response.data.relations || [];
     } catch (error) {
@@ -105,95 +217,57 @@ class AdminApiClient {
     }
   }
 
-  // Métodos específicamente optimizados para el admin
+  /** Platos del restaurante, ordenados por nombre en español. */
   public async getDishes(restaurantId: string): Promise<Dish[]> {
-    const dishes = await this.baseClient.getDishes(restaurantId) as unknown as Dish[];
-    // Ordenamos por nombre para mejor visualización en admin
-    return Array.isArray(dishes) ? dishes.sort((a, b) => {
-      const nameA = a.translations?.name?.es || (a as any).name || '';
-      const nameB = b.translations?.name?.es || (b as any).name || '';
-      return nameA.localeCompare(nameB);
-    }) : dishes;
+    const dishes = await this.base.getDishes(restaurantId) as unknown as Dish[];
+    if (!Array.isArray(dishes)) return [];
+    const nameOf = (d: Dish) => d.translations?.name?.es || (d as any).name || '';
+    return [...dishes].sort((a, b) => nameOf(a).localeCompare(nameOf(b)));
   }
 
   public async getDish(dishId: string): Promise<Dish> {
-    console.log(`[apiClient] Obteniendo plato con ID: ${dishId}`);
-    try {
-      // Intentar usar el método base si existe
-      if (typeof this.baseClient.getDish === 'function') {
-        return await this.baseClient.getDish(dishId) as unknown as Dish;
-      }
+    return await this.base.getDish(dishId) as unknown as Dish;
+  }
 
-      // Implementación alternativa usando client.get directamente
-      const response = await this.baseClient.client.get(`/dishes/${dishId}`);
-      // Verificar estructura de respuesta
-      return (response.data.dish || response.data) as Dish;
+  public createDish(data: CreateDishData): Promise<any> {
+    return this.base.createDish(data as any);
+  }
+
+  public updateDish(id: string, data: UpdateDishData): Promise<any> {
+    return this.base.updateDish(id, data as any);
+  }
+
+  public deleteDish(id: string, restaurantId: string): Promise<void> {
+    return this.base.deleteDish(id, restaurantId);
+  }
+
+  public getAllergens(): Promise<any[]> {
+    return this.base.getAllergens();
+  }
+
+  public async updateDishesOrderBySection(restaurantId: string, orderData: Array<{
+    section_id: string;
+    dish_orders: Array<{ dish_id: string; order_index: number }>;
+  }>): Promise<any> {
+    return (await this.client.post(`/restaurants/${restaurantId}/dishes/order-by-section`, { dishOrders: orderData })).data;
+  }
+
+  /** Iconos del sistema disponibles en R2 (selector de iconos de sección). */
+  public async getSystemIcons(): Promise<any[]> {
+    try {
+      const response = await this.client.get('/system/icons');
+      return Array.isArray(response.data?.icons) ? response.data.icons : [];
     } catch (error) {
-      console.error(`[apiClient] Error obteniendo plato:`, error);
-      throw new Error(`Error al cargar el plato: ${(error as any)?.message || 'Error desconocido'}`);
+      console.error('[apiClient] Error al obtener iconos del sistema:', error);
+      return [];
     }
   }
 
-  public async getSections(restaurantId: string): Promise<any[]> {
-    return this.invokeBaseMethod('getSections', restaurantId);
-  }
-
-  public async createSection(sectionData: any): Promise<any> {
-    return this.invokeBaseMethod('createSection', sectionData);
-  }
-
-  public async updateSection(sectionId: string, data: any): Promise<any> {
-    return this.invokeBaseMethod('updateSection', sectionId, data);
-  }
-
-  public async deleteSection(sectionId: string, restaurantId: string): Promise<any> {
-    return this.invokeBaseMethod('deleteSection', sectionId, restaurantId);
-  }
-
-  public async getAllergens(): Promise<any[]> {
-    return this.invokeBaseMethod('getAllergens');
-  }
-
-  public async createDish(data: CreateDishData): Promise<any> {
-    return this.invokeBaseMethod('createDish', data);
-  }
-
-  public async updateDish(id: string, data: UpdateDishData): Promise<any> {
-    console.log('[apiClient] updateDish called with id:', id);
-    console.log('[apiClient] updateDish data:', JSON.stringify(data, null, 2));
-    try {
-      const result = await this.invokeBaseMethod('updateDish', id, data);
-      console.log('[apiClient] updateDish response:', result);
-      return result;
-    } catch (error) {
-      console.error('[apiClient] updateDish error:', error);
-      throw error;
-    }
-  }
-
-  public async deleteDish(id: string, restaurantId: string): Promise<any> {
-    return this.invokeBaseMethod('deleteDish', id, restaurantId);
-  }
-
-  // Métodos para la gestión de medios
-  public async getRestaurantMedia(restaurantId: string): Promise<DishMedia[]> {
-    try {
-      const data = await this.baseClient.getRestaurantMedia(restaurantId);
-      return this.normalizeMediaItems(data);
-    } catch (error) {
-      console.error('[apiClient] Error al obtener medios del restaurante:', error);
-      throw error;
-    }
-  }
-
+  // ============================================
+  // Media de platos
+  // ============================================
   public async getDishMedia(dishId: string): Promise<DishMedia[]> {
-    try {
-      const data = await this.baseClient.getDishMedia(dishId);
-      return this.normalizeMediaItems(data);
-    } catch (error) {
-      console.error(`[apiClient] Error al obtener medios del plato ${dishId}:`, error);
-      throw error;
-    }
+    return this.normalizeMediaItems(await this.base.getDishMedia(dishId));
   }
 
   public async uploadMedia(
@@ -215,170 +289,21 @@ class AdminApiClient {
     if (meta.height) formData.append('height', String(meta.height));
     if (meta.duration) formData.append('duration', String(meta.duration));
 
-    const response = await this.baseClient.uploadMedia(formData);
+    const response: any = await this.base.uploadMedia(formData);
     return response.media || response;
   }
 
   public async updateMediaRole(mediaId: string, dishId: string, role: string): Promise<DishMedia> {
-    const response = await this.baseClient.updateMediaRole(mediaId, dishId, role);
-    return response.media;
+    return (await this.base.updateMediaRole(mediaId, dishId, role)).media;
   }
 
-  /**
-  * Obtener analytics generales (resumen, timeseries, breakdowns)
-  */
-  public async getAnalytics(restaurantId: string, params: any): Promise<any> {
-    try {
-      const queryParamsObj: any = {
-        restaurant_id: restaurantId,
-        time_range: params.timeRange || params.time_range,
-        lang: params.lang || 'es',
-        top: String(params.top || 10),
-        from: params.from || undefined,
-        to: params.to || undefined
-      };
-
-      Object.keys(queryParamsObj).forEach(key => queryParamsObj[key] === undefined && delete queryParamsObj[key]);
-
-      const queryParams = new URLSearchParams(queryParamsObj).toString();
-
-      console.log(`[apiClient] Solicitando analytics: /analytics?${queryParams}`);
-      const response = await this.client.get(`/analytics?${queryParams}`);
-      const rawData = response.data;
-      return {
-        summary: {
-          totalViews: rawData.summary?.total_views || 0,
-          uniqueVisitors: rawData.summary?.unique_visitors || 0,
-          totalSessions: rawData.summary?.total_sessions || 0,
-          avgSessionDuration: rawData.summary?.avg_session_duration || 0,
-          dishViews: rawData.summary?.dish_views || 0,
-          favorites: rawData.summary?.favorites_added || rawData.summary?.favorites || 0,
-          ratings: rawData.summary?.ratings_submitted || rawData.summary?.ratings || 0,
-          shares: rawData.summary?.shares || 0,
-          avgDishViewDuration: rawData.summary?.avg_dish_view_duration || 0,
-          avgSectionTime: rawData.summary?.avg_section_time || 0,
-          avgScrollDepth: rawData.summary?.avg_scroll_depth || 0,
-          mediaErrors: rawData.summary?.media_errors || 0,
-          // ✅ Map visitor recurrence fields
-          new_visitors: rawData.summary?.new_visitors || 0,
-          returning_visitors: rawData.summary?.returning_visitors || 0,
-        },
-        timeseries: (rawData.timeseries || []).map((item: any) => ({
-          date: item.date,
-          totalViews: item.total_views || 0,
-          uniqueVisitors: item.unique_visitors || 0,
-          totalSessions: item.total_sessions || 0,
-        })),
-        topDishes: rawData.topDishes || [],
-        topSections: rawData.topSections || [],
-        breakdowns: rawData.breakdowns || {},
-        trafficByHour: rawData.trafficByHour || [],
-        flows: rawData.flows || [],
-        qrAttribution: rawData.qrAttribution || [],
-        // De dónde vienen los clientes (guidebook/TV/QR/directo) y qué
-        // apartamentos envían más tráfico. AnalyticsPage los pasa tal cual a
-        // AttributionPanel, cuyos tipos ya coinciden con la forma del backend.
-        attribution: rawData.attribution || [],
-        topApartments: rawData.topApartments || [],
-        // ✅ Include cart metrics in returned data
-        cartMetrics: {
-          totalCarts: rawData.cartMetrics?.total_carts_created || 0,
-          totalItems: rawData.cartMetrics?.total_items_added || 0,
-          avgValue: rawData.cartMetrics?.avg_cart_value || 0,
-          totalValue: rawData.cartMetrics?.total_estimated_value || 0,
-          conversionRate: rawData.cartMetrics?.avg_conversion_rate || 0,
-          cartsShown: rawData.cartMetrics?.total_carts_shown || 0,
-          cartsAbandoned: rawData.cartMetrics?.total_carts_abandoned || 0,
-        },
-      };
-    } catch (error) {
-      console.error('[apiClient] Error al obtener analytics:', error);
-      throw error;
-    }
+  public deleteMedia(mediaId: string): Promise<{ success: boolean; message: string }> {
+    return this.base.deleteMedia(mediaId);
   }
 
-  /**
-   * Obtener estadísticas detalladas de platos
-   */
-  public async getDishAnalytics(restaurantId: string, params: any): Promise<any> {
-    try {
-      const queryParamsObj: any = {
-        restaurant_id: restaurantId,
-        time_range: params.timeRange || params.time_range,
-        lang: params.lang || 'es',
-        from: params.from || undefined,
-        to: params.to || undefined
-      };
-
-      // Eliminar claves undefined para que no se envíen como "undefined" o ""
-      Object.keys(queryParamsObj).forEach(key => queryParamsObj[key] === undefined && delete queryParamsObj[key]);
-
-      const queryParams = new URLSearchParams(queryParamsObj).toString();
-
-      const response = await this.client.get(`/analytics/dishes?${queryParams}`);
-      return response.data;
-    } catch (error) {
-      console.error('[apiClient] Error al obtener analytics de platos:', error);
-      throw error;
-    }
-  }
-
-  /**
-   * Obtener estadísticas detalladas de secciones
-   */
-  public async getSectionAnalytics(restaurantId: string, params: any): Promise<any> {
-    try {
-      const queryParamsObj: any = {
-        restaurant_id: restaurantId,
-        time_range: params.timeRange || params.time_range,
-        lang: params.lang || 'es',
-        from: params.from || undefined,
-        to: params.to || undefined
-      };
-
-      // Eliminar claves undefined para que no se envíen como "undefined" o ""
-      Object.keys(queryParamsObj).forEach(key => queryParamsObj[key] === undefined && delete queryParamsObj[key]);
-
-      const queryParams = new URLSearchParams(queryParamsObj).toString();
-
-      const response = await this.client.get(`/analytics/sections?${queryParams}`);
-      return response.data;
-    } catch (error) {
-      console.error('[apiClient] Error al obtener analytics de secciones:', error);
-      throw error;
-    }
-  }
-
-  /**
-   * Obtener lista detallada de sesiones
-   */
-  public async getSessionAnalytics(restaurantId: string, params: any): Promise<any> {
-    try {
-      const queryParamsObj: any = {
-        restaurant_id: restaurantId,
-        time_range: params.timeRange || params.time_range,
-        page: String(params.page || 1),
-        limit: String(params.limit || 20),
-        from: params.from || undefined,
-        to: params.to || undefined
-      };
-
-      Object.keys(queryParamsObj).forEach(key => queryParamsObj[key] === undefined && delete queryParamsObj[key]);
-
-      const queryParams = new URLSearchParams(queryParamsObj).toString();
-
-      const response = await this.client.get(`/analytics/sessions?${queryParams}`);
-      return response.data;
-    } catch (error) {
-      console.error('[apiClient] Error al obtener analytics de sesiones:', error);
-      throw error;
-    }
-  }
-
-  // Normalización de datos de medios para consistencia
+  // Sin rol en la BD (filas antiguas): se deduce de is_primary y el tipo.
   private normalizeMediaItems(items: DishMedia[]): DishMedia[] {
     if (!Array.isArray(items)) return [];
-
     return items.map(item => ({
       ...item,
       role: item.role || (item.is_primary ?
@@ -388,490 +313,191 @@ class AdminApiClient {
     }));
   }
 
-  public async getMenus(restaurantId: string): Promise<any[]> {
-    try {
-      console.log(`[apiClient] Obteniendo menús para restaurante ${restaurantId}`);
-
-      const response = await this.client.get(`/restaurants/${restaurantId}/menus`);
-
-      if (response.data.success && Array.isArray(response.data.menus)) {
-        return response.data.menus;
-      }
-
-      console.warn('[apiClient] Formato inesperado en respuesta de menús:', response.data);
-      return [];
-    } catch (error) {
-      console.error('[apiClient] Error al obtener menús:', error);
-      return [{
-        id: `default_menu_${restaurantId}`,
-        name: "Menú Predeterminado",
-        is_default: true
-      }];
+  // ============================================
+  // Analítica (workerAnalytics.js)
+  // ============================================
+  private analyticsQuery(restaurantId: string, params: Record<string, string | number | undefined>): string {
+    const query = new URLSearchParams({ restaurant_id: restaurantId });
+    for (const [key, value] of Object.entries(params)) {
+      if (value !== undefined && value !== '') query.set(key, String(value));
     }
+    return query.toString();
   }
 
-  /**
-   * Obtener iconos del sistema disponibles desde R2
-   */
-  public async getSystemIcons(): Promise<any[]> {
-    try {
-      console.log('[apiClient] Obteniendo iconos del sistema');
-      const response = await this.client.get('/system/icons');
+  /** Pestaña KPIs: resumen, serie diaria, top platos, ciudades, horas, origen y carritos. */
+  public async getAnalytics(restaurantId: string, params: { timeRange: string; top?: number; lang?: string }): Promise<any> {
+    const qs = this.analyticsQuery(restaurantId, { time_range: params.timeRange, top: params.top ?? 10, lang: params.lang ?? 'es' });
+    const raw = (await this.client.get(`/analytics?${qs}`)).data;
+    return {
+      summary: {
+        uniqueVisitors: raw.summary?.unique_visitors || 0,
+        totalSessions: raw.summary?.total_sessions || 0,
+        avgSessionDuration: raw.summary?.avg_session_duration || 0,
+        dishViews: raw.summary?.dish_views || 0,
+        favorites: raw.summary?.favorites || 0,
+        avgDishViewDuration: raw.summary?.avg_dish_view_duration || 0,
+        new_visitors: raw.summary?.new_visitors || 0,
+        returning_visitors: raw.summary?.returning_visitors || 0,
+      },
+      timeseries: (raw.timeseries || []).map((item: any) => ({
+        date: item.date,
+        uniqueVisitors: item.unique_visitors || 0,
+        totalSessions: item.total_sessions || 0,
+      })),
+      topDishes: raw.topDishes || [],
+      cities: raw.breakdowns?.cities || [],
+      trafficByHour: raw.trafficByHour || [],
+      // De dónde vienen los clientes (guidebook/TV/QR/directo) y qué
+      // apartamentos envían más tráfico.
+      attribution: raw.attribution || [],
+      topApartments: raw.topApartments || [],
+      cartMetrics: {
+        totalItems: raw.cartMetrics?.total_items_added || 0,
+        avgValue: raw.cartMetrics?.avg_cart_value || 0,
+      },
+    };
+  }
 
-      if (response.data.success && Array.isArray(response.data.icons)) {
-        return response.data.icons;
-      }
+  public async getDishAnalytics(restaurantId: string, params: { timeRange: string; lang?: string }): Promise<any> {
+    const qs = this.analyticsQuery(restaurantId, { time_range: params.timeRange, lang: params.lang ?? 'es' });
+    return (await this.client.get(`/analytics/dishes?${qs}`)).data;
+  }
 
-      console.warn('[apiClient] Formato inesperado en respuesta de iconos:', response.data);
-      return [];
-    } catch (error) {
-      console.error('[apiClient] Error al obtener iconos del sistema:', error);
-      return [];
-    }
+  public async getSectionAnalytics(restaurantId: string, params: { timeRange: string; lang?: string }): Promise<any> {
+    const qs = this.analyticsQuery(restaurantId, { time_range: params.timeRange, lang: params.lang ?? 'es' });
+    return (await this.client.get(`/analytics/sections?${qs}`)).data;
+  }
+
+  public async getSessionAnalytics(restaurantId: string, params: { timeRange: string; page?: number; limit?: number }): Promise<any> {
+    const qs = this.analyticsQuery(restaurantId, { time_range: params.timeRange, page: params.page ?? 1, limit: params.limit ?? 20 });
+    return (await this.client.get(`/analytics/sessions?${qs}`)).data;
   }
 
   // ============================================
-  // 🆕 MÉTODOS PARA RESTAURANT & STYLING - CORREGIDOS
+  // Restaurante: datos, tema y colores de la carta
   // ============================================
-
-  /**
-   * Obtener datos básicos del restaurante
-   */
   public async getRestaurant(restaurantId: string): Promise<any> {
-    try {
-      console.log(`[apiClient] Obteniendo datos del restaurante ${restaurantId}`);
-      const response = await this.baseClient.client.get(`/restaurants/${restaurantId}`);
-      return response.data;
-    } catch (error) {
-      console.error('[apiClient] Error al obtener restaurante:', error);
-      throw error;
-    }
+    return (await this.client.get(`/restaurants/${restaurantId}`)).data;
   }
 
-  /**
-   * Obtener configuración completa del restaurante (themes, branding, features)
-   */
+  /** Configuración completa (themes, branding, features). */
   public async getRestaurantConfig(restaurantId: string): Promise<any> {
-    try {
-      console.log(`[apiClient] Obteniendo configuración del restaurante ${restaurantId}`);
-      const response = await this.baseClient.client.get(`/restaurants/${restaurantId}/config`);
-      return response.data;
-    } catch (error) {
-      console.error('[apiClient] Error al obtener configuración:', error);
-      throw error;
-    }
+    return (await this.client.get(`/restaurants/${restaurantId}/config`)).data;
   }
 
-  /**
-   * Actualizar datos básicos del restaurante (name, description, contact, etc.)
-   */
   public async updateRestaurant(restaurantId: string, data: any): Promise<any> {
-    try {
-      console.log(`[apiClient] Actualizando datos del restaurante ${restaurantId}`);
-      const response = await this.baseClient.client.put(`/restaurants/${restaurantId}`, data);
-      return response.data;
-    } catch (error) {
-      console.error('[apiClient] Error al actualizar restaurante:', error);
-      throw error;
-    }
+    return (await this.client.put(`/restaurants/${restaurantId}`, data)).data;
   }
 
-  /**
-   * ✅ NUEVO: Actualizar THEME (tabla themes) - Para pestaña "Diseño"
-   */
+  /** Tabla themes — pestaña "Diseño" de la landing. */
   public async updateRestaurantTheme(restaurantId: string, data: any): Promise<any> {
-    try {
-      console.log(`[apiClient] Actualizando theme del restaurante ${restaurantId}`);
-      const response = await this.baseClient.client.put(`/restaurants/${restaurantId}/theme`, data);
-      return response.data;
-    } catch (error) {
-      console.error('[apiClient] Error al actualizar theme:', error);
-      throw error;
-    }
+    return (await this.client.put(`/restaurants/${restaurantId}/theme`, data)).data;
   }
 
-  /**
-   * ✅ NUEVO: Obtener colores de reels (config_overrides)
-   */
+  /** Colores de la carta (config_overrides con prefijo reel_). */
   public async getRestaurantStyling(restaurantId: string): Promise<any> {
-    try {
-      console.log(`[apiClient] Obteniendo styling para restaurante ${restaurantId}`);
-      const response = await this.baseClient.client.get(`/restaurants/${restaurantId}/styling`);
-      return response.data;
-    } catch (error) {
-      console.error('[apiClient] Error al obtener styling:', error);
-      throw error;
-    }
+    return (await this.client.get(`/restaurants/${restaurantId}/styling`)).data;
   }
 
-  /**
-   * ✅ CORREGIDO: Actualizar colores de reels (config_overrides)
-   * Para pestaña "Colores Reels"
-   */
   public async updateRestaurantStyling(restaurantId: string, data: any): Promise<any> {
-    try {
-      console.log(`[apiClient] Actualizando styling del restaurante ${restaurantId}`, data);
-
-      // Send ALL fields directly - backend handles the reel_ prefix
-      const response = await this.baseClient.client.put(`/restaurants/${restaurantId}/styling`, data);
-      return response.data;
-    } catch (error) {
-      console.error('[apiClient] Error al actualizar styling:', error);
-      throw error;
-    }
+    return (await this.client.put(`/restaurants/${restaurantId}/styling`, data)).data;
   }
 
   // ============================================
-  // 🆕 DASHBOARD API METHODS
-  // ============================================
-
-  /**
-   * Get lightweight dashboard status (Pulse)
-   */
-  public async getDashboardPulse(restaurantId: string): Promise<any> {
-    try {
-      const response = await this.client.get(
-        `/restaurants/${restaurantId}/dashboard/pulse`
-      );
-      return response.data;
-    } catch (error) {
-      console.warn('[apiClient] Dashboard pulse endpoint failed:', error);
-      return null;
-    }
-  }
-
-  /**
-   * Get dashboard summary with today vs yesterday comparison
-   */
-  public async getDashboardSummary(
-    restaurantId: string,
-    period: '1d' | '7d' | '30d' = '7d'
-  ): Promise<any> {
-    try {
-      const response = await this.client.get(
-        `/restaurants/${restaurantId}/analytics/summary?period=${period}`
-      );
-      return response.data;
-    } catch (error) {
-      console.warn('[apiClient] Dashboard summary endpoint failed:', error);
-      return null; // Return null instead of mock data
-    }
-  }
-
-  /**
-   * Get top performing dishes
-   */
-  public async getTopDishes(
-    restaurantId: string,
-    period: '7d' | '30d' = '7d',
-    limit: number = 10
-  ): Promise<any> {
-    try {
-      const response = await this.client.get(
-        `/restaurants/${restaurantId}/analytics/dishes/top?period=${period}&limit=${limit}`
-      );
-      return response.data;
-    } catch (error) {
-      console.warn('[apiClient] Top dishes endpoint failed:', error);
-      return null; // Return null instead of mock data
-    }
-  }
-
-  /**
-   * Get QR code breakdown
-   */
-  public async getQRBreakdown(restaurantId: string): Promise<any> {
-    try {
-      const response = await this.client.get(
-        `/restaurants/${restaurantId}/analytics/qr-breakdown`
-      );
-      return response.data;
-    } catch (error) {
-      console.warn('[apiClient] QR breakdown endpoint failed:', error);
-      return null; // Return null instead of mock data
-    }
-  }
-
-  /**
-   * Get content health metrics
-   */
-  public async getContentHealth(restaurantId: string): Promise<any> {
-    try {
-      const response = await this.client.get(
-        `/restaurants/${restaurantId}/content/health`
-      );
-      return response.data;
-    } catch (error) {
-      console.warn('[apiClient] Content health endpoint failed:', error);
-      return null; // Return null instead of mock data
-    }
-  }
-
-  /**
-   * Get stagnant dishes (low views)
-   */
-  public async getStagnantDishes(
-    restaurantId: string,
-    days: number = 7
-  ): Promise<any> {
-    try {
-      const response = await this.client.get(
-        `/restaurants/${restaurantId}/dishes/stagnant?days=${days}`
-      );
-      return response.data;
-    } catch (error) {
-      console.warn('[apiClient] Stagnant dishes endpoint failed:', error);
-      return null; // Return null instead of mock data
-    }
-  }
-
-  // Método para actualizar el orden de los platos por sección
-  public async updateDishesOrderBySection(restaurantId: string, orderData: Array<{
-    section_id: string;
-    dish_orders: Array<{
-      dish_id: string;
-      order_index: number;
-    }>;
-  }>): Promise<any> {
-    try {
-      console.log(`[apiClient] Actualizando orden de platos por sección para restaurante ${restaurantId}`);
-      const response = await this.client.post(
-        `/restaurants/${restaurantId}/dishes/order-by-section`,
-        { dishOrders: orderData }
-      );
-      return response.data;
-    } catch (error) {
-      console.error('[apiClient] Error al actualizar orden de platos por sección:', error);
-      throw error;
-    }
-  }
-
-  // ============================================
-  // RESERVATIONS METHODS
+  // Reservas (workerReservations.js)
   // ============================================
   public async getReservationSettings(restaurantId: string): Promise<any> {
-    try {
-      const response = await this.client.get(`/reservations/config/${restaurantId}`);
-      return response.data.config;
-    } catch (error) {
-      console.error('[apiClient] Error al obtener configuración de reservas:', error);
-      throw error;
-    }
+    return (await this.client.get(`/reservations/config/${restaurantId}`)).data.config;
   }
 
   public async updateReservationConfig(restaurantId: string, config: any): Promise<any> {
-    try {
-      const response = await this.client.put(`/reservations/config/${restaurantId}`, config);
-      return response.data;
-    } catch (error) {
-      console.error('[apiClient] Error al actualizar configuración de reservas:', error);
-      throw error;
-    }
+    return (await this.client.put(`/reservations/config/${restaurantId}`, config)).data;
   }
 
   public async toggleReservations(restaurantId: string, enabled: boolean): Promise<any> {
-    try {
-      const response = await this.client.post(`/reservations/settings/toggle`, {
-        restaurant_id: restaurantId,
-        is_enabled: enabled
-      });
-      return response.data;
-    } catch (error) {
-      console.error('[apiClient] Error al cambiar estado de reservas:', error);
-      throw error;
-    }
+    return (await this.client.post(`/reservations/settings/toggle`, { restaurant_id: restaurantId, is_enabled: enabled })).data;
   }
 
-  public async getReservationsList(restaurantId: string, date?: string): Promise<any> {
-    try {
-      const params = new URLSearchParams({ restaurant_id: restaurantId });
-      if (date) params.append('date', date);
-      const response = await this.client.get(`/reservations/admin/list?${params}`);
-      return response.data;
-    } catch (error) {
-      console.error('[apiClient] Error al obtener lista de reservas:', error);
-      throw error;
-    }
+  public async getReservationsList(
+    restaurantId: string,
+    filters: { date?: string; status?: string } = {},
+  ): Promise<{ success: boolean; reservations: Reservation[] }> {
+    const params = new URLSearchParams({ restaurant_id: restaurantId });
+    if (filters.date) params.set('date', filters.date);
+    if (filters.status) params.set('status', filters.status);
+    return (await this.client.get(`/reservations/admin/list?${params}`)).data;
   }
-
-
 
   public async getReservationLogs(restaurantId: string): Promise<any> {
-    try {
-      const response = await this.client.get(`/reservations/admin/logs?restaurant_id=${restaurantId}`);
-      return response.data;
-    } catch (error) {
-      console.error('[apiClient] Error al obtener logs:', error);
-      throw error;
-    }
+    return (await this.client.get(`/reservations/admin/logs?restaurant_id=${encodeURIComponent(restaurantId)}`)).data;
   }
 
-  public async getReservationStats(restaurantId: string, month: string): Promise<any> {
-    try {
-      const response = await this.client.get(`/reservations/stats?restaurant_id=${restaurantId}&month=${month}`);
-      return response.data;
-    } catch (error) {
-      console.error('[apiClient] Error al obtener estadisticas:', error);
-      throw error;
-    }
-  }
-
-  public async updateReservationStatus(reservationId: string, status: string, reason?: string): Promise<any> {
-    try {
-      const response = await this.client.patch(`/reservations/${reservationId}`, {
-        status,
-        cancellation_reason: reason
-      });
-      return response.data;
-    } catch (error) {
-      console.error('[apiClient] Error al actualizar estado:', error);
-      throw error;
-    }
+  public async updateReservation(reservationId: string, data: ReservationUpdate): Promise<any> {
+    return (await this.client.patch(`/reservations/${reservationId}`, data)).data;
   }
 
   // ============================================
-  // USERS METHODS
+  // Delivery (workerDelivery.js). Antes DeliveryPage hacía fetch sin token:
+  // todo menos la config pública daba 401.
   // ============================================
+  /** Lo guardado tal cual (no la vista pública con los números de respaldo ya resueltos). */
+  public async getDeliverySettings(restaurantId: string): Promise<{ success: boolean; settings: DeliverySettings }> {
+    return (await this.client.get(`/delivery/settings/${restaurantId}`)).data;
+  }
 
+  public async updateDeliveryConfig(restaurantId: string, config: any): Promise<any> {
+    return (await this.client.put(`/delivery/config/${restaurantId}`, config)).data;
+  }
+
+  public async getDeliveryTranslations(restaurantId: string): Promise<any> {
+    return (await this.client.get(`/delivery/translations/${restaurantId}`)).data;
+  }
+
+  public async updateDeliveryTranslations(restaurantId: string, translations: any): Promise<any> {
+    return (await this.client.put(`/delivery/translations/${restaurantId}`, translations)).data;
+  }
+
+  public async getDeliveryOrders(restaurantId: string, status?: string): Promise<{ success: boolean; orders: DeliveryOrder[] }> {
+    const qs = status && status !== 'all' ? `?status=${encodeURIComponent(status)}` : '';
+    return (await this.client.get(`/delivery/orders/${restaurantId}${qs}`)).data;
+  }
+
+  public async updateDeliveryOrderStatus(orderId: string, status: DeliveryStatus): Promise<any> {
+    return (await this.client.patch(`/delivery/orders/${orderId}/status`, { status })).data;
+  }
+
+  // ============================================
+  // Usuarios del restaurante
+  // ============================================
   public async getRestaurantUsers(restaurantId: string): Promise<any[]> {
-    try {
-      console.log(`[apiClient] Obteniendo usuarios para restaurante ${restaurantId}`);
-      const response = await this.baseClient.client.get(`/restaurants/${restaurantId}/users`);
-      return response.data.users || [];
-    } catch (error) {
-      console.error('[apiClient] Error al obtener usuarios:', error);
-      throw error;
-    }
+    return (await this.client.get(`/restaurants/${restaurantId}/users`)).data.users || [];
   }
 
   public async addRestaurantUser(restaurantId: string, userData: { email: string; name?: string; role: string }): Promise<any> {
-    try {
-      console.log(`[apiClient] Añadiendo usuario al restaurante ${restaurantId}`, userData);
-      const response = await this.baseClient.client.post(`/restaurants/${restaurantId}/users`, userData);
-      return response.data;
-    } catch (error) {
-      console.error('[apiClient] Error al añadir usuario:', error);
-      throw error;
-    }
+    return (await this.client.post(`/restaurants/${restaurantId}/users`, userData)).data;
   }
 
   public async removeRestaurantUser(restaurantId: string, userId: string): Promise<any> {
-    try {
-      console.log(`[apiClient] Eliminando usuario ${userId} del restaurante ${restaurantId}`);
-      const response = await this.baseClient.client.delete(`/restaurants/${restaurantId}/users/${userId}`);
-      return response.data;
-    } catch (error) {
-      console.error('[apiClient] Error al eliminar usuario:', error);
-      throw error;
-    }
+    return (await this.client.delete(`/restaurants/${restaurantId}/users/${userId}`)).data;
   }
 
   public async resetUserPassword(restaurantId: string, userId: string): Promise<any> {
-    try {
-      console.log(`[apiClient] Reseteando contraseña para usuario ${userId}`);
-      const response = await this.baseClient.client.post(`/restaurants/${restaurantId}/users/${userId}/reset-password`);
-      return response.data;
-    } catch (error) {
-      console.error('[apiClient] Error al resetear contraseña:', error);
-      throw error;
-    }
-  }
-
-  public async changePassword(currentPassword: string, newPassword: string): Promise<any> {
-    try {
-      console.log(`[apiClient] Cambiando contraseña del usuario actual`);
-      const response = await this.baseClient.client.put(`/auth/me/password`, {
-        currentPassword,
-        newPassword
-      });
-      return response.data;
-    } catch (error) {
-      console.error('[apiClient] Error al cambiar contraseña:', error);
-      throw error;
-    }
+    return (await this.client.post(`/restaurants/${restaurantId}/users/${userId}/reset-password`)).data;
   }
 
   // ============================================
-  // SESIONES / MFA / INVITACIONES
+  // Petición genérica (guidebook y endpoints sin método propio)
   // ============================================
-
-  public async logoutOnServer(): Promise<void> {
-    try {
-      await this.baseClient.client.post(`/auth/logout`);
-    } catch (error) {
-      // El logout local (borrar el token) no debe bloquearse porque el
-      // servidor no responda — igualmente ya no se podrá usar el token viejo.
-      console.error('[apiClient] Error al cerrar sesión en el servidor:', error);
-    }
-  }
-
-  public async mfaSetup(): Promise<{ secret: string; provisioningUri: string }> {
-    const response = await this.baseClient.client.post(`/auth/mfa/setup`);
-    return response.data;
-  }
-
-  public async mfaEnable(secret: string, code: string): Promise<{ recoveryCodes: string[] }> {
-    const response = await this.baseClient.client.post(`/auth/mfa/enable`, { secret, code });
-    return response.data;
-  }
-
-  public async mfaDisable(password: string): Promise<any> {
-    const response = await this.baseClient.client.post(`/auth/mfa/disable`, { password });
-    return response.data;
-  }
-
-  public async mfaVerify(ticket: string, code: string): Promise<any> {
-    const response = await this.baseClient.client.post(`/auth/mfa/verify`, { ticket, code });
-    return response.data;
-  }
-
-  // Login con Google (solo superadmin). El Client ID lo sirve el worker, así
-  // que no hay variable de build que mantener sincronizada con él.
-  public async getGoogleLoginConfig(): Promise<GoogleLoginConfig> {
-    const response = await this.baseClient.client.get<GoogleLoginConfig>(`/auth/google/config`);
-    return response.data;
-  }
-
-  public async googleLogin(credential: string): Promise<GoogleLoginResult> {
-    const response = await this.baseClient.client.post<GoogleLoginResult>(`/auth/google`, { credential });
-    return response.data;
-  }
-
-  public async getInvitation(token: string): Promise<any> {
-    const response = await this.baseClient.client.get(`/auth/invitations/${token}`);
-    return response.data;
-  }
-
-  public async acceptInvitation(token: string, password: string): Promise<any> {
-    const response = await this.baseClient.client.post(`/auth/invitations/${token}/accept`, { password });
-    return response.data;
-  }
-
-  // Configuración de React Query
-  public get queryDefaults() {
-    return getQueryDefaults();
-  }
-
-  // ============================================
-  // ✅ GENERIC REQUEST METHOD (for guidebook admin and future features)
-  // ============================================
-  /**
-   * Generic request method for any API endpoint
-   * Automatically uses the auth token and handles JSON parsing
-   */
+  /** Usa el token y parsea el JSON; lanza con el mensaje del servidor si no es 2xx. */
   public async request(path: string, options: RequestInit = {}): Promise<any> {
-    const url = `${API_URL}${path}`;
-    const headers: Record<string, string> = {
-      'Content-Type': 'application/json',
-    };
-    if (this.authToken) {
-      headers['Authorization'] = `Bearer ${this.authToken}`;
-    }
+    const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+    if (this.authToken) headers['Authorization'] = `Bearer ${this.authToken}`;
 
-    const response = await fetch(url, {
+    const response = await fetch(`${API_URL}${path}`, {
       method: options.method || 'GET',
       headers: { ...headers, ...(options.headers as Record<string, string> || {}) },
       body: options.body || undefined,
+      signal: options.signal,
     });
 
     if (!response.ok) {
@@ -883,29 +509,7 @@ class AdminApiClient {
   }
 }
 
-// Crear el proxy que interceptará todas las llamadas a métodos no definidos
-const adminApiClient = new AdminApiClient(baseApiClient);
-
-// Crear un proxy que intercepte cualquier llamada a métodos no definidos
-export const apiClient = new Proxy(adminApiClient, {
-  get(target, prop, receiver) {
-    // Si la propiedad existe directamente en adminApiClient, la devolvemos
-    if (prop in target) {
-      return Reflect.get(target, prop, receiver);
-    }
-
-    // Si la propiedad es una función en baseApiClient, devolvemos una función que la invoca
-    if (typeof prop === 'string' && typeof (baseApiClient as any)[prop] === 'function') {
-      return (...args: any[]) => target.invokeBaseMethod(prop, ...args);
-    }
-
-    // Para cualquier otra propiedad, intentamos accederla en baseApiClient
-    return Reflect.get(baseApiClient as any, prop, receiver);
-  }
-});
-
-// Para uso directo si es necesario
-export { baseApiClient };
+export const apiClient = new AdminApiClient(createApiClient(API_URL));
 
 export interface Dish {
   id: string;
@@ -929,7 +533,7 @@ export interface Dish {
     ingredients?: Record<string, string>;
   };
   media?: DishMedia[];
-  allergens?: any[]; // Changed Allergen[] to any[] to avoid strict type issues
+  allergens?: any[];
   section_ids?: string[];
 }
 
@@ -955,22 +559,4 @@ export interface CreateDishData {
   section_ids?: string[];
 }
 
-export interface UpdateDishData {
-  restaurant_id?: string;
-  price?: number;
-  status?: string;
-  is_vegetarian?: boolean;
-  is_vegan?: boolean;
-  is_gluten_free?: boolean;
-  is_new?: boolean;
-  is_featured?: boolean;
-  has_half_portion?: boolean;
-  half_price?: number;
-  translations?: {
-    name?: Record<string, string>;
-    description?: Record<string, string>;
-    ingredients?: Record<string, string>;
-  };
-  allergens?: string[];
-  section_ids?: string[];
-}
+export type UpdateDishData = Partial<CreateDishData>;

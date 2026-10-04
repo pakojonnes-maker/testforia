@@ -20,7 +20,7 @@ import {
   Place as PlaceIcon,
 } from '@mui/icons-material';
 import {
-  CatalogItem, BADGE_LABELS, getCategoryGradient, isExperience, isTrue, priceLabel, displayName, coverImage,
+  type CatalogItem, BADGE_LABELS, getCategoryGradient, isExperience, isTrue, priceLabel, displayName, coverImage,
 } from './catalogTypes';
 
 interface Props {

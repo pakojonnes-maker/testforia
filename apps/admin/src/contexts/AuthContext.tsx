@@ -1,5 +1,5 @@
 // src/contexts/AuthContext.tsx
-import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import { createContext, useContext, useState, useEffect, useMemo, type ReactNode } from 'react';
 import { apiClient, type GoogleLoginResult } from '../lib/apiClient';
 
 // Admin mode: determines which sidebar and data context is active
@@ -68,24 +68,20 @@ export function AuthProvider({ children }: AuthProviderProps) {
           apiClient.setAuthToken(authToken);
 
           // Validar autenticación con el backend
-          console.log("[AuthContext] Verificando token con el backend...");
-
           const response: any = await apiClient.getCurrentUser();
           const userData = response.user || response;
 
           if (userData) {
-            console.log("[AuthContext] Token válido, usuario:", userData.email);
             setUser(userData);
 
-            // Auto-seleccionar el primer restaurante si currentRestaurant no existe
-            if (!currentRestaurant && userData.restaurants && userData.restaurants.length > 0) {
-              setCurrentRestaurant(userData.restaurants[0]);
-            }
-
-            // Auto-seleccionar la primera agencia si currentAgency no existe
-            if (!currentAgency && userData.agencies && userData.agencies.length > 0) {
-              setCurrentAgency(userData.agencies[0]);
-            }
+            // El restaurante/agencia guardados en localStorage son una copia de la
+            // última sesión: se sustituyen por los datos frescos de /auth/me (sus
+            // `features` cambian desde Configuración o Marketing). Si ya no se
+            // tiene acceso al guardado, se cae al primero.
+            const restaurants: any[] = userData.restaurants || [];
+            setCurrentRestaurant(restaurants.find((r) => r.id === currentRestaurant?.id) ?? restaurants[0] ?? null);
+            const agencies: any[] = userData.agencies || [];
+            setCurrentAgency(agencies.find((a) => a.id === currentAgency?.id) ?? agencies[0] ?? null);
 
             // If user only has agencies (no restaurants), auto-switch to agency mode
             const hasRest = userData.restaurants && userData.restaurants.length > 0;
@@ -97,11 +93,8 @@ export function AuthProvider({ children }: AuthProviderProps) {
             throw new Error("Datos de usuario no encontrados en la respuesta");
           }
 
-        } catch (error) {
-          // Token inválido o expirado
-          console.error("Error de autenticación:", error);
-
-          // Limpiar estado y storage
+        } catch {
+          // Token inválido o expirado: limpiar estado y storage
           localStorage.removeItem('auth_token');
           localStorage.removeItem('user_data');
           localStorage.removeItem('current_restaurant');
@@ -262,8 +255,10 @@ export function AuthProvider({ children }: AuthProviderProps) {
   const hasRestaurants = !!(user?.restaurants && user.restaurants.length > 0);
   const hasAgencies = !!(user?.agencies && user.agencies.length > 0);
 
-  // Crear valor del contexto
-  const contextValue: AuthContextType = {
+  // Memoizado: un objeto nuevo en cada render re-renderizaba todo el panel y
+  // relanzaba los efectos que dependen del contexto. Las funciones solo cierran
+  // sobre `user` y setters estables, así que basta con estas dependencias.
+  const contextValue = useMemo<AuthContextType>(() => ({
     user,
     authToken,
     isAuthenticated: !!authToken,
@@ -282,7 +277,8 @@ export function AuthProvider({ children }: AuthProviderProps) {
     setAdminMode,
     hasRestaurants,
     hasAgencies,
-  };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }), [user, authToken, isLoading, currentRestaurant, currentAgency, adminMode]);
 
   return (
     <AuthContext.Provider value={contextValue}>

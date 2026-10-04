@@ -20,7 +20,7 @@ import {
 } from '@mui/icons-material';
 import { apiClient } from '../../lib/apiClient';
 import {
-  CatalogItem, CatalogKind, Zone, CATEGORIES, ACCESS_TYPES, ACTION_TYPES,
+  type CatalogItem, type CatalogKind, type Zone, CATEGORIES, ACCESS_TYPES, ACTION_TYPES,
   SECONDARY_ACTION_TYPES, AFFILIATE_NETWORKS, AFFILIATE_PLACEHOLDERS,
   TRAVEL_MODES, BADGE_TYPES, isExperience, isTrue,
 } from './catalogTypes';

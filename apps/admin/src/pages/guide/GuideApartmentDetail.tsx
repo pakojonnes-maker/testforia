@@ -27,10 +27,6 @@ import {
   Save as SaveIcon,
   LocationOn as LocationOnIcon,
   Image as ImageIcon,
-  Star as StarIcon,
-  DirectionsWalk as WalkIcon,
-  DirectionsCar as DriveIcon,
-  DirectionsBike as BikeIcon,
   ArrowUpward as ArrowUpIcon,
   ArrowDownward as ArrowDownIcon,
   CheckCircle as CheckCircleIcon,
@@ -45,7 +41,7 @@ import {
   DeleteForever as DeleteForeverIcon,
   SwapVert as SortIcon,
 } from '@mui/icons-material';
-import QRCodeGenerator, { QRCodeHandle } from '../../components/QRCodeGenerator';
+import QRCodeGenerator, { type QRCodeHandle } from '../../components/QRCodeGenerator';
 import ApartmentItemOrder from '../../components/guide/ApartmentItemOrder';
 
 interface ApartmentInfo {
@@ -83,17 +79,6 @@ interface InfoCategory {
 interface Zone {
   id: string;
   name: string;
-}
-
-interface Poi {
-  id: string;
-  category: string;
-  name_es: string;
-  name_en: string;
-  rating?: number;
-  travel_mode?: string;
-  travel_time_text?: string;
-  distance_text?: string;
 }
 
 const MEDIA_BASE = import.meta.env.VITE_API_URL || 'https://visualtasteworker.franciscotortosaestudios.workers.dev';

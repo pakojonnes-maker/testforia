@@ -14,6 +14,16 @@
     "moduleDetection": "force",
     "noEmit": true,
     "jsx": "react-jsx",
+    /* Los tipos de React desde la raíz (18), los mismos con los que tipa MUI: el
+       lockfile deja un @types/react 19 en apps/admin/node_modules y con él cualquier
+       ReactNode del panel chocaba con el de MUI en cada `children` (de ahí venía la
+       mitad de los ~99 errores). Solo afecta al typecheck: en ejecución plugin-react
+       deduplica y el bundle lleva una sola copia (la 19). `@/` es el alias de Vite. */
+    "paths": {
+      "react": ["../../node_modules/@types/react/index.d.ts"],
+      "react/jsx-runtime": ["../../node_modules/@types/react/jsx-runtime.d.ts"],
+      "@/*": ["./src/*"]
+    },
 
     /* Linting */
     "strict": true,

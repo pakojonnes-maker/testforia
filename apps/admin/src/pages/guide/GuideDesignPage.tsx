@@ -159,7 +159,7 @@ export default function GuideDesignPage() {
   const shown = shownFonts(fonts);
 
   return (
-    <Box sx={{ p: { xs: 2, md: 0 }, maxWidth: 900, mx: 'auto' }}>
+    <Box sx={{ maxWidth: 900, mx: 'auto' }}>
       <Box sx={{ mb: 4 }}>
         <Typography variant="h4" fontWeight={700}>
           Diseño del Guidebook

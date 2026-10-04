@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { apiClient } from '../../lib/apiClient';
 import { useAuth } from '../../contexts/AuthContext';
+import { COBALT } from '../../theme';
 
 interface LandingColors {
     primary_color: string;
@@ -61,10 +62,10 @@ export default function LandingStyling() {
         mutationFn: (data: StylingData) => apiClient.updateRestaurantTheme(restaurantId, data),
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ['restaurant-styling', restaurantId] });
-            alert('✅ Tema de landing guardado correctamente');
+            alert('Tema de landing guardado correctamente');
         },
         onError: (error: any) => {
-            alert(`❌ Error al guardar tema: ${error.message}`);
+            alert(`Error al guardar tema: ${error.message}`);
         }
     });
 
@@ -102,7 +103,7 @@ export default function LandingStyling() {
             <div style={styles.mainGrid}>
                 {/* LEFT COLUMN: Settings */}
                 <div style={styles.settingsColumn}>
-                    <Section title="🎨 Colores de la landing">
+                    <Section title="Colores de la landing">
                         <p style={styles.description}>
                             Estos colores se aplicarán <strong>solo a la página de landing</strong> de tu restaurante.
                         </p>
@@ -173,9 +174,6 @@ export default function LandingStyling() {
                                         ...(stylingData.layout_style === layout ? styles.layoutCardActive : {})
                                     }}
                                 >
-                                    <span style={{ fontSize: '2rem' }}>
-                                        {{ 'modern': '📱', 'classic': '📰', 'minimal': '⬜', 'elegant': '✨' }[layout]}
-                                    </span>
                                     <span style={styles.layoutName}>
                                         {layout.charAt(0).toUpperCase() + layout.slice(1)}
                                     </span>
@@ -204,7 +202,7 @@ export default function LandingStyling() {
                     disabled={themeMutation.isPending}
                     style={{ ...styles.saveButton, ...(themeMutation.isPending ? styles.saveButtonDisabled : {}) }}
                 >
-                    {themeMutation.isPending ? 'Guardando...' : '💾 Guardar diseño de landing'}
+                    {themeMutation.isPending ? 'Guardando...' : 'Guardar diseño de landing'}
                 </button>
             </div>
         </div>
@@ -424,7 +422,7 @@ const styles: Record<string, React.CSSProperties> = {
         marginBottom: '0.5rem',
         padding: '1.25rem',
         background: '#F9FAFB',
-        borderRadius: '12px',
+        borderRadius: 0,
         border: '1px solid #E5E7EB'
     },
     sectionTitle: {
@@ -463,7 +461,7 @@ const styles: Record<string, React.CSSProperties> = {
         padding: '0.6rem',
         fontSize: '0.9rem',
         border: '1px solid #D1D5DB',
-        borderRadius: '8px',
+        borderRadius: 0,
         outline: 'none',
         fontFamily: 'inherit',
         backgroundColor: 'white'
@@ -487,7 +485,7 @@ const styles: Record<string, React.CSSProperties> = {
         width: '40px',
         height: '40px',
         border: '2px solid #E5E7EB',
-        borderRadius: '8px',
+        borderRadius: 0,
         cursor: 'pointer',
         padding: 0
     },
@@ -496,7 +494,7 @@ const styles: Record<string, React.CSSProperties> = {
         padding: '0.5rem',
         fontSize: '0.8rem',
         border: '1px solid #E5E7EB',
-        borderRadius: '8px',
+        borderRadius: 0,
         fontFamily: 'monospace',
         background: '#fff'
     },
@@ -511,14 +509,14 @@ const styles: Record<string, React.CSSProperties> = {
         alignItems: 'center',
         padding: '1rem',
         border: '2px solid #E5E7EB',
-        borderRadius: '12px',
+        borderRadius: 0,
         backgroundColor: 'white',
         cursor: 'pointer',
         position: 'relative',
         transition: 'all 0.2s'
     },
     layoutCardActive: {
-        borderColor: '#3B82F6',
+        borderColor: COBALT,
         backgroundColor: '#EFF6FF'
     },
     layoutName: {
@@ -531,12 +529,12 @@ const styles: Record<string, React.CSSProperties> = {
         position: 'absolute',
         top: '0.5rem',
         right: '0.5rem',
-        color: '#3B82F6',
+        color: COBALT,
         fontSize: '1rem'
     },
     browserFrame: {
         width: '250px',
-        borderRadius: '12px',
+        borderRadius: 0,
         border: '1px solid #E5E7EB',
         overflow: 'hidden',
         boxShadow: '0 10px 40px -10px rgba(0, 0, 0, 0.15)',
@@ -578,7 +576,7 @@ const styles: Record<string, React.CSSProperties> = {
         backgroundColor: '#10B981',
         color: 'white',
         border: 'none',
-        borderRadius: '10px',
+        borderRadius: 0,
         fontSize: '1rem',
         fontWeight: '600',
         cursor: 'pointer',

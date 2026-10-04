@@ -3,6 +3,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { apiClient } from '../../lib/apiClient';
 import { useAuth } from '../../contexts/AuthContext';
 import CartaPreview from './CartaPreview';
+import { COBALT } from '../../theme';
 
 // Default color values - each completely independent
 const DEFAULT_COLORS = {
@@ -80,10 +81,10 @@ export default function ReelsStyling() {
         mutationFn: (colors: ReelsColors) => apiClient.updateRestaurantStyling(restaurantId, colors),
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ['restaurant-reels-colors', restaurantId] });
-            alert('✅ Colores de reels guardados correctamente');
+            alert('Colores de reels guardados correctamente');
         },
         onError: (error: any) => {
-            alert(`❌ Error al guardar colores de reels: ${error.message}`);
+            alert(`Error al guardar colores de reels: ${error.message}`);
         }
     });
 
@@ -107,7 +108,7 @@ export default function ReelsStyling() {
             <div style={styles.mainGrid}>
                 {/* LEFT COLUMN: Color Pickers */}
                 <div style={styles.pickersColumn}>
-                    <Section title="🎨 Colores principales">
+                    <Section title="Colores principales">
                         <p style={styles.description}>
                             Toda la carta sale de estos cinco colores. Si alguno no se leería bien (un texto
                             claro sobre un botón claro, un botón del mismo color que el fondo), la carta lo
@@ -222,7 +223,7 @@ export default function ReelsStyling() {
                     disabled={reelsColorsMutation.isPending}
                     style={{ ...styles.saveButton, ...(reelsColorsMutation.isPending ? styles.saveButtonDisabled : {}) }}
                 >
-                    {reelsColorsMutation.isPending ? 'Guardando...' : '💾 Guardar colores de reels'}
+                    {reelsColorsMutation.isPending ? 'Guardando...' : 'Guardar colores de reels'}
                 </button>
             </div>
         </div>
@@ -478,7 +479,7 @@ const styles: Record<string, React.CSSProperties> = {
     },
     legacy: {
         border: '1px solid #e5e7eb',
-        borderRadius: '12px',
+        borderRadius: 0,
         padding: '0.75rem 1rem',
         background: '#fafafa'
     },
@@ -513,7 +514,7 @@ const styles: Record<string, React.CSSProperties> = {
         marginBottom: '1rem',
         padding: '1.25rem',
         background: '#F9FAFB',
-        borderRadius: '12px',
+        borderRadius: 0,
         border: '1px solid #E5E7EB'
     },
     sectionTitle: {
@@ -552,7 +553,7 @@ const styles: Record<string, React.CSSProperties> = {
         width: '48px',
         height: '48px',
         border: '2px solid #E5E7EB',
-        borderRadius: '8px',
+        borderRadius: 0,
         cursor: 'pointer',
         padding: 0
     },
@@ -561,14 +562,14 @@ const styles: Record<string, React.CSSProperties> = {
         padding: '0.5rem 0.75rem',
         fontSize: '0.85rem',
         border: '1px solid #E5E7EB',
-        borderRadius: '8px',
+        borderRadius: 0,
         fontFamily: 'monospace',
         background: '#fff'
     },
     phoneFrame: {
         width: '280px',
         height: '520px',
-        borderRadius: '32px',
+        borderRadius: 0,
         border: '8px solid #1F2937',
         overflow: 'hidden',
         display: 'flex',
@@ -591,10 +592,10 @@ const styles: Record<string, React.CSSProperties> = {
     },
     saveButton: {
         padding: '0.875rem 2rem',
-        backgroundColor: '#3B82F6',
+        backgroundColor: COBALT,
         color: 'white',
         border: 'none',
-        borderRadius: '10px',
+        borderRadius: 0,
         fontSize: '1rem',
         fontWeight: '600',
         cursor: 'pointer',

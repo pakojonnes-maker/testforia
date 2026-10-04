@@ -1,9 +1,12 @@
 import { useState, useEffect, useMemo, Fragment } from 'react';
-import { useNavigate, Link } from 'react-router-dom';
+import { Link } from 'react-router-dom';
+import { alpha } from '@mui/material/styles';
 import { useAuth } from '../../contexts/AuthContext';
 import { apiClient } from '../../lib/apiClient';
+import { StatCard } from '../../components/common/StatCard';
+import { DATA } from '../../theme';
 import {
-  Box, Typography, Grid, Card, CardContent, Paper,
+  Box, Typography, Grid, Paper,
   CircularProgress, Chip, Divider, Alert, Button, ToggleButtonGroup, ToggleButton,
   TableContainer, Table, TableHead, TableRow, TableCell, TableBody, IconButton, Tooltip,
   Dialog, DialogTitle, DialogContent, DialogActions,
@@ -131,44 +134,6 @@ const SECTION_LABELS: Record<string, string> = {
   info: 'Información del alojamiento', discover: 'Descubre la zona', restaurants: 'Restaurantes', services: 'Servicios',
 };
 
-function StatCard({ icon, title, value, subtitle, color }: {
-  icon: React.ReactNode; title: string; value: string | number; subtitle?: string; color: string;
-}) {
-  return (
-    <Card elevation={0} sx={{
-      background: `linear-gradient(135deg, ${color}15, ${color}08)`,
-      border: `1px solid ${color}25`,
-      borderRadius: 3,
-      transition: 'transform 0.2s, box-shadow 0.2s',
-      '&:hover': { transform: 'translateY(-2px)', boxShadow: `0 8px 24px ${color}20` }
-    }}>
-      <CardContent sx={{ py: 3 }}>
-        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, mb: 1.5 }}>
-          <Box sx={{
-            p: 1, borderRadius: 2,
-            background: `${color}20`,
-            color: color,
-            display: 'flex', alignItems: 'center'
-          }}>
-            {icon}
-          </Box>
-          <Typography variant="body2" color="text.secondary" fontWeight={500}>
-            {title}
-          </Typography>
-        </Box>
-        <Typography variant="h4" fontWeight={700} sx={{ color }}>
-          {value}
-        </Typography>
-        {subtitle && (
-          <Typography variant="caption" color="text.secondary" sx={{ mt: 0.5, display: 'block' }}>
-            {subtitle}
-          </Typography>
-        )}
-      </CardContent>
-    </Card>
-  );
-}
-
 const LANG_NAMES: Record<string, string> = {
   es: '🇪🇸 Español', en: '🇬🇧 English', fr: '🇫🇷 Français', de: '🇩🇪 Deutsch',
   it: '🇮🇹 Italiano', pt: '🇵🇹 Português', ca: '🇪🇸 Català', ar: '🇦🇪 العربية',
@@ -178,7 +143,6 @@ const LANG_NAMES: Record<string, string> = {
 
 export default function GuideAgencyDashboard() {
   const { currentAgency, adminMode } = useAuth();
-  const navigate = useNavigate();
   const [stats, setStats] = useState<StatsData | null>(null);
   // Solo clics (guide_affiliate_intents). La conversión real — si ese clic
   // acabó en una visita física confirmada por el QR de mesa del restaurante —
@@ -346,7 +310,7 @@ export default function GuideAgencyDashboard() {
   } : null;
 
   return (
-    <Box sx={{ p: { xs: 2, md: 0 } }}>
+    <Box>
       {/* Header */}
       <Box sx={{ mb: 4, display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 2 }}>
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
@@ -392,7 +356,7 @@ export default function GuideAgencyDashboard() {
                 icon={<PeopleIcon />}
                 title="Visitantes Únicos"
                 value={safeStats.unique_devices.toLocaleString()}
-                color="#1E3A5F"
+                color={DATA.sea}
               />
             </Grid>
             <Grid item xs={12} sm={6} md={4} lg={2}>
@@ -400,7 +364,7 @@ export default function GuideAgencyDashboard() {
                 icon={<VisibilityIcon />}
                 title="Sesiones Totales"
                 value={safeStats.total_sessions.toLocaleString()}
-                color="#C96D4B"
+                color={DATA.terracotta}
               />
             </Grid>
             <Grid item xs={12} sm={6} md={4} lg={2}>
@@ -408,7 +372,7 @@ export default function GuideAgencyDashboard() {
                 icon={<TimerIcon />}
                 title="Tiempo Medio"
                 value={formatDuration(safeStats.avg_duration_seconds)}
-                color="#6B7D54"
+                color={DATA.olive}
               />
             </Grid>
             <Grid item xs={12} sm={6} md={4} lg={2}>
@@ -416,7 +380,7 @@ export default function GuideAgencyDashboard() {
                 icon={<TouchAppIcon />}
                 title="Clicks (Intents)"
                 value={safeStats.total_intents.toLocaleString()}
-                color="#D4A853"
+                color={DATA.sand}
               />
             </Grid>
             <Grid item xs={12} sm={6} md={4} lg={2}>
@@ -424,7 +388,7 @@ export default function GuideAgencyDashboard() {
                 icon={<TrendingUpIcon />}
                 title="Tasa de Conversión"
                 value={`${safeStats.conversion_rate}%`}
-                color="#9C27B0"
+                color={DATA.plum}
               />
             </Grid>
             <Grid item xs={12} sm={6} md={4} lg={2} />
@@ -537,7 +501,7 @@ export default function GuideAgencyDashboard() {
             {safeStats.apartments_activity && safeStats.apartments_activity.length > 0 ? (
               <Box sx={{ display: 'flex', flexDirection: 'column' }}>
                 {safeStats.apartments_activity.map(apt => (
-                  <Box key={apt.id} sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', p: 1.5, borderRadius: 2, mb: 0.5, bgcolor: apt.unique_devices_today > 0 ? '#e8f5e9' : 'transparent', '&:hover': { bgcolor: 'action.hover' } }}>
+                  <Box key={apt.id} sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', p: 1.5, borderRadius: 2, mb: 0.5, bgcolor: apt.unique_devices_today > 0 ? alpha(DATA.olive, 0.08) : 'transparent', '&:hover': { bgcolor: 'action.hover' } }}>
                     <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
                       <Box sx={{ width: 8, height: 8, borderRadius: '50%', bgcolor: apt.unique_devices_today > 0 ? 'success.main' : 'text.disabled' }} />
                       <Typography variant="body2" fontWeight={500}>{apt.name}</Typography>
