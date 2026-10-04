@@ -30,6 +30,7 @@ const DB_ROWS = {
     dish_media: [{ id: 'med_A1', dish_id: 'dish_A1' }],
     marketing_campaigns: [{ id: 'camp_B1', restaurant_id: 'rest_B' }],
     reservations: [{ id: 'resv_A1', restaurant_id: 'rest_A' }],
+    delivery_orders: [{ id: 'ord_A1', restaurant_id: 'rest_A' }],
 };
 
 let queryCount = 0;
@@ -61,7 +62,7 @@ const env = {
                                 const d = DB_ROWS.dishes.find((x) => x.id === m.dish_id);
                                 return d ? { restaurant_id: d.restaurant_id } : null;
                             }
-                            for (const t of ['dishes', 'menus', 'marketing_campaigns', 'reservations']) {
+                            for (const t of ['dishes', 'menus', 'marketing_campaigns', 'reservations', 'delivery_orders']) {
                                 if (s.includes(`FROM ${t}`)) {
                                     const r = DB_ROWS[t].find((x) => x.id === args[0]);
                                     return r ? { restaurant_id: r.restaurant_id } : null;
@@ -113,6 +114,22 @@ await check('Superadmin entra en cualquiera', '/restaurants/rest_B/users', ROOT,
 await check('Restaurante inexistente', '/restaurants/rest_ZZZ/menus', ANA, 'DENY');
 await check('/restaurants/by-slug no es un tenant', '/restaurants/by-slug/casa-ana', ANA, 'SKIP');
 await check('/api/restaurants/{id}/... también cubierto', '/api/restaurants/rest_B/notifications/send', ANA, 'DENY');
+
+console.log('\n--- Capa 1b: restaurante en la ruta fuera de /restaurants/ ---');
+await check('Ana guarda la config de reservas de Beto', '/reservations/config/rest_B', ANA, 'DENY',
+    { method: 'PUT', body: { is_enabled: false } });
+await check('Ana guarda su config de reservas (por slug)', '/reservations/config/casa-ana', ANA, 'ALLOW',
+    { method: 'PUT', body: { is_enabled: true } });
+await check('Beto cambia el delivery de Ana', '/delivery/config/rest_A', BETO, 'DENY',
+    { method: 'PUT', body: { is_enabled: true } });
+await check('Beto cambia las traducciones de delivery de Ana', '/delivery/translations/rest_A', BETO, 'DENY',
+    { method: 'PUT', body: { es: { custom_message: 'x' } } });
+await check('Beto lee los pedidos de Ana', '/delivery/orders/rest_A', BETO, 'DENY');
+await check('Ana lee sus pedidos', '/delivery/orders/rest_A', ANA, 'ALLOW');
+await check('Beto cambia el estado de un pedido de Ana', '/delivery/orders/ord_A1/status', BETO, 'DENY',
+    { method: 'PATCH', body: { status: 'cancelled' } });
+await check('Ana cambia el estado de su pedido', '/delivery/orders/ord_A1/status', ANA, 'ALLOW',
+    { method: 'PATCH', body: { status: 'confirmed' } });
 
 console.log('\n--- Capa 2: recurso hijo sin restaurante en la ruta ---');
 await check('Ana edita su propio plato', '/dishes/dish_A1', ANA, 'ALLOW');

@@ -1,5 +1,6 @@
 //workerReels.js - VERSIÓN OPTIMIZADA CON PREFIJO reel_ + MARKETING
-import { getMenuVersion, touchMenuVersion } from './workerGuideCache.js';
+import { getMenuVersion } from './workerGuideCache.js';
+import { parseStoredJson } from './workerMarketing.js';
 
 export async function handleReelsRequests(request, env) {
     const url = new URL(request.url);
@@ -35,8 +36,8 @@ export async function handleReelsRequests(request, env) {
                 const restaurant = await env.DB.prepare(`
             SELECT
               r.id, r.name, r.slug, r.logo_url, r.cover_image_url, r.website,
-              r.reel_template_id, r.theme_id,
-              rd.instagram_url, rd.google_review_url,
+              r.reel_template_id, r.theme_id, r.phone,
+              rd.instagram_url, rd.google_review_url, rd.whatsapp_number, rd.reservation_phone,
               t.primary_color, t.secondary_color, t.accent_color,
               t.text_color, t.background_color, t.font_family, t.font_accent
             FROM restaurants r
@@ -48,8 +49,13 @@ export async function handleReelsRequests(request, env) {
                     console.log(`[Reels] ❌ Restaurant not found: ${slug}`);
                     return createResponse({ success: false, message: "Restaurant not found" }, 404);
                 }
-                // ✅ 2. REEL CONFIG (con colores custom con prefijo reel_)
-                const reelConfig = await env.DB.prepare(`
+                // ✅ 2. Todo lo que solo depende del restaurante, en una ida a D1.
+                // Antes eran siete consultas en serie en cada fallo de caché.
+                const [
+                    reelConfigRes, languages, campaignRes, reservationRes,
+                    deliveryRes, globalTranslationsQuery, loyaltyRes,
+                ] = await env.DB.batch([
+                    env.DB.prepare(`
             SELECT
               rrc.template_id, rrc.config_overrides,
               rt.name as template_name, rt.description as template_description,
@@ -57,13 +63,50 @@ export async function handleReelsRequests(request, env) {
             FROM restaurant_reel_configs rrc
             JOIN reel_templates rt ON rrc.template_id = rt.id
             WHERE rrc.restaurant_id = ? AND rt.is_active = TRUE
-          `).bind(restaurant.id).first();
+          `).bind(restaurant.id),
+                    env.DB.prepare(`
+            SELECT l.code, l.name, l.native_name, l.flag_emoji
+            FROM restaurant_languages rl
+            JOIN languages l ON rl.language_code = l.code
+            WHERE rl.restaurant_id = ? AND rl.is_enabled = TRUE
+            ORDER BY rl.priority
+          `).bind(restaurant.id),
+                    // Welcome modal (único tipo de campaña en uso)
+                    env.DB.prepare(`
+                    SELECT id, name, type, content, settings, start_date, end_date
+                    FROM marketing_campaigns
+                    WHERE restaurant_id = ? AND is_active = TRUE AND type = 'welcome_modal'
+                    ORDER BY priority DESC, created_at DESC
+                    LIMIT 1
+                `).bind(restaurant.id),
+                    env.DB.prepare(`
+                    SELECT is_enabled FROM reservation_settings WHERE restaurant_id = ?
+                `).bind(restaurant.id),
+                    env.DB.prepare(`
+                    SELECT is_enabled, show_whatsapp, show_phone, custom_whatsapp, custom_phone,
+                           payment_methods, shipping_cost, free_shipping_threshold, minimum_order,
+                           delivery_hours, closed_dates
+                    FROM delivery_settings WHERE restaurant_id = ?
+                `).bind(restaurant.id),
+                    env.DB.prepare(`
+                    SELECT key_name, label
+                    FROM localization_strings
+                    WHERE context = 'reels' AND language_code = ?
+                `).bind(langCode),
+                    // Programa de sellos: solo la definición (la tarjeta del
+                    // visitante se calcula más abajo, fuera de caché)
+                    env.DB.prepare(`
+                    SELECT stamps_required, reward_name, reward_description, reward_image_url,
+                           stamp_icon, card_color, terms
+                    FROM loyalty_programs WHERE restaurant_id = ? AND is_active = 1
+                `).bind(restaurant.id),
+                ]);
+                const reelConfig = reelConfigRes.results?.[0] || null;
                 // ✅ 3. PARSEAR config_overrides Y APLICAR JERARQUÍA
                 let configOverrides = {};
                 if (reelConfig?.config_overrides) {
                     try {
                         configOverrides = JSON.parse(reelConfig.config_overrides);
-                        console.log('[Reels] ✅ Loaded config_overrides:', Object.keys(configOverrides));
                     } catch (e) {
                         console.warn('[Reels] Error parsing config_overrides:', e);
                     }
@@ -78,7 +121,6 @@ export async function handleReelsRequests(request, env) {
                     font_family: configOverrides.font_family || restaurant.font_family || 'Inter, sans-serif',
                     font_accent: configOverrides.font_accent || restaurant.font_accent || 'serif'
                 };
-                console.log('[Reels] 🎨 Final branding:', branding);
                 // ✅ 5. TEMPLATE FALLBACK (optimizado)
                 let templateInfo = null;
                 if (!reelConfig) {
@@ -116,11 +158,13 @@ export async function handleReelsRequests(request, env) {
                 if (dishes.length === 0) {
                     return createResponse({ success: false, message: "Menu has no active dishes" }, 404);
                 }
-                // ✅ 9. MEDIA Y ALLERGENS
+                // ✅ 9. MEDIA, ALLERGENS Y CONFIG DE PLANTILLA (independientes entre sí)
                 const dishIds = dishes.map(d => d.id);
-                const [mediaByDish, allergensByDish] = await Promise.all([
+                const finalTemplateId = reelConfig?.template_id || templateInfo?.id || 'tpl_classic';
+                const [mediaByDish, allergensByDish, templateConfig] = await Promise.all([
                     getDishMedia(env, dishIds, url.origin),
-                    getDishAllergens(env, dishIds, langCode)
+                    getDishAllergens(env, dishIds, langCode),
+                    buildTemplateConfig(env, finalTemplateId, configOverrides),
                 ]);
                 // ✅ 10. CONSTRUIR SECCIONES CON PLATOS (refactorizado)
                 const sectionsWithDishes = sections.map(section => ({
@@ -134,70 +178,29 @@ export async function handleReelsRequests(request, env) {
                         .filter(d => d.section_id === section.id)
                         .map(dish => buildDishResponse(dish, mediaByDish[dish.id], allergensByDish[dish.id]))
                 }));
-                // ✅ 11. LANGUAGES DISPONIBLES
-                const languages = await env.DB.prepare(`
-            SELECT l.code, l.name, l.native_name, l.flag_emoji
-            FROM restaurant_languages rl
-            JOIN languages l ON rl.language_code = l.code
-            WHERE rl.restaurant_id = ? AND rl.is_enabled = TRUE
-            ORDER BY rl.priority
-          `).bind(restaurant.id).all();
-                // ✅ 12. TEMPLATE CONFIG
-                const finalTemplateId = reelConfig?.template_id || templateInfo?.id || 'tpl_classic';
-                const templateConfig = await buildTemplateConfig(env, finalTemplateId, configOverrides);
-                // ✅ 12.5 MARKETING CAMPAIGNS - Welcome modal (only campaign type in use)
-                const allCampaigns = await env.DB.prepare(`
-                    SELECT * FROM marketing_campaigns
-                    WHERE restaurant_id = ? AND is_active = TRUE AND type = 'welcome_modal'
-                    ORDER BY priority DESC, created_at DESC
-                    LIMIT 1
-                `).bind(restaurant.id).all();
+                // ✅ 12.5 MARKETING — content/settings normalizados (ver parseStoredJson)
                 let marketingCampaign = undefined;
-                const campaignRow = (allCampaigns.results || [])[0];
+                const campaignRow = campaignRes.results?.[0];
                 if (campaignRow) {
-                    try {
-                        marketingCampaign = {
-                            id: campaignRow.id,
-                            name: campaignRow.name,
-                            type: campaignRow.type,
-                            content: JSON.parse(campaignRow.content || '{}'),
-                            settings: JSON.parse(campaignRow.settings || '{}'),
-                            start_date: campaignRow.start_date,
-                            end_date: campaignRow.end_date
-                        };
-                    } catch (e) {
-                        console.error("Error parsing campaign JSON", e);
-                    }
+                    marketingCampaign = {
+                        id: campaignRow.id,
+                        name: campaignRow.name,
+                        type: campaignRow.type,
+                        content: parseStoredJson(campaignRow.content),
+                        settings: parseStoredJson(campaignRow.settings),
+                        start_date: campaignRow.start_date,
+                        end_date: campaignRow.end_date
+                    };
                 }
-                // ✅ 12.6 [NEW] RESERVATION STATUS
-                const reservationSettings = await env.DB.prepare(`
-                    SELECT is_enabled FROM reservation_settings WHERE restaurant_id = ?
-                `).bind(restaurant.id).first();
-                const reservationsEnabled = reservationSettings?.is_enabled === 1;
-                // ✅ 12.7 [NEW] DELIVERY SETTINGS
-                const deliverySettings = await env.DB.prepare(`
-                    SELECT is_enabled, show_whatsapp, show_phone, custom_whatsapp, custom_phone,
-                           payment_methods, shipping_cost, free_shipping_threshold, minimum_order,
-                           delivery_hours, closed_dates
-                    FROM delivery_settings WHERE restaurant_id = ?
-                `).bind(restaurant.id).first();
+                const reservationsEnabled = reservationRes.results?.[0]?.is_enabled === 1;
+                const deliverySettings = deliveryRes.results?.[0] || null;
                 const deliveryEnabled = deliverySettings?.is_enabled === 1;
-                // ✅ 12.8 [NEW] GLOBAL TRANSLATIONS
-                const globalTranslationsQuery = await env.DB.prepare(`
-                    SELECT key_name, label
-                    FROM localization_strings
-                    WHERE context = 'reels' AND language_code = ?
-                `).bind(langCode).all();
                 const globalTranslations = {};
                 (globalTranslationsQuery.results || []).forEach(t => {
                     globalTranslations[t.key_name] = t.label;
                 });
-                // ✅ 12.10 [NEW] LOYALTY PROGRAM — solo la definicion (la tarjeta del
-                // visitante se calcula mas abajo, fuera de cache)
+                const loyaltyProgramRow = loyaltyRes.results?.[0];
                 let loyaltyProgram = null;
-                const loyaltyProgramRow = await env.DB.prepare(
-                    'SELECT * FROM loyalty_programs WHERE restaurant_id = ? AND is_active = 1'
-                ).bind(restaurant.id).first();
                 if (loyaltyProgramRow) {
                     loyaltyProgram = {
                         stamps_required: loyaltyProgramRow.stamps_required,
@@ -254,8 +257,11 @@ export async function handleReelsRequests(request, env) {
                         is_enabled: deliverySettings.is_enabled === 1,
                         show_whatsapp: deliverySettings.show_whatsapp === 1,
                         show_phone: deliverySettings.show_phone === 1,
-                        whatsapp_number: deliverySettings.custom_whatsapp || restaurant.phone,
-                        phone_number: deliverySettings.custom_phone || restaurant.phone,
+                        // Misma cadena de respaldo que /delivery/config. Antes caía a
+                        // restaurant.phone, que esta consulta no seleccionaba: sin un
+                        // WhatsApp propio en Delivery, la carta no enseñaba el botón.
+                        whatsapp_number: deliverySettings.custom_whatsapp || restaurant.whatsapp_number || restaurant.phone || null,
+                        phone_number: deliverySettings.custom_phone || restaurant.reservation_phone || restaurant.phone || null,
                         payment_methods: deliverySettings.payment_methods ? JSON.parse(deliverySettings.payment_methods) : { cash: true, card: false },
                         shipping_cost: deliverySettings.shipping_cost || 0,
                         free_shipping_threshold: deliverySettings.free_shipping_threshold || 0,

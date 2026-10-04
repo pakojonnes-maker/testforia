@@ -68,3 +68,11 @@ simple = { limit = 20, period = 60 }
 name = "AI_CHAT_VISITOR_LIMITER"
 namespace_id = "1002"
 simple = { limit = 6, period = 60 }
+
+# Escrituras públicas del flujo de reservas de la carta (crear, lista de espera,
+# cancelar por token), por IP. Una persona real hace dos o tres por visita; esto
+# solo frena a quien las automatice. Mismo motivo que arriba para no usar KV.
+[[ratelimits]]
+name = "RESERVATION_IP_LIMITER"
+namespace_id = "1003"
+simple = { limit = 10, period = 60 }

@@ -3,6 +3,8 @@
 // (restaurant_details.redeem_pin, reutilizado del flujo de ofertas). Al
 // completar la tarjeta se genera un magic_link_token y el canje reutiliza
 // el mismo patrón público /api/r/:token que ya usa RedemptionPage.
+import { touchMenuVersion } from './workerGuideCache.js';
+
 export async function handleLoyaltyRequests(request, env) {
     const url = new URL(request.url);
     const { pathname } = url;
@@ -279,6 +281,10 @@ async function saveLoyaltyProgramAdmin(request, env) {
             terms ?? null
         ).run();
 
+        // La definición del programa va en la respuesta cacheada de la carta.
+        const restaurant = await env.DB.prepare('SELECT slug FROM restaurants WHERE id = ?').bind(restaurantId).first();
+        await touchMenuVersion(env, restaurant?.slug)
+            .catch(err => console.warn('[Loyalty] No se pudo invalidar la caché de la carta:', err.message));
         return createResponse({ success: true, message: 'Programa guardado' });
     } catch (error) {
         return createResponse({ success: false, message: error.message }, 500);
@@ -289,8 +295,8 @@ async function listLoyaltyCardsAdmin(request, env) {
     const restaurantId = new URL(request.url).pathname.split('/')[3];
     const url = new URL(request.url);
     const statusFilter = url.searchParams.get('status');
-    const limit = parseInt(url.searchParams.get('limit') || '50');
-    const offset = parseInt(url.searchParams.get('offset') || '0');
+    const limit = Math.min(Math.max(parseInt(url.searchParams.get('limit') || '50', 10) || 50, 1), 200);
+    const offset = Math.max(parseInt(url.searchParams.get('offset') || '0', 10) || 0, 0);
     try {
         let whereClause = 'WHERE restaurant_id = ?';
         const bindings = [restaurantId];
@@ -298,20 +304,23 @@ async function listLoyaltyCardsAdmin(request, env) {
             whereClause += ' AND status = ?';
             bindings.push(statusFilter);
         }
-        const cards = await env.DB.prepare(`
-            SELECT id, visitor_id, stamps, status, created_at, completed_at, redeemed_at, expires_at
-            FROM loyalty_cards ${whereClause}
-            ORDER BY created_at DESC LIMIT ? OFFSET ?
-        `).bind(...bindings, limit, offset).all();
-
-        const counts = await env.DB.prepare(`
-            SELECT
-                COUNT(*) as total,
-                SUM(CASE WHEN status = 'active' THEN 1 ELSE 0 END) as active,
-                SUM(CASE WHEN status = 'completed' THEN 1 ELSE 0 END) as completed,
-                SUM(CASE WHEN status = 'redeemed' THEN 1 ELSE 0 END) as redeemed
-            FROM loyalty_cards WHERE restaurant_id = ?
-        `).bind(restaurantId).first();
+        // Página y contadores en una sola ida a D1.
+        const [cards, countsRes] = await env.DB.batch([
+            env.DB.prepare(`
+                SELECT id, visitor_id, stamps, status, created_at, completed_at, redeemed_at, expires_at
+                FROM loyalty_cards ${whereClause}
+                ORDER BY created_at DESC LIMIT ? OFFSET ?
+            `).bind(...bindings, limit, offset),
+            env.DB.prepare(`
+                SELECT
+                    COUNT(*) as total,
+                    SUM(CASE WHEN status = 'active' THEN 1 ELSE 0 END) as active,
+                    SUM(CASE WHEN status = 'completed' THEN 1 ELSE 0 END) as completed,
+                    SUM(CASE WHEN status = 'redeemed' THEN 1 ELSE 0 END) as redeemed
+                FROM loyalty_cards WHERE restaurant_id = ?
+            `).bind(restaurantId),
+        ]);
+        const counts = countsRes.results?.[0];
 
         return createResponse({
             success: true,

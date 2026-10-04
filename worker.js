@@ -1,4 +1,3 @@
-import { handleDashboardRequests } from './workerDashboard.js';
 import { handleAuthRequests, authenticateRequest } from './workerAuthentication.js';
 import { handleGoogleAuthRequests } from './workerGoogleAuth.js';
 import { handleAnalyticsRequests } from './workerAnalytics.js';
@@ -87,6 +86,16 @@ const PUBLIC_ROUTES = [
     // Reservas (cliente puede crear/consultar)
     { method: 'GET', pattern: /^\/restaurants\/[^/]+\/reservation/ },
     { method: 'POST', pattern: /^\/restaurants\/[^/]+\/reservations$/ },
+    // Flujo de reserva de la carta (apps/client ReservePage → workerReservations.js).
+    // Faltaban aquí y el huésped recibía un 401 en cada paso: no se podía reservar.
+    // El PATCH /reservations/{id} y el PUT de config siguen protegidos; la
+    // autogestión del cliente va siempre por su magic token.
+    { method: 'GET', pattern: /^\/reservations\/config\/[\w-]+$/ },
+    { method: 'GET', pattern: /^\/reservations\/availability(\/calendar)?$/ },
+    { method: 'POST', pattern: /^\/reservations$/ },
+    { method: 'POST', pattern: /^\/reservations\/waitlist$/ },
+    { method: 'GET', pattern: /^\/reservations\/by-token\/[\w-]+$/ },
+    { method: 'POST', pattern: /^\/reservations\/cancel-by-token$/ },
     // Delivery público (rutas de workerDelivery.js)
     { method: 'GET', pattern: /^\/delivery\/config\/[\w-]+$/ },
     { method: 'GET', pattern: /^\/delivery\/available\/[\w-]+$/ },
@@ -316,9 +325,6 @@ export default {
             // ANALYTICS
             const analyticsResponse = await handleAnalyticsRequests(request, env);
             if (analyticsResponse) return addCorsHeaders(analyticsResponse, request);
-            // DASHBOARD
-            const dashboardResponse = await handleDashboardRequests(request, env);
-            if (dashboardResponse) return addCorsHeaders(dashboardResponse, request);
             // DISHES
             const dishesResponse = await handleDishRequests(request.clone(), env);
             if (dishesResponse) return addCorsHeaders(dishesResponse, request);

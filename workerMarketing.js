@@ -1,4 +1,43 @@
 import { WebPushCrypto } from './workerCrypto.js';
+import { touchMenuVersion } from './workerGuideCache.js';
+
+/**
+ * Devuelve el content/settings de una campaña como objeto, venga como venga.
+ *
+ * Hasta oct-2026 el admin mandaba estos campos ya convertidos a string y aquí se
+ * volvía a hacer JSON.stringify: en producción 3 de 4 campañas los tenían
+ * doblemente codificados, y la carta leía `settings` como string (sin auto_open,
+ * delay ni frequency: siempre los de por defecto). Una tenía además settings
+ * troceado carácter a carácter ({"0":"{","1":"\"",…}) porque el admin hacía
+ * spread de ese string. Se desenrolla todo eso al leer y se guarda limpio al
+ * escribir, así las filas viejas se arreglan solas en su próximo guardado.
+ */
+export function parseStoredJson(value, depth = 0) {
+    if (depth > 8 || value == null || value === '') return {};
+    if (typeof value === 'string') {
+        try { return parseStoredJson(JSON.parse(value), depth + 1); } catch { return {}; }
+    }
+    if (typeof value !== 'object' || Array.isArray(value)) return {};
+    const keys = Object.keys(value);
+    const charKeys = keys.filter((k) => /^\d+$/.test(k));
+    if (charKeys.length > 0 && charKeys.every((k, i) => k === String(i) && typeof value[k] === 'string')) {
+        const rebuilt = parseStoredJson(charKeys.map((k) => value[k]).join(''), depth + 1);
+        const rest = Object.fromEntries(keys.filter((k) => !/^\d+$/.test(k)).map((k) => [k, value[k]]));
+        return { ...rebuilt, ...rest };
+    }
+    return value;
+}
+
+async function touchMenuOfRestaurant(env, restaurantId) {
+    try {
+        const r = await env.DB.prepare('SELECT slug FROM restaurants WHERE id = ? OR slug = ?')
+            .bind(restaurantId, restaurantId).first();
+        await touchMenuVersion(env, r?.slug);
+    } catch (error) {
+        console.warn('[Marketing] No se pudo invalidar la caché de la carta:', error.message);
+    }
+}
+
 export async function handleMarketingRequests(request, env) {
     // ... (rest of file)
     async function sendWebPushEncrypted(subscription, encryptedData, vapidKeys) {
@@ -70,14 +109,16 @@ export async function handleMarketingRequests(request, env) {
         const restaurantId = pathname.split('/')[3];
         try {
             const campaigns = await env.DB.prepare(`
-                SELECT * FROM marketing_campaigns
+                SELECT id, restaurant_id, name, type, is_active, content, settings,
+                       start_date, end_date, created_at
+                FROM marketing_campaigns
                 WHERE restaurant_id = ?
                 ORDER BY created_at DESC
             `).bind(restaurantId).all();
             const results = (campaigns.results || []).map(c => ({
                 ...c,
-                content: c.content ? JSON.parse(c.content) : {},
-                settings: c.settings ? JSON.parse(c.settings) : {},
+                content: parseStoredJson(c.content),
+                settings: parseStoredJson(c.settings),
                 is_active: !!c.is_active
             }));
             return createResponse({ success: true, campaigns: results });
@@ -89,21 +130,26 @@ export async function handleMarketingRequests(request, env) {
     if (method === "POST" && pathname === "/api/campaigns") {
         try {
             const data = await request.json();
-            const { restaurant_id, name, type, content, settings, start_date, end_date } = data;
+            const { restaurant_id, name, type, content, settings, start_date, end_date, is_active } = data;
+            if (!restaurant_id || !name) {
+                return createResponse({ success: false, message: "restaurant_id y name son obligatorios" }, 400);
+            }
             const id = crypto.randomUUID();
             await env.DB.prepare(
                 `INSERT INTO marketing_campaigns (id, restaurant_id, name, type, is_active, content, settings, start_date, end_date)
-                 VALUES (?, ?, ?, ?, 1, ?, ?, ?, ?)`
+                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`
             ).bind(
                 id,
                 restaurant_id,
                 name,
                 type || 'welcome_modal',
-                JSON.stringify(content || {}),
-                JSON.stringify(settings || {}),
+                is_active === false ? 0 : 1,
+                JSON.stringify(parseStoredJson(content)),
+                JSON.stringify(parseStoredJson(settings)),
                 start_date || null,
                 end_date || null
             ).run();
+            await touchMenuOfRestaurant(env, restaurant_id);
             return createResponse({ success: true, id, message: "Campaign created" });
         } catch (error) {
             return createResponse({ success: false, message: error.message }, 500);
@@ -114,22 +160,40 @@ export async function handleMarketingRequests(request, env) {
         const id = pathname.split('/').pop();
         try {
             const data = await request.json();
-            await env.DB.prepare(
-                `UPDATE marketing_campaigns 
-                 SET name = COALESCE(?, name), 
-                     content = COALESCE(?, content), 
-                     settings = COALESCE(?, settings), 
+            const row = await env.DB.prepare(
+                `UPDATE marketing_campaigns
+                 SET name = COALESCE(?, name),
+                     content = COALESCE(?, content),
+                     settings = COALESCE(?, settings),
                      is_active = COALESCE(?, is_active),
                      updated_at = CURRENT_TIMESTAMP
-                 WHERE id = ?`
+                 WHERE id = ?
+                 RETURNING restaurant_id`
             ).bind(
-                data.name,
-                data.content ? JSON.stringify(data.content) : null,
-                data.settings ? JSON.stringify(data.settings) : null,
+                data.name ?? null,
+                data.content !== undefined ? JSON.stringify(parseStoredJson(data.content)) : null,
+                data.settings !== undefined ? JSON.stringify(parseStoredJson(data.settings)) : null,
                 data.is_active !== undefined ? (data.is_active ? 1 : 0) : null,
                 id
-            ).run();
+            ).first();
+            if (!row) return createResponse({ success: false, message: "Campaign not found" }, 404);
+            await touchMenuOfRestaurant(env, row.restaurant_id);
             return createResponse({ success: true, message: "Campaign updated" });
+        } catch (error) {
+            return createResponse({ success: false, message: error.message }, 500);
+        }
+    }
+    // Delete campaign. El admin ya lo llamaba, pero la ruta no existía: el
+    // botón de borrar acababa en el 404 genérico del worker.
+    if (method === "DELETE" && pathname.match(/^\/api\/campaigns\/[^/]+$/)) {
+        const id = pathname.split('/').pop();
+        try {
+            const row = await env.DB.prepare(
+                'DELETE FROM marketing_campaigns WHERE id = ? RETURNING restaurant_id'
+            ).bind(id).first();
+            if (!row) return createResponse({ success: false, message: "Campaign not found" }, 404);
+            await touchMenuOfRestaurant(env, row.restaurant_id);
+            return createResponse({ success: true, message: "Campaign deleted" });
         } catch (error) {
             return createResponse({ success: false, message: error.message }, 500);
         }
@@ -208,49 +272,32 @@ export async function handleMarketingRequests(request, env) {
             }
             const token = JSON.stringify(subscription);
             const endpoint = subscription.endpoint;
-            // ✅ FIX: Deduplicate by endpoint — delete any existing token with the same
-            // push endpoint for this restaurant before inserting the new one.
-            // This prevents duplicate notifications to the same device.
-            try {
-                // Find existing tokens with the same endpoint for this restaurant
-                const existing = await env.DB.prepare(
-                    `SELECT id, token FROM notification_tokens WHERE restaurant_id = ? AND is_active = 1`
-                ).bind(restaurant_id).all();
-                if (existing.results) {
-                    for (const row of existing.results) {
-                        try {
-                            const existingSub = JSON.parse(row.token);
-                            if (existingSub.endpoint === endpoint) {
-                                // Same device, same restaurant — remove old entry
-                                await env.DB.prepare(
-                                    `DELETE FROM notification_tokens WHERE id = ?`
-                                ).bind(row.id).run();
-                                console.log(`[Subscribe] Removed duplicate token ${row.id} for endpoint ${endpoint.substring(0, 40)}...`);
-                            }
-                        } catch (parseErr) {
-                            // Invalid JSON in old token, clean it up
-                            await env.DB.prepare(
-                                `DELETE FROM notification_tokens WHERE id = ?`
-                            ).bind(row.id).run();
-                        }
-                    }
-                }
-            } catch (dedupeErr) {
-                console.warn('[Subscribe] Dedup check failed (non-critical):', dedupeErr.message);
+            if (!restaurant_id) {
+                return createResponse({ success: false, message: "restaurant_id is required" }, 400);
             }
-            // Insert the fresh subscription
+            // Un dispositivo = una suscripción por restaurante: se borra la que tuviera
+            // el mismo endpoint (y cualquier token con JSON roto) y se inserta la nueva,
+            // todo en una ida a D1. Antes se leían todos los tokens del restaurante y se
+            // borraban de uno en uno.
             const id = crypto.randomUUID();
-            await env.DB.prepare(`
-                INSERT INTO notification_tokens (id, user_id, visitor_id, token, device_type, restaurant_id, is_active, created_at)
-                VALUES (?, ?, ?, ?, ?, ?, 1, CURRENT_TIMESTAMP)
-            `).bind(
-                id,
-                user_id || null,
-                visitor_id || null,
-                token,
-                device_type || 'unknown',
-                restaurant_id
-            ).run();
+            await env.DB.batch([
+                env.DB.prepare(`
+                    DELETE FROM notification_tokens
+                    WHERE restaurant_id = ?
+                      AND (json_valid(token) = 0 OR json_extract(token, '$.endpoint') = ?)
+                `).bind(restaurant_id, endpoint),
+                env.DB.prepare(`
+                    INSERT INTO notification_tokens (id, user_id, visitor_id, token, device_type, restaurant_id, is_active, created_at)
+                    VALUES (?, ?, ?, ?, ?, ?, 1, CURRENT_TIMESTAMP)
+                `).bind(
+                    id,
+                    user_id || null,
+                    visitor_id || null,
+                    token,
+                    device_type || 'unknown',
+                    restaurant_id
+                ),
+            ]);
             return createResponse({ success: true, message: "Subscribed successfully" });
         } catch (error) {
             console.error("Subscribe Error:", error);

@@ -1,11 +1,42 @@
+import { touchMenuVersion } from './workerGuideCache.js';
+import { getClientIp } from './workerAudit.js';
+
+// Estados que el panel puede asignar. Los de autogestión del cliente
+// (cancelled_user) los pone cancel-by-token, no el PATCH del admin.
+const ADMIN_STATUSES = new Set(['pending', 'confirmed', 'cancelled', 'cancelled_restaurant', 'no_show', 'completed', 'waitlist']);
+const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
+const TIME_RE = /^\d{2}:\d{2}$/;
+
+// La carta cachea `reservationsEnabled` en KV (workerReels.js): activar o
+// desactivar las reservas tiene que invalidarla o el botón sigue igual 24 h.
+async function touchMenuOfRestaurant(env, restaurantId) {
+    try {
+        const r = await env.DB.prepare('SELECT slug FROM restaurants WHERE id = ?').bind(restaurantId).first();
+        await touchMenuVersion(env, r?.slug);
+    } catch (error) {
+        console.warn('[Reservations] No se pudo invalidar la caché de la carta:', error.message);
+    }
+}
+
+// Las escrituras públicas (crear, lista de espera, cancelar) van con freno por IP.
+async function rateLimited(env, request) {
+    if (!env.RESERVATION_IP_LIMITER) return false;
+    const { success } = await env.RESERVATION_IP_LIMITER.limit({ key: getClientIp(request) || 'unknown' });
+    return !success;
+}
+
 export async function handleReservationRequests(request, env) {
     const url = new URL(request.url);
     const pathname = url.pathname;
     const method = request.method;
-    console.log(`[Reservations] ${method} ${pathname}`);
+    if (!pathname.startsWith('/reservations')) return null;
     // CORS Preflight
     if (method === "OPTIONS") {
         return createResponse(null, 204);
+    }
+    if (method === "POST" && ['/reservations', '/reservations/waitlist', '/reservations/cancel-by-token'].includes(pathname)
+        && await rateLimited(env, request)) {
+        return createResponse({ success: false, message: "Demasiadas peticiones, prueba en un minuto" }, 429);
     }
     // ============================================
     // PUBLIC ENDPOINTS
@@ -151,6 +182,7 @@ async function updateReservationConfig(env, request, restaurantSlugOrId) {
                 availabilityJson, closedDatesJson, advance_days || 30, holidaysJson
             ).run();
         }
+        await touchMenuOfRestaurant(env, restaurant.id);
         return createResponse({ success: true, message: "Settings updated successfully" });
     } catch (error) {
         return createResponse({ success: false, message: error.message }, 500);
@@ -325,38 +357,54 @@ function mergeTimeRanges(ranges) {
 async function createReservation(env, request) {
     try {
         const body = await request.json();
-        // Validation would go here (Zod is best but vanilla JS for now)
-        if (!body.restaurant_id || !body.client_name || !body.client_email) {
+        // client_phone es NOT NULL en la tabla: sin él la reserva acababa en 500.
+        if (!body.restaurant_id || !body.client_name || !body.client_email || !body.client_phone) {
             return createResponse({ success: false, message: "Missing fields" }, 400);
         }
         // GDPR Check
         if (!body.accepted_policy) {
             return createResponse({ success: false, message: "GDPR Consent required" }, 400);
         }
+        const partySize = Number.parseInt(body.party_size, 10);
+        if (!DATE_RE.test(body.reservation_date || '') || !TIME_RE.test(body.reservation_time || '')
+            || !Number.isInteger(partySize) || partySize < 1) {
+            return createResponse({ success: false, message: "Invalid date, time or party size" }, 400);
+        }
+        // Es una ruta pública: solo se aceptan reservas de un restaurante que las
+        // tenga activadas y dentro de su tamaño máximo de grupo.
+        const settings = await env.DB.prepare(
+            `SELECT max_party_size FROM reservation_settings WHERE restaurant_id = ? AND is_enabled = 1`
+        ).bind(body.restaurant_id).first();
+        if (!settings) {
+            return createResponse({ success: false, message: "Reservations disabled" }, 403);
+        }
+        if (partySize > (settings.max_party_size || 10)) {
+            return createResponse({ success: false, message: "Party size exceeds the maximum" }, 400);
+        }
         const id = `res_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
         const magicToken = crypto.randomUUID(); // Generate unique token
         const status = 'pending'; // Default to pending as per user request
-        await env.DB.prepare(`
-            INSERT INTO reservations (
-                id, restaurant_id, client_name, client_email, client_phone,
-                reservation_date, reservation_time, party_size, status,
-                special_requests, occasion, accepted_policy, ip_address,
-                magic_link_token
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-        `).bind(
-            id, body.restaurant_id, body.client_name, body.client_email, body.client_phone,
-            body.reservation_date, body.reservation_time, body.party_size, status,
-            body.special_requests, body.occasion, body.accepted_policy ? 1 : 0,
-            request.headers.get('CF-Connecting-IP') || 'unknown',
-            magicToken
-        ).run();
-        // Log it
-        await env.DB.prepare(`
-            INSERT INTO reservation_logs (id, reservation_id, action, changed_by, reason)
-            VALUES (?, ?, ?, ?, ?)
-        `).bind(
-            `log_${Date.now()}`, id, 'created', 'user', 'Online Booking'
-        ).run();
+        // D1 rechaza `undefined` en bind(): los campos opcionales van a null.
+        await env.DB.batch([
+            env.DB.prepare(`
+                INSERT INTO reservations (
+                    id, restaurant_id, client_name, client_email, client_phone,
+                    reservation_date, reservation_time, party_size, status,
+                    special_requests, occasion, accepted_policy, ip_address,
+                    magic_link_token
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            `).bind(
+                id, body.restaurant_id, body.client_name, body.client_email, body.client_phone ?? null,
+                body.reservation_date, body.reservation_time, partySize, status,
+                body.special_requests ?? null, body.occasion ?? null, 1,
+                request.headers.get('CF-Connecting-IP') || 'unknown',
+                magicToken
+            ),
+            env.DB.prepare(`
+                INSERT INTO reservation_logs (id, reservation_id, action, changed_by, reason)
+                VALUES (?, ?, ?, ?, ?)
+            `).bind(`log_${crypto.randomUUID()}`, id, 'created', 'user', 'Online Booking'),
+        ]);
         return createResponse({ success: true, reservation_id: id, magic_token: magicToken });
     } catch (error) {
         return createResponse({ success: false, message: error.message }, 500);
@@ -368,8 +416,13 @@ async function createReservation(env, request) {
 async function getReservationByToken(env, token) {
     if (!token) return createResponse({ success: false, message: "Token required" }, 400);
     try {
+        // Solo lo que el cliente necesita ver de SU reserva. Antes era r.*, que
+        // incluía las notas internas del personal (admin_notes) y la IP.
         const reservation = await env.DB.prepare(`
-            SELECT r.*, res.name as restaurant_name, res.slug as restaurant_slug
+            SELECT r.id, r.restaurant_id, r.client_name, r.client_email, r.client_phone,
+                   r.reservation_date, r.reservation_time, r.party_size, r.status,
+                   r.special_requests, r.occasion, r.cancellation_reason, r.created_at,
+                   res.name as restaurant_name, res.slug as restaurant_slug
             FROM reservations r
             JOIN restaurants res ON r.restaurant_id = res.id
             WHERE r.magic_link_token = ?
@@ -388,21 +441,21 @@ async function cancelReservationByToken(env, request) {
         // Verify existence
         const reservation = await env.DB.prepare(`SELECT id, restaurant_id, status FROM reservations WHERE magic_link_token = ?`).bind(token).first();
         if (!reservation) return createResponse({ success: false, message: "Reservation not found" }, 404);
-        if (['cancelled', 'cancelled_restaurant', 'completed'].includes(reservation.status)) {
+        if (['cancelled', 'cancelled_restaurant', 'cancelled_user', 'completed', 'no_show'].includes(reservation.status)) {
             return createResponse({ success: false, message: "Reservation already processed" }, 400);
         }
-        // Cancel
-        await env.DB.prepare(`
-            UPDATE reservations SET status = 'cancelled_user', cancellation_reason = ?, updated_at = CURRENT_TIMESTAMP
-            WHERE id = ?
-        `).bind(reason || "Cancelled by user via link", reservation.id).run();
-        // Log
-        await env.DB.prepare(`
-            INSERT INTO reservation_logs (id, reservation_id, action, changed_by, previous_state, new_state, reason)
-            VALUES (?, ?, ?, ?, ?, ?, ?)
-        `).bind(
-            `log_${Date.now()}`, reservation.id, 'status_change', 'client_token', reservation.status, 'cancelled_user', reason || "Self-service cancellation"
-        ).run();
+        await env.DB.batch([
+            env.DB.prepare(`
+                UPDATE reservations SET status = 'cancelled_user', cancellation_reason = ?, updated_at = CURRENT_TIMESTAMP
+                WHERE id = ?
+            `).bind(reason || "Cancelled by user via link", reservation.id),
+            env.DB.prepare(`
+                INSERT INTO reservation_logs (id, reservation_id, action, changed_by, previous_state, new_state, reason)
+                VALUES (?, ?, ?, ?, ?, ?, ?)
+            `).bind(
+                `log_${crypto.randomUUID()}`, reservation.id, 'status_change', 'client_token', reservation.status, 'cancelled_user', reason || "Self-service cancellation"
+            ),
+        ]);
         return createResponse({ success: true, message: "Reservation cancelled" });
     } catch (error) {
         return createResponse({ success: false, message: error.message }, 500);
@@ -424,9 +477,9 @@ async function joinWaitlist(env, request) {
                 desired_date, desired_time_range, party_size, notes, status, accepted_policy
             ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'waiting', ?)
         `).bind(
-            id, body.restaurant_id, body.client_name, body.client_contact_method, body.client_contact_value,
-            body.desired_date, body.desired_time_range || 'Any', body.party_size,
-            body.notes, body.accepted_policy ? 1 : 0
+            id, body.restaurant_id, body.client_name, body.client_contact_method ?? null, body.client_contact_value,
+            body.desired_date ?? null, body.desired_time_range || 'Any', body.party_size ?? null,
+            body.notes ?? null, 1
         ).run();
         return createResponse({ success: true, waitlist_id: id });
     } catch (error) {
@@ -447,10 +500,11 @@ async function toggleReservationSystem(env, request) {
                 .bind(is_enabled ? 1 : 0, restaurant_id).run();
         } else {
             await env.DB.prepare(`
-                INSERT INTO reservation_settings (restaurant_id, is_enabled, max_capacity) 
+                INSERT INTO reservation_settings (restaurant_id, is_enabled, max_capacity)
                 VALUES (?, ?, 50)
             `).bind(restaurant_id, is_enabled ? 1 : 0).run();
         }
+        await touchMenuOfRestaurant(env, restaurant_id);
         return createResponse({ success: true, is_enabled });
     } catch (error) {
         return createResponse({ success: false, message: error.message }, 500);
@@ -460,27 +514,40 @@ async function getReservations(env, params) {
     try {
         const restaurant_id = params.get('restaurant_id');
         const date = params.get('date');
+        const status = params.get('status');
         if (!restaurant_id) return createResponse({ success: false, message: "Rest ID req" }, 400);
-        let query = `SELECT * FROM reservations WHERE restaurant_id = ?`;
-        let bindParams = [restaurant_id];
+        // Columnas concretas: el panel no necesita el magic token ni la IP.
+        let query = `SELECT id, client_name, client_email, client_phone, reservation_date, reservation_time,
+                            party_size, status, special_requests, occasion, admin_notes, table_assignment,
+                            cancellation_reason, created_at
+                     FROM reservations WHERE restaurant_id = ?`;
+        const bindParams = [restaurant_id];
         if (date) {
             query += ` AND reservation_date = ?`;
             bindParams.push(date);
         }
-        query += ` ORDER BY reservation_date ASC, reservation_time ASC`;
-        const reservations = await env.DB.prepare(query).bind(...bindParams).all();
-        // Also get waitlist for that date
-        let wlQuery = `SELECT * FROM reservation_waitlist WHERE restaurant_id = ?`;
-        let wlBind = [restaurant_id];
-        if (date) {
-            wlQuery += ` AND desired_date = ?`;
-            wlBind.push(date);
+        // ?status=pending: el aviso de la barra superior del admin solo cuenta pendientes.
+        if (status && ADMIN_STATUSES.has(status)) {
+            query += ` AND status = ?`;
+            bindParams.push(status);
         }
-        const waitlist = await env.DB.prepare(wlQuery).bind(...wlBind).all();
+        query += ` ORDER BY reservation_date ASC, reservation_time ASC`;
+        const statements = [env.DB.prepare(query).bind(...bindParams)];
+        // La lista de espera solo si se pide: el panel aún no la enseña.
+        if (params.get('include_waitlist') === '1') {
+            let wlQuery = `SELECT * FROM reservation_waitlist WHERE restaurant_id = ?`;
+            const wlBind = [restaurant_id];
+            if (date) {
+                wlQuery += ` AND desired_date = ?`;
+                wlBind.push(date);
+            }
+            statements.push(env.DB.prepare(wlQuery).bind(...wlBind));
+        }
+        const [reservations, waitlist] = await env.DB.batch(statements);
         return createResponse({
             success: true,
             reservations: reservations.results || [],
-            waitlist: waitlist.results || []
+            waitlist: waitlist?.results || []
         });
     } catch (error) {
         return createResponse({ success: false, message: error.message }, 500);
@@ -524,7 +591,23 @@ async function getReservationLogs(env, params) {
 async function updateReservation(env, id, request) {
     try {
         const body = await request.json();
-        // Extract allowed fields\n        const { status, cancellation_reason, date, time, party_size, special_requests, client_name, client_email, client_phone, admin_notes, table_assignment } = body;
+        // Esta línea estuvo comentada sin querer (un "\n" literal la pegó al
+        // comentario de encima): todas las variables de abajo eran ReferenceError
+        // y el PATCH respondía 500 siempre. El admin no podía confirmar, denegar
+        // ni editar ninguna reserva.
+        const { status, cancellation_reason, date, time, party_size, special_requests, client_name, client_email, client_phone, admin_notes, table_assignment } = body;
+        if (status && !ADMIN_STATUSES.has(status)) {
+            return createResponse({ success: false, message: "Invalid status" }, 400);
+        }
+        if ((date && !DATE_RE.test(date)) || (time && !TIME_RE.test(time))) {
+            return createResponse({ success: false, message: "Invalid date or time" }, 400);
+        }
+        const partySize = party_size === undefined ? undefined : Number.parseInt(party_size, 10);
+        if (partySize !== undefined && (!Number.isInteger(partySize) || partySize < 1)) {
+            return createResponse({ success: false, message: "Invalid party size" }, 400);
+        }
+        const previous = await env.DB.prepare('SELECT status FROM reservations WHERE id = ?').bind(id).first();
+        if (!previous) return createResponse({ success: false, message: "Reservation not found" }, 404);
         // Build Dynamic Query
         let queryParts = ["updated_at = CURRENT_TIMESTAMP"];
         let params = [];
@@ -532,7 +615,7 @@ async function updateReservation(env, id, request) {
         if (cancellation_reason !== undefined) { queryParts.push("cancellation_reason = ?"); params.push(cancellation_reason); }
         if (date) { queryParts.push("reservation_date = ?"); params.push(date); }
         if (time) { queryParts.push("reservation_time = ?"); params.push(time); }
-        if (party_size) { queryParts.push("party_size = ?"); params.push(party_size); }
+        if (partySize) { queryParts.push("party_size = ?"); params.push(partySize); }
         if (special_requests !== undefined) { queryParts.push("special_requests = ?"); params.push(special_requests); }
         if (client_name) { queryParts.push("client_name = ?"); params.push(client_name); }
         if (client_email) { queryParts.push("client_email = ?"); params.push(client_email); }
@@ -541,15 +624,17 @@ async function updateReservation(env, id, request) {
         if (table_assignment !== undefined) { queryParts.push("table_assignment = ?"); params.push(table_assignment); }
         params.push(id); // Where ID
         const sql = `UPDATE reservations SET ${queryParts.join(", ")} WHERE id = ?`;
-        await env.DB.prepare(sql).bind(...params).run();
-        // Log activity
-        const action = status ? 'status_change' : 'update_details';
-        await env.DB.prepare(`
-            INSERT INTO reservation_logs (id, reservation_id, action, changed_by, new_state, reason)
-            VALUES (?, ?, ?, ?, ?, ?)
-        `).bind(
-            `log_${Date.now()}`, id, action, 'admin', status || 'details_updated', 'Admin Update'
-        ).run();
+        // Cambio y registro en la misma ida a D1.
+        const action = status && status !== previous.status ? 'status_change' : 'update_details';
+        await env.DB.batch([
+            env.DB.prepare(sql).bind(...params),
+            env.DB.prepare(`
+                INSERT INTO reservation_logs (id, reservation_id, action, changed_by, previous_state, new_state, reason)
+                VALUES (?, ?, ?, ?, ?, ?, ?)
+            `).bind(
+                `log_${crypto.randomUUID()}`, id, action, 'admin', previous.status, status || 'details_updated', 'Admin Update'
+            ),
+        ]);
         return createResponse({ success: true });
     } catch (error) {
         return createResponse({ success: false, message: error.message }, 500);

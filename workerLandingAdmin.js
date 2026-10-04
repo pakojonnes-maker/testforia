@@ -191,41 +191,34 @@ export async function handleLandingAdminRequests(request, env) {
       }, 500);
     }
   }
-// workerLandingAdmin.js - Endpoint reorder ARREGLADO
-// workerLandingAdmin.js - REORDER CON OFFSET (FUNCIONA CON NOT NULL)
+// PUT /admin/landing/sections/reorder — con offset, por el UNIQUE de order_index
 if (request.method === "PUT" && url.pathname === "/admin/landing/sections/reorder") {
   try {
     const body = await request.json();
     const { restaurant_id, sections } = body;
 
-    if (!restaurant_id || !sections || !Array.isArray(sections)) {
-      return createResponse({ 
-        success: false, 
-        message: 'restaurant_id y sections son requeridos' 
+    if (!restaurant_id || !sections || !Array.isArray(sections)
+        || !sections.every(s => typeof s?.id === 'string' && Number.isInteger(s?.order_index))) {
+      return createResponse({
+        success: false,
+        message: 'restaurant_id y sections son requeridos'
       }, 400);
     }
 
-    console.log(`[LandingAdmin] Reordering ${sections.length} sections for ${restaurant_id}`);
-
-    // PASO 1: Añadir offset grande (10000) para evitar colisiones con UNIQUE constraint
-    for (const section of sections) {
-      await env.DB.prepare(`
+    // Paso 1: sumar un offset grande (10000) para no chocar con el UNIQUE de
+    // order_index; paso 2: dejar los valores finales. Todo en un batch: una
+    // sola ida a D1 y en una transacción (antes eran 2N consultas sueltas y un
+    // fallo a mitad dejaba la landing con órdenes de 10000).
+    const update = (orderIndex, section, touch) => env.DB.prepare(`
         UPDATE restaurant_landing_sections
-        SET order_index = ?
+        SET order_index = ?${touch ? ', modified_at = CURRENT_TIMESTAMP' : ''}
         WHERE id = ? AND restaurant_id = ?
-      `).bind(section.order_index + 10000, section.id, restaurant_id).run();
-    }
+      `).bind(orderIndex, section.id, restaurant_id);
+    await env.DB.batch([
+      ...sections.map(section => update(section.order_index + 10000, section, false)),
+      ...sections.map(section => update(section.order_index, section, true)),
+    ]);
 
-    // PASO 2: Restar el offset para dejar los valores finales
-    for (const section of sections) {
-      await env.DB.prepare(`
-        UPDATE restaurant_landing_sections
-        SET order_index = ?, modified_at = CURRENT_TIMESTAMP
-        WHERE id = ? AND restaurant_id = ?
-      `).bind(section.order_index, section.id, restaurant_id).run();
-    }
-
-    console.log('[LandingAdmin] Reorder completed successfully');
     return createResponse({ success: true, message: 'Orden actualizado' });
 
   } catch (error) {

@@ -69,7 +69,7 @@ Monorepo con **npm workspaces** (`apps/*`, `packages/*`). Frontend en Cloudflare
 ```
 Repo raíz
 ├── worker.js              ← ENTRYPOINT único del backend (router central)
-├── worker*.js (28 módulos) ← se importan y bundlean dentro de worker.js
+├── worker*.js (módulos)   ← se importan y bundlean dentro de worker.js
 ├── wrangler.toml          ← config del worker desplegado (visualtasteworker)
 ├── migrations/            ← migraciones SQL de D1 (numeradas 0001..0079 + sueltas)
 ├── tests/                 ← tests de seguridad del worker (node, sin framework)
@@ -129,9 +129,9 @@ Repo raíz
 ## 3. Backend (Cloudflare Workers) — cómo funciona de verdad
 
 **Patrón de módulos, NO workers independientes.** `worker.js` es el enrutador central
-y el único que se despliega. Importa 24 archivos `worker*.js` como ES modules (líneas
-1-25 — hay 28 módulos en disco; los 4 restantes los importan otros módulos, no el
-router) y Wrangler los empaqueta juntos en `visualtasteworker` al hacer `wrangler deploy`.
+y el único que se despliega. Importa los `worker*.js` de rutas como ES modules (las
+primeras líneas; los de utilidades los importan otros módulos, no el router) y Wrangler
+los empaqueta juntos en `visualtasteworker` al hacer `wrangler deploy`.
 No despliegues archivos sueltos con `--name` (aunque `DEPLOYMENT.md` lo sugiera; ver §8).
 
 ⚠️ Ese mismo bundleo-de-todo-el-directorio es lo que hace peligroso desplegar con
@@ -153,8 +153,7 @@ cambios sin commitear de otra sesión en curso dando vueltas por el repo. Antes 
 |---|---|
 | `workerAuthentication.js` | Login, JWT (`verifyJWT`), hashing de contraseñas (`hashPassword`, PBKDF2). **Módulo de auth vigente** (no `workerAuth.js`). |
 | `workerCrypto.js` | Cripto de **Web Push (VAPID)** (`WebPushCrypto`) — NO de contraseñas. |
-| `workerDashboard.js` | Endpoints del dashboard admin. |
-| `workerAnalytics.js` | Agregación de métricas. |
+| `workerAnalytics.js` | Analítica del admin de restaurantes (`/analytics`, `/dishes`, `/sections`, `/sessions`), cada uno en un `env.DB.batch`. |
 | `workerTracking.js` | Ingesta de eventos. **Contiene la lógica de privacidad (hash rotativo).** |
 | `workerRestaurants.js` / `workerMenus.js` / `workerSections.js` / `workerDishes.js` | CRUD de la carta. |
 | `workerAllergens.js` | Alérgenos. |
@@ -173,7 +172,7 @@ cambios sin commitear de otra sesión en curso dando vueltas por el repo. Antes 
 | `workerAiBudget.js` | Presupuesto diario **compartido** de Workers AI (chat + traductor) en D1 (`ai_usage_daily`), con neuronas reales. Toda llamada nueva a `env.AI.run` pasa por aquí. |
 | `workerGuideCache.js` | Versionado de la caché KV del guide/carta (`getGuideVersion`, `touchGuideVersion`, `touchZoneGuideVersions`, `*MenuVersion`). Ver el aviso de caché más abajo. |
 | `workerTvScreen.js` | VisualTaste TV: `/guide/tv/config/:pairingCode`, `/guide/tv/track`, `/guide/admin/tv/*`. **Debe registrarse en `worker.js` ANTES del bloque `/guide/admin/`** o ese handler devuelve 404 duro. |
-| `workerAuthz.js` | Autorización multi-tenant: `checkRestaurantScope`, `getRestaurantAccess`, `requireRole`, `ROLE_RANK`. Todo endpoint nuevo con `:slug`/`restaurantId` pasa por aquí. |
+| `workerAuthz.js` | Autorización multi-tenant: `checkRestaurantScope`, `getRestaurantAccess`, `requireRole`, `ROLE_RANK`. Todo endpoint nuevo con `:slug`/`restaurantId` pasa por aquí. **Si el restaurante va en la ruta pero NO detrás de `/restaurants/`** (`/reservations/config/:id`, `/delivery/orders/:id`…), añádelo a `TENANT_PATH_ROUTES`: si no, ninguna capa lo ve y cualquier sesión toca cualquier restaurante (pasó hasta oct-2026). Y una ruta que llama la carta sin sesión va en `PUBLIC_ROUTES` de `worker.js`, o el huésped recibe 401 (la reserva pública estuvo rota así). |
 | `workerAudit.js` | Log de eventos de seguridad (`logSecurityEvent`, `getClientIp`). |
 | `workerCors.js` | `ALLOWED_ORIGINS` + `getCorsHeaders`. **Origen nuevo (puerto de dev, dominio) se añade aquí**, o el navegador bloquea aunque curl funcione. |
 | `workerEmail.js` | Emails de invitación/reseteo vía Resend (`RESEND_API_KEY`, opcional). |
@@ -303,9 +302,9 @@ identifica la sesión en curso (`/track/session/identify`). Nunca un id persiste
   español de respaldo en `src/carta/strings.ts`, también los de los diálogos heredados. El WhatsApp
   del pedido lo lee el restaurante: va siempre en español. La respuesta de `/restaurants/:slug/reels` va en KV: tras
   cambiar textos o la forma del JSON, sube `ver:restaurant:<slug>` (§3). **Todo endpoint que guarde
-  algo de esa respuesta debe llamar a `touchMenuVersion`** (platos, secciones y `workerRestaurants`
-  lo hacen; marketing, delivery, sellos, reservas e idiomas aún no): si no, el admin guarda y la
-  carta sigue igual hasta 24 h.
+  algo de esa respuesta debe llamar a `touchMenuVersion`** (platos, secciones, `workerRestaurants`,
+  campañas, delivery, sellos y reservas lo hacen; `restaurant_languages` no lo escribe nadie): si
+  no, el admin guarda y la carta sigue igual hasta 24 h.
 - Build: `tsc -b && vite build`.
 
 ### `apps/guide` — Guidebook

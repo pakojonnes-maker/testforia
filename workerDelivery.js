@@ -1,3 +1,5 @@
+import { touchMenuVersion } from './workerGuideCache.js';
+
 export async function handleDeliveryRequests(request, env) {
     const url = new URL(request.url);
     const pathname = url.pathname;
@@ -6,7 +8,6 @@ export async function handleDeliveryRequests(request, env) {
     if (!pathname.startsWith('/delivery/')) {
         return null;
     }
-    console.log(`[Delivery] ${method} ${pathname}`);
     // CORS Preflight
     if (method === "OPTIONS") {
         return createResponse(null, 204);
@@ -79,45 +80,39 @@ async function getDeliveryConfig(env, slugOrId, lang) {
         if (!restaurant) {
             return createResponse({ success: false, message: "Restaurant not found" }, 404);
         }
-        // Obtener configuración de delivery
-        const settings = await env.DB.prepare(`
-            SELECT * FROM delivery_settings WHERE restaurant_id = ?
-        `).bind(restaurant.id).first();
+        // Configuración, traducciones (idioma pedido + español de respaldo) y
+        // textos de interfaz en una sola ida a D1. Antes eran hasta cuatro en serie.
+        const [settingsRes, translationsResult, uiStrings] = await env.DB.batch([
+            env.DB.prepare(`
+                SELECT is_enabled, show_whatsapp, show_phone, custom_whatsapp, custom_phone,
+                       payment_methods, shipping_cost, free_shipping_threshold, minimum_order,
+                       delivery_hours, closed_dates
+                FROM delivery_settings WHERE restaurant_id = ?
+            `).bind(restaurant.id),
+            env.DB.prepare(`
+                SELECT language_code, field, value
+                FROM translations
+                WHERE entity_id = ? AND entity_type = 'delivery' AND language_code IN (?, 'es')
+            `).bind(restaurant.id, lang),
+            env.DB.prepare(`
+                SELECT key_name, label
+                FROM localization_strings
+                WHERE context = 'delivery' AND language_code = ?
+            `).bind(lang),
+        ]);
+        const settings = settingsRes.results?.[0];
         if (!settings || !settings.is_enabled) {
             return createResponse({
                 success: true,
                 is_enabled: false
             });
         }
-        // Obtener traducciones del restaurante para este idioma (usando tabla translations)
-        const translationsResult = await env.DB.prepare(`
-            SELECT field, value
-            FROM translations
-            WHERE entity_id = ? AND entity_type = 'delivery' AND language_code = ?
-        `).bind(restaurant.id, lang).all();
-        // Construir objeto de traducciones
         const translationsMap = {};
+        const translationsFallback = {};
         for (const row of translationsResult.results || []) {
-            translationsMap[row.field] = row.value;
+            if (row.language_code === lang) translationsMap[row.field] = row.value;
+            else translationsFallback[row.field] = row.value;
         }
-        // Fallback a español si no hay traducción
-        let translationsFallback = {};
-        if (Object.keys(translationsMap).length === 0 && lang !== 'es') {
-            const fallbackResult = await env.DB.prepare(`
-                SELECT field, value
-                FROM translations
-                WHERE entity_id = ? AND entity_type = 'delivery' AND language_code = 'es'
-            `).bind(restaurant.id).all();
-            for (const row of fallbackResult.results || []) {
-                translationsFallback[row.field] = row.value;
-            }
-        }
-        // Obtener strings de UI
-        const uiStrings = await env.DB.prepare(`
-            SELECT key_name, label
-            FROM localization_strings
-            WHERE context = 'delivery' AND language_code = ?
-        `).bind(lang).all();
         // Convertir a objeto
         const uiStringsMap = {};
         for (const row of uiStrings.results || []) {
@@ -241,8 +236,14 @@ async function checkDeliveryAvailability(env, slugOrId) {
 // ============================================
 // UPDATE DELIVERY CONFIG (Admin)
 // ============================================
-async function updateDeliveryConfig(env, request, restaurantId) {
+async function updateDeliveryConfig(env, request, restaurantRef) {
     try {
+        // La ruta admite id o slug (el guardia de tenant resuelve los dos): la fila
+        // se guarda siempre con el id, que es lo que leen la carta y /delivery/config.
+        const restaurant = await env.DB.prepare('SELECT id, slug FROM restaurants WHERE id = ? OR slug = ?')
+            .bind(restaurantRef, restaurantRef).first();
+        if (!restaurant) return createResponse({ success: false, message: "Restaurant not found" }, 404);
+        const restaurantId = restaurant.id;
         const body = await request.json();
         const {
             is_enabled,
@@ -322,6 +323,9 @@ async function updateDeliveryConfig(env, request, restaurantId) {
                 custom_message || null
             ).run();
         }
+        // La carta lleva deliverySettings dentro de la respuesta cacheada en KV.
+        await touchMenuVersion(env, restaurant.slug)
+            .catch(err => console.warn('[Delivery] No se pudo invalidar la caché de la carta:', err.message));
         return createResponse({ success: true, message: "Delivery settings updated" });
     } catch (error) {
         console.error('[Delivery] Error updateDeliveryConfig:', error);
@@ -460,32 +464,29 @@ async function createDeliveryOrder(env, request) {
 // ============================================
 async function getDeliveryOrders(env, restaurantId, options = {}) {
     try {
-        const { status, limit = 50, offset = 0 } = options;
-        let query = `
-            SELECT * FROM delivery_orders
-            WHERE restaurant_id = ?
-        `;
-        const params = [restaurantId];
-        if (status && status !== 'all') {
-            query += ` AND status = ?`;
-            params.push(status);
-        }
-        query += ` ORDER BY created_at DESC LIMIT ? OFFSET ?`;
-        params.push(limit, offset);
-        const orders = await env.DB.prepare(query).bind(...params).all();
-        // Parsear items JSON
-        const parsedOrders = (orders.results || []).map(order => ({
-            ...order,
-            items: JSON.parse(order.items || '[]')
-        }));
-        // Get total count for pagination
-        let countQuery = `SELECT COUNT(*) as total FROM delivery_orders WHERE restaurant_id = ?`;
-        const countParams = [restaurantId];
-        if (status && status !== 'all') {
-            countQuery += ` AND status = ?`;
-            countParams.push(status);
-        }
-        const countResult = await env.DB.prepare(countQuery).bind(...countParams).first();
+        const { status } = options;
+        const limit = Math.min(Math.max(Number.isFinite(options.limit) ? options.limit : 50, 1), 200);
+        const offset = Math.max(Number.isFinite(options.offset) ? options.offset : 0, 0);
+        const filtered = status && status !== 'all';
+        const where = `WHERE restaurant_id = ?${filtered ? ' AND status = ?' : ''}`;
+        const whereParams = filtered ? [restaurantId, status] : [restaurantId];
+        // Página y total en una sola ida a D1.
+        const [orders, countRes] = await env.DB.batch([
+            env.DB.prepare(`
+                SELECT id, customer_name, customer_phone, customer_address, customer_notes, items,
+                       subtotal, shipping_cost, total, payment_method, status, order_source,
+                       created_at, updated_at
+                FROM delivery_orders ${where}
+                ORDER BY created_at DESC LIMIT ? OFFSET ?
+            `).bind(...whereParams, limit, offset),
+            env.DB.prepare(`SELECT COUNT(*) as total FROM delivery_orders ${where}`).bind(...whereParams),
+        ]);
+        const parsedOrders = (orders.results || []).map(order => {
+            let items = [];
+            try { items = JSON.parse(order.items || '[]'); } catch { /* pedido con items corruptos: lista vacía */ }
+            return { ...order, items };
+        });
+        const countResult = countRes.results?.[0];
         return createResponse({
             success: true,
             orders: parsedOrders,
@@ -511,19 +512,16 @@ async function updateOrderStatus(env, request, orderId) {
         if (!validStatuses.includes(status)) {
             return createResponse({ success: false, message: 'Invalid status' }, 400);
         }
-        // Build update query with timestamp for specific statuses
-        let updateFields = 'status = ?, updated_at = CURRENT_TIMESTAMP';
-        const params = [status];
-        if (status === 'confirmed') {
-            updateFields += ', confirmed_at = CURRENT_TIMESTAMP';
-        } else if (status === 'delivered') {
-            updateFields += ', delivered_at = CURRENT_TIMESTAMP';
+        // Solo estado y updated_at. Aquí se escribían también confirmed_at y
+        // delivered_at, pero la tabla real de producción no tiene esas columnas
+        // (la 0031 las declaraba; BDschemaFinal.sql no): confirmar o entregar un
+        // pedido acababa en "no such column".
+        const result = await env.DB.prepare(`
+            UPDATE delivery_orders SET status = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?
+        `).bind(status, orderId).run();
+        if (!result.meta?.changes) {
+            return createResponse({ success: false, message: 'Order not found' }, 404);
         }
-        params.push(orderId);
-        await env.DB.prepare(`
-            UPDATE delivery_orders SET ${updateFields} WHERE id = ?
-        `).bind(...params).run();
-        console.log(`[Delivery] ✅ Order ${orderId} status updated to: ${status}`);
         return createResponse({
             success: true,
             message: `Order status updated to ${status}`
