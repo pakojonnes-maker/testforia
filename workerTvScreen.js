@@ -54,6 +54,41 @@ const VALID_TILE_SLOTS = ['eat', 'do', 'store', 'info', 'lang', 'stay', 'wifi', 
 
 const VALID_EVENT_TYPES = ['impression', 'screen_view', 'wifi_reveal', 'poi_select', 'menu_qr_shown', 'booking_qr_shown'];
 
+// Sello que añade el APK (apps/tv/android/.../DeviceInfo.kt) al User-Agent:
+//   VisualTasteTV/0.1.0 (TCL; 55C745; Android 12; API 31)
+// Un navegador no lo lleva: la tele abierta en tv.visualtastes.com no informa de nada.
+const TV_APP_UA = /VisualTasteTV\/([0-9A-Za-z.\-]{1,20}) \(([^;()]{1,60}); ([^;()]{1,60}); Android ([^;()]{1,20}); API (\d{1,3})\)/;
+
+function parseTvDeviceInfo(request) {
+    const match = (request.headers.get('User-Agent') || '').match(TV_APP_UA);
+    if (!match) return null;
+    const [, appVersion, manufacturer, model, release, api] = match;
+    return {
+        appVersion,
+        manufacturer: manufacturer.trim(),
+        model: model.trim(),
+        osVersion: `Android ${release.trim()} (API ${api})`,
+    };
+}
+
+/**
+ * Guarda qué tele es (migración 0104). En su propia sentencia y sin propagar
+ * errores: si la migración aún no está aplicada, la tele tiene que seguir
+ * recibiendo su configuración igual.
+ */
+async function saveTvDeviceInfo(env, deviceId, info) {
+    if (!info) return;
+    try {
+        await env.DB.prepare(`
+            UPDATE guide_tv_devices
+            SET device_manufacturer = ?, device_model = ?, os_version = ?, app_version = ?
+            WHERE id = ?
+        `).bind(info.manufacturer, info.model, info.osVersion, info.appVersion, deviceId).run();
+    } catch (e) {
+        console.warn('guide_tv_devices sin columnas de aparato (¿falta la migración 0104?)', e?.message);
+    }
+}
+
 /**
  * Main handler. Devuelve null si la ruta no es de TV (permite el patrón de
  * cascada de worker.js).
@@ -67,7 +102,7 @@ export async function handleTvScreenRequests(request, env) {
         // ---- Público ----
         const configMatch = url.pathname.match(/^\/guide\/tv\/config\/([^/]+)$/);
         if (configMatch && request.method === 'GET') {
-            return await handleTvConfig(env, configMatch[1], url.searchParams.get('lang') || 'es', url.origin);
+            return await handleTvConfig(env, configMatch[1], url.searchParams.get('lang') || 'es', url.origin, parseTvDeviceInfo(request));
         }
 
         if (url.pathname === '/guide/tv/track' && request.method === 'POST') {
@@ -153,7 +188,7 @@ async function resolveDevice(env, pairingCode) {
     `).bind(pairingCode).first();
 }
 
-async function handleTvConfig(env, pairingCode, lang, origin) {
+async function handleTvConfig(env, pairingCode, lang, origin, deviceInfo) {
     const device = await resolveDevice(env, pairingCode);
     if (!device || !device.is_active) {
         return errorResponse('TV no emparejada o inactiva', 404);
@@ -166,6 +201,7 @@ async function handleTvConfig(env, pairingCode, lang, origin) {
     // idioma, no huéspedes mirando la pantalla. Ahora la impresión la emite la
     // app una sola vez por sesión de TV vía POST /guide/tv/track.
     await env.DB.prepare('UPDATE guide_tv_devices SET last_seen_at = ? WHERE id = ?').bind(now, device.id).run();
+    await saveTvDeviceInfo(env, device.id, deviceInfo);
 
     // Misma forma de datos que GET /guide/:slug — sin duplicar la query. La
     // superficie 'tv' va explícita porque el JSON lleva las URLs de afiliado ya
@@ -357,7 +393,8 @@ async function handleListDevices(request, env, auth) {
     if (!access.ok) return access.response;
 
     const devices = await env.DB.prepare(`
-        SELECT id, pairing_code, device_label, is_active, paired_at, last_seen_at
+        SELECT id, pairing_code, device_label, is_active, paired_at, last_seen_at,
+               device_manufacturer, device_model, os_version, app_version
         FROM guide_tv_devices WHERE apartment_id = ? ORDER BY created_at DESC
     `).bind(apartmentId).all();
 
@@ -382,6 +419,7 @@ async function handleFleet(env, auth) {
 
     const rows = await env.DB.prepare(`
         SELECT d.id, d.pairing_code, d.device_label, d.is_active, d.paired_at, d.last_seen_at,
+               d.device_manufacturer, d.device_model, d.os_version, d.app_version,
                a.id AS apartment_id, a.name AS apartment_name,
                g.id AS agency_id, g.name AS agency_name
         FROM guide_tv_devices d

@@ -34,7 +34,7 @@ import {
 import QRCodeGenerator, { type QRCodeHandle } from '../../components/QRCodeGenerator';
 import { TvTileImages } from './TvTileImages';
 import { TvFleetStatus } from './TvFleetStatus';
-import { formatLastSeen, tvHealth, TV_HEALTH } from './tvHealth';
+import { formatLastSeen, formatTvHardware, tvHealth, TV_HEALTH, type TvHardwareInput } from './tvHealth';
 
 ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, ChartTitle, ChartTooltip, Legend, Filler);
 
@@ -44,7 +44,7 @@ interface ApartmentOption {
   slug: string;
 }
 
-interface TvDevice {
+interface TvDevice extends TvHardwareInput {
   id: string;
   pairing_code: string;
   device_label: string | null;
@@ -538,6 +538,11 @@ export default function GuideTvPage() {
                         <Typography variant="caption" color="text.secondary">
                           {TV_HEALTH[tvHealth(d)].label} · última señal: {formatLastSeen(d.last_seen_at).toLowerCase()}
                         </Typography>
+                        {formatTvHardware(d) && (
+                          <Typography variant="caption" color="text.secondary" component="div">
+                            {formatTvHardware(d)}
+                          </Typography>
+                        )}
                       </Box>
                       <Chip label={d.pairing_code} size="small" sx={{ fontFamily: 'monospace', fontWeight: 700 }} />
                       <Tooltip title={d.is_active ? 'Desactivar TV' : 'Activar TV'}>

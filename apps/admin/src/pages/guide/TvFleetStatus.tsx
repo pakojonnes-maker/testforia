@@ -8,9 +8,12 @@ import {
 } from '@mui/material';
 import { FiberManualRecord as DotIcon } from '@mui/icons-material';
 import { apiClient } from '../../lib/apiClient';
-import { formatLastSeen, tvHealth, TV_HEALTH, TV_HEALTH_ORDER, type TvHealth } from './tvHealth';
+import {
+  countByManufacturer, formatLastSeen, formatTvHardware, tvHealth, TV_HEALTH, TV_HEALTH_ORDER,
+  type TvHardwareInput, type TvHealth,
+} from './tvHealth';
 
-interface FleetDevice {
+interface FleetDevice extends TvHardwareInput {
   id: string;
   pairing_code: string;
   device_label: string | null;
@@ -64,6 +67,10 @@ export function TvFleetStatus({ refreshKey, apartmentIds, onSelectApartment }: T
     return c;
   }, [rows]);
 
+  // La mezcla de marcas dice cuántas teles funcionan con la app sola y cuántas necesitan caja.
+  const makers = useMemo(() => countByManufacturer(devices), [devices]);
+  const anyHardware = makers.some(m => m.maker !== 'Sin datos');
+
   // El nombre de la agencia solo aporta si la lista mezcla varias (superadmin).
   const multiAgency = new Set(rows.map(r => r.agency_id)).size > 1;
   const visible = expanded ? rows : rows.slice(0, COLLAPSED_ROWS);
@@ -93,6 +100,11 @@ export function TvFleetStatus({ refreshKey, apartmentIds, onSelectApartment }: T
         Una TV encendida da señal cada 30 minutos. «Sin señal» es que lleva más de 3 días callada:
         puede estar desenchufada, sin WiFi o sin la app.
       </Typography>
+      {anyHardware && (
+        <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+          Marcas: {makers.map(m => `${m.maker} ${m.count}`).join(' · ')}
+        </Typography>
+      )}
 
       {loading ? (
         <Box sx={{ display: 'flex', justifyContent: 'center', py: 2 }}><CircularProgress size={24} /></Box>
@@ -129,6 +141,11 @@ export function TvFleetStatus({ refreshKey, apartmentIds, onSelectApartment }: T
                     <Typography variant="caption" color="text.secondary" noWrap component="div">
                       {d.device_label || 'TV sin nombre'}{multiAgency ? ` · ${d.agency_name || 'Sin agencia'}` : ''}
                     </Typography>
+                    {formatTvHardware(d) && (
+                      <Typography variant="caption" color="text.secondary" noWrap component="div">
+                        {formatTvHardware(d)}
+                      </Typography>
+                    )}
                   </Box>
                   <Chip label={d.pairing_code} size="small" sx={{ fontFamily: 'monospace', fontWeight: 700, display: { xs: 'none', sm: 'inline-flex' } }} />
                   <Box sx={{ textAlign: 'right', flex: 'none', minWidth: 120 }}>
