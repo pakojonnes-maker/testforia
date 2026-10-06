@@ -327,11 +327,14 @@ identifica la sesión en curso (`/track/session/identify`). Nunca un id persiste
 - Las opciones de color y fuente que ofrece el admin salen de `apps/admin/src/lib/guideDesign.ts`.
 - El contenido de una guía (`apartment_info.content`) es **texto plano**: `lib/text.ts` lo parte en
   párrafos y títulos numerados, sin parser de markdown (un `**negrita**` sale con los asteriscos literales).
-- Build: `tsc -b && vite build && node scripts/prerender-landing.mjs`. El último paso mete la landing (SSR) y su
-  JSON-LD en `dist/index.html` para los bots de IA, que no ejecutan JS. **Indexación:** `public/_headers` pone
-  `noindex` a todo menos `https://guide.visualtastes.com/` (las guías de huésped llevan el WiFi en claro). Una
-  página pública nueva necesita su propia excepción allí y una entrada en `public/sitemap.xml`. Lo mismo pasa en
-  `apps/tv-landing` y en `apps/client` (menu., www. y pages.dev van con `noindex`).
+- Build: `tsc -b && vite build && node scripts/prerender-landing.mjs`. El último paso escribe cada página de venta
+  (SSR + JSON-LD) para los bots de IA, que no ejecutan JS: la landing en `dist/index.html` y las demás en
+  `dist/<ruta>.html`. **Indexación:** `public/_headers` pone `noindex` a todo menos esas páginas (las guías de
+  huésped llevan el WiFi en claro). Una página de venta nueva va con **dos tramos** en la ruta (`/:slug` coge
+  cualquier ruta de uno y taparía la guía de un piso) y en cinco sitios: `App.tsx` (antes de `/:slug`),
+  `src/prerender.tsx`, la lista del script en línea de `index.html`, su excepción en `_headers` y su `<url>` en
+  `sitemap.xml`. Lo mismo pasa en `apps/tv-landing` y en `apps/client` (menu., www. y pages.dev van con `noindex`).
+  La competencia nunca se nombra en páginas públicas («guía internacional A/B»).
 
 ### `apps/tv` — VisualTaste TV
 - **React 19** + Vite + Tailwind v4. Dev port **5176** (`npm run dev:tv`).

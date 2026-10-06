@@ -1,562 +1,408 @@
 // src/pages/LandingPage.tsx — landing comercial de guide.visualtastes.com (ruta /)
 //
-// Rediseño de sep-2026: mismo lenguaje que tv.visualtastes.com (apps/tv-landing) — Playfair Display y
-// Montserrat autoalojadas, terracota, arcos con contorno, olas y azulejo, sin iconos — pero vendiendo la guía
-// del móvil. Sustituye a la landing anterior (cobalto, Newsreader e iconos Material), que salió de un export
-// de Stitch en ago 2026.
-//
-// El diseño de partida vive en un Design artifact («guide.visualtastes.com — rediseño»). Aquí está portado a
-// React con su CSS propio (landing/landing.css, todo colgando de .lp) para no depender de Tailwind ni tocar
-// el resto de la app.
+// Oct-2026: estructura de contenido de las landings de las guías internacionales (H1 con la búsqueda, recorrido
+// del huésped, perfiles, precio y comparativa en la portada, preguntas por temas) con lo que hace nuestra guía y
+// el diseño de sep-2026 (Playfair + Montserrat, terracota, arcos, olas y azulejo, sin iconos). El diseño vive en el
+// Design artifact «Landing guía — ideas TouchStay»; el copy, en landing/data.ts; lo común, en landing/Shell.tsx.
 //
 // Reglas que conviene no romper:
-//  - Sin precios, cifras ni testimonios inventados: el modelo de precios no está decidido y la página es
-//    pública. El marcador de testimonio del diseño NO se ha portado.
-//  - Solo se afirma lo que la guía hace hoy en producción. En Restaurantes, p. ej., no se promete «Reservar»
-//    hasta que salga.
-//  - El móvil del héroe enseña la guía con el diseño nuevo, que la app del huésped aún no tiene: es una vista
-//    previa y lleva su nota de «datos ficticios».
-//  - Las tipografías de la landing vienen de @fontsource-variable (mismo origen, familias «… Variable»). Ojo: el
-//    index.html compartido con la guía del huésped sigue pidiendo Google Fonts en cualquier ruta, esta incluida.
-import { useEffect, useState, type ReactNode } from 'react';
+//  - Solo se afirma lo que la guía hace hoy en producción, y la competencia no se nombra (ver landing/data.ts).
+//  - Las tipografías vienen de @fontsource-variable (familias «… Variable»).
+//  - Cada página de venta nueva necesita: su ruta en App.tsx ANTES de /:slug y con dos tramos (/:slug coge
+//    cualquier ruta de uno), su entrada en src/prerender.tsx, su excepción al noindex en public/_headers, su <url> en
+//    public/sitemap.xml y su ruta en la lista del script en línea de index.html.
+import { useState } from 'react';
 import { Link } from 'react-router-dom';
-import '@fontsource-variable/montserrat/index.css';
-import '@fontsource-variable/playfair-display/index.css';
-import '@fontsource-variable/playfair-display/wght-italic.css';
-import './landing/landing.css';
-import PhoneDemo from './landing/PhoneDemo';
-import { DASH_BARS, DASH_ROWS, FAQ, LANGS, MAILTO, NAV_LINKS, QUESTIONS, STEPS } from './landing/data';
+import {
+  COMPARE,
+  COMPARE_SOURCES,
+  CONNECTIONS,
+  FAQ_TOPICS,
+  FEATURES,
+  JOURNEY,
+  PAGES,
+  PRICE_BARS,
+  type CompareCell,
+} from './landing/data';
 import { IMG } from './landing/images';
+import { FaqList, LandingShell, Wave, usePageMeta } from './landing/Shell';
 
-const PAGE_TITLE = 'VisualTaste Guía — La guía digital de tu alojamiento, en un QR';
-const PAGE_DESCRIPTION =
-  'Guía digital con QR para alojamientos del Mediterráneo: WiFi, normas, mapa, restaurantes y un conserje con IA en 13 idiomas. Sin instalar nada.';
-
-// ---------- las cinco pestañas: un arco con un trozo de la interfaz encima ----------
-
-interface TabCardData {
-  title: string;
-  text: string;
-  img: string;
-  alt: string;
-  pos: string;
-  snippet: ReactNode;
-}
-
-const TAB_CARDS: TabCardData[] = [
-  {
-    title: 'Casa',
-    text: 'WiFi, código de entrada, hora de salida y las normas, desde el primer segundo.',
-    img: IMG.stay,
-    alt: 'Una ventana con vistas al mar, un libro de la casa y una llave sobre la mesa',
-    pos: '30% 50%',
-    snippet: (
-      <div className="snip snip-wifi" aria-hidden="true">
-        <span className="s-t">WiFi</span>
-        <span className="s-m">
-          Red <b>CasaAzahar_5G</b>
-        </span>
-        <span className="s-m">
-          Contraseña <b>SolyMar2026</b>
-        </span>
-        <span className="s-pill">Copiar</span>
-      </div>
-    ),
-  },
-  {
-    title: 'Lugares',
-    text: 'Un mapa con lo mejor de la zona y lo que se tarda en llegar desde el alojamiento.',
-    img: IMG.do,
-    alt: 'Una cala de aguas turquesa al atardecer con dos tumbonas en la arena',
-    pos: '68% 50%',
-    snippet: (
-      <div className="snip" aria-hidden="true">
-        <span className="s-t">Cala Honda</span>
-        <span className="s-m">Playa · a 12 min a pie de tu alojamiento</span>
-      </div>
-    ),
-  },
-  {
-    title: 'Comer',
-    text: 'Tus restaurantes de confianza, a un toque.',
-    img: IMG.eat,
-    alt: 'Un plato de gambas con limón, un arco de piedra y el mar al fondo',
-    pos: '54% 50%',
-    snippet: (
-      <div className="snip" aria-hidden="true">
-        <span className="s-t">La Mar Salada</span>
-        <span className="s-m">Cocina andaluza</span>
-        <span className="s-l">Ver la carta</span>
-      </div>
-    ),
-  },
-  {
-    title: 'Tienda',
-    text: 'Los productos y experiencias que ofreces. El pedido te llega por WhatsApp.',
-    img: IMG.store,
-    alt: 'Aceite de oliva y aceitunas sobre una mesa de madera, en una terraza con vistas al mar',
-    pos: '62% 50%',
-    snippet: (
-      <div className="snip snip-shop" aria-hidden="true">
-        <span className="s-t">Aceite de oliva virgen</span>
-        <div className="s-row">
-          <span className="s-price">14 €</span>
-          <span className="s-pill">Añadir</span>
-        </div>
-      </div>
-    ),
-  },
-  {
-    title: 'Conserje',
-    text: 'Responde a cualquier hora con lo que has cargado. Si no lo sabe, lo dice.',
-    img: IMG.info,
-    alt: 'Una consola de entrada con un libro de normas y una tableta',
-    pos: '46% 50%',
-    snippet: (
-      <div className="snip snip-chat" aria-hidden="true">
-        <span className="b u">¿Hay aparcamiento?</span>
-        <span className="b a">Sí: tienes una plaza en el garaje, la 14.</span>
-      </div>
-    ),
-  },
-];
-
-function TabCard({ card }: { card: TabCardData }) {
+function Cell({ c, us }: { c: CompareCell; us?: boolean }) {
   return (
-    <article className="tab-card">
-      <div className="tab-fig">
-        <div className="tab-arch">
-          <img loading="lazy" decoding="async" src={card.img} alt={card.alt} style={{ objectPosition: card.pos }} />
-        </div>
-        {card.snippet}
-      </div>
-      <h3 className="h3">{card.title}</h3>
-      <p>{card.text}</p>
-    </article>
-  );
-}
-
-// ---------- azulejo del pie ----------
-
-function Azulejo() {
-  return (
-    <svg className="azulejo" width="100%" height="56" aria-hidden="true">
-      <defs>
-        <pattern id="azl" width="56" height="56" patternUnits="userSpaceOnUse">
-          <rect width="56" height="56" fill="#F8F3E9" />
-          <rect x="1" y="1" width="54" height="54" fill="none" stroke="#128099" strokeWidth="1.2" />
-          <path d="M28 6 C31 17 39 25 50 28 C39 31 31 39 28 50 C25 39 17 31 6 28 C17 25 25 17 28 6 Z" fill="#128099" />
-          <circle cx="28" cy="28" r="5" fill="#F0B04B" />
-          <circle cx="0" cy="0" r="7" fill="#B04E2B" />
-          <circle cx="56" cy="0" r="7" fill="#B04E2B" />
-          <circle cx="0" cy="56" r="7" fill="#B04E2B" />
-          <circle cx="56" cy="56" r="7" fill="#B04E2B" />
-        </pattern>
-      </defs>
-      <rect width="100%" height="56" fill="url(#azl)" />
-    </svg>
+    <td className={us ? 'us' : c.no ? 'no' : undefined}>
+      {c.t}
+      {c.s && <span className="td-s">{c.s}</span>}
+    </td>
   );
 }
 
 export default function LandingPage() {
-  const [menuOpen, setMenuOpen] = useState(false);
-  const [langIndex, setLangIndex] = useState(0);
-  const greeting = LANGS[langIndex];
-
-  // SEO: esta es una SPA con un único index.html compartido por la landing, /legal y /:slug (la guía real de
-  // cada huésped). No hay que pisar el <title> ni la meta description del resto de rutas: se captura el valor
-  // original antes de sobrescribirlo y se restaura al desmontar. El JSON-LD y el HTML que leen los rastreadores
-  // los pone el build en index.html (scripts/prerender-landing.mjs): esto solo cubre la navegación dentro de la app.
-  useEffect(() => {
-    const prevTitle = document.title;
-    const metaDescription = document.querySelector('meta[name="description"]');
-    const prevDescription = metaDescription?.getAttribute('content') ?? null;
-
-    document.title = PAGE_TITLE;
-    metaDescription?.setAttribute('content', PAGE_DESCRIPTION);
-
-    return () => {
-      document.title = prevTitle;
-      if (prevDescription !== null) metaDescription?.setAttribute('content', prevDescription);
-    };
-  }, []);
-
-  // El menú del móvil se cierra con Escape.
-  useEffect(() => {
-    if (!menuOpen) return;
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') setMenuOpen(false);
-    };
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
-  }, [menuOpen]);
+  usePageMeta(PAGES.home);
+  const [topic, setTopic] = useState(FAQ_TOPICS[0].id);
 
   return (
-    <div className="lp">
-      <a className="skip" href="#contenido">
-        Saltar al contenido
-      </a>
-
-      <header className="nav">
-        <div className="nav-in">
-          <a className="mark" href="#inicio" aria-label="VisualTaste Guía, ir al inicio">
-            VisualTaste <small>Guía</small>
-          </a>
-          <nav className="nav-links" aria-label="Principal">
-            {NAV_LINKS.map(([href, label]) => (
-              <a key={href} href={href}>
-                {label}
-              </a>
-            ))}
-          </nav>
-          <div className="nav-cta">
-            <a className="btn btn-p btn-sm" href="#demo">
-              Pedir una demo
-            </a>
-            <button
-              className="menu-btn"
-              type="button"
-              aria-expanded={menuOpen}
-              aria-controls="menu-panel"
-              onClick={() => setMenuOpen((open) => !open)}
-            >
-              Menú
-            </button>
-          </div>
-        </div>
-        <div className={`menu-panel${menuOpen ? '' : ' off'}`} id="menu-panel">
-          {NAV_LINKS.map(([href, label]) => (
-            <a key={href} href={href} onClick={() => setMenuOpen(false)}>
-              {label}
-            </a>
-          ))}
-          <a className="btn btn-p" href="#demo" onClick={() => setMenuOpen(false)}>
-            Pedir una demo
-          </a>
-        </div>
-      </header>
-
-      <main id="contenido">
-        {/* ============ PORTADA ============ */}
-        <section className="hero" id="inicio" aria-labelledby="t-hero">
-          <div className="wrap hero-grid">
-            <div className="hero-copy">
-              <p className="label">Guía digital · alojamientos del Mediterráneo</p>
-              <h1 className="h1" id="t-hero">
-                La guía de tu alojamiento cabe en un <em>QR.</em>
-              </h1>
-              <p className="lead">
-                VisualTaste Guía pone en el móvil de tu huésped el WiFi, las normas, lo mejor de la zona y un conserje que
-                responde a cualquier hora, en su idioma y sin instalar nada.
-              </p>
-              <div className="cta-row">
-                <a className="btn btn-p" href="#demo">
-                  Pedir una demo
-                </a>
-                <a className="link" href="#como-funciona">
-                  Ver cómo funciona
-                </a>
-              </div>
-              <ul className="facts">
-                <li>
-                  <b>13</b>
-                  <span>idiomas, árabe incluido</span>
-                </li>
-                <li>
-                  <b>0</b>
-                  <span>apps que instalar</span>
-                </li>
-                <li>
-                  <b>1</b>
-                  <span>QR por alojamiento</span>
-                </li>
-              </ul>
-            </div>
-            <PhoneDemo />
-          </div>
-          <svg className="wave" viewBox="0 0 1440 80" preserveAspectRatio="none" aria-hidden="true">
-            <path d="M0 46 C 160 8 320 8 480 40 S 800 84 960 48 S 1280 6 1440 40 V80 H0 Z" fill="#EEDFC5" />
-          </svg>
-        </section>
-
-        {/* ============ ANTES DE QUE PREGUNTEN ============ */}
-        <section className="sec qa-band" aria-labelledby="t-qa">
-          <div className="wrap qa">
-            <div className="qa-intro">
-              <p className="label">Antes de que pregunten</p>
-              <h2 className="h2" id="t-qa">
-                Tus huéspedes hacen siempre las mismas <em>cuatro preguntas.</em>
-              </h2>
-              <p className="lead">La guía las responde antes de que te escriban a las once de la noche.</p>
-            </div>
-            <div>
-              <ol className="qa-list">
-                {QUESTIONS.map((row) => (
-                  <li className="qa-row" key={row.n}>
-                    <span className="qa-n">{row.n}</span>
-                    <p className="qa-q">{row.q}</p>
-                    <p className="qa-a">
-                      <b>En la guía</b>
-                      <span>{row.a}</span>
-                    </p>
-                  </li>
-                ))}
-              </ol>
-              <p className="qa-foot">Lo que no esté a la vista, se lo pregunta al conserje.</p>
-            </div>
-          </div>
-        </section>
-
-        {/* ============ LA GUÍA ============ */}
-        <section className="sec" id="guia" aria-labelledby="t-gui">
-          <div className="wrap">
-            <div className="sec-head c">
-              <p className="label">La guía</p>
-              <h2 className="h2" id="t-gui">
-                Cinco pestañas, ninguna <em>app.</em>
-              </h2>
-              <p className="lead" style={{ marginTop: 22 }}>
-                Lo que tu huésped busca, a un toque: lo de la casa, la zona, dónde comer, la tienda y un conserje para todo lo
-                demás.
-              </p>
-            </div>
-            <div className="tabs5">
-              {TAB_CARDS.map((card) => (
-                <TabCard key={card.title} card={card} />
-              ))}
-            </div>
-          </div>
-        </section>
-
-        {/* ============ CÓMO FUNCIONA ============ */}
-        <section className="sec steps-band" id="como-funciona" aria-labelledby="t-how">
-          <div className="wrap">
-            <div className="sec-head">
-              <p className="label">Cómo funciona</p>
-              <h2 className="h2" id="t-how">
-                Tres pasos y la guía ya <em>responde.</em>
-              </h2>
-            </div>
-            <ol className="steps">
-              {STEPS.map((step, i) => (
-                <li className="step" key={step.title}>
-                  <span className="step-n">{i + 1}</span>
-                  <h3 className="h3">{step.title}</h3>
-                  <p>{step.text}</p>
-                  {i === STEPS.length - 1 && (
-                    <p className="code-chip">
-                      <span>Dirección · ejemplo</span>
-                      <b>
-                        guide.visualtastes.com
-                        <wbr />
-                        /casa-azahar
-                      </b>
-                    </p>
-                  )}
-                </li>
-              ))}
-            </ol>
-          </div>
-        </section>
-
-        {/* ============ FRANJA DE FOTO ============ */}
-        <section className="band" aria-labelledby="t-band">
+    <LandingShell>
+      {/* ============ PORTADA ============ */}
+      <section className="hero" aria-labelledby="t-hero">
+        <img className="hero-bg" src={IMG.background} alt="" aria-hidden="true" />
+        <div className="wrap hero-grid">
           <div>
-            <h2 className="h2" id="t-band" style={{ marginTop: 0 }}>
-              Tus huéspedes eligieron el Mediterráneo. Que la guía que abran también <em>lo sea.</em>
-            </h2>
+            <p className="label">Guía digital para apartamentos turísticos</p>
+            <h1 className="h1" id="t-hero">
+              La guía que responde a tus huéspedes antes de que te <em>escriban.</em>
+            </h1>
+            <p className="lead" style={{ maxWidth: '31em' }}>
+              WiFi, normas, cómo entrar, dónde comer, qué hacer y un conserje que contesta a cualquier hora. En el móvil del
+              huésped, en su idioma y sin instalar nada.
+            </p>
+            <ul className="feat-line">
+              <li>Conserje con IA</li>
+              <li>Tienda de extras</li>
+              <li>Restaurantes con reserva</li>
+              <li>Mapa de la zona</li>
+              <li>13 idiomas</li>
+              <li>La tele del salón</li>
+            </ul>
             <div className="cta-row">
-              <a className="btn btn-c" href="#demo">
+              <a className="btn btn-p" href="#contacto">
                 Pedir una demo
               </a>
+              <a className="link" href="#precio">
+                Ver el precio
+              </a>
             </div>
+            <p className="under">Sin app para el huésped · Un QR por alojamiento · Medición anónima</p>
           </div>
-        </section>
-
-        {/* ============ IDIOMAS ============ */}
-        <section className="sec lang" id="idiomas" aria-labelledby="t-lang">
-          <svg className="wave-top" viewBox="0 0 1440 80" preserveAspectRatio="none" aria-hidden="true">
-            <path d="M0 0 H1440 V38 C 1280 74 1120 74 960 38 S 640 2 480 38 S 160 74 0 38 Z" fill="#F8F3E9" />
-          </svg>
-          <div className="wrap lang-grid">
-            <div>
-              <p className="label">13 idiomas</p>
-              <h2 className="h2" id="t-lang">
-                Tú escribes en español. Tu huésped lo lee en <em>el suyo.</em>
-              </h2>
-              <p className="lead">
-                Escribes la guía una vez y se traduce a los 13 idiomas. El huésped elige el suyo desde la propia guía y todo
-                cambia con él: las normas, tus recomendaciones y las respuestas del conserje.
-              </p>
-              <ul className="chips">
-                {LANGS.map((l, i) => (
-                  <li key={l.code}>
-                    <button
-                      type="button"
-                      className={`chip${i === langIndex ? ' on' : ''}`}
-                      lang={l.code}
-                      aria-pressed={i === langIndex}
-                      onClick={() => setLangIndex(i)}
-                    >
-                      {l.name}
-                    </button>
-                  </li>
-                ))}
-              </ul>
-            </div>
-            <div>
-              <p className="greet" dir={greeting.dir} lang={greeting.code}>
-                {greeting.greeting}
-              </p>
-              <p className="greet-name">{greeting.name}</p>
-              <p className="fine">El árabe se lee de derecha a izquierda, y la guía lo respeta.</p>
-            </div>
-          </div>
-        </section>
-
-        {/* ============ MEDIR ============ */}
-        <section className="sec" aria-labelledby="t-med">
-          <div className="wrap measure-grid">
-            <div className="measure-copy">
-              <p className="label">Lo que mira tu huésped</p>
-              <h2 className="h2" id="t-med">
-                Mide la guía, no a tus <em>huéspedes.</em>
-              </h2>
-              <p className="lead">
-                El panel te dice cuántos huéspedes abren la guía, qué secciones miran y qué recomendaciones despiertan
-                interés. La medición es anónima: sin cuentas ni perfiles de huéspedes.
-              </p>
-            </div>
-            <figure className="dash" aria-label="Ilustración del panel de estadísticas de la guía">
-              <figcaption className="dash-h">
-                <span className="dash-t">Guía · Casa Azahar</span>
-                <span className="dash-s">Últimos 7 días</span>
-              </figcaption>
-              <div className="dash-chart" aria-hidden="true">
-                {DASH_BARS.map((h, i) => (
-                  <i key={i} className={i === 5 ? 'hi' : undefined} style={{ height: `${h}%` }} />
-                ))}
-              </div>
-              <div className="dash-days" aria-hidden="true">
-                {['L', 'M', 'X', 'J', 'V', 'S', 'D'].map((d) => (
-                  <span key={d}>{d}</span>
-                ))}
-              </div>
-              <ul className="dash-rows">
-                {DASH_ROWS.map((row) => (
-                  <li key={row.label}>
-                    <span>{row.label}</span>
-                    <span className="trk">
-                      <i style={{ width: `${row.pct}%` }} />
-                    </span>
-                  </li>
-                ))}
-              </ul>
-              <p className="fine">Ilustración del panel. Las cifras reales aparecen en tu panel al empezar a medir.</p>
-            </figure>
-          </div>
-        </section>
-
-        {/* ============ VISUALTASTE TV ============ */}
-        <section className="sec tvx-band" aria-labelledby="t-tv">
-          <div className="wrap tvx">
-            <div className="tvx-copy">
-              <p className="label">VisualTaste TV</p>
-              <h2 className="h2" id="t-tv">
-                Y en la tele del salón, <em>también.</em>
-              </h2>
-              <p className="lead">
-                Si tu alojamiento tiene televisor, VisualTaste TV le da la bienvenida con el WiFi, la guía y los alrededores.
-                Lo que cambias en el panel se refleja en el móvil y en la pantalla.
-              </p>
-              <div className="cta-row">
-                <a className="link" href="https://tv.visualtastes.com">
-                  Conocer VisualTaste TV
-                </a>
-              </div>
-            </div>
-            <div className="tvx-arch">
+          <div className="stage">
+            <span className="sun" aria-hidden="true" />
+            <div className="arch a45">
               <img
-                loading="lazy"
+                src={IMG.stay}
+                alt="Un libro de bienvenida y una llave sobre una mesa, junto a una ventana luminosa"
                 decoding="async"
-                src={IMG.info}
-                alt="Una tableta de bienvenida sobre una consola de entrada, junto a un libro de la casa"
               />
             </div>
-          </div>
-        </section>
-
-        {/* ============ PREGUNTAS ============ */}
-        <section className="sec faq-band" id="preguntas" aria-labelledby="t-faq">
-          <div className="wrap">
-            <div className="sec-head">
-              <p className="label">Preguntas</p>
-              <h2 className="h2" id="t-faq">
-                Lo que suele preguntar quien gestiona <em>alojamientos.</em>
-              </h2>
-            </div>
-            <div className="faq-grid">
-              {FAQ.map((item) => (
-                <div className="faq-item" key={item.q}>
-                  <h3 className="faq-q">{item.q}</h3>
-                  <p className="faq-a">{item.a}</p>
-                </div>
-              ))}
+            <div className="snip" aria-hidden="true">
+              <span className="bub u">¿A qué hora hay que salir el domingo?</span>
+              <span className="bub a">A las 11:00. Deja las llaves en el cajetín del portal y la basura en el contenedor de la esquina.</span>
             </div>
           </div>
-        </section>
+        </div>
+        <Wave fill="#06415C" />
+      </section>
 
-        {/* ============ CIERRE ============ */}
-        <section className="sec cta" id="demo" aria-labelledby="t-cta">
-          <div className="wrap cta-grid">
-            <div>
-              <p className="label">Pedir una demo</p>
-              <h2 className="h2" id="t-cta">
-                Que tu huésped lo encuentre todo antes de <em>escribirte.</em>
-              </h2>
-              <p className="lead">
-                Cuéntanos cuántos alojamientos gestionas y te enseñamos cómo se vería la guía en el tuyo, con tu marca.
-              </p>
+      {/* ============ PROGRAMA FUNDADOR (en lugar de testimonios: no los tenemos) ============ */}
+      <section className="sec tight hondo" aria-labelledby="t-fund">
+        <div className="wrap g57 mid">
+          <div>
+            <p className="label">Programa fundador</p>
+            <h2 className="h2" id="t-fund">
+              Somos nuevos, y buscamos a las <em>primeras 10 gestoras.</em>
+            </h2>
+          </div>
+          <div>
+            <p className="lead" style={{ marginTop: 0 }}>
+              No te vamos a enseñar logos ni estrellas que todavía no tenemos. Te ofrecemos lo que se puede ofrecer al
+              empezar: precio de fundador y que te montemos la guía nosotros. Y si tus pisos están en la Costa del Sol, un
+              precio todavía más bajo: aquí nació VisualTaste.
+            </p>
+            <ul className="tiers">
+              <li>
+                <b>Gratis</b>
+                <span>hasta el 31 de mayo de 2027</span>
+              </li>
+              <li>
+                <b>Costa del Sol</b>
+                <span>precio especial, a consultar</span>
+              </li>
+              <li>
+                <b>Montada</b>
+                <span>la primera guía, por nuestra cuenta</span>
+              </li>
+            </ul>
+          </div>
+        </div>
+      </section>
+
+      {/* ============ COMPARATIVA: solo filas en las que no perdemos, con fuente y fecha ============ */}
+      <section className="sec" id="comparar" aria-labelledby="t-comp">
+        <div className="wrap">
+          <div className="sec-head">
+            <p className="label">Comparar</p>
+            <h2 className="h2" id="t-comp">
+              La competencia internacional cuesta <em>más del doble.</em>
+            </h2>
+            <p className="lead">
+              Con 30 pisos, dos de las guías digitales más usadas en Europa cobran entre 117 y 122 € al mes. VisualTaste
+              cuesta 50 €, con el conserje con IA y la tienda incluidos.
+            </p>
+          </div>
+          <div
+            className="bars mt-m"
+            role="img"
+            aria-label="Precio al mes con 30 pisos: VisualTaste 50 euros, guía internacional A 117,08 euros, guía internacional B 122,50 euros"
+          >
+            {PRICE_BARS.map((b) => (
+              <div className={`bar${b.us ? ' us' : ''}`} key={b.name}>
+                <span className="bar-n">{b.name}</span>
+                <span className="bar-t">
+                  <i style={{ width: `${b.pct}%` }} />
+                </span>
+                <b>{b.price}</b>
+              </div>
+            ))}
+          </div>
+          <p className="swipe">Desliza la tabla para ver la competencia.</p>
+          <div className="tbox">
+            <table>
+              <thead>
+                <tr>
+                  <th>
+                    <span className="sr-only">Comparación</span>
+                  </th>
+                  <th className="us">VisualTaste</th>
+                  <th>Guía internacional A</th>
+                  <th>Guía internacional B</th>
+                </tr>
+              </thead>
+              <tbody>
+                {COMPARE.map((r) => (
+                  <tr key={r.row}>
+                    <th scope="row">{r.row}</th>
+                    <Cell c={r.us} us />
+                    <Cell c={r.a} />
+                    <Cell c={r.b} />
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          <p className="fine mt-s">{COMPARE_SOURCES}</p>
+          <p className="mt-s">
+            <Link className="link" to={PAGES.comparar.path}>
+              Ver la comparación completa, también lo que no hacemos
+            </Link>
+          </p>
+        </div>
+      </section>
+
+      {/* ============ PRECIO ============ */}
+      <section className="sec arena" id="precio" aria-labelledby="t-precio">
+        <div className="wrap">
+          <div className="sec-head">
+            <p className="label">Precio</p>
+            <h2 className="h2" id="t-precio">
+              Hasta 30 pisos, 50 € al mes. <em>Todo incluido.</em>
+            </h2>
+            <p className="lead">
+              Una tarifa plana, con pago anual, como la de tu programa de gestión. Conserje con IA, estadísticas, tienda, 13
+              idiomas y la app de la tele, sin pagar más.
+            </p>
+          </div>
+          <div className="price mt-m">
+            <div className="price-a">
+              <p className="label">De 0 a 30 pisos</p>
+              <b className="big">50 €</b>
+              <span className="per">al mes sin IVA, todo incluido, en un pago anual de 600 €. Con 30 pisos sale a 1,67 € cada uno.</span>
               <div className="cta-row">
-                <a className="btn btn-c" href={MAILTO}>
+                <a className="btn btn-c" href="#contacto">
                   Pedir una demo
                 </a>
               </div>
+              <p className="fine">Sin cuota de alta · Sin permanencia · Pago anual</p>
             </div>
-            <div className="cta-arch">
-              <img
-                loading="lazy"
-                decoding="async"
-                src={IMG.stay}
-                alt="Un libro de bienvenida sobre una mesa de madera, junto a una ventana luminosa"
-              />
+            <div className="price-b">
+              <p className="label">Precios sin IVA</p>
+              <ul className="incl">
+                <li>
+                  <span>De 0 a 30 pisos</span>
+                  <span>50 € al mes</span>
+                </li>
+                <li>
+                  <span>Más de 30 pisos</span>
+                  <span>A consultar</span>
+                </li>
+              </ul>
+              <p className="fine">
+                En todos: conserje con IA, estadísticas, tienda de extras, 13 idiomas, tu marca y la app de VisualTaste TV. Si
+                tu tele no admite la app, el aparato que la conecta es un extra opcional.
+              </p>
             </div>
           </div>
-        </section>
-      </main>
+        </div>
+      </section>
 
-      <footer className="foot">
-        <Azulejo />
-        <div className="wrap foot-in">
-          <div>
-            <p className="foot-mark">
-              VisualTaste <small>Guía</small>
-            </p>
-            <p className="foot-p">
-              La guía digital del alojamiento de VisualTaste, la plataforma de carta digital y guía para restaurantes y
-              alojamientos.
-            </p>
-            <nav className="foot-nav" aria-label="Legal y contacto">
-              <Link to="/legal">Privacidad y aviso legal</Link>
-              <a href="https://tv.visualtastes.com">VisualTaste TV</a>
-              <a href={MAILTO}>Contacto</a>
-            </nav>
+      {/* ============ FUNCIONES ============ */}
+      <section className="sec" id="funciones" aria-labelledby="t-fun">
+        <div className="wrap">
+          <div className="sec-head">
+            <p className="label">Funciones</p>
+            <h2 className="h2" id="t-fun">
+              Todo lo que pregunta un huésped, en <em>una sola guía.</em>
+            </h2>
+            <p className="lead">Lo escribes una vez en el panel. La guía lo enseña, lo traduce y lo contesta.</p>
           </div>
-          <p className="foot-c">
-            © {new Date().getFullYear()} VisualTaste · <a href="#inicio">Volver arriba</a>
+          <div className="g4 mt-l">
+            {FEATURES.map((f, i) => (
+              <article className={`mod${f.dark ? ' dark' : ''}`} key={f.title}>
+                <span className="n">{String(i + 1).padStart(2, '0')}</span>
+                <h3 className="h3">{f.title}</h3>
+                <p>{f.text}</p>
+                {f.to && (
+                  <Link className="link" to={f.to}>
+                    Saber más
+                  </Link>
+                )}
+                {f.href && (
+                  <a className="link" href={f.href}>
+                    {f.cta ?? 'Saber más'}
+                  </a>
+                )}
+              </article>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* ============ RECORRIDO DEL HUÉSPED ============ */}
+      <section className="sec arena" aria-labelledby="t-jr">
+        <div className="wrap">
+          <div className="sec-head">
+            <p className="label">El recorrido del huésped</p>
+            <h2 className="h2" id="t-jr">
+              Una guía para toda la estancia, de la reserva a la <em>salida.</em>
+            </h2>
+          </div>
+          <div className="jr">
+            {JOURNEY.map((col, i) => (
+              <div className="jr-col" key={col.k}>
+                <p className="jr-k">
+                  <b>{i + 1}</b>
+                  <span>{col.k}</span>
+                </p>
+                <h3 className="h3">{col.title}</h3>
+                <ul className="jr-list">
+                  {col.items.map(([t, d]) => (
+                    <li key={t}>
+                      <b>{t}</b>
+                      <span>{d}</span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* ============ PARA QUIÉN ============ */}
+      <section className="sec" aria-labelledby="t-who">
+        <div className="wrap">
+          <div className="sec-head c">
+            <p className="label">Para quién es</p>
+            <h2 className="h2" id="t-who">
+              Pensada para quien vive de <em>alojar.</em>
+            </h2>
+          </div>
+          <div className="g3 mt-l">
+            <article className="who">
+              <div className="arch soft a54">
+                <img loading="lazy" decoding="async" src={IMG.wifi} alt="Unas llaves y un cartel con el WiFi de la casa sobre una consola de madera" />
+              </div>
+              <p className="label">Anfitriones con uno o dos pisos</p>
+              <h3 className="h3">Deja de contestar lo mismo a las once de la noche.</h3>
+              <ul>
+                <li>Montas la guía importando tu anuncio de Airbnb.</li>
+                <li>Un QR para la entrada y un enlace para la reserva.</li>
+                <li>El conserje contesta por ti, a cualquier hora.</li>
+              </ul>
+            </article>
+            <article className="who">
+              <div className="arch soft a54">
+                <img loading="lazy" decoding="async" src={IMG.info} alt="Una consola de entrada con un libro de normas y una tableta" />
+              </div>
+              <p className="label">Gestoras de apartamentos</p>
+              <h3 className="h3">Veinte pisos o doscientos, una sola forma de hacer las cosas.</h3>
+              <ul>
+                <li>Lo de la zona se escribe una vez y vale para todos sus pisos.</li>
+                <li>Tu marca en cada guía: logo, color y tipografía.</li>
+                <li>Un panel con todos los alojamientos.</li>
+              </ul>
+              <Link className="link" to={PAGES.gestoras.path}>
+                Ver la guía para gestoras
+              </Link>
+            </article>
+            <article className="who">
+              <div className="arch soft a54">
+                <img loading="lazy" decoding="async" src={IMG.store} alt="Aceite de oliva y aceitunas sobre una mesa de madera, en una terraza con vistas al mar" />
+              </div>
+              <p className="label">Casas rurales y hoteles pequeños</p>
+              <h3 className="h3">La recepción, también cuando no hay nadie en ella.</h3>
+              <ul>
+                <li>Horarios, normas y servicios de la casa, siempre a mano.</li>
+                <li>Tus extras a la venta: desayunos, traslados, excursiones.</li>
+                <li>Huéspedes de fuera, cada uno en su idioma.</li>
+              </ul>
+            </article>
+          </div>
+        </div>
+      </section>
+
+      {/* ============ CONEXIONES ============ */}
+      <section className="sec tight cal2" aria-labelledby="t-con">
+        <div className="wrap">
+          <div className="sec-head">
+            <p className="label">Conexiones</p>
+            <h2 className="h2" id="t-con">
+              Trae lo que ya tienes en otros <em>sitios.</em>
+            </h2>
+          </div>
+          <ul className="conn">
+            {CONNECTIONS.map(([t, d]) => (
+              <li key={t}>
+                <b>{t}</b>
+                <span>{d}</span>
+              </li>
+            ))}
+          </ul>
+          <p className="fine mt-s">
+            Todavía no nos conectamos con programas de gestión (Icnea, AvaiBook, Guesty…). Si lo necesitas, dínoslo en la demo.
           </p>
         </div>
-      </footer>
-    </div>
+      </section>
+
+      {/* ============ PREGUNTAS ============ */}
+      <section className="sec" id="preguntas" aria-labelledby="t-faq">
+        <div className="wrap g57">
+          <div>
+            <p className="label">Preguntas</p>
+            <h2 className="h2" id="t-faq">
+              Lo que suele preguntar quien gestiona <em>alojamientos.</em>
+            </h2>
+            <p className="lead">
+              Y si no está aquí,{' '}
+              <a className="link" href="#contacto">
+                pregúntanos.
+              </a>
+            </p>
+          </div>
+          <div>
+            <div className="faq-tabs top" role="group" aria-label="Temas">
+              {FAQ_TOPICS.map((t) => (
+                <button type="button" className="chip" aria-pressed={t.id === topic} key={t.id} onClick={() => setTopic(t.id)}>
+                  {t.label}
+                </button>
+              ))}
+            </div>
+            {/* Todos los temas en el HTML (las 20 preguntas del JSON-LD tienen que estar en la página); se ve uno. */}
+            {FAQ_TOPICS.map((t) => (
+              <div key={t.id} hidden={t.id !== topic}>
+                <FaqList items={t.items} />
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+    </LandingShell>
   );
 }

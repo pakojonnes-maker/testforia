@@ -28,11 +28,14 @@
   <style>.vt-pre{display:none}</style>
   <!--vt:ld-->
   <script>
-    /* Fuera de / (la guía de un huésped, /legal) no hay que decir que la página «es» la landing: se quitan el
-       canonical y el JSON-LD. Además, esas rutas llevan X-Robots-Tag: noindex (public/_headers). */
+    /* Fuera de las páginas de venta (la guía de un huésped, /legal) no hay que decir que la página «es» la landing:
+       se quitan el canonical y el JSON-LD. Además, esas rutas llevan X-Robots-Tag: noindex (public/_headers).
+       Las páginas de venta son las de src/prerender.tsx: si se añade una, va también aquí. */
     (function () {
-      var p = location.pathname;
-      if (p === '/' || p === '/index.html') return;
+      var p = location.pathname.replace(/\/+$/, '') || '/';
+      var sales = ['/', '/index.html', '/para/gestoras-de-apartamentos', '/funciones/conserje-ia',
+        '/guias/libro-de-bienvenida-digital', '/comparar/guias-digitales'];
+      if (sales.indexOf(p) !== -1) return;
       var drop = document.querySelectorAll('link[rel="canonical"], script[type="application/ld+json"]');
       for (var i = 0; i < drop.length; i++) drop[i].parentNode.removeChild(drop[i]);
       document.title = 'VisualTaste Guía';

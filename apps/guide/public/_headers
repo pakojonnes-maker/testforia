@@ -1,9 +1,22 @@
-# Solo la landing se indexa. Todo lo demás es la guía de un huésped (/<slug>: dirección, WiFi y contraseña en
-# claro), /legal o ficheros, y visualtastes-guide.pages.dev es una copia del sitio.
+# Solo se indexan la landing y sus páginas de venta (las de src/prerender.tsx). Todo lo demás es la guía de un
+# huésped (/<slug>: dirección, WiFi y contraseña en claro), /legal o ficheros, y visualtastes-guide.pages.dev es una
+# copia del sitio. Una página de venta nueva necesita aquí su excepción y su <url> en sitemap.xml.
 /*
   X-Robots-Tag: noindex
 
 https://guide.visualtastes.com/
+  ! X-Robots-Tag
+
+https://guide.visualtastes.com/para/gestoras-de-apartamentos
+  ! X-Robots-Tag
+
+https://guide.visualtastes.com/funciones/conserje-ia
+  ! X-Robots-Tag
+
+https://guide.visualtastes.com/guias/libro-de-bienvenida-digital
+  ! X-Robots-Tag
+
+https://guide.visualtastes.com/comparar/guias-digitales
   ! X-Robots-Tag
 
 /assets/*
