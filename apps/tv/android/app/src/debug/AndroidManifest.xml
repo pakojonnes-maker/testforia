@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Solo en la versión de depuración: órdenes por ADB para probar el modo «dueño del
+     dispositivo» en el emulador. No existe en el APK de release. -->
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <application>
+        <receiver
+            android:name=".DebugOwnerReceiver"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="com.visualtastes.tv.debug.CLEAR" />
+                <action android:name="com.visualtastes.tv.debug.INSTALL" />
+                <action android:name="com.visualtastes.tv.debug.HOME" />
+                <action android:name="com.visualtastes.tv.debug.RELEASE" />
+                <action android:name="com.visualtastes.tv.INSTALL_RESULT" />
+            </intent-filter>
+        </receiver>
+    </application>
+</manifest>

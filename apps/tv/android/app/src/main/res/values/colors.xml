@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Los fijos de Mirador (apps/tv/src/mir/mir.css): papel y tinta. El color de marca de
+     cada agencia solo existe dentro de la pantalla web, que lo recibe de la API. -->
+<resources>
+    <color name="paper">#FFFFFF</color>
+    <color name="ink">#0C2A37</color>
+    <color name="ink_2">#33505C</color>
+    <color name="ink_3">#4A5D66</color>
+    <color name="line">#1F0C2A37</color>
+    <color name="sand">#F1E8D0</color>
+</resources>

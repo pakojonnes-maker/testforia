@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Sin políticas clásicas: lo que interesa del modo «dueño del dispositivo» (instalar en
+     silencio, borrar datos de otras apps, fijar la pantalla de inicio) no se declara aquí. -->
+<device-admin>
+    <uses-policies />
+</device-admin>

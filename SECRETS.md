@@ -36,6 +36,19 @@ bindings (`DB`, `R2_BUCKET`, `GUIDE_CACHE`, `RATE_LIMIT_KV`, `AI`) se resuelven
 por plataforma, sin credenciales. Los cuatro secretos de arriba son, a fecha de
 esta revisión, todos los que existen.
 
+### Clave de firma del APK de la TV (`apps/tv/android`)
+
+| Fichero | Para qué | ¿Secreto de verdad? |
+|---|---|---|
+| `%USERPROFILE%\.visualtaste\visualtaste-tv-release.jks` | Firma el APK de release de VisualTaste TV (alias `visualtaste-tv`, creada 2026-10-05). | **Sí.** |
+| `%USERPROFILE%\.visualtaste\tv-signing.properties` | Ruta y contraseñas de esa clave; lo lee `app/build.gradle.kts` (o la ruta de `VT_TV_SIGNING`). | **Sí.** |
+
+**No se rota: se custodia.** Android solo instala una actualización si va firmada con la
+MISMA clave. Si se pierde, ninguna tele instalada se puede actualizar sin desinstalar la app
+y volver a pasar el asistente en cada piso. Copia los dos ficheros al gestor de contraseñas.
+La huella SHA-256 del certificado no es secreta: es la que se registra en la verificación de
+desarrolladores de Google (obligatoria para instalar APK en teles certificadas a partir de 2027).
+
 ### Estado del historial de git
 
 Auditado: el único literal que existió en el repo fue el placeholder

@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="service_channel">Pantalla de bienvenida</string>
+    <string name="service_text">Lista para recibir a los huéspedes al encender la tele</string>
+
+    <string name="setup_intro">Configura la pantalla de bienvenida. Aparecerá cada vez que se encienda la tele y el huésped podrá quitarla con el botón Atrás.</string>
+
+    <string name="setup_code_title">1. Código de emparejamiento</string>
+    <string name="setup_code_help">Lo encuentras en el admin de VisualTaste: Guía, el apartamento, Pantalla TV.</string>
+    <string name="setup_code_hint">Código</string>
+    <string name="setup_code_check">Comprobar</string>
+    <string name="setup_code_empty">Escribe primero el código.</string>
+    <string name="setup_code_checking">Comprobando…</string>
+    <string name="setup_code_ok">Emparejada con %1$s</string>
+    <string name="setup_code_not_found">Ese código no existe o la tele está desactivada en el admin.</string>
+    <string name="setup_code_offline">No se pudo conectar con VisualTaste. Revisa la conexión a internet de la tele y vuelve a probar.</string>
+
+    <string name="setup_permission_title">2. Permitir que aparezca al encender</string>
+    <string name="setup_permission_help">En la pantalla que se abre, activa VisualTaste TV en «Mostrar sobre otras apps». Después vuelve con el botón Atrás.</string>
+    <string name="setup_permission_open">Abrir ajustes</string>
+    <string name="setup_permission_ok">Permitido</string>
+    <string name="setup_permission_missing">Aún no está permitido: la pantalla no aparecerá sola.</string>
+    <string name="setup_permission_persist">Android guarda este ajuste con retraso. Si vas a desenchufar la tele en la próxima media hora, reiníciala antes desde Ajustes.</string>
+    <string name="setup_restricted_help">Si el interruptor sale gris o no se deja activar: abre la ficha de la app, elige «Permitir ajustes restringidos» y vuelve a probar.</string>
+    <string name="setup_restricted_open">Abrir ficha de la app</string>
+    <string name="setup_permission_no_settings">Esta tele no deja abrir ese ajuste. Búscalo en Ajustes, Aplicaciones, Acceso especial, «Mostrar sobre otras apps».</string>
+
+    <string name="setup_tcl_title">3. En teles TCL</string>
+    <string name="setup_tcl_help">Abre la app Safety guard, luego Permission shield, Auto launch permission. Desactiva «Auto manager» y activa VisualTaste TV. Sin esto, TCL le impide abrirse sola.</string>
+
+    <string name="setup_start">Empezar</string>
+    <string name="setup_reopen_hint">Para volver aquí más tarde, mantén pulsado Atrás 3 segundos en la pantalla de bienvenida.</string>
+</resources>

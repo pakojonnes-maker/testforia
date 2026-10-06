@@ -12,15 +12,18 @@ import tailwindcss from '@tailwindcss/vite'
 //     tv.visualtastes.com/<slug> porque useGuidebook lee el slug del pathname;
 //     con base relativa, ese mismo HTML pediria /<slug>/assets/... y daria 404.
 //
-//   · El APK necesita base relativa './'. Servido desde
-//     file:///android_asset/index.html, un src="/assets/..." resuelve a
-//     file:///assets/... — la raiz del sistema de ficheros, no la carpeta de la
-//     app. Ni el JS ni el CSS cargan: pantalla negra, sin ningun error visible.
+//   · El APK usa base relativa './'. Hoy el envoltorio (apps/tv/android) sirve
+//     los ficheros bajo https://tv.visualtastes.com/ y ahí '/' también valdría,
+//     pero './' sigue funcionando si alguna vez se abre desde
+//     file:///android_asset/, donde un src="/assets/..." resolvería a la raíz
+//     del sistema de ficheros: pantalla negra, sin ningún error visible.
 //
 // Por eso el build del APK va por su propio script (`npm run build:apk`), que
-// pasa --base=./ por CLI. Se hace con la bandera y no con una variable de
-// entorno porque este repo se desarrolla en Windows y `VAR=x vite build` no
-// funciona en cmd/PowerShell.
+// pasa --base=./ por CLI y escribe en `dist-apk/`, NO en `dist/`: dist/ es lo
+// que scripts/build-tv-site.mjs sube a tv.visualtastes.com, y un build con base
+// relativa allí rompería las URLs /<slug>. Se hace con banderas y no con una
+// variable de entorno porque este repo se desarrolla en Windows y
+// `VAR=x vite build` no funciona en cmd/PowerShell.
 export default defineConfig({
   plugins: [react() as any, tailwindcss()],
   server: {

@@ -6,7 +6,7 @@
   "scripts": {
     "dev": "vite --port 5176",
     "build": "tsc -b && vite build",
-    "build:apk": "tsc -b && vite build --base=./",
+    "build:apk": "tsc -b && vite build --base=./ --outDir dist-apk",
     "preview": "vite preview"
   },
   "dependencies": {

@@ -359,6 +359,10 @@ identifica la sesión en curso (`/track/session/identify`). Nunca un id persiste
   La letra escala en proporción a la pantalla, sin ajuste por pulgadas (decidido en oct-2026), y no
   baja de 26 px del lienzo (salvo una clave de WiFi muy larga en la placa del inicio, que se encoge para no cortarse).
 - Build: `tsc -b && vite build`.
+- **APK** (`apps/tv/android/`, Kotlin sin dependencias; README dentro): `npm run build:apk -w apps/tv` escribe en
+  **`dist-apk/`**, nunca en `dist/` (es lo que `build-tv-site.mjs` sube a Pages, y con base relativa rompe `/<slug>`);
+  luego `./gradlew assembleDebug`. Sirve el build bajo `https://tv.visualtastes.com` (CORS ya permitido) y sale con
+  Atrás vía `window.vtTvBack()`: si cambias ese puente en `MirApp.tsx`, el mando deja de poder salir a la tele.
 
 ### `apps/tv-landing` — Landing de VisualTaste TV
 - **HTML + TypeScript sin framework** (Vite 7). CSS propio en `src/styles/landing.css`, con

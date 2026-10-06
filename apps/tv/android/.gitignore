@@ -1,0 +1,11 @@
+.gradle/
+.kotlin/
+local.properties
+.idea/
+*.iml
+captures/
+.cxx/
+# Firma de release: la keystore es un secreto y vive fuera del repo (SECRETS.md).
+*.jks
+*.keystore
+keystore.properties

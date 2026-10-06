@@ -1,0 +1,40 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Por defecto en inglés (el idioma de respaldo de VisualTaste, CLAUDE.md §5); el español
+     va en values-es. Son textos para quien instala la tele, no para el huésped: lo que ve el
+     huésped sale de apps/tv/src/lib/i18n.ts en los 13 idiomas. -->
+<resources>
+    <string name="app_name">VisualTaste TV</string>
+
+    <string name="service_channel">Welcome screen</string>
+    <string name="service_text">Ready to greet guests when the TV turns on</string>
+
+    <string name="setup_intro">Set up the welcome screen. It will appear every time the TV turns on, and guests can leave it with the Back button.</string>
+
+    <string name="setup_code_title">1. Pairing code</string>
+    <string name="setup_code_help">You will find it in the VisualTaste admin: Guide, the apartment, TV screen.</string>
+    <string name="setup_code_hint">Code</string>
+    <string name="setup_code_check">Check</string>
+    <string name="setup_code_empty">Type the code first.</string>
+    <string name="setup_code_checking">Checking…</string>
+    <string name="setup_code_ok">Paired with %1$s</string>
+    <string name="setup_code_not_found">That code does not exist or the TV is turned off in the admin.</string>
+    <string name="setup_code_offline">Could not reach VisualTaste. Check the TV\'s internet connection and try again.</string>
+
+    <string name="setup_permission_title">2. Allow it to appear when the TV turns on</string>
+    <string name="setup_permission_help">In the screen that opens, turn on VisualTaste TV under \"Display over other apps\". Then come back with the Back button.</string>
+    <string name="setup_permission_open">Open settings</string>
+    <string name="setup_permission_ok">Allowed</string>
+    <string name="setup_permission_missing">Not allowed yet: the screen will not appear on its own.</string>
+    <!-- Android guarda este permiso en disco con retraso (unos 30 min) o al apagar desde el
+         menú: un corte de luz antes lo pierde. Comprobado en el emulador (oct-2026). -->
+    <string name="setup_permission_persist">Android saves this setting with a delay. If you will unplug the TV in the next half hour, restart it first from Settings.</string>
+    <string name="setup_restricted_help">If the switch is greyed out or will not turn on: open the app\'s page, choose \"Allow restricted settings\" and try again.</string>
+    <string name="setup_restricted_open">Open app page</string>
+    <string name="setup_permission_no_settings">This TV does not let us open that setting. Look for \"Display over other apps\" in Settings, Apps, Special app access.</string>
+
+    <string name="setup_tcl_title">3. On TCL TVs</string>
+    <string name="setup_tcl_help">Open the Safety guard app, then Permission shield, Auto launch permission. Turn off \"Auto manager\" and turn on VisualTaste TV. Without this, TCL stops it from opening by itself.</string>
+
+    <string name="setup_start">Start</string>
+    <string name="setup_reopen_hint">To come back here later, hold the Back button for 3 seconds on the welcome screen.</string>
+</resources>
