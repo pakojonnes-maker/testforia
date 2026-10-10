@@ -2,14 +2,15 @@
 -- BDschemaFinal.sql — ESQUEMA REAL DE PRODUCCION
 -- =====================================================
 -- Base de datos D1: restaurant-menu-saas (7e8d1efe-2a54-4849-9a06-4c47152392bd)
--- Exportado el 2026-10-03 desde la BD en produccion, tras aplicar la
--- migracion 0101 (medicion anonima de la carta):
---   · sessions.visitor_day_hash: el mismo hash diario calculado en el servidor
---     que guide_sessions (workerVisitorHash.js). Toda sesion de carta lo lleva;
---     visitor_id (12 meses) solo con el "Si" a "¿Te reconocemos la proxima vez?".
--- 0102 (textos carta_* en 13 idiomas) y 0103 (medios de las cartas optimizados)
--- solo tocan datos. Antes, 0096: ai_usage_daily (presupuesto diario de Workers AI,
--- en D1 y no en KV: en Workers Free KV admite 1.000 escrituras/dia por cuenta).
+-- Exportado el 2026-10-07 desde la BD en produccion, tras aplicar la
+-- migracion 0104 (que tele es cada pantalla de VisualTaste TV):
+--   · guide_tv_devices.device_manufacturer / device_model / os_version /
+--     app_version: los escribe workerTvScreen.js desde el sello que el APK
+--     (apps/tv/android) pone en su User-Agent. Solo describen el aparato.
+-- Antes, 0101: sessions.visitor_day_hash (medicion anonima de la carta, el mismo
+-- hash diario que guide_sessions); 0102 y 0103 solo tocan datos; 0096:
+-- ai_usage_daily (presupuesto diario de Workers AI, en D1 y no en KV: en Workers
+-- Free KV admite 1.000 escrituras/dia por cuenta).
 -- 87 tablas.
 --
 -- NO editar a mano. Para regenerar:
@@ -1050,7 +1051,7 @@ CREATE TABLE guide_tv_devices (
   is_active       BOOLEAN DEFAULT TRUE,
   paired_at       TIMESTAMP,
   last_seen_at    TIMESTAMP,
-  created_at      TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  created_at      TIMESTAMP DEFAULT CURRENT_TIMESTAMP, device_manufacturer TEXT, device_model TEXT, os_version TEXT, app_version TEXT,
   FOREIGN KEY (apartment_id) REFERENCES guide_apartments(id) ON DELETE CASCADE
 );
 CREATE TABLE guide_tv_events (
