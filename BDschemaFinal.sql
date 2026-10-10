@@ -2,16 +2,19 @@
 -- BDschemaFinal.sql — ESQUEMA REAL DE PRODUCCION
 -- =====================================================
 -- Base de datos D1: restaurant-menu-saas (7e8d1efe-2a54-4849-9a06-4c47152392bd)
--- Exportado el 2026-10-07 desde la BD en produccion, tras aplicar la
--- migracion 0104 (que tele es cada pantalla de VisualTaste TV):
---   · guide_tv_devices.device_manufacturer / device_model / os_version /
---     app_version: los escribe workerTvScreen.js desde el sello que el APK
---     (apps/tv/android) pone en su User-Agent. Solo describen el aparato.
--- Antes, 0101: sessions.visitor_day_hash (medicion anonima de la carta, el mismo
--- hash diario que guide_sessions); 0102 y 0103 solo tocan datos; 0096:
--- ai_usage_daily (presupuesto diario de Workers AI, en D1 y no en KV: en Workers
--- Free KV admite 1.000 escrituras/dia por cuenta).
--- 87 tablas.
+-- Exportado el 2026-10-11 desde la BD en produccion, tras aplicar la
+-- migracion 0105 (laminas con QR para enmarcar):
+--   · guide_qr_posters: la lamina de fondo de cada zona (una activa por zona).
+--   · guide_agencies.qr_design: el diseno del QR y del marco, en JSON. Lo
+--     escribe workerGuideQr.js, no updateAgency.
+--   · guide_sessions.entry_source: por donde entro el huesped ('marco' = el QR
+--     impreso, que lleva ?o=marco).
+-- Antes, 0104: guide_tv_devices.device_manufacturer / device_model / os_version /
+-- app_version (que tele es cada pantalla de VisualTaste TV); 0101:
+-- sessions.visitor_day_hash (medicion anonima de la carta, el mismo hash diario
+-- que guide_sessions); 0096: ai_usage_daily (presupuesto diario de Workers AI,
+-- en D1 y no en KV: en Workers Free KV admite 1.000 escrituras/dia por cuenta).
+-- 88 tablas.
 --
 -- NO editar a mano. Para regenerar:
 --   npx wrangler d1 export restaurant-menu-saas --remote --no-data --output BDschemaFinal.sql
@@ -868,7 +871,7 @@ CREATE TABLE guide_agencies (
   is_active BOOLEAN DEFAULT TRUE,
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   modified_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-, primary_color TEXT, secondary_color TEXT, accent_color TEXT, font_family TEXT, headline_font TEXT, body_font TEXT, label_font TEXT);
+, primary_color TEXT, secondary_color TEXT, accent_color TEXT, font_family TEXT, headline_font TEXT, body_font TEXT, label_font TEXT, qr_design TEXT);
 CREATE TABLE guide_agency_staff (
   agency_id TEXT NOT NULL,
   user_id TEXT NOT NULL,
@@ -966,7 +969,7 @@ CREATE TABLE guide_sessions (
   language_code TEXT DEFAULT 'es',
   started_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   ended_at TIMESTAMP,
-  duration_seconds INTEGER, device_fingerprint TEXT, visitor_id TEXT, visit_count INTEGER DEFAULT 1, visitor_day_hash TEXT,
+  duration_seconds INTEGER, device_fingerprint TEXT, visitor_id TEXT, visit_count INTEGER DEFAULT 1, visitor_day_hash TEXT, entry_source TEXT,
   FOREIGN KEY (apartment_id) REFERENCES guide_apartments(id)
 );
 CREATE TABLE guide_affiliate_intents (
@@ -1261,6 +1264,20 @@ CREATE TABLE ai_usage_daily (
     calls    INTEGER NOT NULL DEFAULT 0,
     PRIMARY KEY (day, scope)
 );
+CREATE TABLE guide_qr_posters (
+  id TEXT PRIMARY KEY,
+  zone_id TEXT NOT NULL,
+  name TEXT NOT NULL,
+  r2_key TEXT NOT NULL,
+  width INTEGER,
+  height INTEGER,
+  qr_x REAL NOT NULL DEFAULT 0.5,
+  qr_y REAL NOT NULL DEFAULT 0.55,
+  is_active INTEGER NOT NULL DEFAULT 1,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  modified_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (zone_id) REFERENCES guide_zones(id)
+);
 CREATE INDEX idx_dishes_restaurant ON dishes(restaurant_id);
 CREATE INDEX idx_sections_restaurant ON sections(restaurant_id);
 CREATE INDEX idx_translations_language ON translations(language_code);
@@ -1376,3 +1393,6 @@ CREATE INDEX idx_guide_sessions_started ON guide_sessions(started_at);
 CREATE INDEX idx_guide_section_views_created ON guide_section_views(created_at);
 CREATE INDEX idx_guide_tv_events_created ON guide_tv_events(created_at);
 CREATE INDEX idx_guide_intents_created ON guide_affiliate_intents(created_at);
+CREATE INDEX idx_guide_qr_posters_zone ON guide_qr_posters(zone_id, is_active);
+CREATE INDEX idx_guide_sessions_entry_source
+  ON guide_sessions(apartment_id, started_at) WHERE entry_source IS NOT NULL;
