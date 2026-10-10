@@ -958,6 +958,13 @@ export default function GuideApartmentDetail() {
               >
                 PNG (Web)
               </Button>
+              <Button
+                variant="contained" size="small"
+                startIcon={<QrCodeIcon />}
+                onClick={() => navigate(`/guide/qr?apt=${id}`)}
+              >
+                Lámina para enmarcar
+              </Button>
             </Box>
           </Box>
         </Paper>

@@ -34,6 +34,7 @@ const GuideCategoriesPage = lazy(() => import('./pages/guide/GuideCategoriesPage
 const GuideZoneRestaurantsPage = lazy(() => import('./pages/guide/GuideZoneRestaurantsPage'));
 const GuideConversionsPage = lazy(() => import('./pages/guide/GuideConversionsPage'));
 const GuideTvPage = lazy(() => import('./pages/guide/GuideTvPage'));
+const GuideQrPage = lazy(() => import('./pages/guide/GuideQrPage'));
 
 function ProtectedRoute({ children }: { children: ReactNode }) {
   const { isAuthenticated, isLoading } = useAuth();
@@ -81,6 +82,7 @@ function App() {
           <Route path="guide/apartments" element={<GuideApartmentsPage />} />
           <Route path="guide/apartments/:id" element={<GuideApartmentDetail />} />
           <Route path="guide/tv" element={<GuideTvPage />} />
+          <Route path="guide/qr" element={<GuideQrPage />} />
           <Route path="guide/design" element={<GuideDesignPage />} />
           <Route path="guide/catalog" element={<GuideCatalogPage />} />
           {/* Alias de las rutas antiguas: enlaces guardados o abiertos en otra

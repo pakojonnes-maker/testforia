@@ -51,6 +51,7 @@ export function agencyNav(isSuperadmin: boolean): NavItem[] {
     { text: 'Dashboard', icon: <GuideDashboardIcon />, path: '/guide', featureKey: null },
     { text: 'Apartamentos', icon: <ApartmentIcon />, path: '/guide/apartments', featureKey: null, section: 'GESTIÓN' },
     { text: 'Pantalla TV', icon: <TvIcon />, path: '/guide/tv', featureKey: null, section: 'GESTIÓN' },
+    { text: 'QR para enmarcar', icon: <QrCodeIcon />, path: '/guide/qr', featureKey: null, section: 'GESTIÓN' },
     { text: 'Diseño', icon: <PaletteIcon />, path: '/guide/design', featureKey: null, section: 'GESTIÓN' },
     // Lugares y Experiencias se fusionaron en una sola pantalla (guide_pois es
     // una tabla única desde la migración 0059). El personal de agencia solo ve
