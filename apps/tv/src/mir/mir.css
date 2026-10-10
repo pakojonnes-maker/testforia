@@ -134,7 +134,11 @@
 .mir .clk .t { font: 700 64px/1 var(--ff-d); font-variant-numeric: lining-nums tabular-nums; color: var(--acc-t); }
 .mir .clk .d { font: 600 26px/1.2 var(--ff-b); color: var(--ink-2); margin-top: 6px; }
 .mir .hero { margin-top: 34px; }
-.mir .hero .hi { font: italic 500 112px/1 var(--ff-d); letter-spacing: -.02em; color: var(--ink); }
+.mir .hero .hi { font: italic 500 112px/1 var(--ff-d); letter-spacing: -.02em; color: var(--ink); white-space: nowrap; }
+/* Un saludo largo («Добро пожаловать» mide 968 px a 112) se partía en dos líneas y, con
+   la columna a alto fijo, echaba la placa del WiFi 80 px fuera del lienzo. Baja de
+   cuerpo sin cambiar el alto de su línea: lo de debajo no se mueve. */
+.mir .hero .hi.l { font-size: 88px; line-height: calc(112 / 88); }
 .mir .hero .nm { font: 700 54px/1.1 var(--ff-d); color: var(--acc-t); margin-top: 14px; }
 .mir .hero .zn { font: 600 28px/1.3 var(--ff-b); color: var(--ink-2); margin-top: 8px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 /* El nombre lo escribe el anfitrión y la columna mide 1000 px con el índice y la placa
@@ -145,6 +149,11 @@
 .mir[dir=rtl] :is(.l, .lbl, .cap, .dl dt, .cred .l, .codebox .l, .tag) { letter-spacing: 0; text-transform: none; }
 .mir[dir=rtl] :is(.chip .l, .cred .l, .lbl) { font-size: 28px; }
 .mir[dir=rtl] .hero .hi { font-style: normal; font-weight: 700; letter-spacing: 0; line-height: 1.25; }
+/* Ese 1.25 son 28 px más de saludo que en LTR, y a la columna le sobran 32: con un
+   nombre largo (`.nm.l`) la placa bajaba 20 px y la fila 05 la tocaba. Se devuelven
+   aquí, a partes iguales, para que de la zona hacia abajo todo mida como en LTR. */
+.mir[dir=rtl] .hero { margin-top: 20px; }
+.mir[dir=rtl] .idx { margin-top: 28px; }
 
 .mir .idx { margin-top: 42px; display: flex; flex-direction: column; }
 .mir .row { display: grid; grid-template-columns: 64px 1fr auto; align-items: center; height: 62px; padding: 0 32px; margin-inline-start: -32px; width: calc(100% + 32px); border-radius: 999px; color: var(--ink); cursor: pointer; }
@@ -183,8 +192,12 @@
 /* ====== REPISA (datos sobre el arco) ====== */
 .mir .sill { position: absolute; inset-inline-start: 976px; bottom: 56px; width: 832px; display: flex; gap: 20px; }
 .mir .chip { flex: 1; border-radius: 26px; padding: 16px 28px 18px; background: var(--paper); box-shadow: 0 22px 36px -22px rgba(6, 26, 38, .7); display: flex; flex-direction: column; gap: 4px; min-width: 0; }
-.mir .chip .l { font: 700 26px/1.15 var(--ff-b); letter-spacing: .12em; text-transform: uppercase; color: var(--ink-3); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.mir .chip .v { font: 700 60px/1.05 var(--ff-d); font-variant-numeric: lining-nums tabular-nums; color: var(--ink); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+/* El rótulo es el título que el anfitrión da a su bloque de entrada. Con dos fichas le
+   quedan 350 px: a .12em «CÓDIGO DE ENTRADA», el más habitual, pedía 352 y salía con
+   puntos suspensivos. A .08em cabe en una línea; uno más largo ocupa dos en vez de
+   cortarse, y el valor se apoya abajo para que las dos fichas sigan alineadas. */
+.mir .chip .l { font: 700 26px/1.15 var(--ff-b); letter-spacing: .08em; text-transform: uppercase; color: var(--ink-3); overflow-wrap: anywhere; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.mir .chip .v { font: 700 60px/1.05 var(--ff-d); font-variant-numeric: lining-nums tabular-nums; color: var(--ink); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-top: auto; }
 .mir .chip .v.m { font-size: 46px; }
 .mir .chip .v.s { font-size: 34px; }
 .mir .demo { position: absolute; inset-inline-start: 976px; top: 72px; padding: 10px 26px; border-radius: 999px; background: var(--terra); color: #fff; font: 700 26px/1 var(--ff-b); letter-spacing: .1em; text-transform: uppercase; z-index: 3; }
