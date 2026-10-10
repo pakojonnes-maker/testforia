@@ -1,7 +1,7 @@
 // src/pages/GuidebookPage.tsx — Guest-facing guidebook
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { useParams, useSearchParams } from 'react-router-dom';
-import { fetchGuidebook, trackSessionStart, trackSessionEnd, trackIntent, trackSectionView, buildMenuUrl, setReferralCookie } from '../lib/api';
+import { fetchGuidebook, trackSessionStart, trackSessionEnd, trackIntent, trackSectionView, buildMenuUrl, setReferralCookie, readEntrySource } from '../lib/api';
 
 const MENU_URL = import.meta.env.VITE_MENU_URL || 'https://menu.visualtastes.com';
 
@@ -188,6 +188,10 @@ export default function GuidebookPage() {
   // declararlo como dependencia (cambiar de idioma no debe reiniciar la sesión).
   const langRef = useRef(lang);
   langRef.current = lang;
+  // Por dónde entró (el QR del marco lleva ?o=marco). Se lee una vez, al montar: en cuanto la
+  // sesión lo recoge se quita de la URL, para que recargar o compartir el enlace no cuente
+  // como otro escaneo.
+  const entrySourceRef = useRef(readEntrySource());
   const welcomeShownRef = useRef(false);
 
   // Ya no se sigue aquí el estado del consentimiento: la analítica es anónima y
@@ -264,11 +268,18 @@ export default function GuidebookPage() {
     const startedAt = Date.now();
     const elapsedSeconds = () => Math.round((Date.now() - startedAt) / 1000);
 
-    trackSessionStart(apartmentId, langRef.current).then(res => {
+    trackSessionStart(apartmentId, langRef.current, entrySourceRef.current).then(res => {
       if (!cancelled && res?.sessionId) {
         sessionIdRef.current = res.sessionId;
       }
     });
+    if (entrySourceRef.current) {
+      setSearchParams(prev => {
+        const next = new URLSearchParams(prev);
+        next.delete('o');
+        return next;
+      }, { replace: true });
+    }
 
     const endSession = () => {
       if (sessionIdRef.current) trackSessionEnd(sessionIdRef.current, elapsedSeconds());

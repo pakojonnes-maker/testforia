@@ -159,7 +159,7 @@ function getConsentedVisitorId(): string | undefined {
  * permiso que pedir para contar visitas — que es lo que permitió quitar el
  * banner de la portada. Ver consent.ts para lo que SÍ sigue pidiendo permiso.
  */
-export async function trackSessionStart(apartmentId: string, language: string) {
+export async function trackSessionStart(apartmentId: string, language: string, source?: string) {
   try {
     const res = await fetch(`${API_URL}/guide/track/session/start`, {
       method: 'POST',
@@ -171,6 +171,7 @@ export async function trackSessionStart(apartmentId: string, language: string) {
         osName: getOS(),
         browser: getBrowser(),
         visitorId: getConsentedVisitorId(),
+        source,
       }),
     });
     if (!res.ok) return null;
@@ -178,6 +179,16 @@ export async function trackSessionStart(apartmentId: string, language: string) {
   } catch {
     return null;
   }
+}
+
+/**
+ * Por dónde entró el huésped, si la URL lo dice: el QR impreso del marco lleva `?o=marco`.
+ * Va en la URL y no se guarda nada en el móvil, así que no cambia el modelo anónimo. El
+ * servidor solo acepta una lista cerrada; aquí basta con no mandar basura.
+ */
+export function readEntrySource(): string | undefined {
+  const value = new URLSearchParams(window.location.search).get('o');
+  return value && /^[a-z]{1,16}$/.test(value) ? value : undefined;
 }
 
 /**
