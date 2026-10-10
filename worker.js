@@ -21,6 +21,7 @@ import { handleGuideAdminRequests } from './workerGuideAdmin.js';
 import { handleGuideAI } from './workerGuideAI.js';
 import { handleGuideStoreRequests } from './workerGuideStore.js';
 import { handleTvScreenRequests } from './workerTvScreen.js';
+import { handleGuideQrRequests } from './workerGuideQr.js';
 import { handleGuideImportRequests } from './workerGuideImport.js';
 import { handleGuideApartmentImportRequests } from './workerGuideApartmentImport.js';
 import { handleGuideApartmentLinkRequests } from './workerGuideApartmentLink.js';
@@ -245,6 +246,12 @@ export default {
                 // un 404 duro (no hace fallthrough con null para rutas desconocidas).
                 if (url.pathname.startsWith('/guide/tv/') || url.pathname.startsWith('/guide/admin/tv/')) {
                     const response = await handleTvScreenRequests(request, env);
+                    if (response) return addCorsHeaders(response, request);
+                }
+                // Láminas con QR para enmarcar: antes de "Guide admin" por el mismo
+                // motivo que TV screens (ese handler contesta 404 a lo que no conoce).
+                if (url.pathname.startsWith('/guide/admin/qr/')) {
+                    const response = await handleGuideQrRequests(request, env);
                     if (response) return addCorsHeaders(response, request);
                 }
                 // Importador de apartamentos desde URL: debe ir ANTES de

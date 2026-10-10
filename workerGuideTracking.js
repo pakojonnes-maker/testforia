@@ -63,9 +63,13 @@ export async function handleGuideTracking(request, env, ctx) {
     }
 }
 
+// Por dónde puede declarar la guía que entró el huésped. Hoy solo el QR impreso del marco
+// (?o=marco en la URL): lo que no esté aquí se ignora, no se guarda texto libre del cliente.
+const ENTRY_SOURCES = new Set(['marco']);
+
 /**
  * POST /guide/track/session/start
- * Body: { apartmentId, deviceType?, osName?, browser?, language? }
+ * Body: { apartmentId, deviceType?, osName?, browser?, language?, source? }
  */
 async function handleSessionStart(request, env) {
     const data = await request.json();
@@ -144,6 +148,17 @@ async function handleSessionStart(request, env) {
         visitCount,
         now
     ).run();
+
+    // Aparte del INSERT y sin romper nada si falla: la sesión ya está abierta y este dato vale
+    // menos que ella. Así un worker desplegado antes que la migración 0105 no deja de contar visitas.
+    if (ENTRY_SOURCES.has(data.source)) {
+        try {
+            await env.DB.prepare('UPDATE guide_sessions SET entry_source = ? WHERE id = ?')
+                .bind(data.source, sessionId).run();
+        } catch (err) {
+            console.error('[GuideTracking] entry_source:', err.message);
+        }
+    }
 
     return jsonResponse({
         success: true,

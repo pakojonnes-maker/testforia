@@ -31,8 +31,9 @@
     "test:apartment-delete": "node tests/apartment-delete.test.mjs",
     "test:poi-delete": "node tests/poi-delete.test.mjs",
     "test:google-auth": "node tests/google-auth.test.mjs",
-    "test": "npm run test:authz && npm run test:auth && npm run test:security && npm run test:import && npm run test:apartment-link && npm run test:translate && npm run test:ai-budget && npm run test:apartment-delete && npm run test:poi-delete && npm run test:google-auth && npm run test:restaurant-admin",
-    "test:restaurant-admin": "node tests/restaurant-admin.test.mjs"
+    "test": "npm run test:authz && npm run test:auth && npm run test:security && npm run test:import && npm run test:apartment-link && npm run test:translate && npm run test:ai-budget && npm run test:apartment-delete && npm run test:poi-delete && npm run test:google-auth && npm run test:restaurant-admin && npm run test:guide-qr",
+    "test:restaurant-admin": "node tests/restaurant-admin.test.mjs",
+    "test:guide-qr": "node tests/guide-qr.test.mjs"
   },
   "dependencies": {
     "framer-motion": "^12.23.9"
