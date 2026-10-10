@@ -1,24 +1,25 @@
 /**
  * Tema de la tele derivado del color de marca del anfitrión.
  *
- * Es la misma fórmula que `buildTheme` en apps/tv/src/lib/theme.ts (allí sale
- * de agency.primary/accent_color): el lienzo se oscurece hacia un azul noche en
- * vez de usar el color tal cual, y las superficies suben desde ahí. Se copia y
- * no se importa porque apps/tv es una app aparte (y con cambios en curso); si
- * la fórmula cambia allí, la demo de esta landing debe seguirla.
+ * Es la misma fórmula que `buildMirTheme` en apps/tv/src/mir/theme.ts (allí sale
+ * de agency.primary_color): muro, tinta y arena son fijos y la marca se ajusta
+ * por CONTRASTE medido, no por un umbral. Se copia y no se importa porque apps/tv
+ * es una app aparte (y con cambios en curso); si la fórmula cambia allí, la demo
+ * de esta landing debe seguirla. Solo salen las variables que usa el inicio.
  */
 
-export interface Brand {
-  name: string
-  /** Color de marca (#rrggbb): de él sale el fondo. */
-  brand: string
-  /** Color de acento (#rrggbb): anillo de foco, reloj, logotipo. */
-  accent: string
-}
-
 const HEX = /^#[0-9a-f]{6}$/i
-const FALLBACK_CANVAS = '#0a2431'
-const NIGHT = '#050f16'
+const CAL = '#F8F3E9'
+const TINTA = '#0C2A37'
+/** Fondo oscuro de noche, contra el que se mide la marca «clara» usada como texto. */
+const NOCHE = '#0F2C3B'
+/** Muro de la luz de noche (`--wall-tint` de `.m-noche`): contra él se mide el relleno nocturno. */
+const MURO_NOCHE = '#1A3B4E'
+const BLANCO = '#FFFFFF'
+
+/** Contraste mínimo de un RELLENO de marca (fila con foco, marco del WiFi) con su muro. */
+const MIN_RELLENO_DIA = 1.8
+const MIN_RELLENO_NOCHE = 2.4
 
 type Rgb = [number, number, number]
 
@@ -42,7 +43,6 @@ function rgba(hex: string, alpha: number): string {
   return `rgba(${r}, ${g}, ${b}, ${alpha})`
 }
 
-/** Luminancia relativa (WCAG 2.1): decide si el texto sobre el acento va claro u oscuro. */
 function luminance(hex: string): number {
   const [r, g, b] = toRgb(hex).map(v => {
     const c = v / 255
@@ -51,16 +51,52 @@ function luminance(hex: string): number {
   return 0.2126 * r + 0.7152 * g + 0.0722 * b
 }
 
-/** Custom properties que pinta la maqueta de la tele (`.screen`). */
-export function themeVars(brand: Brand): Record<string, string> {
-  const canvas = mix(mix(mix(brand.brand, FALLBACK_CANVAS, 0.72), NIGHT, 0.58), '#ffffff', 0.04)
+/** Razón de contraste WCAG 2.1 entre dos colores (1–21). */
+function contrast(a: string, b: string): number {
+  const la = luminance(a)
+  const lb = luminance(b)
+  return (Math.max(la, lb) + 0.05) / (Math.min(la, lb) + 0.05)
+}
+
+/** Tinta sobre `bg`: la que dé MÁS contraste. */
+function inkOn(bg: string): string {
+  return contrast(bg, BLANCO) >= contrast(bg, TINTA) ? BLANCO : TINTA
+}
+
+/** Un relleno de marca tiene que distinguirse del muro: se desplaza hacia `toward` lo justo. */
+function fillOn(color: string, wall: string, toward: string, min: number): string {
+  let out = color
+  for (let i = 0; i < 14 && contrast(out, wall) < min; i++) out = mix(out, toward, 0.08)
+  return out
+}
+
+/** Custom properties que pinta la maqueta de la tele (`.screen`) para un color de marca (#rrggbb). */
+export function themeVars(brand: string): Record<string, string> {
+  const base = brand.toLowerCase()
+
+  // La marca como TEXTO sobre el muro: se oscurece hacia la tinta hasta 4,5:1.
+  let text = base
+  for (let i = 0; i < 20 && contrast(text, CAL) < 4.5; i++) text = mix(text, TINTA, 0.07)
+
+  // La marca como texto sobre fondo OSCURO (noche): se aclara hacia el papel.
+  let lite = base
+  for (let i = 0; i < 20 && contrast(lite, NOCHE) < 4.5; i++) lite = mix(lite, CAL, 0.08)
+
+  const day = fillOn(base, CAL, TINTA, MIN_RELLENO_DIA)
+  const night = fillOn(base, MURO_NOCHE, CAL, MIN_RELLENO_NOCHE)
+
   return {
-    '--tv-accent': brand.accent.toLowerCase(),
-    '--tv-accent-ink': luminance(brand.accent) > 0.42 ? '#08222e' : '#ffffff',
-    '--tv-halo': rgba(brand.accent, 0.3),
-    '--tv-glow': rgba(brand.accent, 0.45),
-    '--tv-surface': mix(canvas, '#ffffff', 0.14),
-    '--tv-surface-raised': mix(canvas, '#ffffff', 0.22),
-    '--tv-line': 'rgba(255,255,255,0.14)',
+    '--acc-day': day,
+    '--acc-day-ink': inkOn(day),
+    '--acc-day-halo': rgba(day, 0.3),
+    '--acc-day-glow': rgba(day, 0.45),
+    '--acc-n': night,
+    '--acc-n-ink': inkOn(night),
+    '--acc-n-halo': rgba(night, 0.3),
+    '--acc-n-glow': rgba(night, 0.45),
+    '--acc-text': text,
+    '--acc-lite': lite,
+    // Al atardecer el muro se vuelve melocotón y el texto de marca pierde contraste.
+    '--acc-text-eve': mix(text, TINTA, 0.3),
   }
 }

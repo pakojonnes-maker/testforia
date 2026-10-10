@@ -356,6 +356,9 @@ identifica la sesión en curso (`/track/session/identify`). Nunca un id persiste
   `screens/HomeScreen.tsx` no cambia nada de lo que se ve**. Comparten `lib/` (datos, mando, i18n,
   tracking). `?reposo=<s>` cambia los 90 s del salvapantallas (0 lo apaga). Las clases genéricas de
   `index.css` (`.rail`) se cuelan en `.mir`: al añadir una clase a `mir.css`, búscala allí antes.
+- **Si cambias el inicio de Mirador** (`mir/screens/Inicio.tsx`, su parte de `mir.css`, `mir/theme.ts` o sus
+  cadenas) → cambia también su réplica en `apps/tv-landing` y regenera `public/og.jpg`: la portada de
+  tv.visualtastes.com estuvo tres semanas enseñando el mosaico anterior (sep–oct 2026).
 - **Mirador: el lienzo 1920×1080 es la zona segura y no recorta.** Lo que es fondo y tiene que llegar al
   borde de una pantalla que no es 16:9 se estira con `--bleed-x/--bleed-y` (bloque SANGRADO de `mir.css`):
   con `inset: 0` vuelve el marco liso. Un `<img>` así necesita `max-width: none` (preflight de Tailwind).
@@ -382,8 +385,11 @@ identifica la sesión en curso (`/track/session/identify`). Nunca un id persiste
   una pantalla (`/<slug>`, `/#<código>`) y, si lo es, sustituye el documento por la app de la TV en
   la misma URL (ver §2). No lo toques sin releer ese apartado.
 - **Sin iconos** (ni pictogramas, ni emoji, ni banderas): decisión de diseño de Francisco.
-- `public/img/` es una **copia** de `apps/tv/src/assets/tiles/` y `src/lib/theme.ts` copia el
-  `buildTheme` de `apps/tv`: no se importan para no acoplarse a una app con cambios en curso.
+- **La tele de la portada es una réplica a mano del inicio de Mirador** (`index.html` + el bloque `.screen`
+  de `landing.css`, en px del lienzo vía `--u`), no la app: `public/img/` copia `apps/tv/src/assets/tiles/`,
+  `src/lib/theme.ts` copia `buildMirTheme` y `src/lib/tv-strings.ts` las cadenas del inicio de `i18n.ts` (única
+  excepción a «el contenido vive en `index.html`»). No se importan para no acoplarse a una app con cambios en
+  curso; el precio es que **no se entera sola**: ver el aviso en `apps/tv`.
 - Build: `tsc --noEmit && vite build`.
 
 ### Reglas frontend comunes (de las rules existentes)

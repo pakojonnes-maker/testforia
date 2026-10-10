@@ -22,7 +22,7 @@ body{margin:0;background:#F8F3E9}
   font:400 17px/1.6 var(--ff-b);
   -webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility;
 }
-/* Resets con especificidad CERO (:where): si no, `.page button` (0,1,1) pisa a `.tile`, `.chip`, `.sw`… (0,1,0) */
+/* Resets con especificidad CERO (:where): si no, `.page button` (0,1,1) pisa a `.mr-row`, `.chip`, `.sw`… (0,1,0) */
 :where(.page) *,:where(.page) *::before,:where(.page) *::after{box-sizing:border-box}
 :where(.page) img{display:block;max-width:100%}
 :where(.page) :is(h1,h2,h3,p,ul,ol,li,figure,blockquote){margin:0;padding:0}
@@ -87,49 +87,101 @@ body{margin:0;background:#F8F3E9}
 /* ---- escenario de la tele ---- */
 .tv-stage{position:relative;padding-top:clamp(28px,7cqw,110px)}
 .tv-arch{position:absolute;z-index:0;left:50%;top:0;bottom:0;width:min(62%,480px);transform:translateX(-50%);background:var(--arena);border-radius:999px 999px 0 0;outline:2px solid var(--sol);outline-offset:10px;clip-path:inset(-24px -24px 0 -24px)}
-.tv-sun{position:absolute;z-index:0;right:3%;top:2%;width:clamp(64px,9.4cqw,132px);aspect-ratio:1;border-radius:50%;background:var(--sol)}
+/* A la izquierda: la pantalla ya trae su propio sol arriba a la derecha. */
+.tv-sun{position:absolute;z-index:0;left:3%;top:2%;width:clamp(64px,9.4cqw,132px);aspect-ratio:1;border-radius:50%;background:var(--sol)}
 .tv{position:relative;z-index:2;padding:clamp(5px,.85cqw,12px);border-radius:clamp(8px,1cqw,14px);background:#0F1113;box-shadow:0 38px 64px -30px rgba(12,42,55,.6),0 10px 22px -10px rgba(12,42,55,.4),inset 0 0 0 1px #2C3034}
-.screen{--u:calc(100cqw / 1920);position:relative;aspect-ratio:16 / 9;overflow:hidden;border-radius:4px;container-type:inline-size;container-name:tv;background:#F1EDE5;isolation:isolate}
+/* ---- pantalla: réplica del inicio «Mirador» (apps/tv/src/mir/mir.css), en px de su lienzo de 1920x1080.
+   --u es un px de ese lienzo. Si el inicio de la tele cambia allí, esto debe seguirlo. ---- */
+@font-face{font-family:"IBM Plex Mono";font-style:normal;font-weight:600;font-display:swap;src:url(../fonts/ibm-plex-mono-latin-600.woff2) format("woff2")}
+.screen{--u:calc(100cqw / 1920);position:relative;aspect-ratio:16 / 9;overflow:hidden;border-radius:4px;container-type:inline-size;container-name:tv;isolation:isolate;
+  --ink:#0C2A37;--ink-2:#33505C;--ink-3:#4A5D66;--paper:#fff;--wall-tint:#fff;--sun:#F0B04B;--glow:rgba(255,214,140,.42);--bg:#F8F3E9;
+  /* El relleno de marca lo recalcula src/lib/theme.ts al elegir color; esto es el respaldo (Terracota) de antes del script. */
+  --acc:var(--acc-day,#B04E2B);--acc-ink:var(--acc-day-ink,#fff);--acc-halo:var(--acc-day-halo,rgba(176,78,43,.3));--acc-glow:var(--acc-day-glow,rgba(176,78,43,.45));
+  --acc-t:var(--acc-text,#B04E2B);
+  --ff-m:"IBM Plex Mono",ui-monospace,Consolas,"Courier New",monospace;
+  background:var(--bg);color:var(--ink);text-align:start}
+.screen[dir=rtl]{--ff-d:"Playfair Display Variable","Playfair Display","Noto Naskh Arabic","Droid Arabic Naskh",Georgia,serif;--ff-b:"Montserrat Variable","Montserrat","Noto Naskh Arabic","Droid Arabic Naskh",system-ui,sans-serif}
 
-/* ---- pantalla: réplica del inicio real (apps/tv), medidas en px de 1920x1080 ---- */
-.m-wall{position:absolute;inset:0;background:#F1EDE5 url(/img/background.webp) center / cover no-repeat}
-.m-safe{position:absolute;inset:3.2% 3.6%;display:flex;flex-direction:column;gap:calc(26 * var(--u))}
-.m-head{flex:none;display:grid;grid-template-columns:minmax(0,1.3fr) auto minmax(0,.85fr);align-items:center;gap:calc(32 * var(--u))}
-.m-brand{display:flex;align-items:center;gap:calc(20 * var(--u));min-width:0}
-.m-logo{flex:none;width:calc(80 * var(--u));height:calc(80 * var(--u));border-radius:calc(16 * var(--u));background:var(--tv-accent);color:var(--tv-accent-ink);display:grid;place-items:center;font-family:var(--ff-d);font-weight:700;font-size:max(9px,calc(44 * var(--u)));line-height:1}
-.m-ink{font-family:var(--ff-d);font-weight:700;text-shadow:0 1px 2px rgba(255,255,255,.85),0 2px 18px rgba(250,248,244,.8)}
-.m-name{font-size:max(10px,calc(48 * var(--u)));line-height:1.05;color:#1E3A5A;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.m-date{font-size:max(8px,calc(30 * var(--u)));line-height:1;color:#4A5C70;white-space:nowrap}
-.m-time{justify-self:end;font-size:max(11px,calc(72 * var(--u)));line-height:1;color:var(--tv-accent);font-variant-numeric:tabular-nums}
-.m-grid{flex:1;min-height:0;display:grid;gap:calc(16 * var(--u));grid-template-columns:.92fr 1.06fr 1.06fr 1.04fr;grid-template-rows:minmax(0,3fr) minmax(0,3fr) minmax(0,1fr) minmax(0,3fr);grid-template-areas:"info eat eat do" "wifi eat eat do" "wifi lang stay do" "wifi store store code"}
-.tile{position:relative;display:block;width:100%;height:100%;min-width:0;min-height:0;overflow:hidden;border-radius:calc(24 * var(--u));border:1px solid var(--tv-line);background:var(--tv-surface);color:#fff;transition:transform .17s cubic-bezier(.2,.8,.2,1)}
-.t-info{grid-area:info}.t-wifi{grid-area:wifi}.t-eat{grid-area:eat}.t-do{grid-area:do}
-.t-lang{grid-area:lang}.t-stay{grid-area:stay}.t-store{grid-area:store}.t-code{grid-area:code}
-.tile.is-focus,.tile:focus-visible{transform:scale(1.035);z-index:4;outline:none;box-shadow:0 0 0 max(2px,calc(4 * var(--u))) var(--tv-accent),0 0 0 max(5px,calc(12 * var(--u))) var(--tv-halo),0 0 calc(22 * var(--u)) var(--tv-glow),0 calc(10 * var(--u)) calc(24 * var(--u)) calc(-12 * var(--u)) rgba(0,0,0,.5)}
-.cover{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
-.veil{position:absolute;inset:0;background:linear-gradient(to top,rgba(6,22,32,.88) 0%,rgba(6,22,32,.5) 42%,rgba(6,22,32,0) 74%)}
-.veil-f{background:rgba(6,22,32,.58)}
-.m-lbl{position:absolute;left:0;right:0;bottom:0;padding:calc(28 * var(--u));font-family:var(--ff-d);font-weight:700;font-size:max(10px,calc(48 * var(--u)));line-height:1.05;color:#fff}
-.m-stack{position:absolute;left:0;right:0;bottom:0;padding:calc(24 * var(--u))}
-.m-v{display:block;font-family:var(--ff-d);font-weight:700;font-size:max(8.5px,calc(30 * var(--u)));line-height:1.1;color:#fff}
-.m-l{display:block;margin-top:calc(4 * var(--u));font-weight:600;font-size:max(7px,calc(22 * var(--u)));line-height:1.15;color:rgba(255,255,255,.8)}
-.t-wifi{background:var(--tv-surface-raised)}
-.m-wifi{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:flex-end;gap:calc(18 * var(--u));padding:calc(24 * var(--u));text-align:center}
-.m-qr{flex:none;width:calc(212 * var(--u));height:calc(212 * var(--u));padding:calc(12 * var(--u));border-radius:calc(16 * var(--u));background:#fff;box-shadow:0 8px 18px -8px rgba(0,0,0,.45)}
-.m-qr svg{display:block;width:100%;height:100%;shape-rendering:crispEdges}
-.m-wt{font-family:var(--ff-d);font-weight:700;font-size:max(8px,calc(28 * var(--u)));line-height:1.15;color:#F8F5EF}
-.m-hint{font-size:max(6.5px,calc(22 * var(--u)));line-height:1.3;color:rgba(248,245,239,.74)}
-.m-cred{width:100%;padding:calc(12 * var(--u)) calc(16 * var(--u));border-radius:calc(12 * var(--u));background:rgba(0,0,0,.3);display:grid;gap:calc(6 * var(--u));text-align:left}
-.m-cred span{display:flex;gap:calc(12 * var(--u));align-items:baseline;font-size:max(6.5px,calc(22 * var(--u)));font-weight:600;color:#F8F5EF}
-.m-cred i{flex:none;font-style:normal;font-size:max(5.5px,calc(18 * var(--u)));letter-spacing:.16em;text-transform:uppercase;color:rgba(248,245,239,.55)}
-.m-c{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:calc(6 * var(--u));padding:0 calc(16 * var(--u));text-align:center}
-.m-c i{font-style:normal;font-size:max(5.5px,calc(18 * var(--u)));letter-spacing:.18em;text-transform:uppercase;font-weight:600;color:rgba(255,255,255,.75)}
-.m-c b{font-family:var(--ff-d);font-weight:700;font-size:max(8px,calc(28 * var(--u)));line-height:1.1;color:#fff;white-space:nowrap}
-.t-code{background:linear-gradient(150deg,#E07A5F,#0C2A37);border-color:transparent}
-.m-code{position:absolute;inset:0;padding:calc(24 * var(--u));display:flex;flex-direction:column;justify-content:space-between;text-align:left}
-.m-code i{font-style:normal;font-size:max(5.5px,calc(18 * var(--u)));letter-spacing:.18em;text-transform:uppercase;font-weight:600;color:rgba(255,255,255,.85)}
-.m-code b{font-family:var(--ff-d);font-weight:700;font-size:max(11px,calc(48 * var(--u)));letter-spacing:.12em;font-variant-numeric:tabular-nums;color:#fff}
-@container tv (max-width:520px){.m-hint,.m-cred,.m-date{display:none}}
+/* luz del día: la pone src/tv-demo.ts con la hora de quien mira */
+.screen.m-manana{--wall-tint:#E4F0F5;--sun:#F7DC97;--glow:rgba(255,236,190,.4);--bg:#DDE9EE}
+.screen.m-atardecer{--wall-tint:#F3C79F;--sun:#E5652E;--glow:rgba(255,150,80,.38);--bg:#EBCBA8;--acc-t:var(--acc-text-eve,#8A3E22)}
+.screen.m-noche{--wall-tint:#1A3B4E;--sun:#F1E8D0;--glow:rgba(190,215,235,.16);--bg:#1A3B4E;--ink:#F8F3E9;--ink-2:#CDD9DE;--ink-3:#A9BDC5;--paper:#12303F;--acc-t:var(--acc-lite,#E8A58C);
+  --acc:var(--acc-n,var(--acc-day,#B04E2B));--acc-ink:var(--acc-n-ink,var(--acc-day-ink,#fff));--acc-halo:var(--acc-n-halo,var(--acc-day-halo,rgba(176,78,43,.3)));--acc-glow:var(--acc-n-glow,var(--acc-day-glow,rgba(176,78,43,.45)))}
+
+/* muro y sol */
+.mr-wall{position:absolute;inset:0;background:var(--wall-tint) url(/img/background.webp) 36% 100% / auto 132% no-repeat;background-blend-mode:multiply;transition:background-color .6s ease}
+.mr-wall::after{content:"";position:absolute;inset:0;background:radial-gradient(circle at calc(1755 * var(--u)) calc(125 * var(--u)),var(--glow),rgba(255,214,140,0) calc(560 * var(--u)))}
+.screen[dir=rtl] .mr-wall::after{background:radial-gradient(circle at calc(165 * var(--u)) calc(125 * var(--u)),var(--glow),rgba(255,214,140,0) calc(560 * var(--u)))}
+.mr-sun{position:absolute;inset-inline-start:calc(1590 * var(--u));top:calc(-40 * var(--u));width:calc(330 * var(--u));height:calc(330 * var(--u));border-radius:50%;background:var(--sun)}
+.mr-sun::after{content:"";position:absolute;inset:calc(-26 * var(--u));border-radius:50%;border:max(1px,calc(4 * var(--u))) solid var(--sun);opacity:.45}
+
+/* arco: la foto es la de la fila con foco (dos capas y un fundido, como en la tele) */
+.mr-arch,.mr-ring{position:absolute;inset-inline-start:calc(936 * var(--u));top:calc(40 * var(--u));bottom:0;width:calc(912 * var(--u));border-radius:calc(456 * var(--u)) calc(456 * var(--u)) 0 0}
+.mr-arch{overflow:hidden;background:#EEDFC5;box-shadow:0 calc(50 * var(--u)) calc(90 * var(--u)) calc(-40 * var(--u)) rgba(6,26,38,.6)}
+.mr-ring{outline:max(1px,calc(4 * var(--u))) solid var(--sun);outline-offset:calc(18 * var(--u));pointer-events:none}
+.mr-l{position:absolute;inset:0;opacity:0;transition:opacity .9s ease}
+.mr-l.on{opacity:1}
+.mr-ph{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;transform-origin:50% 60%}
+.mr-l.on .mr-ph{animation:mr-kb 42s ease-in-out infinite alternate}
+@keyframes mr-kb{from{transform:scale(1.02)}to{transform:scale(1.11) translate3d(-1.2%,-.8%,0)}}
+.mr-grade,.mr-shade{position:absolute;inset:0;pointer-events:none}
+.m-manana .mr-grade{background:linear-gradient(180deg,rgba(190,225,245,.3),rgba(190,225,245,0) 55%)}
+.m-atardecer .mr-grade{background:linear-gradient(200deg,rgba(240,110,40,.34),rgba(240,110,40,0) 62%),linear-gradient(0deg,rgba(80,30,20,.22),transparent 40%)}
+.m-noche .mr-grade{background:linear-gradient(180deg,rgba(8,28,48,.62),rgba(8,28,48,.5))}
+.mr-shade{border-radius:inherit;box-shadow:inset 0 calc(80 * var(--u)) calc(120 * var(--u)) calc(-60 * var(--u)) rgba(0,0,0,.55),inset 0 calc(-60 * var(--u)) calc(80 * var(--u)) calc(-50 * var(--u)) rgba(0,0,0,.3)}
+
+/* repisa: los datos sobre el arco */
+.mr-sill{position:absolute;inset-inline-start:calc(976 * var(--u));bottom:calc(56 * var(--u));width:calc(832 * var(--u));display:flex;gap:calc(20 * var(--u))}
+.mr-chip{flex:1;min-width:0;display:flex;flex-direction:column;gap:calc(4 * var(--u));padding:calc(16 * var(--u)) calc(28 * var(--u)) calc(18 * var(--u));border-radius:calc(26 * var(--u));background:var(--paper);box-shadow:0 calc(22 * var(--u)) calc(36 * var(--u)) calc(-22 * var(--u)) rgba(6,26,38,.7)}
+.mr-chip .l{font:700 calc(26 * var(--u))/1.15 var(--ff-b);letter-spacing:.12em;text-transform:uppercase;color:var(--ink-3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.mr-chip .v{font:700 calc(60 * var(--u))/1.05 var(--ff-d);font-variant-numeric:lining-nums tabular-nums;color:var(--ink);white-space:nowrap}
+
+/* columna: marca y reloj, saludo, índice y placa del WiFi */
+.mr-col{position:absolute;inset-inline-start:calc(72 * var(--u));top:calc(40 * var(--u));width:calc(800 * var(--u));height:calc(1000 * var(--u));display:flex;flex-direction:column}
+.mr-top{flex:none;display:flex;align-items:center;justify-content:space-between;height:calc(96 * var(--u))}
+.mr-brand{display:flex;align-items:center;gap:calc(20 * var(--u));min-width:0}
+.mr-logo{flex:none;display:grid;place-items:center;width:calc(64 * var(--u));height:calc(64 * var(--u));border-radius:calc(16 * var(--u));background:var(--acc);color:var(--acc-ink);font:700 calc(38 * var(--u))/1 var(--ff-d)}
+.mr-bname{max-width:calc(420 * var(--u));font:700 calc(34 * var(--u))/1.1 var(--ff-d);color:var(--ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.mr-clk{flex:none;display:flex;flex-direction:column;align-items:flex-end;line-height:1}
+.mr-clk .t{font:700 calc(64 * var(--u))/1 var(--ff-d);font-variant-numeric:lining-nums tabular-nums;color:var(--acc-t)}
+.mr-clk .d{margin-top:calc(6 * var(--u));font:600 calc(26 * var(--u))/1.2 var(--ff-b);color:var(--ink-2)}
+.mr-hero{margin-top:calc(34 * var(--u))}
+.mr-hero .hi{font:italic 500 calc(112 * var(--u))/1 var(--ff-d);letter-spacing:-.02em;color:var(--ink);white-space:nowrap}
+/* Un saludo largo (ruso, ucraniano) no cabe a 112: baja de cuerpo sin cambiar el alto de su línea. */
+.mr-hero .hi.l{font-size:calc(88 * var(--u));line-height:calc(112 / 88)}
+.mr-hero .nm{margin-top:calc(14 * var(--u));font:700 calc(54 * var(--u))/1.1 var(--ff-d);color:var(--acc-t)}
+.mr-hero .zn{margin-top:calc(8 * var(--u));font:600 calc(28 * var(--u))/1.3 var(--ff-b);color:var(--ink-2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.mr-idx{display:flex;flex-direction:column;margin-top:calc(42 * var(--u))}
+.mr-row{flex:none;display:grid;grid-template-columns:calc(64 * var(--u)) 1fr auto;align-items:center;height:calc(62 * var(--u));width:calc(100% + 32 * var(--u));margin-inline-start:calc(-32 * var(--u));padding:0 calc(32 * var(--u));border-radius:999px;color:var(--ink)}
+.mr-row .n{font:italic 600 calc(28 * var(--u))/1 var(--ff-d);font-variant-numeric:lining-nums;color:var(--acc-t)}
+.mr-row .t{font:700 calc(42 * var(--u))/1 var(--ff-d);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.mr-row .v{font:600 calc(28 * var(--u))/1 var(--ff-b);color:var(--ink-2)}
+.mr-row.is-focus{background:var(--acc);color:var(--acc-ink);box-shadow:0 0 0 calc(6 * var(--u)) var(--acc-halo),0 calc(16 * var(--u)) calc(32 * var(--u)) calc(-16 * var(--u)) var(--acc-glow)}
+.mr-row.is-focus :is(.n,.v){color:var(--acc-ink);opacity:.9}
+.mr-plaque{flex:none;display:block;width:100%;height:calc(256 * var(--u));margin-top:auto;padding:calc(8 * var(--u));border-radius:calc(34 * var(--u));background:var(--acc);box-shadow:0 calc(28 * var(--u)) calc(40 * var(--u)) calc(-28 * var(--u)) rgba(6,26,38,.6);transition:transform .17s cubic-bezier(.2,.8,.2,1)}
+.mr-plaque.is-focus{transform:scale(1.025);box-shadow:0 0 0 calc(4 * var(--u)) var(--acc),0 0 0 calc(14 * var(--u)) var(--acc-halo),0 0 calc(26 * var(--u)) var(--acc-glow),0 calc(22 * var(--u)) calc(36 * var(--u)) calc(-22 * var(--u)) rgba(0,0,0,.5)}
+.mr-plaque .in{display:flex;align-items:center;gap:calc(28 * var(--u));height:100%;padding:calc(20 * var(--u));border-radius:calc(27 * var(--u));background:var(--paper);color:var(--ink)}
+.mr-qr{flex:none;width:calc(208 * var(--u));height:calc(208 * var(--u));padding:calc(12 * var(--u));border-radius:calc(18 * var(--u));background:#fff}
+.mr-qr svg{display:block;width:100%;height:100%;shape-rendering:crispEdges}
+.mr-plaque .x{flex:1;min-width:0;display:block}
+.mr-plaque .pt{display:block;font:700 calc(44 * var(--u))/1.05 var(--ff-d);color:var(--ink)}
+.mr-cred{display:grid;grid-template-columns:minmax(0,1fr);gap:calc(8 * var(--u));margin-top:calc(14 * var(--u))}
+.mr-cred :is(span,.l,.v){display:block}
+.mr-cred .l{font:700 calc(26 * var(--u))/1.1 var(--ff-b);letter-spacing:.14em;text-transform:uppercase;color:var(--ink-3)}
+.mr-cred .v{font:600 calc(40 * var(--u))/1.12 var(--ff-m);color:var(--ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+/* El foco lo dibuja la propia pieza (.is-focus), como en la tele: sin el contorno general de la página. */
+.mr-row:focus-visible,.mr-plaque:focus-visible{outline:none}
+
+/* árabe: en espejo, sin versalitas ni cursiva; una clave es texto LTR aunque la interfaz no lo sea */
+.screen[dir=rtl] :is(.mr-chip .l,.mr-cred .l){letter-spacing:0;text-transform:none;font-size:calc(28 * var(--u))}
+.screen[dir=rtl] .mr-hero .hi{font-style:normal;font-weight:700;letter-spacing:0;line-height:1.25}
+.screen[dir=rtl] .mr-row .n{font-style:normal}
+.screen[dir=rtl] .mr-cred .v{direction:ltr;unicode-bidi:isolate;text-align:right}
+
+/* cambio de idioma: la pantalla se funde, cambia (en árabe, de lado) y vuelve */
+.mr-sun,.mr-ring,.mr-arch,.mr-sill,.mr-col{transition:opacity .18s ease}
+.screen.is-swap :is(.mr-sun,.mr-ring,.mr-arch,.mr-sill,.mr-col){opacity:0}
+@media (prefers-reduced-motion:reduce){.mr-l.on .mr-ph{animation:none}}
 
 /* ---- pie de la tele: leyenda y color de marca ---- */
 .cap{margin-top:clamp(18px,2.2cqw,30px);display:grid;gap:4px}
@@ -137,10 +189,15 @@ body{margin:0;background:#F8F3E9}
 .cap-k b{color:var(--tinta);font-weight:700}
 .cap-t{font:700 1.4rem/1.2 var(--ff-d)}
 .cap-d{max-width:36em;min-height:3.2em;font-size:.96rem;color:var(--tinta-2)}
-.brand{margin-top:18px;display:grid;gap:10px}
+.tv-opts{display:flex;flex-wrap:wrap;gap:18px clamp(24px,4cqw,48px);margin-top:18px}
+.brand{display:grid;gap:10px;align-content:start}
 .swatches{display:flex;flex-wrap:wrap;gap:10px}
 .sw{width:44px;height:44px;border-radius:50%;border:3px solid #F1EDE5;box-shadow:0 0 0 1.5px rgba(12,42,55,.3)}
 .sw.on{box-shadow:0 0 0 3px var(--tinta)}
+.moods{display:flex;flex-wrap:wrap;gap:8px}
+.mood{min-height:44px;padding:0 16px;border:1.5px solid rgba(12,42,55,.3);border-radius:999px;font-weight:600;font-size:.86rem;color:var(--tinta-2);text-align:center;transition:background-color .2s,color .2s}
+.mood:hover{border-color:var(--tinta)}
+.mood.on{background:var(--tinta);border-color:var(--tinta);color:var(--cal)}
 .hero-tv .fine{margin-top:16px;max-width:34em}
 
 /* ============ ANTES DE QUE PREGUNTEN ============ */
@@ -271,6 +328,7 @@ body{margin:0;background:#F8F3E9}
   .facts span{font-size:.78rem}
   .cta-arch{max-width:320px}
   .cap-d{min-height:4.9em}
+  .moods{display:grid;grid-template-columns:repeat(2,minmax(0,1fr))}
   .qa-row{column-gap:16px}
 }
 
@@ -279,7 +337,6 @@ html{-webkit-text-size-adjust:100%;text-size-adjust:100%}
 .skip{position:absolute;left:-9999px;top:0;z-index:100;padding:12px 20px;border-radius:0 0 12px 0;background:var(--tinta);color:var(--cal);font-weight:600;text-decoration:none}
 .skip:focus{left:0}
 .menu-panel[hidden]{display:none}
-.m-date:empty,.m-time:empty{visibility:hidden}
 @container page (min-width:981px){.menu-panel{display:none}}
 @media (prefers-reduced-motion:reduce){.page *{transition:none!important}}
 
@@ -287,6 +344,3 @@ html{-webkit-text-size-adjust:100%;text-size-adjust:100%}
    script del <head> en index.html). Si el script no llega a cargar, a los 4 s se muestra igualmente. */
 html.tv-link body{visibility:hidden;animation:tv-link-failsafe 0s 4s forwards}
 @keyframes tv-link-failsafe{to{visibility:visible}}
-
-/* Tema de la tele por defecto (marca Terracota). src/lib/theme.ts lo recalcula al elegir otro color. */
-.screen{--tv-accent:#e07a5f;--tv-accent-ink:#ffffff;--tv-halo:rgba(224, 122, 95, 0.3);--tv-glow:rgba(224, 122, 95, 0.45);--tv-surface:#44464a;--tv-surface-raised:#56575a;--tv-line:rgba(255,255,255,0.14)}

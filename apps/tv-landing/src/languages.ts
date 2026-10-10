@@ -8,7 +8,8 @@ import { must, prefersReducedMotion, whileVisible } from './lib/dom'
 
 const ROTATE_MS = 2600
 
-export function initLanguages(): void {
+/** `onPick`: el visitante ha elegido un idioma (la tele de la portada se pone en él). */
+export function initLanguages(onPick?: (lang: string) => void): void {
   const chips = Array.from(document.querySelectorAll<HTMLButtonElement>('[data-lang]'))
   if (chips.length === 0) throw new Error('tv-landing: faltan los chips de idioma')
   const greet = must<HTMLElement>(document, '#greet')
@@ -36,6 +37,7 @@ export function initLanguages(): void {
     chip.addEventListener('click', () => {
       touched = true
       show(i)
+      onPick?.(chip.dataset.lang ?? '')
     }),
   )
 

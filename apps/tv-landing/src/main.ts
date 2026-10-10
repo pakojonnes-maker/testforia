@@ -23,6 +23,6 @@ void (async () => {
 
   document.documentElement.classList.remove('tv-link') // la landing estaba oculta a la espera de decidir
   initMenu()
-  initTvDemo()
-  initLanguages()
+  const tv = initTvDemo()
+  initLanguages(lang => tv.setLanguage(lang))
 })()
