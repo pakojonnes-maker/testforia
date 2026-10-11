@@ -44,7 +44,7 @@ type Props = {
   sections?: Section[];
   translations?: Record<string, string>;
   config?: HeaderConfig | string;
-  languages?: Language[]; // Opcional - usará del contexto si no se provee
+  languages?: Language[]; // Los de la respuesta de /landing; sin ellos no hay selector
   currentLanguage?: string; // Opcional - usará del contexto si no se provee
   // onLanguageChange removido - ahora usa el contexto directamente
 };
@@ -105,10 +105,10 @@ export default function HeaderNav({
   currentLanguage: currentLanguageProp,
 }: Props) {
   // ✅ Usar el contexto de idioma para gestión global
-  const { currentLanguage: contextLanguage, setLanguage, availableLanguages } = useLanguage();
+  const { currentLanguage: contextLanguage, setLanguage } = useLanguage();
 
   // Props tienen prioridad sobre contexto (para compatibilidad)
-  const languages = languagesProp || availableLanguages;
+  const languages = languagesProp || [];
   const currentLanguage = currentLanguageProp || contextLanguage;
   const cfg = useMemo(() => parseCfg(config), [config]);
 
