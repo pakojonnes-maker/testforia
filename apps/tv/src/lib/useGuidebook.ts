@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { fetchTvConfig, fetchGuideBySlug, setReferralCookie, type GuidebookData } from './api'
+import { fetchTvConfig, fetchGuideBySlug, type GuidebookData } from './api'
 import { MOCK_GUIDE } from './mockGuide'
 
 /**
@@ -88,7 +88,6 @@ export function useGuidebook(lang = 'es') {
           hasRealData = true
           setData(res)
           setUsingMock(false)
-          if (res?.apartment?.id) setReferralCookie(res.apartment.id)
           schedule(REFRESH_MS)
         })
         .catch(() => {

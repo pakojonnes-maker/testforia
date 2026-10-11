@@ -374,9 +374,9 @@ function detectEnvironment() {
 
 const REFERRAL_KEY = 'vt_referral';
 
-// Cookie de primera parte que la guía y la TV escriben en .visualtastes.com, solo con el
-// permiso del huésped (ver apps/guide/src/lib/consent.ts), para atribuir una visita a la
-// carta de otro día.
+// Cookie de primera parte que la guía escribe en .visualtastes.com, solo con el permiso
+// del huésped (ver apps/guide/src/lib/consent.ts), para atribuir una visita a la carta de
+// otro día. La TV no la escribe: su atribución va en la URL del QR (?ref=tv&apt=).
 const GUIDE_REFERRAL_COOKIE = 'vt_guide_ref';
 
 function readGuideReferralCookie(): { apartmentId?: string; sessionId?: string } {
