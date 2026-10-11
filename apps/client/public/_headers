@@ -1,8 +1,14 @@
 # Qué se indexa de este proyecto (visualtastes.com, www. y menu. sirven el MISMO build):
-#  - visualtastes.com/ (portada) y visualtastes.com/<slug> (landing de cada restaurante): sí.
-#  - menu.visualtastes.com: la app de la carta. No es una página para buscadores, y duplicaría la landing.
-#  - www. y visualtaste.pages.dev: copias exactas del sitio (el canonical de index.html apunta a visualtastes.com).
+#  - visualtastes.com/: la landing central de ventas del producto vacacional (central/index.html, que sirve
+#    public/_worker.js en «/»). visualtastes.com/<slug>: la landing de cada restaurante. Las dos, sí.
+#  - menu.visualtastes.com/: la landing de la carta digital para restaurantes (la SPA, HomePage). Sí.
+#  - menu.visualtastes.com/<slug> y el resto de menu.: la carta de cada restaurante. No es una página para
+#    buscadores, y duplicaría la landing del restaurante.
+#  - www., *.pages.dev y /central/* (acceso directo a la central, cuya canónica es https://visualtastes.com/):
+#    copias del sitio. noindex.
 #  - Enlaces con token (canjes de ofertas, reservas) y la propuesta comercial antigua: nunca.
+# El X-Robots-Tag de «/» lo pone o quita public/_worker.js (aquí no se aplica a lo que sale de un worker). Esta
+# lista vale para el resto de rutas, y es el respaldo si «/» se sirviera como asset.
 # No se bloquean en robots.txt a propósito: bloqueadas, los buscadores no leerían el noindex.
 https://menu.visualtastes.com/*
   X-Robots-Tag: noindex
@@ -11,6 +17,9 @@ https://www.visualtastes.com/*
   X-Robots-Tag: noindex
 
 https://:project.pages.dev/*
+  X-Robots-Tag: noindex
+
+/central/*
   X-Robots-Tag: noindex
 
 /r/*
@@ -24,3 +33,7 @@ https://:project.pages.dev/*
 
 /proposal*
   X-Robots-Tag: noindex
+
+# La portada de menu. (landing de la carta) SÍ se indexa: quita el noindex de la regla general de menu.* de arriba.
+https://menu.visualtastes.com/
+  ! X-Robots-Tag

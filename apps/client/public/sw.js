@@ -1,6 +1,9 @@
 // public/sw.js - Service Worker with PWA Support for iOS
-const SW_VERSION = 'v2.0.0';
-const CACHE_NAME = 'visualtaste-cache-v2';
+// v2.1.0 (oct-2026): «/» pasó a ser otra página según el host (landing central en visualtastes.com, landing de la
+// carta en menu.). La navegación ya es network-first, así que en línea nunca sirve un «/» viejo; el cambio de
+// nombre de la caché tira la copia de «/» que guardaron las versiones anteriores (solo se usa sin conexión).
+const SW_VERSION = 'v2.1.0';
+const CACHE_NAME = 'visualtaste-cache-v3';
 
 // Assets to cache for offline support
 const STATIC_ASSETS = [

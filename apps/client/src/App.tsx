@@ -1,7 +1,11 @@
 // apps/client/src/App.tsx
 //
-// Un solo build sirve visualtastes.com (portada y landing de cada restaurante) y
-// menu.visualtastes.com (la carta). La carta no usa MUI: el arranque no lo carga, y solo
+// Un solo build sirve visualtastes.com y menu.visualtastes.com. Quién sale en «/» lo decide
+// public/_worker.js: en visualtastes.com es la landing central de ventas del producto vacacional
+// (central/index.html, otra entrada de Vite, sin React) y NUNCA llega aquí; en menu.visualtastes.com es
+// esta SPA, que pinta la portada de la carta digital (HomePage). Para el resto de rutas, en menu. el
+// primer tramo es la carta del restaurante (/<slug>) y en visualtastes.com su landing.
+// La carta no usa MUI: el arranque no lo carga, y solo
 // las páginas que sí lo usan (portada, landing, reservas, legal…) lo traen en su chunk
 // dentro de <MuiShell>. Antes MUI + framer-motion + axios iban en el arranque de todas:
 // ~235 KB comprimidos antes de pedir la carta.
@@ -29,9 +33,13 @@ const GlobalLoader = () => (
   <div className="vt-loader" role="progressbar" aria-busy="true"><span /></div>
 );
 
-/** Ruta → página. La carta del dominio menu. sale siempre como carta; en el principal, como landing. */
+/**
+ * Ruta → página. La carta del dominio menu. sale siempre como carta; en el principal, como landing.
+ * «/» es la portada de la carta digital en cualquier host: en producción el principal nunca llega aquí
+ * (_worker.js sirve su landing central), pero sí menu., los despliegues de vista previa y el dev.
+ */
 function resolvePage(path: string, isMenuDomain: boolean): { page: Page; slug: string | null } {
-  if (path === '/' && !isMenuDomain) return { page: 'home', slug: null };
+  if (path === '/') return { page: 'home', slug: null };
   if (path.startsWith('/legal/privacy')) return { page: 'privacy', slug: null };
   // Aviso legal (art. 10 LSSI). Se acepta /legal/aviso y /legal/legal-notice porque el
   // enlace se pinta en apps con idiomas distintos.
@@ -46,11 +54,23 @@ function resolvePage(path: string, isMenuDomain: boolean): { page: Page; slug: s
   return { page: isMenuDomain ? 'reels' : 'landing', slug };
 }
 
+/** Carta a la que volver si la app instalada en un iPhone arranca en «/» (ver abajo); null si no aplica. */
+function readPushPending(): string | null {
+  try {
+    const pending = localStorage.getItem('vt_push_pending');
+    return pending && pending !== 'true' ? pending : null;
+  } catch {
+    return null;
+  }
+}
+
 function App() {
   const location = useLocation();
   const navigate = useNavigate();
   const isMenuDomain = window.location.hostname.startsWith('menu.');
   const { page, slug } = useMemo(() => resolvePage(location.pathname, isMenuDomain), [location.pathname, isMenuDomain]);
+  // Se lee de forma síncrona, antes de decidir la página, para que la portada no parpadee antes del salto.
+  const pushPending = isMenuDomain && location.pathname === '/' ? readPushPending() : null;
 
   // Una ruta más honda que /{slug} (p. ej. /xpecado/dish/123, enlaces de la carta antigua)
   // se reduce a la carta del restaurante: no hay pantallas por plato.
@@ -64,12 +84,8 @@ function App() {
   // La app instalada en un iPhone arranca en la raíz (start_url del manifest). Si el cliente
   // la instaló para activar avisos desde una carta, se le devuelve a esa carta.
   useEffect(() => {
-    if (!isMenuDomain || location.pathname !== '/') return;
-    try {
-      const pending = localStorage.getItem('vt_push_pending');
-      if (pending && pending !== 'true') navigate(`/${pending}`, { replace: true });
-    } catch { /* ignorar */ }
-  }, [isMenuDomain, location.pathname, navigate]);
+    if (pushPending) navigate(`/${pushPending}`, { replace: true });
+  }, [pushPending, navigate]);
 
   // Datos del restaurante: solo la carta y las reservas. La carta se pide ya en el idioma del
   // cliente (el que eligió antes o el de su móvil): antes se pedía siempre en español y, para
@@ -105,6 +121,9 @@ function App() {
   }, [needsData, slug, page]);
 
   const loading = needsData && loadedFor !== slug;
+
+  // Saltando a la carta pendiente (efecto de arriba): ni un fotograma de la portada.
+  if (pushPending) return <GlobalLoader />;
 
   // --- La carta: sin MUI ---
   if (page === 'reels') {
