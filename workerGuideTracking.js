@@ -292,6 +292,12 @@ async function handleIntent(request, env) {
     });
 }
 
+// Las pestañas de la guía: mismas claves que TAB_ORDER en
+// apps/guide/src/pages/GuidebookPage.tsx y que el CHECK de guide_section_views.section
+// (migración 0106). Una pestaña nueva que falte aquí recibe un 400 que la guía se traga:
+// 'chat' estuvo así, sin contarse, hasta oct-2026.
+const VALID_SECTIONS = ['info', 'discover', 'restaurants', 'services', 'chat'];
+
 /**
  * POST /guide/track/section-view
  * Body: { apartmentId, sessionId, section, durationSeconds? }
@@ -304,8 +310,7 @@ async function handleSectionView(request, env) {
         return errorResponse('apartmentId and section are required');
     }
 
-    const validSections = ['info', 'discover', 'restaurants', 'services'];
-    if (!validSections.includes(section)) {
+    if (!VALID_SECTIONS.includes(section)) {
         return errorResponse('Invalid section');
     }
 
