@@ -29,8 +29,9 @@ export function AzulejoStrip({ height = 36 }: { height?: number }) {
 
 // Pie de las pestañas de contenido: acceso permanente a Privacidad y aviso legal (art. 10 LSSI) y el
 // crédito de la plataforma. La franja oscura sigue por detrás de la barra inferior, sin hueco de papel.
-// El crédito lleva a la landing de la guía, no a visualtastes.com (que vende la carta a restaurantes): quien lo
-// pulsa es un anfitrión que quiere esto para su piso. Sin `noreferrer`, porque el destino es nuestro propio sitio.
+// El crédito lleva a la landing de la guía, no a menu.visualtastes.com (que vende la carta a restaurantes; la
+// portada de visualtastes.com vende todo el producto vacacional): quien lo pulsa es un anfitrión que quiere esto
+// para su piso. Sin `noreferrer`, porque el destino es nuestro propio sitio.
 export default function GuideFooter({ lang }: { lang: string }) {
   return (
     <footer className="g-foot">

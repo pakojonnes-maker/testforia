@@ -4,8 +4,11 @@
 //  - Solo se afirma lo que la guía hace hoy en producción.
 //  - La competencia NUNCA se nombra (decisión de Francisco): «guía internacional A / B», sin país. Cada dato suyo
 //    lleva su fuente y su fecha en la letra pequeña, y la tabla solo tiene filas en las que no perdemos.
-//  - Precio: 50 €/mes sin IVA hasta 30 pisos, pago anual, sin cuota de alta ni permanencia; más de 30, a consultar.
-//    La app de la tele es gratis; el aparato, un extra opcional (nunca «tele incluida»).
+//  - Precio (oct-2026, sin IVA, sin cuota de alta ni permanencia): guía 3 € por piso al mes; guía con conserje IA
+//    4 €; TV 13 €. Paquete completo (guía + conserje + TV): 70 €/mes de 1 a 30 pisos y 100 €/mes de 31 a 50; más de
+//    50, a convenir. El aparato que conecta la tele es un extra opcional si la tele no admite la app.
+//    Los mismos precios están en apps/client/central/index.html (+ su calculadora, src/central/main.ts) y en
+//    apps/tv-landing/index.html: se cambian los cuatro sitios a la vez.
 
 export const PHONE_DISPLAY = '633 74 70 33';
 export const PHONE_TEL = 'tel:+34633747033';
@@ -33,14 +36,14 @@ export const PAGES = {
     name: 'Inicio',
     title: 'Guía digital para apartamentos turísticos | VisualTaste Guía',
     description:
-      'Guía digital con QR para apartamentos turísticos: WiFi, normas, mapa, restaurantes, tienda de extras y un conserje con IA en 13 idiomas. 50 € al mes hasta 30 pisos, todo incluido.',
+      'Guía digital con QR para apartamentos turísticos: WiFi, normas, mapa, restaurantes, tienda de extras y un conserje con IA en 13 idiomas. Desde 3 € por piso, o 70 € al mes hasta 30 pisos con la tele incluida.',
   },
   gestoras: {
     path: '/para/gestoras-de-apartamentos',
     name: 'Para gestoras',
     title: 'Guía digital para gestoras de apartamentos turísticos | VisualTaste',
     description:
-      'Una guía por piso sin escribir cien: lo de la zona se escribe una vez y vale para todos tus pisos. Tu marca, 13 idiomas y conserje con IA. 50 € al mes hasta 30 pisos.',
+      'Una guía por piso sin escribir cien: lo de la zona se escribe una vez y vale para todos tus pisos. Tu marca, 13 idiomas y conserje con IA. 70 € al mes hasta 30 pisos, con la tele incluida.',
   },
   conserje: {
     path: '/funciones/conserje-ia',
@@ -122,7 +125,7 @@ export const CONNECTIONS: ReadonlyArray<readonly [string, string]> = [
 
 /** Precio al mes con 30 pisos. A y B son las dos guías internacionales de la tabla (nunca se nombran). */
 export const PRICE_BARS: ReadonlyArray<{ name: string; price: string; pct: number; us?: boolean }> = [
-  { name: 'VisualTaste', price: '50 €', pct: 40.8, us: true },
+  { name: 'VisualTaste', price: '70 €', pct: 57.1, us: true },
   { name: 'Guía internacional A', price: '117,08 €', pct: 95.6 },
   { name: 'Guía internacional B', price: '122,50 €', pct: 100 },
 ];
@@ -135,16 +138,16 @@ export interface CompareCell {
 
 export const COMPARE: ReadonlyArray<{ row: string; us: CompareCell; a: CompareCell; b: CompareCell }> = [
   {
-    row: 'Precio al mes con 30 pisos, pago anual',
-    us: { t: '50 €', s: '1,67 € por piso' },
+    row: 'Precio al mes con 30 pisos',
+    us: { t: '70 €', s: '2,33 € por piso, con la tele incluida' },
     a: { t: '117,08 €', s: 'en su plan con chat IA, pagando el año' },
     b: { t: '122,50 €', s: '49 € por piso al año, tarifa de lista' },
   },
-  { row: 'Conserje con IA, incluido en el precio', us: { t: 'Sí, sin pagar más' }, a: { t: 'Solo en el plan de arriba' }, b: { t: 'Sí' } },
+  { row: 'Conserje con IA, incluido en el precio', us: { t: 'Sí, en el paquete' }, a: { t: 'Solo en el plan de arriba' }, b: { t: 'Sí' } },
   { row: 'Estadísticas, incluidas en el precio', us: { t: 'Sí, anónimas' }, a: { t: 'Solo en el plan de arriba' }, b: { t: 'Sí' } },
-  { row: 'Tienda de extras', us: { t: 'Gratis', s: 'el pedido te llega por WhatsApp' }, a: { t: 'Cobro por Stripe, con su comisión' }, b: { t: '9,90 € al mes aparte' } },
-  { row: 'QR para imprimir', us: { t: 'Gratis, uno por piso' }, a: { t: 'Plantillas gratis' }, b: { t: 'Carteles desde 7,90 €' } },
-  { row: 'App para la tele del salón', us: { t: 'Gratis la app; el aparato, opcional si tu tele no la admite' }, a: { t: 'No', no: true }, b: { t: 'No', no: true } },
+  { row: 'Tienda de extras', us: { t: 'Incluida', s: 'el pedido te llega por WhatsApp' }, a: { t: 'Cobro por Stripe, con su comisión' }, b: { t: '9,90 € al mes aparte' } },
+  { row: 'QR para imprimir', us: { t: 'Incluido, uno por piso' }, a: { t: 'Plantillas gratis' }, b: { t: 'Carteles desde 7,90 €' } },
+  { row: 'App para la tele del salón', us: { t: 'Incluida en el paquete', s: 'el aparato, opcional si tu tele no la admite' }, a: { t: 'No', no: true }, b: { t: 'No', no: true } },
   { row: 'Carta en vídeo de los restaurantes', us: { t: 'Sí' }, a: { t: 'No', no: true }, b: { t: 'No', no: true } },
   { row: 'Empresa y atención', us: { t: 'En España, en español' }, a: { t: 'Fuera de España' }, b: { t: 'Fuera de España' } },
 ];
@@ -194,11 +197,11 @@ export const FAQ_TOPICS: ReadonlyArray<{ id: string; label: string; items: Reado
     id: 'precio',
     label: 'Precio',
     items: [
-      { q: '¿Cuánto cuesta VisualTaste Guía?', a: '50 € al mes hasta 30 pisos, con todo incluido: conserje con IA, estadísticas, tienda, 13 idiomas y la app de la tele. Se paga al año: 600 €, sin IVA. Con más de 30 pisos, a consultar.' },
-      { q: '¿Por qué es más barata que las guías internacionales?', a: 'Porque cobramos una tarifa plana y no por piso. Con 30 pisos, las guías internacionales más usadas cobran entre 117 y 122 € al mes; nosotros, 50 €.' },
+      { q: '¿Cuánto cuesta VisualTaste Guía?', a: 'Suelta, 3 € por piso al mes; con el conserje con IA, 4 €. Si además quieres la tele, el paquete completo cuesta 70 € al mes de 1 a 30 pisos y 100 € de 31 a 50, con todo incluido. Con más de 50, a convenir. Precios sin IVA.' },
+      { q: '¿Por qué es más barata que las guías internacionales?', a: 'Porque el paquete es un precio cerrado y no por piso. Con 30 pisos, las guías internacionales más usadas cobran entre 117 y 122 € al mes solo por la guía; nuestro paquete, 70 €, con la tele incluida.' },
       { q: '¿Hay precio especial en la Costa del Sol?', a: 'Sí. VisualTaste nació aquí, y los pisos de la Costa del Sol tienen un precio de fundador más bajo. Pregúntanos el tuyo.' },
-      { q: '¿Hay cuota de alta o permanencia?', a: 'No hay ni cuota de alta ni permanencia. El pago es anual, que simplifica la contabilidad: una factura al año.' },
-      { q: '¿Y la tele?', a: 'La app de VisualTaste TV es gratis y va incluida. Si tu tele no la admite, te ofrecemos el aparato que la conecta, como extra opcional.' },
+      { q: '¿Hay cuota de alta o permanencia?', a: 'No hay ni cuota de alta ni permanencia.' },
+      { q: '¿Y la tele?', a: 'VisualTaste TV cuesta 13 € por piso al mes si la contratas suelta, y va incluida en el paquete. Si tu tele no admite la app, te ofrecemos el aparato que la conecta, como extra opcional.' },
     ],
   },
   {
@@ -244,7 +247,7 @@ export const GESTORAS_FAQ: ReadonlyArray<QA> = [
   { q: '¿Os conectáis con mi programa de gestión?', a: 'Todavía no (Icnea, AvaiBook, Guesty…). La guía es un enlace por piso: va en el mensaje de confirmación que ya mandas.' },
   { q: '¿Me montáis vosotros las guías?', a: 'A las 10 primeras gestoras del programa fundador, sí: la primera guía la montamos nosotros, y es gratis hasta el 31 de mayo de 2027.' },
   { q: '¿Puedo vender extras a huéspedes que reservaron por Airbnb?', a: 'Airbnb no deja cobrar fuera de su plataforma lo que debería ir en el anuncio. Te contamos en la demo qué tiene sentido poner en la tienda y qué no.' },
-  { q: '¿Cuánto cuesta con más de 30 pisos?', a: 'A consultar. Cuéntanos cuántos pisos gestionas y te lo decimos en la demo, con todo incluido igual que en el tramo de 50 €.' },
+  { q: '¿Cuánto cuesta con más de 30 pisos?', a: 'De 31 a 50 pisos, 100 € al mes con todo incluido. Con más de 50, a convenir: cuéntanos cuántos gestionas y te lo decimos en la demo.' },
 ];
 
 // ---------- conserje ----------
@@ -300,7 +303,7 @@ export const CONSERJE_FAQ: ReadonlyArray<QA> = [
   { q: '¿Cómo reduce los mensajes que recibo?', a: 'Las preguntas de siempre (WiFi, salida, aparcamiento, dónde cenar) las contesta él, a la hora que sea.' },
   { q: '¿En qué se diferencia de ChatGPT?', a: 'ChatGPT no conoce tu piso. El conserje solo sabe lo que hay en tu guía y recomienda tus sitios, no los primeros que encuentre.' },
   { q: '¿Cuál es el mejor chatbot para apartamentos turísticos?', a: 'El que contesta con los datos de tu piso, en el idioma del huésped, y admite cuándo no lo sabe. Pídenos una demo y pruébalo con uno de tus pisos.' },
-  { q: '¿El conserje cuesta aparte?', a: 'No. Va incluido en el precio: 50 € al mes hasta 30 pisos.' },
+  { q: '¿El conserje cuesta aparte?', a: 'La guía cuesta 3 € por piso al mes y, con el conserje, 4 €. En el paquete completo (70 € al mes hasta 30 pisos) va incluido.' },
 ];
 
 // ---------- libro de bienvenida ----------
@@ -346,12 +349,12 @@ export const LIBRO_FAQ: ReadonlyArray<QA> = [
 // ---------- comparar ----------
 
 export const FULL_COMPARE: ReadonlyArray<{ row: string; pdf: CompareCell; a: CompareCell; us: CompareCell & { plain?: boolean } }> = [
-  { row: 'Precio por piso al mes', pdf: { t: 'Tu tiempo' }, a: { t: '2,50 a 3,50 € por piso en el plan básico; con chat IA y estadísticas, 117,08 € al mes con 30 pisos' }, us: { t: '50 € al mes sin IVA hasta 30 pisos, todo incluido, pago anual (1,67 € por piso con 30)' } },
-  { row: 'Conserje con IA', pdf: { t: 'No', no: true }, a: { t: 'En planes superiores' }, us: { t: 'Incluido' } },
+  { row: 'Precio por piso al mes', pdf: { t: 'Tu tiempo' }, a: { t: '2,50 a 3,50 € por piso en el plan básico; con chat IA y estadísticas, 117,08 € al mes con 30 pisos' }, us: { t: '70 € al mes sin IVA hasta 30 pisos, con guía, conserje y tele (2,33 € por piso con 30). Suelta, 3 € por piso, o 4 € con conserje' } },
+  { row: 'Conserje con IA', pdf: { t: 'No', no: true }, a: { t: 'En planes superiores' }, us: { t: 'Incluido en el paquete; suelto, 1 € más por piso' } },
   { row: 'Estadísticas de uso', pdf: { t: 'No', no: true }, a: { t: 'En planes superiores' }, us: { t: 'Incluidas, anónimas' } },
   { row: 'Idiomas', pdf: { t: 'Los que traduzcas' }, a: { t: 'Traducción automática' }, us: { t: '13, árabe de derecha a izquierda' } },
   { row: 'Lugares de la zona', pdf: { t: 'Los escribes tú' }, a: { t: 'Se importan de Google' }, us: { t: 'Se importan de Google y se comparten entre los pisos de la zona' } },
-  { row: 'La tele del salón', pdf: { t: 'No', no: true }, a: { t: 'No', no: true }, us: { t: 'Gratis la app; el aparato, opcional si tu tele no la admite' } },
+  { row: 'La tele del salón', pdf: { t: 'No', no: true }, a: { t: 'No', no: true }, us: { t: 'Incluida en el paquete; suelta, 13 € por piso. El aparato, opcional si tu tele no la admite' } },
   { row: 'Carta en vídeo de los restaurantes', pdf: { t: 'No', no: true }, a: { t: 'No', no: true }, us: { t: 'Los que usan la carta de VisualTaste' } },
   { row: 'Mensajes al huésped (programados, bidireccionales)', pdf: { t: 'No', no: true }, a: { t: 'Sí' }, us: { t: 'No: te escribe por tu canal de siempre', plain: true } },
   { row: 'Conexión con programas de gestión', pdf: { t: 'No', no: true }, a: { t: 'Más de 40' }, us: { t: 'Todavía no', plain: true } },
@@ -370,6 +373,6 @@ export const NOT_FOR_US: ReadonlyArray<readonly [string, string]> = [
 
 export const FOR_US: ReadonlyArray<readonly [string, string]> = [
   ['Gestionas pisos en el Mediterráneo', 'Con huéspedes de muchos países: 13 idiomas sin traducir nada a mano.'],
-  ['Quieres el conserje sin subir de plan', 'El conserje con IA y las estadísticas van en el precio, sin planes de arriba.'],
+  ['Quieres el conserje sin planes de arriba', 'En el paquete van el conserje con IA, las estadísticas y la tele. Suelto, el conserje es 1 € más por piso.'],
   ['Tus pisos tienen tele', 'La misma guía en el móvil y en la pantalla del salón, desde un solo panel.'],
 ];

@@ -96,7 +96,8 @@ export function FaqList({ items, className = 'faq' }: { items: ReadonlyArray<QA>
 
 // ---------- contacto: no hay servidor detrás, así que el formulario abre WhatsApp con la pregunta escrita ----------
 
-const SIZES = ['1 a 10', '11 a 30', '31 a 50', '51 a 100', 'Más de 100'] as const;
+// Los mismos tramos que el formulario de la landing central (apps/client/central/index.html) y que los del paquete.
+const SIZES = ['1 a 4', '5 a 30', '31 a 50', 'Más de 50'] as const;
 
 function ContactBand() {
   const [name, setName] = useState('');
@@ -108,7 +109,7 @@ function ContactBand() {
     e.preventDefault();
     const text = [
       `Hola, soy ${name.trim()}.`,
-      `Gestiono ${size === 'Más de 100' ? 'más de 100' : size} alojamientos${zone.trim() ? ` en ${zone.trim()}` : ''}.`,
+      `Gestiono ${size === 'Más de 50' ? 'más de 50' : size} alojamientos${zone.trim() ? ` en ${zone.trim()}` : ''}.`,
       question.trim() || 'Me gustaría ver una demo de VisualTaste Guía.',
     ].join(' ');
     window.open(`https://wa.me/${WHATSAPP_NUMBER}?text=${encodeURIComponent(text)}`, '_blank', 'noopener');
@@ -292,7 +293,8 @@ export function LandingShell({ children }: { children: ReactNode }) {
             <ul>
               <li><a href="#contacto">Contacto</a></li>
               <li><a href={PHONE_TEL}>{PHONE_DISPLAY}</a></li>
-              <li><a href="https://visualtastes.com">Carta digital para restaurantes</a></li>
+              <li><a href="https://visualtastes.com/">Todos los productos</a></li>
+              <li><a href="https://menu.visualtastes.com/">Carta digital para restaurantes</a></li>
               <li><Link to="/legal">Privacidad y aviso legal</Link></li>
             </ul>
           </div>

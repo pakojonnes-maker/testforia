@@ -106,15 +106,28 @@ const APP = {
     'Conserje con IA que responde con la información del alojamiento',
     'Traducción a 13 idiomas, árabe incluido',
     'Estadísticas anónimas de uso de la guía',
-    'App gratuita para la tele del salón (VisualTaste TV)',
+    'Pantalla de bienvenida para la tele del salón (VisualTaste TV)',
   ],
-  offers: {
-    '@type': 'Offer',
-    price: '600',
-    priceCurrency: 'EUR',
-    description: 'Hasta 30 alojamientos, todo incluido, pago anual. Precio sin IVA. Más de 30 alojamientos, a consultar.',
-    priceSpecification: { '@type': 'UnitPriceSpecification', price: '50', priceCurrency: 'EUR', unitText: 'mes', valueAddedTaxIncluded: false },
-  },
+  // Precios de oct-2026, sin IVA, al mes. Los mismos están en landing/data.ts, apps/client/central/index.html y apps/tv-landing/index.html.
+  offers: [
+    {
+      '@type': 'Offer',
+      name: 'VisualTaste Guía',
+      price: '3.00',
+      priceCurrency: 'EUR',
+      description: 'Por alojamiento y mes, sin IVA. Con el conserje con IA, 4 € por alojamiento y mes.',
+      priceSpecification: { '@type': 'UnitPriceSpecification', price: '3.00', priceCurrency: 'EUR', unitText: 'por alojamiento y mes', valueAddedTaxIncluded: false },
+    },
+    {
+      '@type': 'Offer',
+      name: 'Paquete completo: guía, conserje con IA y VisualTaste TV',
+      price: '70.00',
+      priceCurrency: 'EUR',
+      description: 'De 1 a 30 alojamientos, al mes y sin IVA. De 31 a 50 alojamientos, 100 € al mes. Más de 50, a convenir.',
+      eligibleQuantity: { '@type': 'QuantitativeValue', minValue: 1, maxValue: 30, unitText: 'alojamientos' },
+      priceSpecification: { '@type': 'UnitPriceSpecification', price: '70.00', priceCurrency: 'EUR', unitText: 'al mes', valueAddedTaxIncluded: false },
+    },
+  ],
   publisher: { '@id': ORG['@id'] },
 }
 

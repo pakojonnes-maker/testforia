@@ -170,26 +170,31 @@ export default function GestorasPage() {
           <div className="sec-head">
             <p className="label">Precio</p>
             <h2 className="h2" id="t-precio">
-              Hasta 30 pisos, 50 € al mes. <em>Todo incluido.</em>
+              Hasta 30 pisos, 70 € al mes. <em>Todo incluido.</em>
             </h2>
             <p className="lead">
-              Una tarifa plana, sin IVA y con pago anual, como la de tu programa de gestión. Todo incluido: conserje con IA,
-              panel, idiomas, tu marca y la app de la tele. Con 30 pisos, las guías internacionales cobran más del doble.
+              Un precio cerrado, sin IVA, como el de tu programa de gestión. Todo incluido: guía, conserje con IA, panel,
+              idiomas, tu marca y VisualTaste TV. Con 30 pisos, las guías internacionales cobran más por la guía sola.
             </p>
           </div>
           <ul className="tiers t2">
             <li>
-              <b>50 €</b>
-              <span>al mes de 0 a 30 pisos, sin IVA</span>
+              <b>70 €</b>
+              <span>al mes de 1 a 30 pisos, sin IVA</span>
             </li>
             <li>
-              <b>A consultar</b>
-              <span>más de 30 pisos</span>
+              <b>100 €</b>
+              <span>al mes de 31 a 50 pisos, sin IVA</span>
+            </li>
+            <li>
+              <b>A convenir</b>
+              <span>más de 50 pisos</span>
             </li>
           </ul>
           <p className="fine" style={{ marginTop: 24, color: '#C9D6DB' }}>
-            Sin cuota de alta ni permanencia; pago anual. La app de la tele, gratis; el aparato, un extra opcional si tu tele no
-            la admite. En la Costa del Sol, precio especial: a consultar.
+            Sin cuota de alta ni permanencia. Suelto, 3 € por piso al mes la guía, 4 € con conserje y 13 € la tele; el aparato
+            que conecta la tele es un extra opcional si la tuya no admite la app. En la Costa del Sol, precio especial: a
+            consultar.
           </p>
         </div>
       </section>
