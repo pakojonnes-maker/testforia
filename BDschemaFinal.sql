@@ -3,13 +3,14 @@
 -- =====================================================
 -- Base de datos D1: restaurant-menu-saas (7e8d1efe-2a54-4849-9a06-4c47152392bd)
 -- Exportado el 2026-10-11 desde la BD en produccion, tras aplicar la
--- migracion 0105 (laminas con QR para enmarcar):
---   · guide_qr_posters: la lamina de fondo de cada zona (una activa por zona).
---   · guide_agencies.qr_design: el diseno del QR y del marco, en JSON. Lo
---     escribe workerGuideQr.js, no updateAgency.
---   · guide_sessions.entry_source: por donde entro el huesped ('marco' = el QR
---     impreso, que lleva ?o=marco).
--- Antes, 0104: guide_tv_devices.device_manufacturer / device_model / os_version /
+-- migracion 0106 (la pestana Conserje entra en las vistas de seccion):
+--   · guide_section_views.section admite 'chat' ademas de 'info', 'discover',
+--     'restaurants' y 'services'. La tabla se recreo para cambiar el CHECK: por
+--     eso sale al final, con el nombre entre comillas y sus tres indices detras.
+-- Antes, 0105 (laminas con QR para enmarcar): guide_qr_posters,
+-- guide_agencies.qr_design (lo escribe workerGuideQr.js, no updateAgency) y
+-- guide_sessions.entry_source ('marco' = el QR impreso, que lleva ?o=marco);
+-- 0104: guide_tv_devices.device_manufacturer / device_model / os_version /
 -- app_version (que tele es cada pantalla de VisualTaste TV); 0101:
 -- sessions.visitor_day_hash (medicion anonima de la carta, el mismo hash diario
 -- que guide_sessions); 0096: ai_usage_daily (presupuesto diario de Workers AI,
@@ -1006,17 +1007,6 @@ CREATE TABLE guide_commission_ledger (
   FOREIGN KEY (agency_id) REFERENCES guide_agencies(id),
   FOREIGN KEY (intent_id) REFERENCES guide_affiliate_intents(id)
 );
-CREATE TABLE guide_section_views (
-  id TEXT PRIMARY KEY,
-  session_id TEXT,
-  apartment_id TEXT NOT NULL,
-  zone_id TEXT NOT NULL,
-  section TEXT NOT NULL CHECK(section IN ('info', 'discover', 'restaurants', 'services')),
-  duration_seconds INTEGER DEFAULT 0,
-  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-  FOREIGN KEY (session_id) REFERENCES guide_sessions(id),
-  FOREIGN KEY (apartment_id) REFERENCES guide_apartments(id)
-);
 CREATE TABLE guide_info_steps (
   id                  TEXT PRIMARY KEY,
   apartment_info_id   TEXT NOT NULL,
@@ -1278,6 +1268,20 @@ CREATE TABLE guide_qr_posters (
   modified_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   FOREIGN KEY (zone_id) REFERENCES guide_zones(id)
 );
+CREATE TABLE IF NOT EXISTS "guide_section_views" (
+  id TEXT PRIMARY KEY,
+  session_id TEXT,
+  apartment_id TEXT NOT NULL,
+  zone_id TEXT NOT NULL,
+  -- Mismas claves que TabKey / TAB_ORDER en apps/guide/src/pages/GuidebookPage.tsx,
+  -- que VALID_SECTIONS en workerGuideTracking.js y que SECTION_LABELS en
+  -- apps/admin/src/pages/guide/GuideAgencyDashboard.tsx. Los cuatro se mueven juntos.
+  section TEXT NOT NULL CHECK(section IN ('info', 'discover', 'restaurants', 'services', 'chat')),
+  duration_seconds INTEGER DEFAULT 0,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (session_id) REFERENCES guide_sessions(id),
+  FOREIGN KEY (apartment_id) REFERENCES guide_apartments(id)
+);
 CREATE INDEX idx_dishes_restaurant ON dishes(restaurant_id);
 CREATE INDEX idx_sections_restaurant ON sections(restaurant_id);
 CREATE INDEX idx_translations_language ON translations(language_code);
@@ -1336,8 +1340,6 @@ CREATE INDEX idx_guide_ledger_agency ON guide_commission_ledger(agency_id, statu
 CREATE INDEX idx_guide_sessions_apartment ON guide_sessions(apartment_id, started_at);
 CREATE INDEX idx_guide_sessions_zone ON guide_sessions(zone_id, started_at);
 CREATE INDEX idx_guide_agency_staff_user ON guide_agency_staff(user_id);
-CREATE INDEX idx_guide_section_views_apt ON guide_section_views(apartment_id, section, created_at);
-CREATE INDEX idx_guide_section_views_session ON guide_section_views(session_id);
 CREATE INDEX idx_guide_info_steps ON guide_info_steps(apartment_info_id, step_number);
 CREATE INDEX idx_guide_step_media ON guide_info_step_media(step_id, order_index);
 CREATE INDEX idx_guide_pois_zone_active ON guide_pois(zone_id, is_active, order_index);
@@ -1390,9 +1392,11 @@ CREATE INDEX idx_guide_apt_items_lookup
 CREATE INDEX idx_guide_poi_media_poi ON guide_poi_media(poi_id, order_index);
 CREATE INDEX idx_guide_apartment_media_info ON guide_apartment_media(apartment_info_id, order_index);
 CREATE INDEX idx_guide_sessions_started ON guide_sessions(started_at);
-CREATE INDEX idx_guide_section_views_created ON guide_section_views(created_at);
 CREATE INDEX idx_guide_tv_events_created ON guide_tv_events(created_at);
 CREATE INDEX idx_guide_intents_created ON guide_affiliate_intents(created_at);
 CREATE INDEX idx_guide_qr_posters_zone ON guide_qr_posters(zone_id, is_active);
 CREATE INDEX idx_guide_sessions_entry_source
   ON guide_sessions(apartment_id, started_at) WHERE entry_source IS NOT NULL;
+CREATE INDEX idx_guide_section_views_apt ON guide_section_views(apartment_id, section, created_at);
+CREATE INDEX idx_guide_section_views_session ON guide_section_views(session_id);
+CREATE INDEX idx_guide_section_views_created ON guide_section_views(created_at);
