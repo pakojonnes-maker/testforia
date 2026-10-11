@@ -41,6 +41,16 @@ Siguiente número, 4 dígitos, nombre descriptivo en snake_case:
   leerá la siguiente sesión.
 - Idempotente donde se pueda (`CREATE TABLE IF NOT EXISTS`, `INSERT OR IGNORE`).
 - D1 es estricto con `null`/`undefined`: sé explícito.
+- **Nada de `BEGIN TRANSACTION`, ni como sentencia ni dentro de un comentario.** Como
+  sentencia, D1 remoto la rechaza (ya envuelve el fichero entero en su transacción). Como
+  texto en un comentario, `wrangler d1 execute --local --file` rechaza el fichero
+  («contains several transactions») y no aplica nada: el ensayo local parece hecho y no
+  lo está (le pasó al primer borrador de la `0106`).
+- **Cambiar un `CHECK` es recrear la tabla**: tabla `_new`, `INSERT … SELECT`, `DROP`,
+  `RENAME` (patrón `0093` / `0106`). Los índices se van con el `DROP`: cópialos de
+  `sqlite_master` **remoto**, no de las migraciones (a `guide_section_views` le faltaba
+  uno en ellas), y créalos después del `RENAME`. Antes de escribir, cuenta las filas
+  huérfanas: la copia vuelve a pasar las FK.
 - Si añades datos de guidebook traducibles, recuerda los **13 idiomas activos** (`es` es
   la fuente; `en` el fallback) y el tipo de entidad correcto en `translations`.
 - POIs y experiencias van **siempre** a `guide_pois` (discriminador `is_bookable`).

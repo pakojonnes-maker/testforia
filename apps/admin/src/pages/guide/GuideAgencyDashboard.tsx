@@ -132,6 +132,7 @@ function groupSessionsIntoVisitors(rows: SessionLogRow[]): VisitorGroup[] {
 
 const SECTION_LABELS: Record<string, string> = {
   info: 'Información del alojamiento', discover: 'Descubre la zona', restaurants: 'Restaurantes', services: 'Servicios',
+  chat: 'Conserje',
 };
 
 const LANG_NAMES: Record<string, string> = {
