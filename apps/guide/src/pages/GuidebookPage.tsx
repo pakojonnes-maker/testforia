@@ -184,6 +184,10 @@ export default function GuidebookPage() {
   };
 
   const sessionIdRef = useRef<string | null>(null);
+  // La apertura de sesión en curso: resuelve con el id, o con null si session/start falla. Lo que
+  // se dispara antes de que el servidor conteste (la primera vista de sección) espera aquí en vez
+  // de leer sessionIdRef, que en ese momento todavía es null.
+  const sessionStartRef = useRef<Promise<string | null>>(Promise.resolve(null));
   // Espejo de `lang` para que el efecto de sesión pueda leer el idioma actual sin
   // declararlo como dependencia (cambiar de idioma no debe reiniciar la sesión).
   const langRef = useRef(lang);
@@ -268,10 +272,12 @@ export default function GuidebookPage() {
     const startedAt = Date.now();
     const elapsedSeconds = () => Math.round((Date.now() - startedAt) / 1000);
 
-    trackSessionStart(apartmentId, langRef.current, entrySourceRef.current).then(res => {
-      if (!cancelled && res?.sessionId) {
-        sessionIdRef.current = res.sessionId;
+    sessionStartRef.current = trackSessionStart(apartmentId, langRef.current, entrySourceRef.current).then(res => {
+      const sessionId: string | null = res?.sessionId || null;
+      if (!cancelled && sessionId) {
+        sessionIdRef.current = sessionId;
       }
+      return sessionId;
     });
     if (entrySourceRef.current) {
       setSearchParams(prev => {
@@ -302,12 +308,19 @@ export default function GuidebookPage() {
   }, [data?.apartment?.id]);
 
   // Track section view when tab changes
+  //
+  // La vista espera a que la sesión esté abierta. Al cargar la guía este efecto y el de sesión se
+  // disparan en el mismo commit, así que leer sessionIdRef aquí daba null en la primera vista de
+  // cada visita: en producción, 184 de las 236 vistas de «info» (la pestaña de entrada) no tenían
+  // sesión y el admin no la pintaba en el recorrido del visitante. Si session/start falla, la
+  // promesa resuelve con null y la vista sale sin sesión, como antes: no se pierde.
+  // Depende de ir DESPUÉS del efecto de sesión, que es quien deja la promesa en sessionStartRef.
   useEffect(() => {
-    if (data?.apartment?.id) {
-      trackSectionView(data.apartment.id, sessionIdRef.current, activeTab);
-      // Scroll to top of tab content smoothly
-      window.scrollTo({ top: 0, behavior: 'smooth' });
-    }
+    const apartmentId = data?.apartment?.id;
+    if (!apartmentId) return;
+    sessionStartRef.current.then(sessionId => trackSectionView(apartmentId, sessionId, activeTab));
+    // Scroll to top of tab content smoothly
+    window.scrollTo({ top: 0, behavior: 'smooth' });
   }, [activeTab, data?.apartment?.id]);
 
   // Track intent

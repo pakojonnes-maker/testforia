@@ -1,18 +1,9 @@
-import { createContext, useContext, useState, useEffect } from 'react';
+import { createContext, useContext, useState } from 'react';
 import type { ReactNode } from 'react';
-
-interface Language {
-    code: string;
-    name: string;
-    native_name: string;
-    flag_emoji: string;
-}
 
 interface LanguageContextType {
     currentLanguage: string;
     setLanguage: (lang: string) => void;
-    availableLanguages: Language[];
-    isLoading: boolean;
 }
 
 const LanguageContext = createContext<LanguageContextType | undefined>(undefined);
@@ -23,8 +14,13 @@ interface LanguageProviderProps {
     defaultLanguage?: string;
 }
 
-const API_URL = import.meta.env.VITE_API_URL || 'https://visualtasteworker.franciscotortosaestudios.workers.dev';
-
+/**
+ * Solo guarda el idioma elegido. La lista de idiomas del restaurante llega en la
+ * respuesta de GET /restaurants/:slug/landing (`languages`, ya filtrada por
+ * `is_enabled`): aquí no se pide. Antes se pedía a /restaurants/:slug/languages,
+ * que exige sesión, y cada visita a la landing dejaba un 401 en la consola por
+ * un dato que nadie leía.
+ */
 export function LanguageProvider({
     children,
     restaurantId,
@@ -40,55 +36,6 @@ export function LanguageProvider({
         return browserLang || defaultLanguage;
     });
 
-    const [availableLanguages, setAvailableLanguages] = useState<Language[]>([]);
-    const [isLoading, setIsLoading] = useState(true);
-
-    // Cargar idiomas disponibles para este restaurante
-    useEffect(() => {
-        async function loadLanguages() {
-            try {
-                const response = await fetch(`${API_URL}/restaurants/${restaurantId}/languages`);
-
-                if (!response.ok) {
-                    throw new Error(`HTTP ${response.status}`);
-                }
-
-                const data = await response.json();
-
-                if (data.success && data.languages) {
-                    setAvailableLanguages(data.languages);
-                } else {
-                    // Fallback a español si no hay idiomas configurados
-                    setAvailableLanguages([
-                        {
-                            code: 'es',
-                            name: 'Spanish',
-                            native_name: 'Español',
-                            flag_emoji: '🇪🇸'
-                        }
-                    ]);
-                }
-            } catch (error) {
-                console.error('[LanguageContext] Error loading languages:', error);
-                // Fallback a español
-                setAvailableLanguages([
-                    {
-                        code: 'es',
-                        name: 'Spanish',
-                        native_name: 'Español',
-                        flag_emoji: '🇪🇸'
-                    }
-                ]);
-            } finally {
-                setIsLoading(false);
-            }
-        }
-
-        if (restaurantId) {
-            loadLanguages();
-        }
-    }, [restaurantId]);
-
     const setLanguage = (lang: string) => {
         setCurrentLanguage(lang);
         localStorage.setItem(`vt_language_${restaurantId}`, lang);
@@ -98,9 +45,7 @@ export function LanguageProvider({
         <LanguageContext.Provider
             value={{
                 currentLanguage,
-                setLanguage,
-                availableLanguages,
-                isLoading
+                setLanguage
             }}
         >
             {children}
