@@ -24,8 +24,19 @@ import tailwindcss from '@tailwindcss/vite'
 // relativa allí rompería las URLs /<slug>. Se hace con banderas y no con una
 // variable de entorno porque este repo se desarrolla en Windows y
 // `VAR=x vite build` no funciona en cmd/PowerShell.
+//
+// El JS de entrada se llama `tv-<hash>.js`, no `index-<hash>.js`: en
+// tv.visualtastes.com la landing y esta app comparten /assets, y así se sabe de
+// quién es cada uno. Además, oct-2026: el borde de Cloudflare guardó un año
+// (/assets/* es `immutable`) el index.html de reserva bajo la URL de un
+// `index-<hash>.js` pedido antes de desplegarlo. Ese nombre no debe volver a salir.
 export default defineConfig({
   plugins: [react() as any, tailwindcss()],
+  build: {
+    rollupOptions: {
+      output: { entryFileNames: 'assets/tv-[hash].js' },
+    },
+  },
   server: {
     port: 5176,
     host: true,
