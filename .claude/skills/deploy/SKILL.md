@@ -106,6 +106,17 @@ Si hay algo nuevo, pon tu commit encima de `main` (`git cherry-pick`), reconstru
 verificar. Prueba de que el resultado es lo que había más lo tuyo: `main` sin tu commit debe dar el
 mismo hash de contenido (`GuidebookPage-<hash>.js`) que el despliegue ajeno.
 
+**Nunca pidas al dominio de producción un `/assets/...` que todavía no has desplegado.** Sin
+`404.html`, Pages contesta a una ruta que no existe con `index.html`, y `_headers` de la guía y de
+la TV marca `/assets/*` como `immutable` un año: el borde de Cloudflare guarda ese HTML bajo la URL
+del fichero, y cuando por fin lo despliegas la app recibe HTML en vez de su JS y no arranca. Pasó el
+2026-10-11 con la TV, al comparar el build con `tv.visualtastes.com` fichero a fichero antes de
+subirlo. El token de wrangler no puede purgar la caché de la zona: hubo que cambiar el nombre del
+bundle. Para comparar antes de desplegar usa la URL del despliegue anterior
+(`https://<id>.<proyecto>.pages.dev`); después de desplegar, antes de tocar la URL real del fichero
+nuevo, comprueba con una query (`?sonda=1`, otra clave de caché) que ya devuelve
+`application/javascript`.
+
 ## 6. Invalidar la caché KV si cambió la FORMA de la respuesta del guide
 
 Desplegar **no** invalida `guide:{slug}:{lang}:v{version}`. Si añadiste/cambiaste campos
