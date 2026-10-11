@@ -130,17 +130,17 @@ export default function LandingPage() {
           <div className="sec-head">
             <p className="label">Comparar</p>
             <h2 className="h2" id="t-comp">
-              La competencia internacional cuesta <em>más del doble.</em>
+              Con 30 pisos, la competencia internacional cuesta <em>47 € más al mes.</em>
             </h2>
             <p className="lead">
-              Con 30 pisos, dos de las guías digitales más usadas en Europa cobran entre 117 y 122 € al mes. VisualTaste
-              cuesta 50 €, con el conserje con IA y la tienda incluidos.
+              Con 30 pisos, dos de las guías digitales más usadas en Europa cobran entre 117 y 122 € al mes solo por la
+              guía. El paquete de VisualTaste cuesta 70 €, con el conserje con IA, la tienda y la tele incluidos.
             </p>
           </div>
           <div
             className="bars mt-m"
             role="img"
-            aria-label="Precio al mes con 30 pisos: VisualTaste 50 euros, guía internacional A 117,08 euros, guía internacional B 122,50 euros"
+            aria-label="Precio al mes con 30 pisos: VisualTaste 70 euros con la tele incluida, guía internacional A 117,08 euros, guía internacional B 122,50 euros"
           >
             {PRICE_BARS.map((b) => (
               <div className={`bar${b.us ? ' us' : ''}`} key={b.name}>
@@ -192,40 +192,56 @@ export default function LandingPage() {
           <div className="sec-head">
             <p className="label">Precio</p>
             <h2 className="h2" id="t-precio">
-              Hasta 30 pisos, 50 € al mes. <em>Todo incluido.</em>
+              Hasta 30 pisos, 70 € al mes. <em>Todo incluido.</em>
             </h2>
             <p className="lead">
-              Una tarifa plana, con pago anual, como la de tu programa de gestión. Conserje con IA, estadísticas, tienda, 13
-              idiomas y la app de la tele, sin pagar más.
+              Un precio cerrado, como el de tu programa de gestión: guía, conserje con IA, estadísticas, tienda, 13 idiomas
+              y VisualTaste TV. O solo la guía, por piso.
             </p>
           </div>
           <div className="price mt-m">
             <div className="price-a">
-              <p className="label">De 0 a 30 pisos</p>
-              <b className="big">50 €</b>
-              <span className="per">al mes sin IVA, todo incluido, en un pago anual de 600 €. Con 30 pisos sale a 1,67 € cada uno.</span>
+              <p className="label">De 1 a 30 pisos</p>
+              <b className="big">70 €</b>
+              <span className="per">al mes sin IVA, con guía, conserje y tele. Con 30 pisos sale a 2,33 € cada uno.</span>
               <div className="cta-row">
                 <a className="btn btn-c" href="#contacto">
                   Pedir una demo
                 </a>
               </div>
-              <p className="fine">Sin cuota de alta · Sin permanencia · Pago anual</p>
+              <p className="fine">Sin cuota de alta · Sin permanencia</p>
             </div>
             <div className="price-b">
               <p className="label">Precios sin IVA</p>
               <ul className="incl">
                 <li>
-                  <span>De 0 a 30 pisos</span>
-                  <span>50 € al mes</span>
+                  <span>Solo la guía</span>
+                  <span>3 € por piso</span>
                 </li>
                 <li>
-                  <span>Más de 30 pisos</span>
-                  <span>A consultar</span>
+                  <span>Guía con conserje IA</span>
+                  <span>4 € por piso</span>
+                </li>
+                <li>
+                  <span>VisualTaste TV</span>
+                  <span>13 € por piso</span>
+                </li>
+                <li>
+                  <span>Paquete, de 1 a 30 pisos</span>
+                  <span>70 € al mes</span>
+                </li>
+                <li>
+                  <span>Paquete, de 31 a 50 pisos</span>
+                  <span>100 € al mes</span>
+                </li>
+                <li>
+                  <span>Más de 50 pisos</span>
+                  <span>A convenir</span>
                 </li>
               </ul>
               <p className="fine">
-                En todos: conserje con IA, estadísticas, tienda de extras, 13 idiomas, tu marca y la app de VisualTaste TV. Si
-                tu tele no admite la app, el aparato que la conecta es un extra opcional.
+                El paquete incluye guía, conserje con IA, estadísticas, tienda de extras, 13 idiomas, tu marca y VisualTaste
+                TV. Si tu tele no admite la app, el aparato que la conecta es un extra opcional.
               </p>
             </div>
           </div>

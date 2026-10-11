@@ -399,7 +399,7 @@ function BusinessValuesSection() {
     {
       icon: <TranslateIcon sx={{ fontSize: 40, color: colors.accent }} />,
       title: 'Solución Multilingüe & Crisis de Personal',
-      subtitle: 'Tu carta "habla" 14 idiomas por ti.',
+      subtitle: 'Tu carta "habla" 13 idiomas por ti.',
       description: 'En zonas turísticas, encontrar personal políglota es difícil y caro. VisualTaste elimina la barrera del idioma. El cliente entiende el plato perfectamente (vídeo + traducción), reduciendo tiempos de explicación y errores en comanda.',
       points: ['Onboarding de camareros inmediato', 'Cero malentendidos con turistas', 'Experiencia fluida para el cliente'],
       video: 'https://visualtasteworker.franciscotortosaestudios.workers.dev/media/System/landing/idiomas.mp4',
@@ -616,7 +616,7 @@ function BusinessValuesSection() {
 // ============================================================================
 function ComparisonTableSection() {
   const rows = [
-    { name: 'Multilingüe (Idiomas)', traditional: 'Depende del Staff', visual: '14 Idiomas Automáticos', highlight: true },
+    { name: 'Multilingüe (Idiomas)', traditional: 'Depende del Staff', visual: '13 Idiomas Automáticos', highlight: true },
     { name: 'Formato Visual', traditional: 'Texto / Foto Estática', visual: 'Video Reels 4K', highlight: true },
     { name: 'Actualización Precios', traditional: 'Costosa (Reimpresión)', visual: 'Instantánea (Click)', highlight: false },
     { name: 'Captación Leads', traditional: 'Nula', visual: 'Email & Teléfono', highlight: true },
@@ -843,7 +843,7 @@ function FAQSection() {
   const faqList = [
     {
       question: '¿Sirve si tengo pocos camareros (Crisis de Personal)?',
-      answer: 'Es la solución ideal. Tu carta digital se convierte en un "camarero extra" que explica cada plato en 14 idiomas. Reduce drásticamente el tiempo de toma de comanda y las preguntas repetitivas, permitiendo a tu equipo atender más mesas con menos estrés.',
+      answer: 'Es la solución ideal. Tu carta digital se convierte en un "camarero extra" que explica cada plato en 13 idiomas. Reduce drásticamente el tiempo de toma de comanda y las preguntas repetitivas, permitiendo a tu equipo atender más mesas con menos estrés.',
     },
     {
       question: '¿Cómo aumento mis Reseñas en Google con esto?',
@@ -1017,6 +1017,7 @@ function Footer() {
           '& a:hover': { color: colors.text, textDecoration: 'underline' },
         }}
       >
+        <a href="https://visualtastes.com/">VisualTaste para alojamientos turísticos</a>
         <a href="https://guide.visualtastes.com/">VisualTaste Guía · guía digital para alojamientos</a>
         <a href="https://tv.visualtastes.com/">VisualTaste TV · pantalla de bienvenida para la tele</a>
       </Box>

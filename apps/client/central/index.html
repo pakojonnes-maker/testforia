@@ -1,0 +1,546 @@
+<!doctype html>
+<html lang="es" class="no-js">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="color-scheme" content="light" />
+  <meta name="theme-color" content="#F8F3E9" />
+  <script>document.documentElement.className = 'js';</script>
+  <title>VisualTaste | Guía digital y TV para alquiler vacacional</title>
+  <meta name="description" content="Guía digital con conserje IA y pantalla de bienvenida en la tele para apartamentos turísticos, en 13 idiomas. Desde 3 € por piso, o 70 € al mes hasta 30 pisos." />
+  <link rel="canonical" href="https://visualtastes.com/" />
+  <link rel="icon" href="/favicon.ico?v=4" sizes="16x16 32x32 48x48" />
+  <link rel="apple-touch-icon" href="/apple-touch-icon.png?v=4" />
+  <meta property="og:type" content="website" />
+  <meta property="og:site_name" content="VisualTaste" />
+  <meta property="og:locale" content="es_ES" />
+  <meta property="og:url" content="https://visualtastes.com/" />
+  <meta property="og:title" content="VisualTaste | Guía digital y TV para alquiler vacacional" />
+  <meta property="og:description" content="Guía digital con conserje IA y pantalla de bienvenida en la tele para apartamentos turísticos, en 13 idiomas. Desde 3 € por piso, o 70 € al mes hasta 30 pisos." />
+  <meta property="og:image" content="https://visualtastes.com/og-central.jpg" />
+  <meta property="og:image:width" content="1200" />
+  <meta property="og:image:height" content="630" />
+  <meta property="og:image:alt" content="VisualTaste: la guía digital en el móvil y la pantalla de bienvenida en la tele de un alojamiento" />
+  <meta name="twitter:card" content="summary_large_image" />
+  <!-- Contenido de la landing central de visualtastes.com. TODO el texto vive aquí: src/central/main.ts solo pone
+       comportamiento (menú, calculadora, formulario) y falla al arrancar si falta un elemento que espera. El JSON-LD
+       lo genera vite.config.ts a partir de este HTML (las 12 preguntas, los precios). Los precios están también en
+       apps/guide/src/pages/landing/data.ts y apps/tv-landing/index.html: se cambian los tres a la vez.
+       Sin hojas ni fuentes de terceros: las tipografías van dentro del bundle (src/central/main.ts). -->
+  <script type="module" src="/src/central/main.ts"></script>
+</head>
+<body>
+<div class="lp">
+<a class="skip" href="#contenido">Saltar al contenido</a>
+
+<header class="nav">
+  <div class="nav-in">
+    <a class="mark" href="/" aria-label="VisualTaste, ir al inicio">VisualTaste</a>
+    <nav class="nav-links" aria-label="Principal">
+      <a href="#productos">Productos</a>
+      <a href="#como-funciona">Cómo funciona</a>
+      <a href="#precios">Precios</a>
+      <a href="#preguntas">Preguntas</a>
+    </nav>
+    <div class="nav-cta">
+      <a class="btn btn-p btn-sm" href="#contacto">Pedir una demo</a>
+      <button class="menu-btn" type="button" aria-expanded="false" aria-controls="menu-panel" data-menu-toggle>Menú</button>
+    </div>
+  </div>
+  <nav class="menu-panel" id="menu-panel" aria-label="Menú">
+    <a href="#productos">Productos</a>
+    <a href="#como-funciona">Cómo funciona</a>
+    <a href="#precios">Precios</a>
+    <a href="#preguntas">Preguntas</a>
+    <a class="btn btn-p" href="#contacto">Pedir una demo</a>
+  </nav>
+</header>
+
+<main id="contenido">
+
+<!-- ============ PORTADA ============ -->
+<section class="hero" aria-labelledby="t-hero">
+  <img class="hero-bg" src="/src/central/img/background.webp" alt="" aria-hidden="true" width="1376" height="768" />
+  <div class="wrap hero-grid">
+    <div>
+      <p class="label">Software para alquiler vacacional</p>
+      <h1 class="h1 s" id="t-hero">Tus huéspedes lo encuentran todo. En el móvil y en la <em>tele.</em></h1>
+      <p class="lead" style="max-width:31em">VisualTaste reúne la guía digital del alojamiento, un conserje con IA y la pantalla de bienvenida de la tele. Lo escribes una vez y cada huésped lo lee en su idioma.</p>
+      <ul class="feat-line">
+        <li>Guía digital</li>
+        <li>Conserje con IA</li>
+        <li>Pantalla de bienvenida</li>
+        <li>Tienda de extras</li>
+        <li>13 idiomas</li>
+      </ul>
+      <div class="cta-row">
+        <a class="btn btn-p" href="#contacto">Pedir una demo</a>
+        <a class="link" href="#precios">Ver precios</a>
+      </div>
+      <p class="under">Sin app para el huésped · Con tu marca · Medición anónima, sin banner de cookies</p>
+    </div>
+    <figure class="stage">
+      <span class="sun" aria-hidden="true"></span>
+      <span class="arch-bg" aria-hidden="true"></span>
+      <div class="tv">
+        <img src="/src/central/img/tv-inicio.webp" width="1280" height="720" fetchpriority="high" decoding="async" alt="La pantalla de bienvenida de VisualTaste TV en una tele: saludo, menú con cinco entradas, el WiFi con su código QR y la hora de salida" />
+      </div>
+      <div class="phone">
+        <img src="/src/central/img/g-casa.webp" width="600" height="1298" decoding="async" alt="La guía digital en el móvil: foto de la casa, dirección y el WiFi con botón para copiarlo" />
+      </div>
+      <figcaption class="fine stage-cap">Capturas del producto con datos ficticios.</figcaption>
+    </figure>
+  </div>
+  <svg class="wave" viewBox="0 0 1440 80" preserveAspectRatio="none" aria-hidden="true"><path d="M0 46 C 160 8 320 8 480 40 S 800 84 960 48 S 1280 6 1440 40 V80 H0 Z" fill="#F8F3E9"></path></svg>
+</section>
+
+<!-- ============ POR QUÉ ============ -->
+<section class="sec" id="por-que" aria-labelledby="t-porque">
+  <div class="wrap">
+    <div class="sec-head">
+      <p class="label">Por qué VisualTaste</p>
+      <h2 class="h2" id="t-porque">Lo que siempre te preguntan, contestado antes de que te <em>escriban.</em></h2>
+    </div>
+    <ol class="steps six">
+      <li class="step"><span class="step-n">01</span><h3 class="h3">Menos mensajes repetidos</h3><p>El WiFi, la hora de salida, el aparcamiento y dónde cenar están en la guía y en la tele antes de que te escriban.</p></li>
+      <li class="step"><span class="step-n">02</span><h3 class="h3">Cada huésped, en su idioma</h3><p>13 idiomas, árabe incluido. Se escribe en español y se traduce solo; lo que corrijas a mano no se pisa.</p></li>
+      <li class="step"><span class="step-n">03</span><h3 class="h3">Tu marca, no la nuestra</h3><p>El logo, el color y la tipografía de tu agencia en cada guía y en cada pantalla.</p></li>
+      <li class="step"><span class="step-n">04</span><h3 class="h3">De un piso a cien, sin escribirlo cien veces</h3><p>Las playas, los planes y los restaurantes de la zona se escriben una vez y valen para todos los pisos de esa zona.</p></li>
+      <li class="step"><span class="step-n">05</span><h3 class="h3">Extras que se piden solos</h3><p>Traslados, cestas de bienvenida o excursiones en la tienda de la guía. El pedido te llega por WhatsApp.</p></li>
+      <li class="step"><span class="step-n">06</span><h3 class="h3">Sabes qué se usa, sin saber quién</h3><p>Cuántos abren la guía, qué secciones miran y en qué idioma. La medición es anónima.</p></li>
+    </ol>
+  </div>
+</section>
+
+<!-- ============ PRODUCTOS ============ -->
+<section class="sec arena" id="productos" aria-labelledby="t-prod">
+  <div class="wrap">
+    <div class="sec-head">
+      <p class="label">Productos</p>
+      <h2 class="h2" id="t-prod">Tres piezas que se contratan sueltas o <em>juntas.</em></h2>
+    </div>
+
+    <article class="prod" aria-labelledby="t-guia">
+      <div class="prod-text">
+        <p class="label">La guía digital del alojamiento</p>
+        <h3 class="h2 s" id="t-guia">VisualTaste Guía</h3>
+        <p class="lead">El libro de bienvenida, en el móvil del huésped: WiFi con botón de copiar, cómo entrar, normas, la salida paso a paso, un mapa de la zona con lo que se tarda desde el piso, tus restaurantes y una tienda de extras. Se abre con un QR o un enlace, sin instalar nada.</p>
+        <ul class="plist">
+          <li>Un QR por alojamiento, en una lámina con tu marca lista para enmarcar</li>
+          <li>Lugares y restaurantes de la zona, traídos de Google Maps</li>
+          <li>Estadísticas de uso anónimas</li>
+        </ul>
+        <p class="pprice"><b>3&nbsp;€</b> por piso al mes</p>
+        <p><a class="link" href="https://guide.visualtastes.com/">Ver VisualTaste Guía</a></p>
+      </div>
+      <div class="pstage two">
+        <span class="arch-bg" aria-hidden="true"></span>
+        <div class="phone p1"><img src="/src/central/img/g-casa.webp" width="600" height="1298" loading="lazy" decoding="async" alt="La guía digital en el móvil: foto de la casa, dirección y el WiFi" /></div>
+        <div class="phone p2"><img src="/src/central/img/g-lugares.webp" width="600" height="1298" loading="lazy" decoding="async" alt="La pestaña Lugares de la guía: un mapa de la zona con experiencias y una lista de lugares" /></div>
+      </div>
+    </article>
+
+    <article class="prod rev" aria-labelledby="t-conserje">
+      <div class="prod-text">
+        <p class="label">Contesta a cualquier hora, con lo que tú has escrito</p>
+        <h3 class="h2 s" id="t-conserje">Conserje con IA</h3>
+        <p class="lead">Va dentro de la guía. Responde en el idioma del huésped y solo con lo que hay cargado del piso y de la zona. Si no lo sabe, lo dice y remite a tu teléfono: no se inventa un código ni una hora.</p>
+        <ul class="plist">
+          <li>En los 13 idiomas de la guía</li>
+          <li>Recomienda tus restaurantes y tus planes, no los primeros que encuentre</li>
+          <li>Se entera solo cuando cambias algo en la guía</li>
+        </ul>
+        <p class="pprice"><span>Guía con conserje:</span> <b>4&nbsp;€</b> por piso al mes</p>
+        <p><a class="link" href="https://guide.visualtastes.com/funciones/conserje-ia">Ver el conserje con IA</a></p>
+      </div>
+      <div class="pstage">
+        <span class="sun" aria-hidden="true"></span>
+        <span class="arch-bg" aria-hidden="true"></span>
+        <div class="phone"><img src="/src/central/img/g-conserje.webp" width="600" height="1298" loading="lazy" decoding="async" alt="El conserje con IA de la guía: un mensaje de bienvenida con recomendaciones de la zona y un campo para escribir" /></div>
+      </div>
+    </article>
+
+    <article class="prod" aria-labelledby="t-tv">
+      <div class="prod-text">
+        <p class="label">La bienvenida, en la tele del salón</p>
+        <h3 class="h2 s" id="t-tv">VisualTaste TV</h3>
+        <p class="lead">La pantalla del salón como recepción: el WiFi con un QR que conecta al apuntar con la cámara, el código de la puerta, la hora de salida, dónde comer y qué hacer. Se maneja con el mando y el huésped elige su idioma en la propia pantalla.</p>
+        <ul class="plist">
+          <li>Para teles y cajas con Android TV o Google TV</li>
+          <li>Se empareja con un código; después no hay que volver a tocarla</li>
+          <li>La misma guía, con tu marca: lo que cambia en una cambia en la otra</li>
+        </ul>
+        <p class="pprice"><b>13&nbsp;€</b> por piso al mes</p>
+        <p><a class="link" href="https://tv.visualtastes.com/">Ver VisualTaste TV</a></p>
+      </div>
+      <div class="pstage wide">
+        <span class="sun" aria-hidden="true"></span>
+        <span class="arch-bg" aria-hidden="true"></span>
+        <div class="tv"><img src="/src/central/img/tv-wifi.webp" width="1280" height="720" loading="lazy" decoding="async" alt="La pantalla del WiFi de VisualTaste TV: nombre de la red, contraseña y un código QR para conectarse con la cámara" /></div>
+      </div>
+    </article>
+
+    <div class="included">
+      <p class="label">Incluido con la guía</p>
+      <div class="g4 mt-s">
+        <div class="inc"><h3 class="h3">Tienda de extras</h3><p>Productos y experiencias que ofreces durante la estancia. El pedido llega a tu WhatsApp, sin comisión.</p></div>
+        <div class="inc"><h3 class="h3">QR para enmarcar</h3><p>Láminas listas para imprimir con el QR de cada piso y tu marca.</p></div>
+        <div class="inc"><h3 class="h3">13 idiomas</h3><p>Español, inglés, francés, alemán, italiano, portugués, catalán, árabe, ruso, ucraniano, chino, japonés y coreano.</p></div>
+        <div class="inc"><h3 class="h3">Tu marca</h3><p>Logo, color y tipografía de tu agencia.</p></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ PROGRAMA FUNDADOR (en lugar de testimonios: no los tenemos) ============ -->
+<section class="sec tight hondo" aria-labelledby="t-fund">
+  <div class="wrap g57 mid">
+    <div>
+      <p class="label">Programa fundador</p>
+      <h2 class="h2" id="t-fund">Somos nuevos, y buscamos a las <em>primeras 10 gestoras.</em></h2>
+    </div>
+    <div>
+      <p class="lead" style="margin-top:0">No te vamos a enseñar logos ni estrellas que todavía no tenemos. Te ofrecemos lo que se puede ofrecer al empezar: precio de fundador y que te montemos la guía nosotros. Y si tus pisos están en la Costa del Sol, un precio todavía más bajo: aquí nació VisualTaste.</p>
+      <ul class="tiers">
+        <li><b>Gratis</b><span>hasta el 31 de mayo de 2027</span></li>
+        <li><b>Costa del Sol</b><span>precio especial, a consultar</span></li>
+        <li><b>Montada</b><span>la primera guía, por nuestra cuenta</span></li>
+      </ul>
+    </div>
+  </div>
+</section>
+
+<!-- ============ CÓMO FUNCIONA ============ -->
+<section class="sec" id="como-funciona" aria-labelledby="t-como">
+  <div class="wrap">
+    <div class="sec-head">
+      <p class="label">Cómo funciona</p>
+      <h2 class="h2" id="t-como">Tres pasos, y el piso ya <em>recibe.</em></h2>
+    </div>
+    <ol class="steps">
+      <li class="step"><span class="step-n">1</span><h3 class="h3">Montamos la guía contigo</h3><p>Partimos de lo que ya tienes: los datos del anuncio y los lugares de la zona desde Google Maps. Tú completas lo que solo sabes tú: el código, las normas, tus restaurantes.</p></li>
+      <li class="step"><span class="step-n">2</span><h3 class="h3">Un QR en la entrada y un enlace en la reserva</h3><p>El huésped abre la guía en el navegador, en su idioma y sin instalar nada. El enlace va en el mensaje de confirmación de Airbnb, Booking o el tuyo.</p></li>
+      <li class="step"><span class="step-n">3</span><h3 class="h3">La tele se empareja con un código</h3><p>Se instala la app en la tele, se escribe el código del piso y la pantalla enseña la misma guía. Lo que cambies después se actualiza en el móvil y en la tele.</p></li>
+    </ol>
+  </div>
+</section>
+
+<!-- ============ RECORRIDO DEL HUÉSPED ============ -->
+<section class="sec arena" aria-labelledby="t-jr">
+  <div class="wrap">
+    <div class="sec-head">
+      <p class="label">El recorrido del huésped</p>
+      <h2 class="h2" id="t-jr">De la reserva a la salida, sin dudas por el <em>camino.</em></h2>
+    </div>
+    <div class="jr">
+      <div class="jr-col">
+        <p class="jr-k"><b>1</b><span>Antes de llegar</span></p>
+        <h3 class="h3">Llega sabiendo cómo entrar</h3>
+        <ul class="jr-list">
+          <li><b>El enlace va con la reserva</b><span>Lo pegas en el mensaje de confirmación de Airbnb, Booking o el tuyo. Sin descargas.</span></li>
+          <li><b>Cómo llegar y cómo entrar</b><span>Dirección, código de la puerta y dónde recoger las llaves, en grande.</span></li>
+          <li><b>En su idioma desde el primer toque</b><span>La guía se abre en el idioma de su móvil y cambia con un toque.</span></li>
+        </ul>
+      </div>
+      <div class="jr-col">
+        <p class="jr-k"><b>2</b><span>Durante la estancia</span></p>
+        <h3 class="h3">Lo resuelve sin escribirte</h3>
+        <ul class="jr-list">
+          <li><b>El WiFi, lo primero</b><span>Red y contraseña con un botón para copiarla.</span></li>
+          <li><b>Un conserje a las once de la noche</b><span>Pregunta lo que quiera; contesta con lo que tú has escrito.</span></li>
+          <li><b>Dónde comer y qué hacer</b><span>Tus recomendaciones en un mapa, con la distancia desde el piso.</span></li>
+          <li><b>Extras cuando los necesita</b><span>Un pedido de la tienda llega a tu WhatsApp.</span></li>
+          <li><b>Y en la tele del salón</b><span>VisualTaste TV le enseña el WiFi, la salida y los alrededores.</span></li>
+        </ul>
+      </div>
+      <div class="jr-col">
+        <p class="jr-k"><b>3</b><span>Al irse</span></p>
+        <h3 class="h3">Sale sin dudas, y tú aprendes</h3>
+        <ul class="jr-list">
+          <li><b>La salida, paso a paso</b><span>Hora, llaves, basura y lo que haga falta dejar hecho.</span></li>
+          <li><b>Teléfonos por si algo falla</b><span>Los tuyos y los de urgencias de la zona.</span></li>
+          <li><b>Tú sabes qué se usó</b><span>Qué secciones se abrieron y en qué idioma, sin saber quién.</span></li>
+        </ul>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ PRECIOS ============ -->
+<section class="sec" id="precios" aria-labelledby="t-precios">
+  <div class="wrap">
+    <div class="sec-head">
+      <p class="label">Precios</p>
+      <h2 class="h2" id="t-precios">Por piso, o un precio cerrado para toda la <em>cartera.</em></h2>
+      <p class="lead">Contrata solo lo que necesites, o llévatelo todo en un paquete. Precios al mes, sin IVA.</p>
+    </div>
+    <div class="price mt-m">
+      <div class="price-b">
+        <p class="label">Por piso</p>
+        <ul class="incl">
+          <li><span>VisualTaste Guía</span><span>3&nbsp;€ por piso al mes</span></li>
+          <li><span>Guía con conserje IA</span><span>4&nbsp;€ por piso al mes</span></li>
+          <li><span>VisualTaste TV</span><span>13&nbsp;€ por piso al mes</span></li>
+        </ul>
+        <p class="fine">Precios sin IVA. La app de la tele necesita Android TV o Google TV; si tu tele no lo tiene, el aparato que la conecta es un extra opcional.</p>
+      </div>
+      <div class="price-a">
+        <p class="label">Paquete completo</p>
+        <p class="pk-sub">Guía, conserje con IA y TV, con todo incluido</p>
+        <ul class="pk-tiers">
+          <li><span>De 1 a 30 pisos</span><b>70&nbsp;€ al mes</b></li>
+          <li><span>De 31 a 50 pisos</span><b>100&nbsp;€ al mes</b></li>
+          <li><span>Más de 50 pisos</span><b>A convenir</b></li>
+        </ul>
+        <p class="per">Con 30 pisos, el paquete sale a 2,33&nbsp;€ por piso; con 50, a 2&nbsp;€.</p>
+        <div class="cta-row">
+          <a class="btn btn-c" href="#contacto">Pedir una demo</a>
+        </div>
+        <p class="fine">Sin cuota de alta · Sin permanencia</p>
+      </div>
+    </div>
+
+    <div class="calc" data-calc>
+      <div class="calc-in">
+        <div class="fld">
+          <label for="calc-n">¿Cuántos pisos gestionas? <b class="calc-n" data-calc-n>30 pisos</b></label>
+          <input id="calc-n" type="range" min="1" max="60" step="1" value="30" />
+          <p class="fine">Mueve el control para comparar. Precios al mes, sin IVA.</p>
+        </div>
+        <div class="calc-fig">
+          <div><span class="k">Todo suelto</span><b data-calc-loose>510&nbsp;€</b><span class="m">guía con conserje y TV</span></div>
+          <div class="pk"><span class="k">Paquete</span><b data-calc-pack>70&nbsp;€</b><span class="m">todo incluido</span></div>
+        </div>
+      </div>
+      <p class="calc-res" data-calc-result aria-live="polite">Con 30 pisos, el paquete cuesta 70&nbsp;€ al mes: 440&nbsp;€ menos que contratarlo todo suelto.</p>
+    </div>
+
+    <p class="cmp mt-l">Con 30 pisos: 70&nbsp;€ al mes con guía, conserje y tele. Un paquete internacional de guía y tele cobra 119,20&nbsp;$ al mes en su tramo de hasta 50 alojamientos, sin IA.</p>
+    <p class="fine">Precio público de su web, facturación anual, consultado el 11 de octubre de 2026. El nuestro, sin IVA.</p>
+  </div>
+</section>
+
+<!-- ============ PARA QUIÉN ============ -->
+<section class="sec arena" aria-labelledby="t-who">
+  <div class="wrap">
+    <div class="sec-head c">
+      <p class="label">Para quién es</p>
+      <h2 class="h2" id="t-who">Pensado para quien vive de <em>alojar.</em></h2>
+    </div>
+    <div class="g3 mt-l">
+      <article class="who">
+        <div class="arch soft a54"><img loading="lazy" decoding="async" width="900" height="1205" src="/src/central/img/wifi.webp" alt="Unas llaves y un cartel con el WiFi de la casa sobre una consola de madera" /></div>
+        <p class="label">Anfitriones con uno o dos pisos</p>
+        <h3 class="h3">Deja de contestar lo mismo a las once de la noche.</h3>
+        <ul>
+          <li>Un QR para la entrada y un enlace para la reserva.</li>
+          <li>El conserje contesta por ti, a cualquier hora.</li>
+          <li>Contratas por piso, solo lo que uses.</li>
+        </ul>
+      </article>
+      <article class="who">
+        <div class="arch soft a54"><img loading="lazy" decoding="async" width="1280" height="714" src="/src/central/img/info.webp" alt="Una consola de entrada con un libro de normas y una tableta" /></div>
+        <p class="label">Gestoras de apartamentos</p>
+        <h3 class="h3">Veinte pisos o cincuenta, una sola forma de hacer las cosas.</h3>
+        <ul>
+          <li>Lo de la zona se escribe una vez y vale para todos sus pisos.</li>
+          <li>Tu marca en cada guía y en cada tele.</li>
+          <li>Un precio cerrado para toda la cartera.</li>
+        </ul>
+        <a class="link" href="https://guide.visualtastes.com/para/gestoras-de-apartamentos">Ver la guía para gestoras</a>
+      </article>
+      <article class="who">
+        <div class="arch soft a54"><img loading="lazy" decoding="async" width="1280" height="714" src="/src/central/img/store.webp" alt="Aceite de oliva y aceitunas sobre una mesa de madera, en una terraza con vistas al mar" /></div>
+        <p class="label">Casas rurales y hoteles pequeños</p>
+        <h3 class="h3">La recepción, también cuando no hay nadie en ella.</h3>
+        <ul>
+          <li>Horarios, normas y servicios de la casa, siempre a mano.</li>
+          <li>Tus extras a la venta: desayunos, traslados, excursiones.</li>
+          <li>Huéspedes de fuera, cada uno en su idioma.</li>
+        </ul>
+      </article>
+    </div>
+  </div>
+</section>
+
+<!-- ============ CONEXIONES ============ -->
+<section class="sec tight cal2" aria-labelledby="t-con">
+  <div class="wrap">
+    <div class="sec-head">
+      <p class="label">Conexiones</p>
+      <h2 class="h2" id="t-con">Trae lo que ya tienes en otros <em>sitios.</em></h2>
+    </div>
+    <ul class="conn">
+      <li><b>Airbnb</b><span>Importa los datos del anuncio para no empezar de cero.</span></li>
+      <li><b>Google Maps</b><span>Lugares y restaurantes de la zona, con su ficha.</span></li>
+      <li><b>WhatsApp</b><span>Pedidos de la tienda y reservas de restaurante, a tu número.</span></li>
+      <li><b>Carta VisualTaste</b><span>Los restaurantes con nuestra carta abren su carta en vídeo.</span></li>
+      <li><b>VisualTaste TV</b><span>Lo que cambias en la guía sale también en la tele.</span></li>
+    </ul>
+    <p class="fine mt-s">Todavía no nos conectamos con programas de gestión (Icnea, AvaiBook, Guesty…). Si lo necesitas, dínoslo en la demo.</p>
+  </div>
+</section>
+
+<!-- ============ PREGUNTAS (las 12 van al JSON-LD: el plugin las lee de .faq-q / .faq-a) ============ -->
+<section class="sec" id="preguntas" aria-labelledby="t-faq">
+  <div class="wrap g57">
+    <div>
+      <p class="label">Preguntas</p>
+      <h2 class="h2" id="t-faq">Lo que suele preguntar quien gestiona <em>alojamientos.</em></h2>
+      <p class="lead">Y si no está aquí, <a class="link" href="#contacto">pregúntanos.</a></p>
+    </div>
+    <div class="faq top">
+      <details>
+        <summary><span class="faq-q">¿Qué es VisualTaste?</span><span aria-hidden="true">Ver</span></summary>
+        <p class="faq-a">Un software para alquiler vacacional con tres piezas: la guía digital del alojamiento, un conserje con IA dentro de la guía y la pantalla de bienvenida de la tele. Se contratan sueltas o en un paquete.</p>
+      </details>
+      <details>
+        <summary><span class="faq-q">¿Cuánto cuesta VisualTaste?</span><span aria-hidden="true">Ver</span></summary>
+        <p class="faq-a">Suelto, por piso y al mes: 3&nbsp;€ la guía, 4&nbsp;€ la guía con conserje con IA y 13&nbsp;€ la tele. El paquete con todo cuesta 70&nbsp;€ al mes de 1 a 30 pisos y 100&nbsp;€ de 31 a 50. Con más de 50 pisos, a convenir. Precios sin IVA.</p>
+      </details>
+      <details>
+        <summary><span class="faq-q">¿Cuándo me conviene el paquete?</span><span aria-hidden="true">Ver</span></summary>
+        <p class="faq-a">Desde 5 pisos con guía, conserje y tele: sueltos serían 85&nbsp;€ al mes, y el paquete son 70&nbsp;€.</p>
+      </details>
+      <details>
+        <summary><span class="faq-q">¿Hay cuota de alta o permanencia?</span><span aria-hidden="true">Ver</span></summary>
+        <p class="faq-a">No hay ni cuota de alta ni permanencia.</p>
+      </details>
+      <details>
+        <summary><span class="faq-q">¿Tienen que instalar algo los huéspedes?</span><span aria-hidden="true">Ver</span></summary>
+        <p class="faq-a">No. La guía se abre en el navegador del móvil con un QR o un enlace, y la tele se maneja con su mando.</p>
+      </details>
+      <details>
+        <summary><span class="faq-q">¿En qué idiomas está?</span><span aria-hidden="true">Ver</span></summary>
+        <p class="faq-a">En 13: español, inglés, francés, alemán, italiano, portugués, catalán, árabe, ruso, ucraniano, chino, japonés y coreano. Se escribe en español y se traduce solo.</p>
+      </details>
+      <details>
+        <summary><span class="faq-q">¿En qué televisores funciona VisualTaste TV?</span><span aria-hidden="true">Ver</span></summary>
+        <p class="faq-a">En teles y cajas con Android TV o Google TV. Si la tuya no lo tiene, te ofrecemos como extra opcional el aparato que la conecta.</p>
+      </details>
+      <details>
+        <summary><span class="faq-q">¿Funciona con Airbnb, Booking y Vrbo?</span><span aria-hidden="true">Ver</span></summary>
+        <p class="faq-a">Sí. La guía es un enlace: va en el mensaje de la reserva de cualquier plataforma, o en el tuyo si la reserva es directa.</p>
+      </details>
+      <details>
+        <summary><span class="faq-q">¿Os conectáis con mi programa de gestión?</span><span aria-hidden="true">Ver</span></summary>
+        <p class="faq-a">Todavía no (Icnea, AvaiBook, Guesty…). La guía es un enlace por piso que añades al mensaje de confirmación que ya envías.</p>
+      </details>
+      <details>
+        <summary><span class="faq-q">¿Qué pasa si el conserje con IA no sabe la respuesta?</span><span aria-hidden="true">Ver</span></summary>
+        <p class="faq-a">Lo dice, y remite al huésped a tu teléfono. No se inventa datos del piso.</p>
+      </details>
+      <details>
+        <summary><span class="faq-q">¿Qué datos se guardan del huésped?</span><span aria-hidden="true">Ver</span></summary>
+        <p class="faq-a">La guía y la tele no piden datos ni tienen cuentas de huésped. Las visitas se miden de forma anónima, sin guardar nada en su móvil, así que no hace falta banner de cookies.</p>
+      </details>
+      <details>
+        <summary><span class="faq-q">¿Y si lo que tengo es un restaurante?</span><span aria-hidden="true">Ver</span></summary>
+        <p class="faq-a">La carta digital en vídeo de VisualTaste tiene su propia web: <a class="link" href="https://menu.visualtastes.com/">menu.visualtastes.com</a>.</p>
+      </details>
+    </div>
+  </div>
+</section>
+
+<!-- ============ CONTACTO: no hay servidor detrás, el formulario abre WhatsApp con la pregunta escrita ============ -->
+<section class="band" id="contacto" aria-labelledby="t-contacto">
+  <img src="/src/central/img/do.webp" alt="" aria-hidden="true" width="1280" height="714" loading="lazy" decoding="async" />
+  <div class="wrap g2" style="align-items:start">
+    <div>
+      <p class="label">Pedir una demo</p>
+      <h2 class="h2" id="t-contacto">Enséñanos un piso y te enseñamos cómo <em>quedaría.</em></h2>
+      <p class="lead">Cuéntanos cuántos alojamientos gestionas y te enseñamos la guía y la tele con uno tuyo, con tu marca.</p>
+      <div class="direct">
+        <p>¿Prefieres llamar? <a href="tel:+34633747033">633 74 70 33</a></p>
+        <p>O escríbenos a <a href="mailto:info@visualtastes.com">info@visualtastes.com</a></p>
+      </div>
+    </div>
+    <form class="form" action="https://wa.me/34633747033" method="get" target="_blank" data-wa-form>
+      <div class="fld">
+        <label for="f-n">Nombre</label>
+        <input id="f-n" type="text" autocomplete="name" required />
+      </div>
+      <div class="fld">
+        <label for="f-p">Alojamientos que gestionas</label>
+        <select id="f-p">
+          <option>1 a 4</option>
+          <option>5 a 30</option>
+          <option>31 a 50</option>
+          <option>Más de 50</option>
+        </select>
+      </div>
+      <div class="fld w">
+        <label for="f-z">Zona</label>
+        <input id="f-z" type="text" placeholder="Málaga, Marbella…" />
+      </div>
+      <div class="fld w">
+        <label for="f-q">Tu pregunta</label>
+        <textarea id="f-q" name="text"></textarea>
+      </div>
+      <div class="form-foot">
+        <button class="btn btn-p" type="submit">Enviar por WhatsApp</button>
+        <p class="fine">Se abre WhatsApp con tu mensaje escrito. Te contesta una persona del equipo.</p>
+      </div>
+    </form>
+  </div>
+</section>
+
+</main>
+
+<footer class="foot">
+  <svg class="azulejo" width="100%" height="48" aria-hidden="true">
+    <defs>
+      <pattern id="azl" width="48" height="48" patternUnits="userSpaceOnUse">
+        <rect width="48" height="48" fill="#F8F3E9"></rect>
+        <rect x="1" y="1" width="46" height="46" fill="none" stroke="#128099" stroke-width="1.2"></rect>
+        <path d="M24 5 C27 15 33 21 43 24 C33 27 27 33 24 43 C21 33 15 27 5 24 C15 21 21 15 24 5 Z" fill="#128099"></path>
+        <circle cx="24" cy="24" r="4" fill="#F0B04B"></circle>
+        <circle cx="0" cy="0" r="6" fill="#B04E2B"></circle>
+        <circle cx="48" cy="0" r="6" fill="#B04E2B"></circle>
+        <circle cx="0" cy="48" r="6" fill="#B04E2B"></circle>
+        <circle cx="48" cy="48" r="6" fill="#B04E2B"></circle>
+      </pattern>
+    </defs>
+    <rect width="100%" height="48" fill="url(#azl)"></rect>
+  </svg>
+  <div class="wrap foot-in">
+    <div>
+      <p class="mark">VisualTaste</p>
+      <p class="fine foot-p">Guía digital, conserje con IA y pantalla de bienvenida para alojamientos turísticos del Mediterráneo.</p>
+    </div>
+    <div>
+      <h4>Productos</h4>
+      <ul>
+        <li><a href="https://guide.visualtastes.com/">VisualTaste Guía</a></li>
+        <li><a href="https://guide.visualtastes.com/funciones/conserje-ia">Conserje con IA</a></li>
+        <li><a href="https://tv.visualtastes.com/">VisualTaste TV</a></li>
+      </ul>
+    </div>
+    <div>
+      <h4>Recursos</h4>
+      <ul>
+        <li><a href="https://guide.visualtastes.com/guias/libro-de-bienvenida-digital">Libro de bienvenida digital</a></li>
+        <li><a href="https://guide.visualtastes.com/comparar/guias-digitales">Comparar guías digitales</a></li>
+        <li><a href="https://guide.visualtastes.com/para/gestoras-de-apartamentos">Para gestoras</a></li>
+      </ul>
+    </div>
+    <div>
+      <h4>VisualTaste</h4>
+      <ul>
+        <li><a href="#contacto">Contacto</a></li>
+        <li><a href="tel:+34633747033">633 74 70 33</a></li>
+        <li><a href="https://menu.visualtastes.com/">Carta digital para restaurantes</a></li>
+        <li><a href="/legal/privacy">Privacidad</a></li>
+        <li><a href="/legal/aviso">Aviso legal</a></li>
+      </ul>
+    </div>
+  </div>
+  <div class="wrap foot-c">
+    <span>© 2026 VisualTaste</span>
+    <span>Hecho en Málaga</span>
+  </div>
+</footer>
+
+</div>
+</body>
+</html>

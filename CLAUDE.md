@@ -95,11 +95,17 @@ Repo raíz
 - **Pages (5 proyectos, rama `main`):**
   | Proyecto | Build dir | Dominios |
   |---|---|---|
-  | `visualtaste` | `apps/client/dist` | visualtastes.com, www, menu.visualtastes.com |
+  | `visualtaste` | `apps/client/dist` | visualtastes.com y www → landing central del producto vacacional (`/`); menu.visualtastes.com → landing de la carta (`/`) y cartas (`/<slug>`) |
   | `visualtasteadmin` | `apps/admin/dist` | admin.visualtastes.com |
   | `visualtastes-guide` | `apps/guide/dist` | guide.visualtastes.com |
   | `visualtaste-tv` | **`dist-tv-site`: landing + app de la TV combinadas** (ver abajo) | tv.visualtastes.com, visualtaste-tv.pages.dev |
   | `visualtaste-tv-landing` | `apps/tv-landing/dist` (solo la landing) | visualtaste-tv-landing.pages.dev — ya no se usa; se puede borrar |
+
+  **`visualtaste` reparte `/` por host con `apps/client/public/_worker.js` + `_routes.json`** (modo avanzado de Pages,
+  solo se invoca en `/`, `/sitemap.xml` y `/robots.txt`; la carta y los assets no pasan por él): `visualtastes.com` y
+  `www.` sirven `central/index.html` (landing central, sin redirigir) y `menu.` la SPA (HomePage). También decide
+  `X-Robots-Tag` de `/`, el sitemap y el robots de cada host. Se prueba con `npm run test:worker -w apps/client`. Sigue
+  siendo un solo `pages deploy apps/client/dist`.
 
   **`apps/tv` (VisualTaste TV)**: pantalla de bienvenida para TVs de alojamientos
   (WiFi, guía, alrededores). En producción real (Android TV vía APK) el shell debe
@@ -309,6 +315,12 @@ identifica la sesión en curso (`/track/session/identify`). Nunca un id persiste
   campañas, delivery, sellos y reservas lo hacen; `restaurant_languages` no lo escribe nadie): si
   no, el admin guarda y la carta sigue igual hasta 24 h.
 - Build: `tsc -b && vite build`.
+- **Landing central de visualtastes.com** (vende guía, conserje IA y TV; `/` en `visualtastes.com` y `www.`) = **segunda
+  entrada de Vite**: `central/index.html` + `src/central/` (`main.ts`, `central.css`, `img/`). HTML + TS sin framework y
+  **sin iconos**, no React ni MUI ni Emotion (el JSON-LD lo genera `vite.config.ts` leyendo las 12 preguntas del HTML).
+  **El contenido vive en el HTML**; `main.ts` solo pone menú, calculadora y formulario (WhatsApp). La landing de la
+  carta para restaurantes (HomePage) es ahora `menu.visualtastes.com/`. **Los precios están en tres sitios** (esta
+  central, `apps/guide/src/pages/landing/data.ts` y `apps/tv-landing/index.html`) y se cambian a la vez.
 
 ### `apps/guide` — Guidebook
 - **React 19** + Vite 7 + TypeScript.
@@ -334,7 +346,7 @@ identifica la sesión en curso (`/track/session/identify`). Nunca un id persiste
   huésped llevan el WiFi en claro). Una página de venta nueva va con **dos tramos** en la ruta (`/:slug` coge
   cualquier ruta de uno y taparía la guía de un piso) y en cinco sitios: `App.tsx` (antes de `/:slug`),
   `src/prerender.tsx`, la lista del script en línea de `index.html`, su excepción en `_headers` y su `<url>` en
-  `sitemap.xml`. Lo mismo pasa en `apps/tv-landing` y en `apps/client` (menu., www. y pages.dev van con `noindex`).
+  `sitemap.xml`. Lo mismo pasa en `apps/tv-landing` y en `apps/client` (solo se indexan `visualtastes.com/`, `visualtastes.com/<slug>` y `menu.visualtastes.com/`; el resto de `menu.`, `www.`, `pages.dev` y `/central/*` van con `noindex`).
   La competencia nunca se nombra en páginas públicas («guía internacional A/B»).
 
 ### `apps/tv` — VisualTaste TV
