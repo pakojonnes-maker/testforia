@@ -501,7 +501,9 @@ migración D1 con `--remote`, commitea (y si puedes, pushea) primero.
 `.claude/hooks/pre-deploy-guard.mjs` (hook `PreToolUse` sobre Bash, declarado en
 `.claude/settings.json`) intercepta `wrangler deploy`, `wrangler pages deploy`,
 `wrangler d1 execute --remote` y `wrangler kv ... --remote`:
-- **Working tree sucio → bloquea** el comando y lista los ficheros pendientes.
+- **Working tree sucio → bloquea** el comando y lista los ficheros pendientes. Mira el checkout **desde el que
+  corre el comando** (su `cd`, o el cwd de la sesión), no el principal: en un worktree no te frena el trabajo a
+  medias de otra sesión, y el tuyo sí. Si no puede saber dónde corre (`cd "$DIR"`), bloquea: escribe la ruta.
 - **Deploy con tests en rojo → bloquea** (`npm test` para el worker, `npm run test:frontend` para Pages; se
   lanzan en el checkout desde el que se despliega). No hay variable para saltárselos, tampoco con el override
   de abajo: si el que está mal es el test, se arregla el test.
