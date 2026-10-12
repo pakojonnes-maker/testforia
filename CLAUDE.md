@@ -216,6 +216,10 @@ cambios sin commitear de otra sesión en curso dando vueltas por el repo. Antes 
   esperado del proyecto).
 - Ejecutar migración: `npx wrangler d1 execute restaurant-menu-saas --file=migrations/XXXX.sql`
   (añade `--remote` para producción; sin flag es local).
+- **`tests/sql.test.mjs` compila todo el SQL del worker contra `BDschemaFinal.sql`** en un D1 real (el
+  Miniflare de wrangler) y el hook lo lanza antes de desplegar. Si el worker usa una columna nueva, el
+  deploy se bloquea hasta que la migración esté en producción **y el esquema regenerado y commiteado**:
+  ese fichero dice lo que hay en producción, no se le añade una columna a mano para pasar el test.
 - SQLite en D1 revienta con `UNION ALL` de ~8+ términos (`too many terms in compound
   SELECT`); para contar filas de muchas tablas usa subconsultas escalares en un `SELECT`.
 
@@ -450,6 +454,7 @@ npm run build:tv-landing # → apps/tv-landing/dist
 npm test               # worker: tests/*.test.mjs, en paralelo (~7 s, corre sin node_modules)
 npm run test:frontend  # tests/frontend/ (paridad entre copias) + los check-*.mjs de guide y client; necesita esbuild
 npm run test:routes    # tabla de rutas contra el worker.js real: endpoint nuevo = fila nueva
+npm run test:sql       # el SQL del worker contra SQLite real con el esquema de producción (§3)
 npm run smoke          # humo contra PRODUCCIÓN tras desplegar, solo GET (admite: worker guide client admin tv)
 # El hook lanza `npm test` antes de `wrangler deploy` y `test:frontend` antes de `pages deploy` (§7).
 

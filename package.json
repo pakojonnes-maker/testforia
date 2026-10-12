@@ -35,6 +35,7 @@
     "test:frontend": "node tests/run.mjs frontend",
     "test:all": "node tests/run.mjs all",
     "test:routes": "node tests/routes.test.mjs",
+    "test:sql": "node tests/sql.test.mjs",
     "test:parity": "node tests/frontend/parity.test.mjs",
     "smoke": "node scripts/smoke.mjs",
     "test:restaurant-admin": "node tests/restaurant-admin.test.mjs",

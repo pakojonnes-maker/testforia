@@ -68,6 +68,12 @@ Si el deploy depende de columnas/tablas nuevas: aplica la migración a remoto **
 (ver la skill `/migracion`) y después despliega el worker. Al revés, el endpoint devuelve
 500 hasta que alguien se dé cuenta.
 
+**Y regenera `BDschemaFinal.sql` antes de desplegar, no después** (paso 9, y commitéalo): el hook
+lanza `tests/sql.test.mjs`, que compila el SQL del worker contra ese fichero. Con el esquema
+viejo, el worker que usa la columna nueva da «no such column» y el deploy se bloquea, aunque la
+migración ya esté aplicada. Si te bloquea sin que hayas tocado SQL, es que el worker de `main` va
+por delante de producción: no lo fuerces, falta una migración.
+
 ## 5. Desplegar
 
 El comando de la tabla del paso 0. Si el hook bloquea, la respuesta correcta es
