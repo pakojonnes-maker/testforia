@@ -43,6 +43,10 @@ out/
 .dev.vars
 .dev.vars.*
 
+# Slugs reales contra los que se lanza scripts/smoke.mjs. El de una guía lleva un
+# sufijo aleatorio porque la guía enseña el WiFi: no debe acabar en un repo público.
+scripts/smoke.targets.json
+
 # Bóveda de secretos. Vive en %USERPROFILE%\.visualtaste\ (fuera del repo),
 # pero se ignora también aquí por si alguna vez se copia a mano. Ver SECRETS.md.
 .visualtaste/

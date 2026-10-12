@@ -443,12 +443,12 @@ npm run build:guide    # → apps/guide/dist
 npm run build:tv       # → apps/tv/dist
 npm run build:tv-landing # → apps/tv-landing/dist
 
-# --- Tests (worker, node puro, sin framework) ---
-npm test               # las 3 suites
-npm run test:authz     # scoping multi-tenant (workerAuthz.js)
-npm run test:auth      # login/JWT (workerAuthentication.js)
-npm run test:security  # sesiones, MFA, invitaciones
-# Si tocas auth/authz/sesiones, ejecútalos ANTES de desplegar.
+# --- Tests (node puro, sin framework; tests/run.mjs descubre las suites por carpeta) ---
+npm test               # worker: tests/*.test.mjs, en paralelo (~7 s, corre sin node_modules)
+npm run test:frontend  # tests/frontend/ (paridad entre copias) + los check-*.mjs de guide y client; necesita esbuild
+npm run test:routes    # tabla de rutas contra el worker.js real: endpoint nuevo = fila nueva
+npm run smoke          # humo contra PRODUCCIÓN tras desplegar, solo GET (admite: worker guide client admin tv)
+# El hook lanza `npm test` antes de `wrangler deploy` y `test:frontend` antes de `pages deploy` (§7).
 
 # --- Backend (Worker) ---
 # Antes de esto: git status, y commit de lo que vayas a desplegar (ver §7).
@@ -499,8 +499,11 @@ migración D1 con `--remote`, commitea (y si puedes, pushea) primero.
 `.claude/settings.json`) intercepta `wrangler deploy`, `wrangler pages deploy`,
 `wrangler d1 execute --remote` y `wrangler kv ... --remote`:
 - **Working tree sucio → bloquea** el comando y lista los ficheros pendientes.
+- **Deploy con tests en rojo → bloquea** (`npm test` para el worker, `npm run test:frontend` para Pages; se
+  lanzan en el checkout desde el que se despliega). No hay variable para saltárselos, tampoco con el override
+  de abajo: si el que está mal es el test, se arregla el test.
 - **Tree limpio + escritura en producción (`--remote`) → pide confirmación.**
-- Tree limpio + deploy → sigue el flujo de permisos normal.
+- Tree limpio + tests en verde + deploy → sigue el flujo de permisos normal.
 
 Si el bloqueo es un falso positivo y quieres desplegar igual, prefija el comando con
 `VT_ALLOW_DIRTY_DEPLOY=1` — es deliberado que sea explícito y quede en el historial.
@@ -575,7 +578,8 @@ mínima mientras eso no cambie.
 2. **Backend**: SQL crudo parametrizado, valida input, try/catch, `{success:false,...}`
    en errores, verifica el esquema (regenerándolo si hace falta, §3), y si falta una
    columna propón la migración en `migrations/`. Endpoint con `:slug`/`restaurantId` →
-   pasa por `workerAuthz.js`. Origen nuevo → `workerCors.js`.
+   pasa por `workerAuthz.js`. Origen nuevo → `workerCors.js`. Endpoint nuevo → su fila en
+   `tests/routes.test.mjs` (pública, protegida o entre restaurantes): es el único test que ve el router entero.
 3. **Frontend**: TypeScript estricto (sin `any`), tipa props y respuestas de API,
    respeta el stack de cada app.
 4. **i18n**: `es` es la fuente; 13 idiomas activos; respeta el mapeo de banderas.

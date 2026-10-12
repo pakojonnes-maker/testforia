@@ -24,8 +24,8 @@
             "type": "command",
             "command": "node",
             "args": ["${CLAUDE_PROJECT_DIR}/.claude/hooks/pre-deploy-guard.mjs"],
-            "timeout": 20,
-            "statusMessage": "Comprobando git status antes de tocar producción…"
+            "timeout": 150,
+            "statusMessage": "Comprobando git status y tests antes de tocar producción…"
           }
         ]
       }

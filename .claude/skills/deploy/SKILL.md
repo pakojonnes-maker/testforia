@@ -36,7 +36,11 @@ comando de todas formas, pero la conversación tiene que pasar antes, no despué
 
 - App tocada → `npm run build:<app>` (el `tsc` es bloqueante, un error de tipos aquí es
   un despliegue roto).
-- Worker de auth/authz/sesiones tocado → `npm test`.
+- Worker tocado → `npm test` (unos 7 s). Frontend tocado → `npm run test:frontend`. El hook
+  `pre-deploy-guard` los lanza de todas formas al desplegar y bloquea si fallan; lanzarlos aquí
+  es enterarse antes de commitear y no después.
+- Endpoint nuevo en el worker → añade su fila a `tests/routes.test.mjs`. Regla copiada en dos
+  apps → añádela a `tests/frontend/parity.test.mjs`.
 - Worker en general → al menos `npx wrangler deploy --dry-run` para que falle el bundle
   aquí y no en producción.
 
@@ -144,9 +148,22 @@ decide, no bumpees por ritual.
 
 ## 7. Verificar con datos reales
 
-Un 200 OK no prueba nada. Comprueba **contenido**: que el campo nuevo aparece, que el
-idioma correcto se sirve, que no es un `X-Cache: HIT` del JSON viejo. Para el admin y
-la TV, míralo en el navegador (preview tools), no solo con curl.
+Primero, el humo: comprueba que lo que ya funcionaba sigue funcionando (la guía devuelve su
+apartamento, cada portada pide un `.js` que existe, las dos mitades de tv.visualtastes.com
+siguen ahí, lo que lleva el WiFi sale con `noindex`, CORS). Solo hace GET; pega su última
+línea en la respuesta.
+
+```bash
+node scripts/smoke.mjs worker        # o: guide, client, admin, tv — lo que hayas desplegado; sin argumentos, todo
+```
+
+Si dice «saltadas», falta `scripts/smoke.targets.json` (copia el `.example`; está fuera de git
+porque el slug de una guía no puede estar en un repo público) y **no** ha mirado ninguna guía.
+
+El humo no sabe nada de tu cambio. Después comprueba **lo nuevo** a mano: un 200 OK no prueba
+nada. Mira el **contenido**: que el campo nuevo aparece, que el idioma correcto se sirve, que
+no es un `X-Cache: HIT` del JSON viejo. Para el admin y la TV, míralo en el navegador (preview
+tools), no solo con curl.
 
 ## 8. `git push`
 

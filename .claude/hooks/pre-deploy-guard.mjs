@@ -13,6 +13,7 @@
  *
  * y devuelve:
  *   - "deny" si el working tree está sucio, con la lista de ficheros.
+ *   - "deny" si es un despliegue y los tests no pasan (bloque TESTS, más abajo).
  *   - "ask"  si está limpio pero la operación escribe en producción (D1/KV).
  *   - nada (flujo normal de permisos) en cualquier otro caso.
  *
@@ -20,7 +21,9 @@
  * `VT_ALLOW_DIRTY_DEPLOY=1` desactiva el bloqueo para ESE comando.
  */
 
-import { execFileSync } from 'node:child_process';
+import { execFileSync, spawnSync } from 'node:child_process';
+import { existsSync } from 'node:fs';
+import { isAbsolute, join, resolve } from 'node:path';
 
 const OVERRIDE = 'VT_ALLOW_DIRTY_DEPLOY=1';
 
@@ -34,8 +37,13 @@ const splitSegments = (cmd) =>
 const stripRunner = (seg) =>
   seg.replace(/^(npx\s+(--yes\s+|-y\s+)?|pnpm\s+dlx\s+|bunx\s+|yarn\s+)/, '').trim();
 
+// `VAR=x VAR2=y npx wrangler …`: las asignaciones de entorno iniciales no cambian qué comando es.
+// Sin quitarlas, CUALQUIER variable delante (no solo el override) dejaba el comando sin clasificar
+// y el hook no miraba nada.
+const stripEnv = (seg) => seg.replace(/^(?:[A-Za-z_][A-Za-z0-9_]*=\S*\s+)+/, '');
+
 const classify = (seg) => {
-  const s = stripRunner(seg);
+  const s = stripRunner(stripEnv(seg));
   if (!/^wrangler\b/.test(s)) return null;
   if (/^wrangler\s+(deploy|pages\s+deploy)\b/.test(s)) return 'deploy';
   if (/^wrangler\s+d1\s+execute\b/.test(s) && /--remote\b/.test(s)) return 'remote-write';
@@ -77,6 +85,67 @@ const soloTvDeploy = (command) => {
     if (/(^|\/)apps\/tv(-landing)?\/dist$/.test(full)) return full;
   }
   return null;
+};
+
+// ---------------------------------------------------------------------------
+// TESTS antes de desplegar. Los tests existían desde julio, pero dependían de que alguien se
+// acordara de lanzarlos: aquí se lanzan solos y un fallo bloquea la publicación.
+//   - `wrangler deploy`        → grupo «worker»   (tests/*.test.mjs, Node puro: corre hasta en un
+//                                                  worktree sin node_modules)
+//   - `wrangler pages deploy`  → grupo «frontend» (paridad entre copias + los check-*.mjs de las apps;
+//                                                  necesita esbuild, que está donde se ha compilado)
+// Se ejecutan en el checkout DESDE EL QUE se despliega: si el comando empieza por `cd <worktree>`,
+// allí. Un `--dry-run` no publica nada y no los lanza. tests/run.mjs tarda unos 7 s.
+// ---------------------------------------------------------------------------
+const TESTS_TIMEOUT_MS = 120_000; // por debajo del `timeout` del hook en .claude/settings.json
+
+/** Qué grupos de tests pide el comando y desde qué carpeta despliega. */
+const testPlan = (command) => {
+  const groups = new Set();
+  let cwd = process.cwd();
+  let deployCwd = cwd;
+  for (const raw of splitSegments(command)) {
+    const cd = raw.match(/^cd\s+("[^"]+"|'[^']+'|\S+)/);
+    if (cd) {
+      // Git Bash escribe C:\x como /c/x; Node no lo entiende.
+      const dir = cd[1].replace(/^["']|["']$/g, '').replace(/^\/([a-zA-Z])\//, '$1:/');
+      cwd = isAbsolute(dir) ? dir : resolve(cwd, dir);
+      continue;
+    }
+    const s = stripRunner(stripEnv(raw));
+    if (/--dry-run\b/.test(s)) continue;
+    if (/^wrangler\s+pages\s+deploy\b/.test(s)) groups.add('frontend');
+    else if (/^wrangler\s+deploy\b/.test(s)) groups.add('worker');
+    else continue;
+    deployCwd = cwd;
+  }
+  return { groups: [...groups], cwd: deployCwd };
+};
+
+/** Lanza tests/run.mjs. Devuelve null si pasa (o si ese checkout no lo tiene) y el motivo si no. */
+const runTests = (group, cwd) => {
+  let root;
+  try {
+    root = execFileSync('git', ['rev-parse', '--show-toplevel'], {
+      encoding: 'utf8',
+      cwd,
+      stdio: ['ignore', 'pipe', 'ignore'],
+    }).trim();
+  } catch {
+    return null; // sin git no sabemos dónde están
+  }
+  const runner = join(root, 'tests', 'run.mjs');
+  if (!existsSync(runner)) return null; // un worktree de un commit anterior a los tests
+  const res = spawnSync(process.execPath, [runner, group], {
+    cwd: root,
+    encoding: 'utf8',
+    timeout: TESTS_TIMEOUT_MS,
+    stdio: ['ignore', 'pipe', 'pipe'],
+  });
+  if (res.status === 0) return null;
+  if (res.error?.code === 'ETIMEDOUT') return `Los tests no han terminado en ${TESTS_TIMEOUT_MS / 1000} s.`;
+  const out = `${res.stdout || ''}${res.stderr || ''}`.trim() || String(res.error || 'sin salida');
+  return out.length > 3500 ? `${out.slice(0, 3500)}\n…` : out;
 };
 
 const emit = (permissionDecision, permissionDecisionReason) => {
@@ -135,10 +204,11 @@ const main = async () => {
     }
   }
 
-  if (command.includes(OVERRIDE)) process.exit(0); // override explícito del usuario
-
   const kinds = splitSegments(command).map(classify).filter(Boolean);
   if (kinds.length === 0) process.exit(0);
+
+  // Override explícito del usuario: no se mira el árbol, pero los tests se lanzan igual.
+  const overridden = command.includes(OVERRIDE);
 
   let status;
   try {
@@ -151,7 +221,7 @@ const main = async () => {
     process.exit(0); // sin git no hay nada que comprobar
   }
 
-  const dirty = status.split('\n').map((l) => l.trimEnd()).filter(Boolean);
+  const dirty = overridden ? [] : status.split('\n').map((l) => l.trimEnd()).filter(Boolean);
 
   if (dirty.length > 0) {
     const shown = dirty.slice(0, 25).join('\n');
@@ -176,7 +246,35 @@ const main = async () => {
     );
   }
 
-  if (kinds.includes('remote-write')) {
+  // El árbol ya está limpio (o el usuario ha asumido que no lo esté): ahora, los tests.
+  if (kinds.includes('deploy')) {
+    let plan = { groups: [], cwd: process.cwd() };
+    try {
+      plan = testPlan(command);
+    } catch {
+      // un fallo al leer el comando no debe impedir desplegar
+    }
+    for (const group of plan.groups) {
+      const failure = runTests(group, plan.cwd);
+      if (failure) {
+        emit(
+          'deny',
+          [
+            `BLOQUEADO por .claude/hooks/pre-deploy-guard.mjs: los tests (${group}) no pasan.`,
+            ``,
+            failure,
+            ``,
+            `Qué hacer: arregla lo que falla y vuelve a desplegar. Para repetirlos: npm ${
+              group === 'worker' ? 'test' : 'run test:frontend'
+            }`,
+            `No hay variable para saltárselos: si el fallo es del propio test, se arregla el test.`,
+          ].join('\n')
+        );
+      }
+    }
+  }
+
+  if (!overridden && kinds.includes('remote-write')) {
     emit(
       'ask',
       'Escribe directamente en la D1/KV de PRODUCCIÓN (--remote). El working tree está limpio; confirma que la migración es la correcta y que está commiteada.'
