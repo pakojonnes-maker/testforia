@@ -261,10 +261,11 @@ section('Media en R2 y caché KV de la zona');
         env.r2.deleted.join(','));
 
     // Un POI es contenido de zona: se invalida la guía de TODOS los apartamentos
-    // de esa zona, no la de uno.
+    // de esa zona, no la de uno. Con UNA escritura (la versión de la zona, que
+    // cada guía comprueba al leerse), no con una por apartamento.
     const claves = env.kv.map(k => k.key);
-    ok('Se bumpea la versión de cada apartamento de la zona',
-        claves.includes('ver:apt:piso-carabeo') && claves.includes('ver:apt:atico-burriana'),
+    ok('Se bumpea la versión de la zona, y nada más',
+        claves.length === 1 && claves[0] === 'ver:zone:zone_1',
         claves.join(','));
 
     ok('La respuesta informa de lo borrado',

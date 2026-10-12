@@ -34,9 +34,8 @@ se queda para el chat del huésped.
    ```bash
    npx wrangler d1 execute restaurant-menu-saas --remote --json --command="SELECT p.id, p.zone_id, p.category, p.subcategory, p.poi_type, p.access_type, p.price_display, p.price_amount, p.is_bookable, p.is_active, p.latitude, p.longitude, p.google_place_id, p.google_maps_url, p.address, p.website_url, p.opening_hours, p.source, p.order_index, (SELECT json_group_object(t.language_code || '.' || t.field, t.value) FROM translations t WHERE t.entity_id=p.id AND t.entity_type='poi') AS tr FROM guide_pois p WHERE p.zone_id IN (<zonas>) AND p.category<>'Restaurantes'" > scripts/poi-seed/.cache/existing.raw
    npx wrangler d1 execute restaurant-menu-saas --remote --json --command="SELECT id, google_place_id FROM guide_pois WHERE google_place_id IS NOT NULL" > scripts/poi-seed/.cache/pid.raw
-   npx wrangler d1 execute restaurant-menu-saas --remote --json --command="SELECT slug, zone_id FROM guide_apartments" > scripts/poi-seed/.cache/apt.raw
    ```
-   y pasarlos a `existing.json` (con `tr` ya parseado), `place_ids.json` y `apartments.json`.
+   y pasarlos a `existing.json` (con `tr` ya parseado) y `place_ids.json`.
 2. **Google:** `node scripts/poi-seed/enrich.mjs [zona|all]`. La clave sale de
    `GOOGLE_PLACES_API_KEY` o de `.dev.vars`. Ojo: el proyecto de Google Cloud tiene un
    **tope diario** de Text Search y Place Details (~110 al día, salta un 429
@@ -49,6 +48,6 @@ se queda para el chat del huésped.
    D1 local del proyecto): `wrangler d1 execute ... --local --persist-to <carpeta temporal>`
    con `BDschemaFinal.sql`, los 13 idiomas, las zonas y los POIs del volcado.
 5. **Commit**, y luego aplicar: `npx wrangler d1 execute restaurant-menu-saas --remote --file=scripts/poi-seed/out/<zona>.sql`.
-6. **Caché:** los comandos `wrangler kv key put ... "ver:zone:<zona>"` (y `ver:apt:*`,
+6. **Caché:** los comandos `wrangler kv key put ... "ver:zone:<id de la zona>"` (y
    `ver:zonecatalog` si hay zona nueva) que imprime el build. Comprobar con
    `curl -sI https://<api>/guide/<slug>?lang=ja` que sale `X-Cache: MISS` y el texto nuevo.

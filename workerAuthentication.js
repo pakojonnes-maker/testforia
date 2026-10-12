@@ -1,7 +1,7 @@
 // JWT_SECRET ahora se lee desde env (configurado en Cloudflare Dashboard)
 // Ver: Workers & Pages > visualtasteworker > Configuración > Variables y secretos
 import { getCorsHeaders } from './workerCors.js';
-import { logSecurityEvent, getClientIp } from './workerAudit.js';
+import { logSecurityEvent, getClientIp, recentEventsByIp } from './workerAudit.js';
 
 export const JWT_ALGORITHM = 'HS256';
 export const JWT_EXPIRATION = '7d'; // 7 days
@@ -243,18 +243,77 @@ function base64UrlDecode(base64Url) {
 //   - por IP        → credential stuffing: muchos emails, pocos intentos
 //                     cada uno, que la primera ventana no vería.
 //
-// El contador por email+IP se borra al acertar la contraseña, para que un
+// La cuenta por email+IP vuelve a cero al acertar la contraseña, para que un
 // usuario legítimo que se equivoca unas cuantas veces no arrastre el bloqueo.
 //
 // Deliberadamente NO se bloquea la cuenta en sí: sería un vector trivial de
 // denegación de servicio contra un cliente concreto (basta con fallar cinco
 // veces contra su email desde cualquier IP).
+//
+// Se cuentan los FALLOS, leyéndolos de security_audit_log (cada uno ya se
+// escribe ahí), no cada intento en KV: un login es una ruta pública, y con un
+// contador en KV cualquiera podía gastar las 1.000 escrituras diarias que KV
+// comparte con la caché de las guías; agotadas, además, el límite dejaba pasar.
 
-const LOGIN_LIMIT_PER_ACCOUNT = { limit: 5, windowSeconds: 900 };   // 5 / 15 min
-const LOGIN_LIMIT_PER_IP = { limit: 30, windowSeconds: 3600 };      // 30 / hora
+const LOGIN_LIMIT_PER_ACCOUNT = { limit: 5, windowSeconds: 900 };   // 5 fallos / 15 min
+const LOGIN_LIMIT_PER_IP = { limit: 30, windowSeconds: 3600 };      // 30 fallos / hora
 
 /**
- * Consulta e incrementa un contador con ventana fija en KV.
+ * Primera barrera de una ruta pública, por minuto e IP y sin almacenamiento
+ * (binding AUTH_IP_LIMITER de wrangler.toml). Es aproximada y por ubicación:
+ * no sustituye a las ventanas largas, acota cuántas filas de auditoría puede
+ * hacer escribir una misma IP. Sin el binding (tests, dev) deja pasar.
+ * @returns {Promise<boolean>} true si hay que rechazar la petición
+ */
+export async function overMinuteGate(env, scope, ip) {
+    if (!env.AUTH_IP_LIMITER) return false;
+    try {
+        const { success } = await env.AUTH_IP_LIMITER.limit({ key: `${scope}:${ip}` });
+        return !success;
+    } catch (error) {
+        console.error('[Auth] Error en el freno por minuto:', error.message);
+        return false;
+    }
+}
+
+/** Segundos hasta que el fallo más antiguo de los que cuentan sale de la ventana. */
+function secondsUntilFree(failures, { limit, windowSeconds }, now) {
+    const oldest = failures[failures.length - limit];
+    return Math.max(1, Math.ceil((oldest.at + windowSeconds * 1000 - now) / 1000));
+}
+
+/**
+ * Las dos ventanas del login, sobre los eventos de esta IP en la última hora.
+ * @returns {Promise<{allowed: boolean, retryAfter: number}>}
+ */
+async function checkLoginFailures(env, email, ip) {
+    const events = await recentEventsByIp(
+        env, ip, ['login_failed', 'login_success', 'login_mfa_challenge'], LOGIN_LIMIT_PER_IP.windowSeconds
+    );
+    const now = Date.now();
+    const ipFailures = events.filter((e) => e.type === 'login_failed');
+
+    // login_success y login_mfa_challenge son los dos sitios donde handleLogin
+    // da la contraseña por buena: a partir de ahí la cuenta empieza de cero.
+    // Los fallos del acceso con Google (detail.provider) cuentan para la IP,
+    // no para la contraseña de nadie.
+    let accountFailures = [];
+    for (const e of events) {
+        if (e.detail?.email !== email || e.detail.provider || e.at <= now - LOGIN_LIMIT_PER_ACCOUNT.windowSeconds * 1000) continue;
+        if (e.type === 'login_failed') accountFailures.push(e);
+        else accountFailures = [];
+    }
+
+    const waits = [];
+    if (accountFailures.length >= LOGIN_LIMIT_PER_ACCOUNT.limit) waits.push(secondsUntilFree(accountFailures, LOGIN_LIMIT_PER_ACCOUNT, now));
+    if (ipFailures.length >= LOGIN_LIMIT_PER_IP.limit) waits.push(secondsUntilFree(ipFailures, LOGIN_LIMIT_PER_IP, now));
+    return { allowed: waits.length === 0, retryAfter: waits.length ? Math.max(...waits) : 0 };
+}
+
+/**
+ * Consulta e incrementa un contador con ventana fija en KV. Solo para rutas con
+ * sesión o detrás de un ticket válido: en una ruta pública cada llamada sería
+ * una escritura de KV a disposición de cualquiera (ver arriba).
  * @returns {Promise<{allowed: boolean, retryAfter: number}>}
  */
 export async function hitRateLimit(env, key, { limit, windowSeconds }) {
@@ -294,15 +353,6 @@ export async function hitRateLimit(env, key, { limit, windowSeconds }) {
         // Un fallo de KV no debe dejar a nadie fuera de su panel.
         console.error('[Auth] Error de rate limiting:', error.message);
         return { allowed: true, retryAfter: 0 };
-    }
-}
-
-async function clearRateLimit(env, key) {
-    if (!env.RATE_LIMIT_KV) return;
-    try {
-        await env.RATE_LIMIT_KV.delete(key);
-    } catch (error) {
-        console.error('[Auth] Error limpiando rate limit:', error.message);
     }
 }
 
@@ -777,29 +827,25 @@ async function handleLogin(request, env) {
 
         const normalizedEmail = String(email).trim().toLowerCase();
         const clientIp = getClientIp(request);
-        const accountKey = `ratelimit:login:${normalizedEmail}:${clientIp}`;
-        const ipKey = `ratelimit:login-ip:${clientIp}`;
 
-        // Rate limiting ANTES de tocar la base de datos o derivar ningún hash:
-        // una request bloqueada debe costar lo mínimo posible.
-        const [accountLimit, ipLimit] = await Promise.all([
-            hitRateLimit(env, accountKey, LOGIN_LIMIT_PER_ACCOUNT),
-            hitRateLimit(env, ipKey, LOGIN_LIMIT_PER_IP),
-        ]);
-        if (!accountLimit.allowed || !ipLimit.allowed) {
-            const retryAfter = Math.max(accountLimit.retryAfter, ipLimit.retryAfter);
+        // Rate limiting ANTES de buscar al usuario o derivar ningún hash: una
+        // request bloqueada debe costar lo mínimo posible. La barrera por
+        // minuto no deja ni rastro en D1; las ventanas largas son una lectura.
+        const tooMany = (retryAfter) => createResponse(
+            { success: false, message: 'Demasiados intentos. Inténtalo de nuevo más tarde.', retryAfter },
+            429,
+            request,
+            { 'Retry-After': String(retryAfter) }
+        );
+        if (await overMinuteGate(env, 'login', clientIp)) {
+            console.warn(`[Auth] 429 login (por minuto): ip=${clientIp}`);
+            return tooMany(60);
+        }
+        const loginLimit = await checkLoginFailures(env, normalizedEmail, clientIp);
+        if (!loginLimit.allowed) {
             console.warn(`[Auth] 429 login: ip=${clientIp}`);
             await logSecurityEvent(env, { type: 'login_rate_limited', request, detail: { email: normalizedEmail } });
-            return createResponse(
-                {
-                    success: false,
-                    message: 'Demasiados intentos. Inténtalo de nuevo más tarde.',
-                    retryAfter,
-                },
-                429,
-                request,
-                { 'Retry-After': String(retryAfter) }
-            );
+            return tooMany(loginLimit.retryAfter);
         }
 
         const user = await env.DB.prepare(`
@@ -822,15 +868,13 @@ async function handleLogin(request, env) {
 
         const { valid, needsRehash } = await verifyPassword(password, user.password_hash);
         if (!valid) {
-            await logSecurityEvent(env, { type: 'login_failed', userId: user.id, request, detail: { reason: 'bad_password' } });
+            // El email va en el detalle porque es por lo que cuenta checkLoginFailures.
+            await logSecurityEvent(env, { type: 'login_failed', userId: user.id, request, detail: { email: normalizedEmail, reason: 'bad_password' } });
             return createResponse(
                 { success: false, message: 'Credenciales inválidas' },
                 401
             );
         }
-
-        // Credenciales correctas: se libera el contador de esta cuenta.
-        await clearRateLimit(env, accountKey);
 
         // Migración perezosa del hash. Solo aquí se tiene la contraseña en
         // claro, así que es el único momento posible para regenerarlo con el
@@ -852,12 +896,13 @@ async function handleLogin(request, env) {
         // que solo sirve para completar el segundo factor en /auth/mfa/verify.
         if (user.totp_enabled === 1) {
             const ticket = await createMfaTicket(env, user.id);
-            await logSecurityEvent(env, { type: 'login_mfa_challenge', userId: user.id, request });
+            await logSecurityEvent(env, { type: 'login_mfa_challenge', userId: user.id, request, detail: { email: normalizedEmail } });
             return createResponse({ success: true, mfaRequired: true, ticket });
         }
 
+        // Con el email: es la marca que pone a cero la cuenta de fallos.
         const response = await buildAuthenticatedResponse(env, user);
-        await logSecurityEvent(env, { type: 'login_success', userId: user.id, request });
+        await logSecurityEvent(env, { type: 'login_success', userId: user.id, request, detail: { email: normalizedEmail } });
         return createResponse(response);
     } catch (error) {
         console.error('[Auth] Login error:', error);
@@ -1164,6 +1209,14 @@ async function handleMfaVerify(request, env) {
             return createResponse({ success: false, message: 'Faltan ticket o code' }, 400);
         }
 
+        // El ticket se comprueba antes de contar: el contador vive en KV, y
+        // contando primero cualquiera podía gastar una escritura por petición
+        // mandando tickets inventados.
+        const userId = await peekMfaTicket(env, ticket);
+        if (!userId) {
+            return createResponse({ success: false, message: 'Ticket inválido o caducado' }, 401);
+        }
+
         // El espacio de un código de 6 dígitos es pequeño (10^6): limitar
         // intentos por ticket es imprescindible, no una mejora opcional.
         const attemptKey = `ratelimit:mfa:${ticket}`;
@@ -1175,11 +1228,6 @@ async function handleMfaVerify(request, env) {
                 request,
                 { 'Retry-After': String(attempts.retryAfter) }
             );
-        }
-
-        const userId = await peekMfaTicket(env, ticket);
-        if (!userId) {
-            return createResponse({ success: false, message: 'Ticket inválido o caducado' }, 401);
         }
 
         const user = await env.DB.prepare(`

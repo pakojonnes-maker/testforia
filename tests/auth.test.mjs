@@ -8,6 +8,7 @@
 // iteraciones, que es justo lo que se quiere comprobar.
 
 import { loadWorkerModule } from './_load.mjs';
+import { makeAuditLog } from './_audit.mjs';
 
 const { module: auth, cleanup } = await loadWorkerModule('workerAuthentication.js');
 const { handleAuthRequests, hashPassword, validatePassword, verifyJWT } = auth;
@@ -37,7 +38,8 @@ async function legacyHash(password) {
 
 function makeEnv(users) {
     const kv = new Map();
-    const state = { users, updates: [], kv };
+    const audit = makeAuditLog();
+    const state = { users, updates: [], kv, kvWrites: 0, audit };
 
     const env = {
         JWT_SECRET,
@@ -46,8 +48,8 @@ function makeEnv(users) {
                 const v = kv.get(key);
                 return v === undefined ? null : JSON.parse(v);
             },
-            async put(key, value) { kv.set(key, value); },
-            async delete(key) { kv.delete(key); },
+            async put(key, value) { state.kvWrites++; kv.set(key, value); },
+            async delete(key) { state.kvWrites++; kv.delete(key); },
         },
         DB: {
             prepare(sql) {
@@ -64,8 +66,12 @@ function makeEnv(users) {
                                 }
                                 return null;
                             },
-                            async all() { return { results: [] }; },
+                            async all() {
+                                if (s.includes('FROM security_audit_log')) return { results: audit.select(args) };
+                                return { results: [] };
+                            },
                             async run() {
+                                if (s.startsWith('INSERT INTO security_audit_log')) audit.insert(args);
                                 if (s.includes('UPDATE users SET password_hash')) {
                                     const u = state.users.find((x) => x.id === args[1]);
                                     if (u) u.password_hash = args[0];
@@ -179,6 +185,67 @@ console.log('\n--- El acierto libera el contador ---');
     for (let i = 0; i < 5; i++) await handleAuthRequests(loginRequest('ana@test.com', 'mal', ip), env);
     const sixth = await handleAuthRequests(loginRequest('ana@test.com', 'mal', ip), env);
     assert('El contador se reinició: vuelve a haber 5 intentos', sixth.status === 429);
+}
+
+// Los fallos se cuentan en security_audit_log, no en KV. Los escenarios de aquí siembran la tabla en
+// vez de hacer 30 logins de verdad: cada uno deriva PBKDF2 y la suite tardaría medio minuto más.
+console.log('\n--- El límite no gasta KV y aguanta lo que KV no aguantaba ---');
+{
+    const seedUser = async () => makeEnv([
+        { id: 'u1', email: 'ana@test.com', display_name: 'Ana', password_hash: await hashPassword(GOOD_PASSWORD), photo_url: null, is_superadmin: 0 },
+    ]);
+
+    {
+        const { env, state } = await seedUser();
+        const ip = '192.0.2.120';
+        await handleAuthRequests(loginRequest('ana@test.com', 'mal', ip), env);
+        await handleAuthRequests(loginRequest('nadie@test.com', 'mal', ip), env);
+        await handleAuthRequests(loginRequest('ana@test.com', GOOD_PASSWORD, ip), env);
+        assert('Dos fallos y un acierto: ni una escritura en KV', state.kvWrites === 0, `${state.kvWrites} escrituras`);
+        assert('Los dos fallos quedan en el log con su email',
+            state.audit.rows.filter((r) => r.event_type === 'login_failed' && JSON.parse(r.detail).email).length === 2);
+    }
+
+    {
+        // Credential stuffing: 30 emails distintos desde una IP. La ventana por cuenta no lo ve.
+        const { env, state } = await seedUser();
+        const ip = '192.0.2.121';
+        for (let i = 0; i < 30; i++) state.audit.seed('login_failed', ip, { email: `victima${i}@test.com`, reason: 'no_such_user' });
+        const r = await handleAuthRequests(loginRequest('ana@test.com', GOOD_PASSWORD, ip), env);
+        assert('30 fallos en una hora desde una IP → 429 aunque la contraseña sea buena', r.status === 429);
+        const otra = await handleAuthRequests(loginRequest('ana@test.com', GOOD_PASSWORD, '192.0.2.122'), env);
+        assert('...y otra IP entra', otra.status === 200);
+    }
+
+    {
+        // Fuera de su ventana un fallo ya no cuenta: 5 de hace 16 minutos no bloquean la cuenta.
+        const { env, state } = await seedUser();
+        const ip = '192.0.2.123';
+        const hace16min = Date.now() - 16 * 60 * 1000;
+        for (let i = 0; i < 5; i++) state.audit.seed('login_failed', ip, { email: 'ana@test.com', reason: 'bad_password' }, { at: hace16min });
+        const r = await handleAuthRequests(loginRequest('ana@test.com', GOOD_PASSWORD, ip), env);
+        assert('5 fallos de hace 16 minutos ya no bloquean', r.status === 200);
+    }
+
+    {
+        // Los fallos del acceso con Google no bloquean la contraseña de esa cuenta.
+        const { env, state } = await seedUser();
+        const ip = '192.0.2.124';
+        for (let i = 0; i < 5; i++) state.audit.seed('login_failed', ip, { provider: 'google', reason: 'not_allowed', email: 'ana@test.com' });
+        const r = await handleAuthRequests(loginRequest('ana@test.com', GOOD_PASSWORD, ip), env);
+        assert('5 rechazos de Google para ese email no cuentan como contraseñas falladas', r.status === 200);
+    }
+
+    {
+        // La barrera por minuto corta antes de leer o escribir nada.
+        const { env, state } = await seedUser();
+        const keys = [];
+        env.AUTH_IP_LIMITER = { async limit({ key }) { keys.push(key); return { success: false }; } };
+        const r = await handleAuthRequests(loginRequest('ana@test.com', GOOD_PASSWORD, '192.0.2.125'), env);
+        assert('Con la barrera por minuto saltada → 429 con Retry-After', r.status === 429 && r.headers.get('Retry-After') === '60');
+        assert('...por IP y con su ámbito', keys.length === 1 && keys[0] === 'login:192.0.2.125', keys.join(','));
+        assert('...y sin dejar fila en el log de auditoría', state.audit.rows.length === 0, `${state.audit.rows.length} filas`);
+    }
 }
 
 console.log('\n--- Migración del hash antiguo ---');

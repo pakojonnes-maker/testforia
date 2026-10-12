@@ -36,8 +36,8 @@
 // ===========================================================================
 
 import { getCorsHeaders } from './workerCors.js';
-import { logSecurityEvent, getClientIp } from './workerAudit.js';
-import { hitRateLimit, buildAuthenticatedResponse, createMfaTicket } from './workerAuthentication.js';
+import { logSecurityEvent, getClientIp, recentEventsByIp } from './workerAudit.js';
+import { overMinuteGate, buildAuthenticatedResponse, createMfaTicket } from './workerAuthentication.js';
 
 const GOOGLE_JWKS_URL = 'https://www.googleapis.com/oauth2/v3/certs';
 const GOOGLE_ISSUERS = ['https://accounts.google.com', 'accounts.google.com'];
@@ -49,8 +49,8 @@ const ID_TOKEN_MAX_AGE_SECONDS = 600;
 // Los ID tokens de Google rondan 1 KB; esto solo corta cuerpos absurdos.
 const MAX_CREDENTIAL_LENGTH = 4096;
 
-// El uso legítimo es 1-2 intentos al día: 10 por IP y 15 min sobra, y acota el
-// coste de las peticiones basura (cada una cuesta parseo y una verificación RSA).
+// El uso legítimo es 1-2 intentos al día: 10 fallos por IP y 15 min sobra, y acota
+// el coste de las peticiones basura (cada una cuesta parseo y una verificación RSA).
 const GOOGLE_LOGIN_LIMIT_PER_IP = { limit: 10, windowSeconds: 900 };
 
 // Google publica sus claves con max-age de horas; se recarga cada hora.
@@ -263,18 +263,28 @@ async function handleGoogleLogin(request, env) {
             return createResponse({ success: false, message: 'Falta la credencial de Google' }, 400, request);
         }
 
-        // Rate limiting ANTES de derivar nada ni de llamar a Google.
+        // Rate limiting ANTES de derivar nada ni de llamar a Google. Igual que
+        // el login con contraseña (workerAuthentication.js): una barrera por
+        // minuto sin almacenamiento y, detrás, los fallos de esta IP contados
+        // en security_audit_log. Nada de esto escribe en KV.
         const clientIp = getClientIp(request);
-        const limit = await hitRateLimit(env, `ratelimit:google-login-ip:${clientIp}`, GOOGLE_LOGIN_LIMIT_PER_IP);
-        if (!limit.allowed) {
+        const tooMany = (retryAfter) => createResponse(
+            { success: false, message: 'Demasiados intentos. Inténtalo de nuevo más tarde.', retryAfter },
+            429,
+            request,
+            { 'Retry-After': String(retryAfter) }
+        );
+        if (await overMinuteGate(env, 'google-login', clientIp)) {
+            console.warn(`[GoogleAuth] 429 login (por minuto): ip=${clientIp}`);
+            return tooMany(60);
+        }
+        const failures = (await recentEventsByIp(env, clientIp, ['login_failed'], GOOGLE_LOGIN_LIMIT_PER_IP.windowSeconds))
+            .filter((e) => e.detail?.provider === 'google');
+        if (failures.length >= GOOGLE_LOGIN_LIMIT_PER_IP.limit) {
             console.warn(`[GoogleAuth] 429 login: ip=${clientIp}`);
             await logSecurityEvent(env, { type: 'login_rate_limited', request, detail: { provider: 'google' } });
-            return createResponse(
-                { success: false, message: 'Demasiados intentos. Inténtalo de nuevo más tarde.', retryAfter: limit.retryAfter },
-                429,
-                request,
-                { 'Retry-After': String(limit.retryAfter) }
-            );
+            const oldest = failures[failures.length - GOOGLE_LOGIN_LIMIT_PER_IP.limit];
+            return tooMany(Math.max(1, Math.ceil((oldest.at + GOOGLE_LOGIN_LIMIT_PER_IP.windowSeconds * 1000 - Date.now()) / 1000)));
         }
 
         const result = await verifyGoogleIdToken(credential, clientId);

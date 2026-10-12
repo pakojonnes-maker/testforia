@@ -50,3 +50,44 @@ export async function logSecurityEvent(env, { type, userId = null, targetUserId 
         console.error('[Audit] Error registrando evento:', error.message);
     }
 }
+
+/**
+ * Eventos recientes de una IP, del más antiguo al más nuevo. Es lo que cuentan
+ * los límites de intentos de las rutas públicas (login, PIN de sellos): el fallo
+ * ya se escribe aquí para poder investigarlo, así que contarlo no cuesta ninguna
+ * escritura más. Antes cada intento gastaba una de KV, y con el cupo agotado el
+ * límite dejaba pasar.
+ *
+ * Si D1 falla devuelve una lista vacía: un límite que no se puede comprobar no
+ * debe dejar a nadie fuera de su panel.
+ *
+ * @param {string[]} types - valores de event_type
+ * @returns {Promise<Array<{type: string, restaurantId: string|null, detail: Object|null, at: number}>>}
+ */
+export async function recentEventsByIp(env, ip, types, windowSeconds) {
+    if (!env.DB || !ip || !types.length) return [];
+    // Mismo formato que CURRENT_TIMESTAMP ('YYYY-MM-DD HH:MM:SS', UTC).
+    const since = new Date(Date.now() - windowSeconds * 1000).toISOString().slice(0, 19).replace('T', ' ');
+    try {
+        const { results } = await env.DB.prepare(`
+            SELECT event_type, restaurant_id, detail, created_at
+            FROM security_audit_log
+            WHERE ip = ? AND created_at > ? AND event_type IN (${types.map(() => '?').join(', ')})
+            ORDER BY created_at DESC, rowid DESC
+            LIMIT 200
+        `).bind(ip, since, ...types).all();
+        return (results || []).reverse().map((row) => {
+            let detail = null;
+            try { detail = row.detail ? JSON.parse(row.detail) : null; } catch { /* detalle ilegible: se ignora */ }
+            return {
+                type: row.event_type,
+                restaurantId: row.restaurant_id ?? null,
+                detail,
+                at: Date.parse(`${String(row.created_at).replace(' ', 'T')}Z`),
+            };
+        });
+    } catch (error) {
+        console.error('[Audit] Error leyendo eventos recientes:', error.message);
+        return [];
+    }
+}

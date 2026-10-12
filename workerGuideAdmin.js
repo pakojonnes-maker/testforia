@@ -599,12 +599,7 @@ async function updateAgency(env, id, data) {
     // payload de CADA apartamento (workerGuide.js), con TTL de 24h. Sin esto, un
     // cambio de color guardado aquí no se veía en la guía hasta que la caché
     // expirase sola — el bug real detrás de "no coge los colores".
-    const apartments = await env.DB.prepare(
-        'SELECT slug FROM guide_apartments WHERE agency_id = ? AND is_active = TRUE'
-    ).bind(id).all();
-    for (const apt of (apartments.results || [])) {
-        if (apt.slug) await touchGuideVersion(env, apt.slug);
-    }
+    await touchAgencyGuideVersions(env, id);
 
     return jsonResponse({ success: true });
 }
