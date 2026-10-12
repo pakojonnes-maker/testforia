@@ -171,7 +171,7 @@ cambios sin commitear de otra sesión en curso dando vueltas por el repo. Antes 
 | `workerDelivery.js` | Delivery/takeout. |
 | `workerLanding.js` / `workerLandingAdmin.js` | Landing builder (público / admin). |
 | `workerGuide.js` | Guidebook público (`GET /guide/:slug`). |
-| `workerGuideAdmin.js` | Admin del guidebook (`/guide/admin/*`). El más grande (~76KB). |
+| `workerGuideAdmin.js` | Admin del guidebook (`/guide/admin/*`). El más grande (~76KB). **Ruta con un segundo id** (`/apartments/:aptId/info/:infoId/...`) → `checkInfoAccess`, no `checkAptAccess`: este solo mira el piso, y con el piso propio en la ruta se tocaban bloques ajenos (`npm run test:guide-info-scope`). |
 | `workerGuideTracking.js` | Tracking del guidebook (`/guide/track/*`). |
 | `workerGuideAI.js` | Asistente IA del guidebook (`/guide/ai/*`, usa binding `AI`). |
 | `workerGuideTranslate.js` | Traducción automática a los 13 idiomas (`POST /guide/admin/translate`, Workers AI). Rellena `translations` sin pisar lo ya escrito. Tiene presupuesto diario propio para no dejar sin neuronas al chatbot de `workerGuideAI.js` — los dos comparten el tier gratuito de la cuenta. |
@@ -340,6 +340,9 @@ identifica la sesión en curso (`/track/session/identify`). Nunca un id persiste
 - Las opciones de color y fuente que ofrece el admin salen de `apps/admin/src/lib/guideDesign.ts`.
 - El contenido de una guía (`apartment_info.content`) es **texto plano**: `lib/text.ts` lo parte en
   párrafos y títulos numerados, sin parser de markdown (un `**negrita**` sale con los asteriscos literales).
+  Las fotos intercaladas (`inline_media`, migración 0107) se colocan «tras el apartado N» contando esos
+  párrafos, y la regla está copiada en `apps/tv/src/lib/text.ts` y `apps/admin/src/lib/guideText.ts`: las
+  tres cuentan igual o las fotos se descolocan. `media[0]` sigue siendo la portada (lo leen los APK viejos).
 - Build: `tsc -b && vite build && node scripts/prerender-landing.mjs`. El último paso escribe cada página de venta
   (SSR + JSON-LD) para los bots de IA, que no ejecutan JS: la landing en `dist/index.html` y las demás en
   `dist/<ruta>.html`. **Indexación:** `public/_headers` pone `noindex` a todo menos esas páginas (las guías de

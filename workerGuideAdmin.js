@@ -204,6 +204,10 @@ export async function handleGuideAdminRequests(request, env) {
             const parts = path.split('/');
             return await addApartmentInfoMedia(env, parts[1], parts[3], request, isSuperAdmin, userAgencyIds);
         }
+        if (path.match(/^apartments\/[^/]+\/info\/[^/]+\/media\/[^/]+$/) && method === 'PUT') {
+            const parts = path.split('/');
+            return await updateApartmentInfoMedia(env, parts[1], parts[3], parts[5], await request.json().catch(() => null), isSuperAdmin, userAgencyIds);
+        }
         if (path.match(/^apartments\/[^/]+\/info\/[^/]+\/media\/[^/]+$/) && method === 'DELETE') {
             const parts = path.split('/');
             return await deleteApartmentInfoMedia(env, parts[1], parts[3], parts[5], isSuperAdmin, userAgencyIds);
@@ -1039,7 +1043,7 @@ async function getApartmentInfo(env, aptId, lang) {
         const infoIds = infoResults.map(i => i.id);
         const placeholders = infoIds.map(() => '?').join(',');
         const media = await env.DB.prepare(`
-            SELECT apartment_info_id, id, r2_key, media_type, order_index
+            SELECT apartment_info_id, id, r2_key, media_type, order_index, after_block, width, height
             FROM guide_apartment_media
             WHERE apartment_info_id IN (${placeholders})
             ORDER BY order_index ASC
@@ -1093,7 +1097,7 @@ async function getApartmentInfoCoverage(env, aptId, isSuperAdmin, userAgencyIds)
 // out every other language it had never loaded. One cheap query, no join
 // needed beyond the ownership check (checkAptAccess already did that).
 async function getApartmentInfoTranslations(env, aptId, infoId, isSuperAdmin, userAgencyIds) {
-    const access = await checkAptAccess(env, aptId, isSuperAdmin, userAgencyIds);
+    const access = await checkInfoAccess(env, aptId, infoId, isSuperAdmin, userAgencyIds);
     if (access.error) return access.error;
 
     const rows = await env.DB.prepare(
@@ -1190,10 +1194,13 @@ async function upsertApartmentInfo(env, aptId, data, isSuperAdmin, userAgencyIds
         if (data.media.length > 0) {
             const mediaStatements = data.media.map((m, index) => {
                 const mediaId = generateId('med');
+                // after_block/width/height (migración 0107): quien reenvía la lista
+                // tal como la recibió conserva las fotos intercaladas en su sitio.
                 return env.DB.prepare(`
-                    INSERT INTO guide_apartment_media (id, apartment_info_id, r2_key, media_type, order_index)
-                    VALUES (?, ?, ?, ?, ?)
-                `).bind(mediaId, infoId, m.r2_key, m.media_type || 'image', index);
+                    INSERT INTO guide_apartment_media (id, apartment_info_id, r2_key, media_type, order_index, after_block, width, height)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                `).bind(mediaId, infoId, m.r2_key, m.media_type || 'image', index,
+                    mediaBlockPosition(m.after_block), mediaDimension(m.width), mediaDimension(m.height));
             });
             await env.DB.batch(mediaStatements);
         }
@@ -1220,7 +1227,9 @@ async function reorderApartmentInfo(env, aptId, data, isSuperAdmin, userAgencyId
 }
 
 async function deleteApartmentInfo(env, aptId, infoId, isSuperAdmin, userAgencyIds) {
-    const access = await checkAptAccess(env, aptId, isSuperAdmin, userAgencyIds);
+    // El DELETE del bloque ya filtraba por apartamento, pero las traducciones y
+    // los ficheros de R2 de abajo se borran sólo por infoId: había que cerrarlo aquí.
+    const access = await checkInfoAccess(env, aptId, infoId, isSuperAdmin, userAgencyIds);
     if (access.error) return access.error;
 
     const media = await env.DB.prepare(
@@ -1328,7 +1337,8 @@ async function uploadGenericMediaFromUrl(env, request, sourceUrl, r2PathPrefix) 
 }
 
 async function addApartmentInfoMedia(env, aptId, infoId, request, isSuperAdmin, userAgencyIds) {
-    const access = await checkAptAccess(env, aptId, isSuperAdmin, userAgencyIds);
+    // Antes de tocar R2: un bloque ajeno no debe dejar ni el fichero subido.
+    const access = await checkInfoAccess(env, aptId, infoId, isSuperAdmin, userAgencyIds);
     if (access.error) return access.error;
 
     try {
@@ -1353,22 +1363,75 @@ async function addApartmentInfoMedia(env, aptId, infoId, request, isSuperAdmin, 
 
         const id = generateId('aim');
         const mediaType = file.type.startsWith('video/') ? 'video' : 'image';
+        // Medidas de la imagen (las manda el admin, que la tiene delante): la guía
+        // reserva el hueco con ellas. Solo las fotos se intercalan en el texto.
+        const width = mediaDimension(formData.get('width'));
+        const height = mediaDimension(formData.get('height'));
+        const afterBlock = mediaType === 'image' ? mediaBlockPosition(formData.get('after_block')) : null;
         await env.DB.prepare(`
-            INSERT INTO guide_apartment_media (id, apartment_info_id, r2_key, media_type, order_index)
-            VALUES (?, ?, ?, ?, 0)
-        `).bind(id, infoId, r2Key, mediaType).run();
+            INSERT INTO guide_apartment_media (id, apartment_info_id, r2_key, media_type, order_index, after_block, width, height)
+            VALUES (?, ?, ?, ?, 0, ?, ?, ?)
+        `).bind(id, infoId, r2Key, mediaType, afterBlock, width, height).run();
 
         if (access.apt.slug) await touchGuideVersion(env, access.apt.slug);
 
         const origin = new URL(request.url).origin;
-        return jsonResponse({ success: true, id, r2_key: r2Key, url: `${origin}/media/${r2Key}`, media_type: mediaType });
+        return jsonResponse({
+            success: true, id, r2_key: r2Key, url: `${origin}/media/${r2Key}`, media_type: mediaType,
+            after_block: afterBlock, width, height
+        });
     } catch (err) {
         return errorResponse('Upload failed: ' + err.message, 500);
     }
 }
 
-async function deleteApartmentInfoMedia(env, aptId, infoId, mediaId, isSuperAdmin, userAgencyIds) {
+/** Posición de una foto en el texto: entero ≥ 1, o null (portada). */
+function mediaBlockPosition(value) {
+    if (value === null || value === undefined || value === '') return null;
+    const n = Number(value);
+    return Number.isInteger(n) && n >= 1 && n <= 200 ? n : null;
+}
+
+/** Ancho o alto de una imagen en píxeles, o null si no viene o no tiene sentido. */
+function mediaDimension(value) {
+    if (value === null || value === undefined || value === '') return null;
+    const n = Number(value);
+    return Number.isInteger(n) && n >= 1 && n <= 20000 ? n : null;
+}
+
+// PUT .../info/:infoId/media/:mediaId — dónde va una foto: `after_block` = tras
+// qué apartado del texto (migración 0107), null = portada del bloque. Va aparte
+// de upsertApartmentInfo porque las fotos se guardan al momento, no con «Guardar».
+async function updateApartmentInfoMedia(env, aptId, infoId, mediaId, data, isSuperAdmin, userAgencyIds) {
     const access = await checkAptAccess(env, aptId, isSuperAdmin, userAgencyIds);
+    if (access.error) return access.error;
+    if (!data || typeof data !== 'object' || !('after_block' in data)) return errorResponse('after_block required');
+
+    const raw = data.after_block;
+    const afterBlock = mediaBlockPosition(raw);
+    if (raw !== null && afterBlock === null) return errorResponse('after_block inválido');
+
+    // El bloque tiene que ser de ESTE apartamento: sin el JOIN, quien gestiona un
+    // piso podría recolocar la foto de otro adivinando los ids.
+    const media = await env.DB.prepare(`
+        SELECT m.media_type FROM guide_apartment_media m
+        JOIN guide_apartment_info i ON i.id = m.apartment_info_id
+        WHERE m.id = ? AND m.apartment_info_id = ? AND i.apartment_id = ?
+    `).bind(mediaId, infoId, aptId).first();
+    if (!media) return errorResponse('Not found', 404);
+    if (afterBlock !== null && media.media_type !== 'image') {
+        return errorResponse('Solo las fotos se pueden intercalar en el texto');
+    }
+
+    await env.DB.prepare('UPDATE guide_apartment_media SET after_block = ? WHERE id = ?')
+        .bind(afterBlock, mediaId).run();
+
+    if (access.apt.slug) await touchGuideVersion(env, access.apt.slug);
+    return jsonResponse({ success: true, after_block: afterBlock });
+}
+
+async function deleteApartmentInfoMedia(env, aptId, infoId, mediaId, isSuperAdmin, userAgencyIds) {
+    const access = await checkInfoAccess(env, aptId, infoId, isSuperAdmin, userAgencyIds);
     if (access.error) return access.error;
 
     const media = await env.DB.prepare(
@@ -3181,11 +3244,27 @@ async function checkAptAccess(env, aptId, isSuperAdmin, userAgencyIds) {
     return { apt };
 }
 
+// checkAptAccess + «este bloque es de ESE apartamento». Toda ruta
+// /apartments/:aptId/info/:infoId/... lleva dos ids y checkAptAccess sólo mira
+// el primero: sin esto, quien gestiona el piso A lo pone en la ruta junto al id
+// de un bloque del piso B y lee sus textos (el código de la puerta entre ellos),
+// le borra traducciones y fotos o le cuelga las suyas (así estuvo hasta oct-2026;
+// tests/guide-info-scope.test.mjs). 404 y no 403: no se confirma que el id exista.
+async function checkInfoAccess(env, aptId, infoId, isSuperAdmin, userAgencyIds) {
+    const access = await checkAptAccess(env, aptId, isSuperAdmin, userAgencyIds);
+    if (access.error) return access;
+    const info = await env.DB.prepare(
+        'SELECT id FROM guide_apartment_info WHERE id = ? AND apartment_id = ?'
+    ).bind(infoId, aptId).first();
+    if (!info) return { error: errorResponse('Not found', 404) };
+    return access;
+}
+
 // ============================================
 // GUIDE INFO STEPS
 // ============================================
 async function listGuideInfoSteps(env, aptId, infoId, isSuperAdmin, userAgencyIds) {
-    const access = await checkAptAccess(env, aptId, isSuperAdmin, userAgencyIds);
+    const access = await checkInfoAccess(env, aptId, infoId, isSuperAdmin, userAgencyIds);
     if (access.error) return access.error;
 
     const result = await env.DB.prepare('SELECT * FROM guide_info_steps WHERE apartment_info_id = ? ORDER BY step_number ASC').bind(infoId).all();
@@ -3193,8 +3272,9 @@ async function listGuideInfoSteps(env, aptId, infoId, isSuperAdmin, userAgencyId
 }
 
 async function createGuideInfoStep(env, aptId, infoId, data, isSuperAdmin, userAgencyIds) {
-    const access = await checkAptAccess(env, aptId, isSuperAdmin, userAgencyIds);
+    const access = await checkInfoAccess(env, aptId, infoId, isSuperAdmin, userAgencyIds);
     if (access.error) return access.error;
+    if (!data || typeof data !== 'object') return errorResponse('Invalid body');
 
     const id = generateId('step');
     await env.DB.prepare(`
@@ -3214,9 +3294,9 @@ async function createGuideInfoStep(env, aptId, infoId, data, isSuperAdmin, userA
 }
 
 async function reorderGuideInfoSteps(env, aptId, infoId, data, isSuperAdmin, userAgencyIds) {
-    const access = await checkAptAccess(env, aptId, isSuperAdmin, userAgencyIds);
+    const access = await checkInfoAccess(env, aptId, infoId, isSuperAdmin, userAgencyIds);
     if (access.error) return access.error;
-    if (!data.items || !Array.isArray(data.items)) return errorResponse('items array required');
+    if (!data?.items || !Array.isArray(data.items)) return errorResponse('items array required');
 
     const statements = data.items.map(i => 
         env.DB.prepare('UPDATE guide_info_steps SET step_number = ? WHERE id = ? AND apartment_info_id = ?')
@@ -3228,17 +3308,28 @@ async function reorderGuideInfoSteps(env, aptId, infoId, data, isSuperAdmin, use
     return jsonResponse({ success: true });
 }
 
+// ¿Es este paso de ESTE bloque? Las rutas .../steps/:stepId llevan un tercer id,
+// y el UPDATE/DELETE de abajo (y sus traducciones) iban sólo por él.
+async function stepBelongsToInfo(env, stepId, infoId) {
+    const step = await env.DB.prepare(
+        'SELECT id FROM guide_info_steps WHERE id = ? AND apartment_info_id = ?'
+    ).bind(stepId, infoId).first();
+    return !!step;
+}
+
 async function updateGuideInfoStep(env, aptId, infoId, stepId, data, isSuperAdmin, userAgencyIds) {
-    const access = await checkAptAccess(env, aptId, isSuperAdmin, userAgencyIds);
+    const access = await checkInfoAccess(env, aptId, infoId, isSuperAdmin, userAgencyIds);
     if (access.error) return access.error;
+    if (!(await stepBelongsToInfo(env, stepId, infoId))) return errorResponse('Not found', 404);
+    if (!data || typeof data !== 'object') return errorResponse('Invalid body');
 
     const sets = [];
     const vals = [];
     if (data.step_number !== undefined) { sets.push('step_number = ?'); vals.push(data.step_number); }
-    
+
     if (sets.length > 0) {
-        vals.push(stepId);
-        await env.DB.prepare(`UPDATE guide_info_steps SET ${sets.join(', ')} WHERE id = ?`).bind(...vals).run();
+        vals.push(stepId, infoId);
+        await env.DB.prepare(`UPDATE guide_info_steps SET ${sets.join(', ')} WHERE id = ? AND apartment_info_id = ?`).bind(...vals).run();
     }
 
     if (data.title_es || data.content_es || data.checklist_items_es) {
@@ -3253,10 +3344,11 @@ async function updateGuideInfoStep(env, aptId, infoId, stepId, data, isSuperAdmi
 }
 
 async function deleteGuideInfoStep(env, aptId, infoId, stepId, isSuperAdmin, userAgencyIds) {
-    const access = await checkAptAccess(env, aptId, isSuperAdmin, userAgencyIds);
+    const access = await checkInfoAccess(env, aptId, infoId, isSuperAdmin, userAgencyIds);
     if (access.error) return access.error;
+    if (!(await stepBelongsToInfo(env, stepId, infoId))) return errorResponse('Not found', 404);
 
-    await env.DB.prepare('DELETE FROM guide_info_steps WHERE id = ?').bind(stepId).run();
+    await env.DB.prepare('DELETE FROM guide_info_steps WHERE id = ? AND apartment_info_id = ?').bind(stepId, infoId).run();
     await env.DB.prepare('DELETE FROM translations WHERE entity_id = ? AND entity_type = ?').bind(stepId, 'guide_step').run();
 
     await touchGuideVersion(env, access.apt.slug);

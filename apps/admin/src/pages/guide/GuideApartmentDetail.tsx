@@ -4,6 +4,8 @@ import { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
 import { apiClient } from '../../lib/apiClient';
+import { guideBlocks } from '../../lib/guideText';
+import { prepareImage } from '../../lib/mediaPrep';
 import {
   Box, Typography, Paper, Button, IconButton, TextField, Chip,
   CircularProgress, Alert, Divider, Tooltip, Card, CardContent,
@@ -58,7 +60,7 @@ interface ApartmentInfo {
   category_image_r2_key?: string | null;
   category_name?: string | null;
   resolved_title?: string | null;
-  media?: { id?: string; r2_key: string; media_type: string }[];
+  media?: InfoMedia[];
   // Punto de recogida opcional (migración 0084) — hoy solo se edita para door_code.
   latitude?: number | null;
   longitude?: number | null;
@@ -82,6 +84,19 @@ interface Zone {
 }
 
 const MEDIA_BASE = import.meta.env.VITE_API_URL || 'https://visualtasteworker.franciscotortosaestudios.workers.dev';
+
+/**
+ * Foto o vídeo de un bloque. `after_block` = tras qué apartado del texto sale la foto (migración 0107);
+ * sin él es la portada del bloque, como siempre.
+ */
+interface InfoMedia {
+  id?: string;
+  r2_key: string;
+  media_type: string;
+  after_block?: number | null;
+  width?: number | null;
+  height?: number | null;
+}
 
 // Renders a guide_info_categories.icon_name (Material Symbols, e.g. 'local_laundry_service')
 // straight from the catalog — no per-icon MUI component mapping to keep in sync
@@ -187,9 +202,12 @@ export default function GuideApartmentDetail() {
     latitude: null as number | null,
     longitude: null as number | null,
     translations: {} as Record<string, { title?: string; content?: string; pickup_instructions?: string }>,
-    media: [] as { id?: string; r2_key: string; media_type: string }[],
+    media: [] as InfoMedia[],
   });
   const [uploadingMedia, setUploadingMedia] = useState(false);
+  // Los apartados se cuentan sobre el texto en español, que es la fuente: la posición de una foto
+  // vale para todos los idiomas.
+  const textBlocks = guideBlocks(form.translations.es?.content);
   const [deletingInfo, setDeletingInfo] = useState(false);
   const [reorderingInfo, setReorderingInfo] = useState(false);
 
@@ -628,8 +646,16 @@ export default function GuideApartmentDetail() {
     if (!e.target.files || e.target.files.length === 0 || !id || !editingItem) return;
     setUploadingMedia(true);
     try {
+      // Las fotos pasan por mediaPrep (WebP de 1600 px como mucho): la guía se ve en el móvil y en la
+      // tele. De paso salen sus medidas, con las que la guía reserva el hueco de una foto intercalada.
+      const picked = e.target.files[0];
+      const prepared = picked.type.startsWith('image/') ? await prepareImage(picked) : { file: picked };
       const formData = new FormData();
-      formData.append('file', e.target.files[0]);
+      formData.append('file', prepared.file);
+      if (prepared.width && prepared.height) {
+        formData.append('width', String(prepared.width));
+        formData.append('height', String(prepared.height));
+      }
       const response = await fetch(`${MEDIA_BASE}/guide/admin/apartments/${id}/info/${editingItem.id}/media`, {
         method: 'POST',
         headers: { 'Authorization': `Bearer ${localStorage.getItem('auth_token')}` },
@@ -639,7 +665,10 @@ export default function GuideApartmentDetail() {
       if (!result.success) throw new Error(result.error || 'Error al subir el archivo');
       setForm(prev => ({
         ...prev,
-        media: [{ id: result.id, r2_key: result.r2_key, media_type: result.media_type }, ...prev.media],
+        media: [{
+          id: result.id, r2_key: result.r2_key, media_type: result.media_type,
+          after_block: result.after_block ?? null, width: result.width ?? null, height: result.height ?? null,
+        }, ...prev.media],
       }));
       loadInfo(); // refresh the card list's thumbnail in the background
     } catch (err) {
@@ -662,6 +691,28 @@ export default function GuideApartmentDetail() {
       loadInfo();
     } catch (err) {
       console.error('Error removing media:', err);
+    }
+  };
+
+  // Dónde sale una foto: portada del bloque (null) o tras un apartado del texto. Se guarda al momento,
+  // como subir o borrar una foto; si el servidor lo rechaza, el desplegable vuelve a donde estaba.
+  const handleMediaPosition = async (mediaId: string | undefined, afterBlock: number | null) => {
+    if (!id || !editingItem || !mediaId) return;
+    const before = form.media;
+    setForm(prev => ({
+      ...prev,
+      media: prev.media.map(m => (m.id === mediaId ? { ...m, after_block: afterBlock } : m)),
+    }));
+    try {
+      await apiClient.request(`/guide/admin/apartments/${id}/info/${editingItem.id}/media/${mediaId}`, {
+        method: 'PUT',
+        body: JSON.stringify({ after_block: afterBlock }),
+      });
+      loadInfo();
+      handleRefreshPreview();
+    } catch (err) {
+      console.error('Error moving media:', err);
+      setForm(prev => ({ ...prev, media: before }));
     }
   };
 
@@ -2098,13 +2149,15 @@ export default function GuideApartmentDetail() {
                 <>
                   <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
                     Sube fotos para ayudar al huésped (ej: foto del router, de los mandos de la TV).
+                    {' '}Una foto puede ser la portada del bloque o salir dentro del texto, tras el apartado que elijas.
                     {!form.media.length && ' Sin foto propia, se usa el icono de la categoría.'}
                   </Typography>
 
                   {form.media.length > 0 && (
-                    <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap', mb: 2 }}>
+                    <Stack spacing={2} sx={{ mb: 2 }}>
                       {form.media.map((m, index) => (
-                        <Box key={m.id || index} sx={{ position: 'relative', width: 80, height: 80 }}>
+                        <Box key={m.id || index} sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+                        <Box sx={{ position: 'relative', width: 80, height: 80, flex: 'none' }}>
                           <Box sx={{ width: '100%', height: '100%', borderRadius: 2, overflow: 'hidden', border: '1px solid', borderColor: 'divider' }}>
                             {m.media_type === 'video' ? (
                               <Box sx={{ width: '100%', height: '100%', bgcolor: 'black', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
@@ -2122,8 +2175,29 @@ export default function GuideApartmentDetail() {
                             <DeleteIcon fontSize="small" />
                           </IconButton>
                         </Box>
+                        {m.media_type === 'image' && (
+                          <TextField
+                            select size="small" label="Dónde sale" sx={{ flex: 1, minWidth: 0 }}
+                            value={m.after_block ?? ''}
+                            onChange={(e) => handleMediaPosition(m.id, e.target.value === '' ? null : Number(e.target.value))}
+                            helperText={
+                              m.after_block != null && m.after_block > textBlocks.length
+                                ? 'El texto ya no tiene ese apartado: la foto sale al final.'
+                                : undefined
+                            }
+                          >
+                            <MenuItem value="">Portada del bloque</MenuItem>
+                            {textBlocks.map(b => (
+                              <MenuItem key={b.position} value={b.position}>Tras «{b.label}»</MenuItem>
+                            ))}
+                            {m.after_block != null && m.after_block > textBlocks.length && (
+                              <MenuItem value={m.after_block}>Al final del texto</MenuItem>
+                            )}
+                          </TextField>
+                        )}
+                        </Box>
                       ))}
-                    </Box>
+                    </Stack>
                   )}
 
                   <Button

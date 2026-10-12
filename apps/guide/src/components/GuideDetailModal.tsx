@@ -1,7 +1,9 @@
+import { Fragment } from 'react';
 import { getTranslation } from '../lib/i18n';
 import { paragraphs } from '../lib/text';
 import useDismissableLayer from '../hooks/useDismissableLayer';
 import PhotoFigure from './PhotoFigure';
+import InlineFigure, { type InlinePhoto } from './InlineFigure';
 import Layer from './Layer';
 
 export interface InfoItem {
@@ -16,6 +18,9 @@ export interface InfoItem {
   category_name?: string | null;
   content: string;
   media: any[];
+  // Fotos que van DENTRO del texto: `after` = tras qué apartado (1 = el primero). La posición se guarda
+  // aparte del texto, así que es la misma en los 13 idiomas.
+  inline_media?: InlinePhoto[];
   category_image_url?: string | null;
   // Punto de recogida opcional (migración 0084) — hoy solo lo rellena el admin para door_code, pero el
   // campo es genérico a nivel de item.
@@ -49,6 +54,11 @@ export default function GuideDetailModal({ item, image, eyebrow, lang, onClose }
 
   const steps = item.is_sequential && item.steps && item.steps.length > 0 ? item.steps : null;
   const paras = steps ? [] : paragraphs(item.content);
+  // Fotos tras el apartado `n`. Las que apuntan más allá del último (un idioma con menos párrafos que
+  // el español, o un texto recortado después) salen al final en vez de perderse.
+  const inline = steps ? [] : (item.inline_media ?? []);
+  const photosAfter = (n: number) =>
+    inline.filter(m => m.after === n || (n === paras.length && m.after > n));
 
   return (
     <Layer lang={lang}>
@@ -91,11 +101,15 @@ export default function GuideDetailModal({ item, image, eyebrow, lang, onClose }
         ) : (
           <div className="g-body">
             {paras.map((p, i) => (
-              <div key={i}>
-                {p.head && <h3 className="g-h3 g-body-head">{p.head}</h3>}
-                {p.body && <p>{p.body}</p>}
-              </div>
+              <Fragment key={i}>
+                <div>
+                  {p.head && <h3 className="g-h3 g-body-head">{p.head}</h3>}
+                  {p.body && <p>{p.body}</p>}
+                </div>
+                {photosAfter(i + 1).map(m => <InlineFigure key={m.id} photo={m} alt={item.title} />)}
+              </Fragment>
             ))}
+            {paras.length === 0 && inline.map(m => <InlineFigure key={m.id} photo={m} alt={item.title} />)}
           </div>
         )}
       </div>

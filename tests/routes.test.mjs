@@ -265,6 +265,7 @@ const PROTEGIDAS = [
     'GET /guide/admin/agencies',
     'GET /guide/admin/apartments',
     'DELETE /guide/admin/apartments/apt_1',
+    'PUT /guide/admin/apartments/apt_1/info/info_1/media/med_1',
     'POST /guide/admin/translate',
     'POST /guide/admin/import/places/preview',
     'POST /guide/admin/import/apartments/preview',

@@ -186,6 +186,8 @@ function buildPrompt(sourceFields, targetLangs) {
         '5. Conserva números, precios, horarios y URLs exactamente como están.',
         '6. No añadas información que no esté en el original ni inventes detalles.',
         '7. Respeta la longitud aproximada del original: es texto para una tarjeta, no un ensayo.',
+        '8. Conserva los saltos de línea y las líneas en blanco del original: mismos párrafos, en el',
+        '   mismo orden. Las fotos de una guía se colocan contando esos párrafos.',
     ].join('\n');
 
     const user = [

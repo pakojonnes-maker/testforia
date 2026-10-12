@@ -29,6 +29,8 @@ export interface GuidebookData {
     info: Array<{
       id: string; key: string; category?: string | null; icon: string; color?: string | null;
       title: string; category_name?: string | null; content: string; media: any[];
+      /** Fotos intercaladas en el texto (migración 0107): `after` = tras qué apartado, 1 = el primero. */
+      inline_media?: Array<{ id: string; url: string; after: number; width?: number | null; height?: number | null }>;
       category_image_url?: string | null;
     }>
   }

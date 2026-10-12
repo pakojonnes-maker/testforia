@@ -810,21 +810,37 @@ export async function handleGetGuidebook(env, slug, lang, origin, surface = 'gui
 
     // 4. Load apartment media
     const infoIds = (apartmentInfo.results || []).map(i => i.id);
+    // Las fotos con after_block (migración 0107) van intercaladas en el texto y
+    // salen en `inline_media`, NO en `media`: `media[0]` es la portada del bloque
+    // para todos los clientes, incluidas las teles con un APK ya instalado.
     let aptMedia = {};
+    let aptInlineMedia = {};
     if (infoIds.length > 0) {
         const placeholders = infoIds.map(() => '?').join(',');
         const mediaResults = await env.DB.prepare(`
-            SELECT apartment_info_id, id, r2_key, media_type, order_index
+            SELECT apartment_info_id, id, r2_key, media_type, order_index, after_block, width, height
             FROM guide_apartment_media
             WHERE apartment_info_id IN (${placeholders})
             ORDER BY order_index ASC
         `).bind(...infoIds).all();
 
         for (const media of (mediaResults.results || [])) {
+            const url = `${mediaOrigin}/media/${media.r2_key}`;
+            if (media.after_block != null && media.media_type === 'image') {
+                if (!aptInlineMedia[media.apartment_info_id]) aptInlineMedia[media.apartment_info_id] = [];
+                aptInlineMedia[media.apartment_info_id].push({
+                    id: media.id,
+                    url,
+                    after: media.after_block,
+                    width: media.width ?? null,
+                    height: media.height ?? null
+                });
+                continue;
+            }
             if (!aptMedia[media.apartment_info_id]) aptMedia[media.apartment_info_id] = [];
             aptMedia[media.apartment_info_id].push({
                 id: media.id,
-                url: `${mediaOrigin}/media/${media.r2_key}`,
+                url,
                 type: media.media_type
             });
         }
@@ -975,6 +991,9 @@ export async function handleGetGuidebook(env, slug, lang, origin, surface = 'gui
                 // into it, so the UI can tell "the host's own photo" apart from
                 // "the shared default" if that distinction ever matters.
                 media: aptMedia[info.id] || [],
+                // Fotos intercaladas en el texto: `after` = tras qué apartado
+                // (los separan las líneas en blanco). Vale para todos los idiomas.
+                inline_media: aptInlineMedia[info.id] || [],
                 category_image_url: info.category_image_r2_key ? `${mediaOrigin}/media/${info.category_image_r2_key}` : null
             })),
             // Teléfonos (migración 0084) — ya vienen ordenados agencia-primero desde

@@ -38,7 +38,8 @@
     "test:parity": "node tests/frontend/parity.test.mjs",
     "smoke": "node scripts/smoke.mjs",
     "test:restaurant-admin": "node tests/restaurant-admin.test.mjs",
-    "test:guide-qr": "node tests/guide-qr.test.mjs"
+    "test:guide-qr": "node tests/guide-qr.test.mjs",
+    "test:guide-info-scope": "node tests/guide-info-scope.test.mjs"
   },
   "dependencies": {
     "framer-motion": "^12.23.9"

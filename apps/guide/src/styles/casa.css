@@ -255,6 +255,9 @@
   .g-body { display: grid; gap: 22px; margin: 30px 20px 0; }
   .g-body p { font: 400 16.5px/1.7 var(--g-ff-body); color: var(--g-ink2); white-space: pre-line; }
   .g-body-head { font-size: 21px; margin-bottom: 6px; }
+  /* Foto intercalada en el texto: entera (sin recortar) y con el hueco reservado por sus medidas. */
+  .g-inph { max-width: 100%; overflow: hidden; border-radius: 22px; background: var(--g-arena); }
+  .g-inph img { display: block; width: 100%; height: auto; }
 
   /* guía: pasos */
   .g-seq { display: grid; margin: 30px 20px 0; }

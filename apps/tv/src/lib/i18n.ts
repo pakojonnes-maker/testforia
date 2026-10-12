@@ -395,6 +395,15 @@ const TV_STRINGS = {
     ca: 'Informació de la casa', ar: 'معلومات المنزل', ru: 'Информация о жилье',
     uk: 'Інформація про житло', zh: '房屋信息', ja: '宿のご案内', ko: '숙소 정보',
   },
+  // Al pie de la hoja cuando el texto no cabe: sin él, el texto parece cortado sin más.
+  read_more_ok: {
+    es: 'Pulsa OK para seguir leyendo', en: 'Press OK to keep reading',
+    fr: 'Appuyez sur OK pour lire la suite', de: 'Mit OK weiterlesen',
+    it: 'Premi OK per continuare a leggere', pt: 'Prima OK para continuar a ler',
+    ca: 'Prem OK per continuar llegint', ar: 'اضغط OK لمتابعة القراءة',
+    ru: 'Нажмите OK, чтобы читать дальше', uk: 'Натисніть OK, щоб читати далі',
+    zh: '按 OK 键继续阅读', ja: 'OKボタンで続きを読む', ko: 'OK 버튼을 눌러 계속 읽기',
+  },
   info_no_content: {
     es: 'Tu anfitrión aún no ha añadido detalles para este apartado.',
     en: "Your host hasn't added details for this section yet.",
