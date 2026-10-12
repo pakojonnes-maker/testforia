@@ -86,9 +86,6 @@ const PUBLIC_ROUTES = [
     { method: 'GET', pattern: /^\/restaurants\/[^/]+\/menus$/ },
     { method: 'GET', pattern: /^\/menus/ },
     { method: 'GET', pattern: /^\/sections/ },
-    // Reservas (cliente puede crear/consultar)
-    { method: 'GET', pattern: /^\/restaurants\/[^/]+\/reservation/ },
-    { method: 'POST', pattern: /^\/restaurants\/[^/]+\/reservations$/ },
     // Flujo de reserva de la carta (apps/client ReservePage → workerReservations.js).
     // Faltaban aquí y el huésped recibía un 401 en cada paso: no se podía reservar.
     // El PATCH /reservations/{id} y el PUT de config siguen protegidos; la
@@ -104,9 +101,6 @@ const PUBLIC_ROUTES = [
     { method: 'GET', pattern: /^\/delivery\/available\/[\w-]+$/ },
     { method: 'GET', pattern: /^\/delivery\/translations\/[\w-]+$/ },
     { method: 'POST', pattern: /^\/delivery\/orders$/ },
-    // Delivery (rutas legacy con /restaurants/)
-    { method: 'GET', pattern: /^\/restaurants\/[^/]+\/delivery\/config$/ },
-    { method: 'POST', pattern: /^\/restaurants\/[^/]+\/delivery\/orders$/ },
     // Magic link / Redemption público (loyalty card claim, ver workerLoyalty.js)
     { method: 'GET', pattern: /^\/api\/r\/[a-zA-Z0-9]+$/ },
     { method: 'POST', pattern: /^\/api\/r\/[a-zA-Z0-9]+\/redeem$/ },
