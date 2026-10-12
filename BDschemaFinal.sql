@@ -2,12 +2,15 @@
 -- BDschemaFinal.sql — ESQUEMA REAL DE PRODUCCION
 -- =====================================================
 -- Base de datos D1: restaurant-menu-saas (7e8d1efe-2a54-4849-9a06-4c47152392bd)
--- Exportado el 2026-10-11 desde la BD en produccion, tras aplicar la
--- migracion 0106 (la pestana Conserje entra en las vistas de seccion):
---   · guide_section_views.section admite 'chat' ademas de 'info', 'discover',
---     'restaurants' y 'services'. La tabla se recreo para cambiar el CHECK: por
---     eso sale al final, con el nombre entre comillas y sus tres indices detras.
--- Antes, 0105 (laminas con QR para enmarcar): guide_qr_posters,
+-- Exportado el 2026-10-12 desde la BD en produccion, tras aplicar la
+-- migracion 0107 (fotos intercaladas en el texto de una guia):
+--   · guide_apartment_media.after_block (tras que apartado del texto va la
+--     foto; NULL = portada del bloque, como hasta ahora), width y height (las
+--     medidas, para reservar el hueco). Salen al final de la tabla.
+-- Antes, 0106 (la pestana Conserje entra en las vistas de seccion):
+-- guide_section_views.section admite 'chat'; la tabla se recreo para cambiar el
+-- CHECK y por eso sale al final, con el nombre entre comillas y sus tres indices
+-- detras. 0105 (laminas con QR para enmarcar): guide_qr_posters,
 -- guide_agencies.qr_design (lo escribe workerGuideQr.js, no updateAgency) y
 -- guide_sessions.entry_source ('marco' = el QR impreso, que lleva ?o=marco);
 -- 0104: guide_tv_devices.device_manufacturer / device_model / os_version /
@@ -20,9 +23,10 @@
 -- NO editar a mano. Para regenerar:
 --   npx wrangler d1 export restaurant-menu-saas --remote --no-data --output BDschemaFinal.sql
 --
--- Mantener este archivo actualizado tras cada migracion que se aplique con
--- --remote: el export sobrescribe esta cabecera entera, hay que reponerla a
--- mano (ver CLAUDE.md §3).
+-- tests/sql.test.mjs compila el SQL del worker contra este fichero y el hook lo
+-- lanza antes de desplegar: tras cada migracion que se aplique con --remote hay
+-- que regenerarlo y commitearlo ANTES del deploy. El export sobrescribe esta
+-- cabecera entera, hay que reponerla a mano (ver CLAUDE.md §3).
 -- =====================================================
 
 PRAGMA defer_foreign_keys=TRUE;
@@ -917,7 +921,7 @@ CREATE TABLE guide_apartment_media (
   r2_key TEXT NOT NULL,
   media_type TEXT NOT NULL CHECK(media_type IN ('image', 'video')),
   order_index INTEGER DEFAULT 0,
-  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, after_block INTEGER, width INTEGER, height INTEGER,
   FOREIGN KEY (apartment_info_id) REFERENCES guide_apartment_info(id) ON DELETE CASCADE
 );
 CREATE TABLE guide_pois (
