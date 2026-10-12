@@ -2,8 +2,12 @@
 -- BDschemaFinal.sql — ESQUEMA REAL DE PRODUCCION
 -- =====================================================
 -- Base de datos D1: restaurant-menu-saas (7e8d1efe-2a54-4849-9a06-4c47152392bd)
--- Exportado el 2026-10-12 desde la BD en produccion, tras aplicar la
--- migracion 0107 (fotos intercaladas en el texto de una guia):
+-- Exportado el 2026-10-13 desde la BD en produccion, tras aplicar la
+-- migracion 0108 (indice idx_audit_ip_created en security_audit_log(ip,
+-- created_at)): los limites de intentos del login y del PIN de sellos cuentan
+-- ahi los fallos de una IP (recentEventsByIp en workerAudit.js) en vez de
+-- gastar una escritura de KV por intento. Sale al final, tras los indices de
+-- "guide_section_views". Antes, 0107 (fotos intercaladas en el texto de una guia):
 --   · guide_apartment_media.after_block (tras que apartado del texto va la
 --     foto; NULL = portada del bloque, como hasta ahora), width y height (las
 --     medidas, para reservar el hueco). Salen al final de la tabla.
@@ -28,7 +32,6 @@
 -- que regenerarlo y commitearlo ANTES del deploy. El export sobrescribe esta
 -- cabecera entera, hay que reponerla a mano (ver CLAUDE.md §3).
 -- =====================================================
-
 PRAGMA defer_foreign_keys=TRUE;
 CREATE TABLE accounts (
   id TEXT PRIMARY KEY,
@@ -1404,3 +1407,4 @@ CREATE INDEX idx_guide_sessions_entry_source
 CREATE INDEX idx_guide_section_views_apt ON guide_section_views(apartment_id, section, created_at);
 CREATE INDEX idx_guide_section_views_session ON guide_section_views(session_id);
 CREATE INDEX idx_guide_section_views_created ON guide_section_views(created_at);
+CREATE INDEX idx_audit_ip_created ON security_audit_log(ip, created_at);
