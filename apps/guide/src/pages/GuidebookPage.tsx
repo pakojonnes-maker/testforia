@@ -478,7 +478,7 @@ export default function GuidebookPage() {
               zoneName={zone.name}
               apartmentId={apartment.id}
               apartmentName={apartment.name}
-              sessionId={sessionIdRef.current}
+              getSessionId={() => sessionIdRef.current}
               lang={lang}
               onLanguageChange={handleLanguageChange}
               onIntent={(type, id, action) => logIntent(type, id, action)}

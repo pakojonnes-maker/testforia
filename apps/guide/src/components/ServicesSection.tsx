@@ -53,7 +53,11 @@ interface ServicesSectionProps {
   zoneName: string;
   apartmentId: string;
   apartmentName: string;
-  sessionId: string | null;
+  // Función y no valor: el id de sesión llega después del primer pintado y vive en un ref del padre.
+  // Pasado como valor se quedaba en null al entrar directo por ?t=services (nada vuelve a pintar la
+  // página cuando la sesión se abre) y el pedido salía sin sesión. Se lee al enviar, sin esperar a nada:
+  // un pedido no se retrasa ni se pierde por la analítica.
+  getSessionId: () => string | null;
   lang: string;
   onLanguageChange?: (lang: string) => void;
   onIntent: (type: 'experience' | 'product', id: string, action: string) => void;
@@ -62,7 +66,7 @@ interface ServicesSectionProps {
 // Tienda: los productos del anfitrión y los locales en una rejilla de dos columnas, con un pedido ligero que
 // se envía por WhatsApp, y debajo las experiencias de la zona. El pedido vive en una tarjeta oscura fija sobre la
 // barra inferior que se despliega en sus líneas.
-export default function ServicesSection({ experiences, storeItems, zoneName, apartmentId, sessionId, lang, onLanguageChange, onIntent }: ServicesSectionProps) {
+export default function ServicesSection({ experiences, storeItems, zoneName, apartmentId, getSessionId, lang, onLanguageChange, onIntent }: ServicesSectionProps) {
   // Carrito ligero en memoria: no se persiste entre visitas a propósito — es un
   // pedido de la estancia actual, no un carrito de e-commerce.
   const [cart, setCart] = useState<Record<string, number>>({});
@@ -124,7 +128,7 @@ export default function ServicesSection({ experiences, storeItems, zoneName, apa
     setOrderResult(null);
     const result = await submitStoreOrder({
       apartmentId,
-      sessionId,
+      sessionId: getSessionId(),
       items: Object.entries(cart).map(([itemId, quantity]) => ({ itemId, quantity })),
     });
     setSubmitting(false);
