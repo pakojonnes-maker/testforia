@@ -1602,7 +1602,7 @@ async function listApartmentPhones(env, aptId, lang, isSuperAdmin, userAgencyIds
             AND t_name_es.entity_type = 'phone_category' AND t_name_es.field = 'name' AND t_name_es.language_code = 'es'
         WHERE p.apartment_id = ?
         ORDER BY pc.order_index ASC, p.order_index ASC
-    `).bind(l, l, aptId).all();
+    `).bind(l, aptId).all();
 
     return jsonResponse({ success: true, phones: rows.results || [] });
 }
@@ -1675,7 +1675,7 @@ async function listPhoneCategories(env, lang) {
             AND t_name_es.entity_type = 'phone_category' AND t_name_es.field = 'name' AND t_name_es.language_code = 'es'
         WHERE c.is_active = TRUE
         ORDER BY c.order_index ASC
-    `).bind(l, l).all();
+    `).bind(l).all();
 
     return jsonResponse({ success: true, categories: cats.results || [] });
 }
