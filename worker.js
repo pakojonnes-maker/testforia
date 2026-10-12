@@ -75,6 +75,8 @@ const PUBLIC_ROUTES = [
     // Contenido público del menú
     { method: 'GET', pattern: /^\/allergens$/ },
     { method: 'GET', pattern: /^\/media\// },
+    // workerMedia.js sirve /media/ con GET y con HEAD; sin esta línea el HEAD se quedaba en 401.
+    { method: 'HEAD', pattern: /^\/media\// },
     { method: 'GET', pattern: /^\/restaurants\/[^/]+\/reels/ },
     // Valoración del comensal desde la carta (workerReels.js exige una sesión de carta válida).
     // No estaba en la lista y todas acababan en 401 mientras la carta decía "¡gracias!".
