@@ -3,8 +3,12 @@
 -- =====================================================
 -- Base de datos D1: restaurant-menu-saas (7e8d1efe-2a54-4849-9a06-4c47152392bd)
 -- Exportado el 2026-10-13 desde la BD en produccion, tras aplicar la
--- migracion 0108 (indice idx_audit_ip_created en security_audit_log(ip,
--- created_at)): los limites de intentos del login y del PIN de sellos cuentan
+-- migracion 0109 (indice idx_guide_store_orders_visitor en
+-- guide_store_orders(visitor_id, created_at)): el limite por hora de los pedidos
+-- de la Tienda cuenta ahi los pedidos ya guardados (overHourlyLimit en
+-- workerGuideStore.js) en vez de gastar una escritura de KV por pedido. Sale al
+-- final, tras el indice de security_audit_log. Antes, 0108 (indice
+-- idx_audit_ip_created en security_audit_log(ip, created_at)): los limites de intentos del login y del PIN de sellos cuentan
 -- ahi los fallos de una IP (recentEventsByIp en workerAudit.js) en vez de
 -- gastar una escritura de KV por intento. Sale al final, tras los indices de
 -- "guide_section_views". Antes, 0107 (fotos intercaladas en el texto de una guia):
@@ -1408,3 +1412,4 @@ CREATE INDEX idx_guide_section_views_apt ON guide_section_views(apartment_id, se
 CREATE INDEX idx_guide_section_views_session ON guide_section_views(session_id);
 CREATE INDEX idx_guide_section_views_created ON guide_section_views(created_at);
 CREATE INDEX idx_audit_ip_created ON security_audit_log(ip, created_at);
+CREATE INDEX idx_guide_store_orders_visitor ON guide_store_orders(visitor_id, created_at);
