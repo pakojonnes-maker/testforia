@@ -37,11 +37,11 @@ GOOGLE_ADMIN_EMAILS = "franciscotortosaestudios@gmail.com"
 # saliendo por /media/ de este worker, como siempre. Con un origen https (sin
 # barra final ni ruta), las guías, la tele y la carta reciben las fotos y los
 # vídeos con ese dominio y los sirve la CDN sin ejecutar el worker.
-# ANTES de rellenarlo el dominio tiene que estar conectado al bucket (R2 →
-# mediabucket → Settings → Custom Domains) y comprobado con un curl a una foto y
+# El dominio tiene que estar conectado al bucket (R2 → mediabucket → Settings →
+# Custom Domains; conectado el 2026-10-13) y comprobado con un curl a una foto y
 # a un vídeo: si no, todas las imágenes dan error a la vez. Vaciarlo y desplegar
 # lo deshace al instante: lo cacheado en KV no guarda este dominio.
-MEDIA_BASE_URL = ""
+MEDIA_BASE_URL = "https://media.visualtastes.com"
 
 [[d1_databases]]
 binding = "DB"
