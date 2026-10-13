@@ -52,7 +52,7 @@ function runSuite(file) {
     });
 }
 
-// Cola con tantos procesos a la vez como núcleos: varias suites derivan PBKDF2 con 600.000 iteraciones.
+// Cola con tantos procesos a la vez como núcleos: varias suites derivan PBKDF2 de verdad (100.000 iteraciones por login).
 const results = [];
 const queue = [...suites];
 const workers = Array.from({ length: Math.min(queue.length, Math.max(2, availableParallelism())) }, async () => {
@@ -65,7 +65,9 @@ const name = (file) => relative(ROOT, join(ROOT, file)).replace(/\\/g, '/');
 /** «48 ok, 0 fail» de las suites del worker, o las marcas de los check-*.mjs de las apps. */
 const summary = (output) => {
     const totals = output.match(/(\d+) ok, (\d+) fail/);
-    if (totals) return `${totals[1]} ok${totals[2] !== '0' ? `, ${totals[2]} FALLAN` : ''}`;
+    // Una suite que se salta algo (le falta un motor, un fichero) sale con 0 y lo dice: que se vea aquí.
+    const skips = (output.match(/^\s*--\s+saltado/gm) || []).length;
+    if (totals) return `${totals[1]} ok${totals[2] !== '0' ? `, ${totals[2]} FALLAN` : ''}${skips ? `, ${skips} SALTADAS` : ''}`;
     const marks = (output.match(/^\s*(✔|ok)\s/gm) || []).length;
     return marks ? `${marks} ok` : '';
 };

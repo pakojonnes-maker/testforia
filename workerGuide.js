@@ -5,7 +5,8 @@
 // ============================================
 
 import { ACTIVE_LANGUAGES } from './workerGuideAdmin.js';
-import { getGuideVersion, getZoneExploreVersion, getZoneCatalogVersion } from './workerGuideCache.js';
+import { getGuideVersion, getZoneExploreVersion, getZoneCatalogVersion, readGuideScope, readGuidePayload, writeGuidePayload } from './workerGuideCache.js';
+import { publicMediaUrls } from './workerMediaUrl.js';
 
 const FALLBACK_LANG = 'es'; // es is the source of truth (see CLAUDE.md §5)
 // Media URLs must be absolute: the guide/TV frontends live on a different
@@ -422,17 +423,26 @@ export async function handleGetGuidebook(env, slug, lang, origin, surface = 'gui
     // las ventas de la TV se atribuyeran a la guía o al revés. El caso 'guide'
     // conserva la clave EXACTA de antes para no invalidar de golpe la caché
     // entera en el despliegue.
+    //
+    // La versión de la clave es solo la del piso. Lo que comparte con otros
+    // (zona, agencia, plataforma) se comprueba dentro de readGuidePayload.
     let cacheKey = null;
     if (env.GUIDE_CACHE) {
-        const version = await getGuideVersion(env, slug);
-        cacheKey = surface === 'guide'
-            ? `guide:${slug}:${lang}:v${version}`
-            : `guide:${slug}:${lang}:${surface}:v${version}`;
-        const cached = await env.GUIDE_CACHE.get(cacheKey);
-        if (cached) {
-            return new Response(cached, {
-                headers: { 'Content-Type': 'application/json', 'X-Cache': 'HIT' }
-            });
+        try {
+            const version = await getGuideVersion(env, slug);
+            cacheKey = surface === 'guide'
+                ? `guide:${slug}:${lang}:v${version}`
+                : `guide:${slug}:${lang}:${surface}:v${version}`;
+            const cached = await readGuidePayload(env, cacheKey);
+            if (cached) {
+                return new Response(publicMediaUrls(env, origin, cached), {
+                    headers: { 'Content-Type': 'application/json', 'X-Cache': 'HIT' }
+                });
+            }
+        } catch (err) {
+            // KV sin lecturas (plan Free: 100.000/día): la guía se sirve desde D1.
+            console.warn('[Guide] No se pudo leer la caché KV:', err.message);
+            cacheKey = null;
         }
     }
 
@@ -455,6 +465,11 @@ export async function handleGetGuidebook(env, slug, lang, origin, surface = 'gui
     if (!apartment) {
         return errorResponse('Apartment not found', 404);
     }
+
+    // Antes que el contenido, no después: ver readGuideScope.
+    const cacheScope = cacheKey
+        ? await readGuideScope(env, apartment.zone_id, apartment.agency_id).catch(() => null)
+        : null;
 
     // 2. Parallel load: zone, agency, info, catálogo de la zona, restaurantes,
     // modal de bienvenida, tienda, teléfonos y ciudades hermanas.
@@ -1122,14 +1137,21 @@ export async function handleGetGuidebook(env, slug, lang, origin, surface = 'gui
         }
     };
 
-    if (env.GUIDE_CACHE && cacheKey) {
+    // Se cachea tal cual y las URLs de media se reescriben al salir, aquí y en
+    // el HIT de arriba: ver workerMediaUrl.js.
+    const body = JSON.stringify(responseData);
+    if (cacheKey && cacheScope) {
         // Sin await suelto: si KV no deja escribir (plan Free: 1.000 escrituras/día
         // para toda la cuenta) la guía se sirve igual, solo que sin cachear.
-        await env.GUIDE_CACHE.put(cacheKey, JSON.stringify(responseData), { expirationTtl: 86400 })
+        await writeGuidePayload(env, cacheKey, body, cacheScope)
             .catch(err => console.warn('[Guide] No se pudo cachear en KV:', err.message));
     }
 
-    return jsonResponse(responseData);
+    // MISS explícito: scripts/smoke.mjs y la verificación tras un bump (CLAUDE.md §3)
+    // leen esta cabecera, y sin ella una guía recién generada parecía un fallo.
+    return new Response(publicMediaUrls(env, origin, body), {
+        headers: { 'Content-Type': 'application/json', 'X-Cache': 'MISS' }
+    });
 }
 
 /**
@@ -1175,20 +1197,24 @@ export async function handleGetExplore(env, apartmentSlug, zoneSlug, lang, origi
     }
 
     // KV cache: keyed by zone + lang, versioned by two independent counters —
-    // ver:zone:{slug} (bumped on any POI/experience edit within this zone, see
+    // ver:zone:{id} (bumped on any POI/experience edit within this zone, see
     // touchZoneGuideVersions) and ver:zonecatalog (bumped only when a zone itself
     // is created/edited, which changes the `cities` list every response includes).
     // Either one changing invalidates the cached payload.
+    //
+    // El prefijo es `z` y no `v` desde que la versión de zona va por id: una zona
+    // sin tocar bajo la clave nueva vale '0', y con `v` podría acertar una entrada
+    // `v0` de antes de su primera edición que aún no hubiera caducado.
     let cacheKey = null;
     if (env.GUIDE_CACHE) {
         const [zoneVer, catalogVer] = await Promise.all([
-            getZoneExploreVersion(env, zone.slug),
+            getZoneExploreVersion(env, zone.id),
             getZoneCatalogVersion(env),
         ]);
-        cacheKey = `explore:${zone.slug}:${lang}:v${zoneVer}.${catalogVer}`;
+        cacheKey = `explore:${zone.slug}:${lang}:z${zoneVer}.${catalogVer}`;
         const cached = await env.GUIDE_CACHE.get(cacheKey);
         if (cached) {
-            return new Response(cached, {
+            return new Response(publicMediaUrls(env, origin, cached), {
                 headers: { 'Content-Type': 'application/json', 'X-Cache': 'HIT' }
             });
         }
@@ -1288,12 +1314,15 @@ export async function handleGetExplore(env, apartmentSlug, zoneSlug, lang, origi
         }
     };
 
+    const body = JSON.stringify(responseData);
     if (env.GUIDE_CACHE && cacheKey) {
         // Sin await suelto: si KV no deja escribir (plan Free: 1.000 escrituras/día
         // para toda la cuenta) la guía se sirve igual, solo que sin cachear.
-        await env.GUIDE_CACHE.put(cacheKey, JSON.stringify(responseData), { expirationTtl: 86400 })
+        await env.GUIDE_CACHE.put(cacheKey, body, { expirationTtl: 86400 })
             .catch(err => console.warn('[Guide] No se pudo cachear en KV:', err.message));
     }
 
-    return jsonResponse(responseData);
+    return new Response(publicMediaUrls(env, origin, body), {
+        headers: { 'Content-Type': 'application/json', 'X-Cache': 'MISS' }
+    });
 }

@@ -166,6 +166,7 @@ cambios sin commitear de otra sesión en curso dando vueltas por el repo. Antes 
 | `workerReels.js` | Reels (`handleReelsRequests`). |
 | `workerLoyalty.js` | Loyalty (`handleLoyaltyRequests`). Módulo propio, **no** vive en `workerReels.js`. |
 | `workerMedia.js` | Servir/subir media desde R2. |
+| `workerMediaUrl.js` | Dominio propio del bucket (`MEDIA_BASE_URL` en `wrangler.toml`; vacío = todo por `/media/`). `publicMediaUrls` reescribe las URLs **al salir** en guía, tele, explorar y carta; lo cacheado en KV no cambia. **Una respuesta pública nueva con fotos o vídeos pasa por ahí** o seguirá gastando una petición del worker por archivo. `System/` no se reescribe. |
 | `workerMarketing.js` | Campañas, leads, magic links, push. |
 | `workerReservations.js` | Reservas. |
 | `workerDelivery.js` | Delivery/takeout. |
@@ -178,7 +179,7 @@ cambios sin commitear de otra sesión en curso dando vueltas por el repo. Antes 
 | `workerAiBudget.js` | Presupuesto diario **compartido** de Workers AI (chat + traductor) en D1 (`ai_usage_daily`), con neuronas reales. Toda llamada nueva a `env.AI.run` pasa por aquí. |
 | `workerGuideCache.js` | Versionado de la caché KV del guide/carta (`getGuideVersion`, `touchGuideVersion`, `touchZoneGuideVersions`, `*MenuVersion`). Ver el aviso de caché más abajo. |
 | `workerTvScreen.js` | VisualTaste TV: `/guide/tv/config/:pairingCode`, `/guide/tv/track`, `/guide/admin/tv/*`. **Debe registrarse en `worker.js` ANTES del bloque `/guide/admin/`** o ese handler devuelve 404 duro. |
-| `workerGuideQr.js` | «QR para enmarcar» (`/guide/admin/qr/*`): láminas por zona en R2 y el diseño del QR/marco de cada agencia. La lámina se compone en el navegador (`apps/admin/src/lib/qrPoster`, sin librerías: PDF y comprobación de lectura propios). Mismo orden de registro que la TV. **El diseño no se guarda con `updateAgency`**: ese sube la versión KV de cada piso. Una lámina sustituida va a clave R2 nueva (`/media/` cachea 24 h). |
+| `workerGuideQr.js` | «QR para enmarcar» (`/guide/admin/qr/*`): láminas por zona en R2 y el diseño del QR/marco de cada agencia. La lámina se compone en el navegador (`apps/admin/src/lib/qrPoster`, sin librerías: PDF y comprobación de lectura propios). Mismo orden de registro que la TV. **El diseño no se guarda con `updateAgency`**: ese invalida la guía de todos los pisos de la agencia. Una lámina sustituida va a clave R2 nueva (`/media/` cachea 24 h). |
 | `workerAuthz.js` | Autorización multi-tenant: `checkRestaurantScope`, `getRestaurantAccess`, `requireRole`, `ROLE_RANK`. Todo endpoint nuevo con `:slug`/`restaurantId` pasa por aquí. **Si el restaurante va en la ruta pero NO detrás de `/restaurants/`** (`/reservations/config/:id`, `/delivery/orders/:id`…), añádelo a `TENANT_PATH_ROUTES`: si no, ninguna capa lo ve y cualquier sesión toca cualquier restaurante (pasó hasta oct-2026). Y una ruta que llama la carta sin sesión va en `PUBLIC_ROUTES` de `worker.js`, o el huésped recibe 401 (la reserva pública estuvo rota así). |
 | `workerAudit.js` | Log de eventos de seguridad (`logSecurityEvent`, `getClientIp`). |
 | `workerCors.js` | `ALLOWED_ORIGINS` + `getCorsHeaders`. **Origen nuevo (puerto de dev, dominio) se añade aquí**, o el navegador bloquea aunque curl funcione. |
@@ -193,11 +194,17 @@ cambios sin commitear de otra sesión en curso dando vueltas por el repo. Antes 
 - Envuelve las operaciones D1 en try/catch. Valida el JSON de entrada antes de procesar.
 - **Secrets vía `env`**, nunca hardcodeados. `JWT_SECRET` sale de `env.JWT_SECRET`
   (configúralo con `wrangler secret put JWT_SECRET`, no en el código).
-- Runtime edge: Web Standards, evita Node built-ins salvo que Workers los soporte.
+- Runtime edge: Web Standards, evita Node built-ins salvo que Workers los soporte. **Los tests corren en
+  Node y no ven los topes de workerd**: PBKDF2 admite 100.000 iteraciones como mucho (con 600.000 los tests
+  pasaban y en producción nadie pudo poner una contraseña de jul a oct-2026). Tras tocar auth, un login
+  fallido real contra producción y mirar `wrangler tail`.
 - **La cuenta está en Workers Free** (verificado sep-2026): KV admite **1.000 escrituras/día para toda
   la cuenta** y la caché de las guías vive ahí. Nada de contadores por petición en KV: límites por
   minuto con el binding `[[ratelimits]]`, gasto diario en D1. Un `GUIDE_CACHE.put` sin `.catch` tumba
-  la guía cuando KV se agota.
+  la guía cuando KV se agota. **Límite de intentos en una ruta pública** (login, PIN): se cuentan los
+  fallos que ya se escriben en `security_audit_log` (`recentEventsByIp`), detrás de `overMinuteGate`;
+  `hitRateLimit` (KV) solo en rutas con sesión. **Contenido que sale en varias guías** → su propia
+  versión (`touchZone/Agency/AllGuideVersions`, una escritura), nunca un `ver:apt:*` por piso.
 - **Gemma 4 (y cualquier modelo con razonamiento) va con `chat_template_kwargs: { enable_thinking: false }`**:
   con él activo, traducir un POI costaba 432 neuronas en vez de 47 y cortaba el JSON a la mitad.
 
@@ -216,6 +223,10 @@ cambios sin commitear de otra sesión en curso dando vueltas por el repo. Antes 
   esperado del proyecto).
 - Ejecutar migración: `npx wrangler d1 execute restaurant-menu-saas --file=migrations/XXXX.sql`
   (añade `--remote` para producción; sin flag es local).
+- **`tests/sql.test.mjs` compila todo el SQL del worker contra `BDschemaFinal.sql`** en un D1 real (el
+  Miniflare de wrangler) y el hook lo lanza antes de desplegar. Si el worker usa una columna nueva, el
+  deploy se bloquea hasta que la migración esté en producción **y el esquema regenerado y commiteado**:
+  ese fichero dice lo que hay en producción, no se le añade una columna a mano para pasar el test.
 - SQLite en D1 revienta con `UNION ALL` de ~8+ términos (`too many terms in compound
   SELECT`); para contar filas de muchas tablas usa subconsultas escalares en un `SELECT`.
 
@@ -230,6 +241,9 @@ Tras un deploy que cambie la forma de la respuesta, bumpea la versión a mano:
 ```bash
 npx wrangler kv key put --namespace-id=89c387501e00410b9d4f0d80dc563bf2 "ver:apt:<slug>" "$(date +%s%3N)" --remote
 ```
+
+Con la clave `ver:all` en vez de `ver:apt:<slug>`, esa misma escritura invalida **todas** las guías
+(y `ver:zone:<id de la zona>` o `ver:agency:<id>`, las de una zona o una agencia).
 
 Corolario al verificar: una respuesta con datos viejos justo después de una migración
 puede ser caché, no un fallo de la migración.
@@ -450,6 +464,7 @@ npm run build:tv-landing # → apps/tv-landing/dist
 npm test               # worker: tests/*.test.mjs, en paralelo (~7 s, corre sin node_modules)
 npm run test:frontend  # tests/frontend/ (paridad entre copias) + los check-*.mjs de guide y client; necesita esbuild
 npm run test:routes    # tabla de rutas contra el worker.js real: endpoint nuevo = fila nueva
+npm run test:sql       # el SQL del worker contra SQLite real con el esquema de producción (§3)
 npm run smoke          # humo contra PRODUCCIÓN tras desplegar, solo GET (admite: worker guide client admin tv)
 # El hook lanza `npm test` antes de `wrangler deploy` y `test:frontend` antes de `pages deploy` (§7).
 
@@ -501,7 +516,9 @@ migración D1 con `--remote`, commitea (y si puedes, pushea) primero.
 `.claude/hooks/pre-deploy-guard.mjs` (hook `PreToolUse` sobre Bash, declarado en
 `.claude/settings.json`) intercepta `wrangler deploy`, `wrangler pages deploy`,
 `wrangler d1 execute --remote` y `wrangler kv ... --remote`:
-- **Working tree sucio → bloquea** el comando y lista los ficheros pendientes.
+- **Working tree sucio → bloquea** el comando y lista los ficheros pendientes. Mira el checkout **desde el que
+  corre el comando** (su `cd`, o el cwd de la sesión), no el principal: en un worktree no te frena el trabajo a
+  medias de otra sesión, y el tuyo sí. Si no puede saber dónde corre (`cd "$DIR"`), bloquea: escribe la ruta.
 - **Deploy con tests en rojo → bloquea** (`npm test` para el worker, `npm run test:frontend` para Pages; se
   lanzan en el checkout desde el que se despliega). No hay variable para saltárselos, tampoco con el override
   de abajo: si el que está mal es el test, se arregla el test.

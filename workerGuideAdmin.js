@@ -599,12 +599,7 @@ async function updateAgency(env, id, data) {
     // payload de CADA apartamento (workerGuide.js), con TTL de 24h. Sin esto, un
     // cambio de color guardado aquí no se veía en la guía hasta que la caché
     // expirase sola — el bug real detrás de "no coge los colores".
-    const apartments = await env.DB.prepare(
-        'SELECT slug FROM guide_apartments WHERE agency_id = ? AND is_active = TRUE'
-    ).bind(id).all();
-    for (const apt of (apartments.results || [])) {
-        if (apt.slug) await touchGuideVersion(env, apt.slug);
-    }
+    await touchAgencyGuideVersions(env, id);
 
     return jsonResponse({ success: true });
 }
@@ -1602,7 +1597,7 @@ async function listApartmentPhones(env, aptId, lang, isSuperAdmin, userAgencyIds
             AND t_name_es.entity_type = 'phone_category' AND t_name_es.field = 'name' AND t_name_es.language_code = 'es'
         WHERE p.apartment_id = ?
         ORDER BY pc.order_index ASC, p.order_index ASC
-    `).bind(l, l, aptId).all();
+    `).bind(l, aptId).all();
 
     return jsonResponse({ success: true, phones: rows.results || [] });
 }
@@ -1675,7 +1670,7 @@ async function listPhoneCategories(env, lang) {
             AND t_name_es.entity_type = 'phone_category' AND t_name_es.field = 'name' AND t_name_es.language_code = 'es'
         WHERE c.is_active = TRUE
         ORDER BY c.order_index ASC
-    `).bind(l, l).all();
+    `).bind(l).all();
 
     return jsonResponse({ success: true, categories: cats.results || [] });
 }

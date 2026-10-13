@@ -7,9 +7,10 @@
 // perfecto salvo UNA cosa, y esa cosa es lo que se comprueba.
 //
 // Tarda unos segundos: genera claves RSA-2048 y el login por contraseña que se
-// comprueba al final deriva PBKDF2 con 600.000 iteraciones.
+// comprueba al final deriva PBKDF2 de verdad (100.000 iteraciones).
 
 import { loadWorkerModule } from './_load.mjs';
+import { makeAuditLog } from './_audit.mjs';
 
 const { module: googleMod, cleanup: cleanupGoogle } = await loadWorkerModule('workerGoogleAuth.js');
 const { module: authMod, cleanup: cleanupAuth } = await loadWorkerModule('workerAuthentication.js');
@@ -89,7 +90,9 @@ function adminUser(overrides = {}) {
 
 function makeEnv({ users, config = {} } = {}) {
     const kv = new Map();
-    const state = { users: users ?? [adminUser()], audit: [], insertedUsers: [], lastLogins: [] };
+    // `audit` es lo que miran los asserts; `auditLog`, lo que lee el límite de intentos.
+    const auditLog = makeAuditLog();
+    const state = { users: users ?? [adminUser()], audit: [], insertedUsers: [], lastLogins: [], kvWrites: 0 };
 
     const statement = (s, args) => ({
         async first() {
@@ -97,10 +100,14 @@ function makeEnv({ users, config = {} } = {}) {
             if (s.includes('FROM users WHERE id')) return state.users.find((u) => u.id === args[0]) ?? null;
             return null;
         },
-        async all() { return { results: [] }; },
+        async all() {
+            if (s.includes('FROM security_audit_log')) return { results: auditLog.select(args) };
+            return { results: [] };
+        },
         async run() {
             if (s.startsWith('INSERT INTO security_audit_log')) {
                 // (id, event_type, user_id, target_user_id, restaurant_id, ip, user_agent, detail)
+                auditLog.insert(args);
                 state.audit.push({ type: args[1], userId: args[2], detail: args[7] ? JSON.parse(args[7]) : null });
             } else if (s.startsWith('INSERT INTO users')) {
                 state.insertedUsers.push(args);
@@ -122,7 +129,7 @@ function makeEnv({ users, config = {} } = {}) {
                 const raw = kv.get(key);
                 return opts?.type === 'json' ? JSON.parse(raw) : raw;
             },
-            async put(key, value) { kv.set(key, typeof value === 'string' ? value : JSON.stringify(value)); },
+            async put(key, value) { state.kvWrites++; kv.set(key, typeof value === 'string' ? value : JSON.stringify(value)); },
             async delete(key) { kv.delete(key); },
         },
         DB: {
@@ -379,6 +386,7 @@ console.log('\n--- Rate limiting por IP ---');
     assert('Bloquea incluso un token válido', blocked.status === 429);
     assert('Incluye Retry-After', Number(blocked.headers.get('Retry-After')) > 0, `Retry-After: ${blocked.headers.get('Retry-After')}`);
     assert('El bloqueo queda auditado', state.audit.some((e) => e.type === 'login_rate_limited' && e.detail?.provider === 'google'));
+    assert('Doce intentos basura no escriben nada en KV', state.kvWrites === 0, `${state.kvWrites} escrituras`);
 
     const otherIp = await login(env, await signToken({ key: goodKey }), { ip: '198.51.100.8' });
     assert('Otra IP no hereda el bloqueo', otherIp.status === 200);

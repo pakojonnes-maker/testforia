@@ -23,6 +23,7 @@
 
 import { verifyJWT } from './workerAuthentication.js';
 import { handleGetGuidebook } from './workerGuide.js';
+import { publicMediaUrls } from './workerMediaUrl.js';
 
 function jsonResponse(data, status = 200) {
     return new Response(JSON.stringify(data), {
@@ -209,7 +210,7 @@ async function handleTvConfig(env, pairingCode, lang, origin, deviceInfo) {
     // propia (ver handleGetGuidebook), o las ventas de una se atribuirían a la otra.
     const response = await handleGetGuidebook(env, device.apartment_slug, lang, origin, 'tv');
 
-    return await attachTvConfig(response, env, device.apartment_id);
+    return await attachTvConfig(response, env, device.apartment_id, origin);
 }
 
 /**
@@ -223,7 +224,7 @@ async function handleTvConfig(env, pairingCode, lang, origin, deviceInfo) {
  * este repo (CLAUDE.md §3). Aquí son una lectura suelta a D1 por arranque de
  * TV, que es un evento raro, y se ven en el siguiente encendido.
  */
-async function attachTvConfig(response, env, apartmentId) {
+async function attachTvConfig(response, env, apartmentId, origin) {
     // Un 404/500 del guidebook se devuelve tal cual: no hay JSON que enriquecer.
     if (!response.ok) return response;
 
@@ -243,9 +244,11 @@ async function attachTvConfig(response, env, apartmentId) {
 
     // Se conservan las cabeceras originales (X-Cache, CORS…) menos la longitud,
     // que ya no vale porque el cuerpo ha crecido.
+    // Las teselas son URLs guardadas con el origen del worker: pasan por la
+    // misma reescritura que el resto de la guía (workerMediaUrl.js).
     const headers = new Headers(response.headers);
     headers.delete('Content-Length');
-    return new Response(JSON.stringify(payload), { status: response.status, headers });
+    return new Response(publicMediaUrls(env, origin, JSON.stringify(payload)), { status: response.status, headers });
 }
 
 /**

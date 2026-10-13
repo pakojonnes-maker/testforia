@@ -130,12 +130,24 @@ const RUN = {
                 check('  y dice si salió de caché (X-Cache)', /^(HIT|MISS)$/.test(res.headers.get('x-cache') || ''), `X-Cache: ${res.headers.get('x-cache')}`);
                 const en = await get(`${API}/guide/${targets.guide}?lang=en`);
                 check('GET /guide/<slug>?lang=en: sirve el inglés', en.json?.meta?.lang === 'en', `meta.lang: ${en.json?.meta?.lang}`);
-                // Una imagen cualquiera de la guía: R2 y /media/ siguen sirviendo.
-                const media = (res.body.match(/https?:[^"\\]+\/media\/[^"\\]+\.(?:webp|jpe?g|png)/i) || [])[0];
-                if (media) {
-                    const img = await fetch(media, { signal: AbortSignal.timeout(25000) }).catch(() => null);
-                    check('  y una de sus fotos se descarga de R2', img?.status === 200 && (img.headers.get('content-type') || '').startsWith('image/'), `status ${img?.status}, ${img?.headers.get('content-type')}`);
+                // Una imagen cualquiera de la guía, por donde la guía la entrega: el dominio propio del bucket
+                // (MEDIA_BASE_URL, workerMediaUrl.js) o, con la variable vacía, /media/ del worker.
+                const isImage = (r) => r?.status === 200 && (r.headers.get('content-type') || '').startsWith('image/');
+                const photo = async (url) => {
+                    const img = await fetch(url, { signal: AbortSignal.timeout(25000) }).catch(() => null);
                     await img?.body?.cancel();
+                    return img;
+                };
+                const viaDomain = (res.body.match(/https:\/\/media\.visualtastes\.com\/[^"\\]+\.(?:webp|jpe?g|png)/i) || [])[0];
+                const viaWorker = (res.body.match(/https?:[^"\\]+\/media\/(?!System\/)[^"\\]+\.(?:webp|jpe?g|png)/i) || [])[0];
+                if (viaDomain || viaWorker) {
+                    const img = await photo(viaDomain || viaWorker);
+                    check(`  y una de sus fotos se descarga de R2 (${viaDomain ? 'media.visualtastes.com' : '/media/ del worker'})`, isImage(img), `status ${img?.status}, ${img?.headers.get('content-type')}`);
+                    if (viaDomain) {
+                        // La ruta del worker no puede morir aunque la guía ya no la use: el panel y los APK instalados tiran de ella.
+                        const old = await photo(`${API}/media/${viaDomain.slice('https://media.visualtastes.com/'.length)}`);
+                        check('  y /media/ del worker sigue sirviendo esa misma foto', isImage(old), `status ${old?.status}, ${old?.headers.get('content-type')}`);
+                    }
                 } else skip('la guía no trae ninguna foto que probar');
             }
         } else skip('GET /guide/<slug> (falta "guide" en scripts/smoke.targets.json)');

@@ -4,6 +4,8 @@
 // completar la tarjeta se genera un magic_link_token y el canje reutiliza
 // el mismo patrón público /api/r/:token que ya usa RedemptionPage.
 import { touchMenuVersion } from './workerGuideCache.js';
+import { logSecurityEvent, getClientIp, recentEventsByIp } from './workerAudit.js';
+import { overMinuteGate } from './workerAuthentication.js';
 
 export async function handleLoyaltyRequests(request, env) {
     const url = new URL(request.url);
@@ -78,22 +80,17 @@ function publicCard(card) {
 // ============================================
 // RATE LIMITING (PIN brute-force protection)
 // ============================================
-async function checkPinRateLimit(env, restaurantId, ip, limit = 15, windowSeconds = 900) {
-    if (!env.RATE_LIMIT_KV) return { allowed: true };
-    const key = `ratelimit:stamp-pin:${restaurantId}:${ip}`;
-    const now = Math.floor(Date.now() / 1000);
-    try {
-        const data = await env.RATE_LIMIT_KV.get(key, { type: 'json' });
-        if (data && data.windowStart > now - windowSeconds) {
-            if (data.count >= limit) return { allowed: false };
-            await env.RATE_LIMIT_KV.put(key, JSON.stringify({ count: data.count + 1, windowStart: data.windowStart }), { expirationTtl: windowSeconds });
-            return { allowed: true };
-        }
-        await env.RATE_LIMIT_KV.put(key, JSON.stringify({ count: 1, windowStart: now }), { expirationTtl: windowSeconds });
-        return { allowed: true };
-    } catch (e) {
-        return { allowed: true };
-    }
+// 15 PIN equivocados por restaurante e IP cada 15 minutos. Se cuentan los fallos,
+// que quedan en security_audit_log, y no cada sello en KV: es una ruta pública, y
+// así una sala llena sellando desde el mismo WiFi no llega nunca al límite.
+const PIN_MAX_FAILURES = 15;
+const PIN_WINDOW_SECONDS = 900;
+
+async function checkPinRateLimit(env, restaurantId, ip) {
+    if (await overMinuteGate(env, 'stamp-pin', ip)) return { allowed: false };
+    const failures = (await recentEventsByIp(env, ip, ['loyalty_pin_failed'], PIN_WINDOW_SECONDS))
+        .filter((e) => e.restaurantId === restaurantId);
+    return { allowed: failures.length < PIN_MAX_FAILURES };
 }
 
 // ============================================
@@ -139,7 +136,7 @@ async function addLoyaltyStamp(request, env) {
             return createResponse({ success: false, message: 'restaurant_id y visitor_id requeridos' }, 400);
         }
 
-        const clientIp = request.headers.get('CF-Connecting-IP') || 'unknown';
+        const clientIp = getClientIp(request);
         const rateCheck = await checkPinRateLimit(env, restaurant_id, clientIp);
         if (!rateCheck.allowed) {
             return createResponse({ success: false, message: 'Demasiados intentos. Espera unos minutos.' }, 429);
@@ -159,6 +156,9 @@ async function addLoyaltyStamp(request, env) {
             return createResponse({ success: false, message: 'El restaurante no ha configurado el PIN de validación' }, 400);
         }
         if (!pin || pin !== details.redeem_pin) {
+            // Solo cuenta un PIN equivocado: la llamada sin PIN es la carta
+            // preguntando si hace falta, no un intento.
+            if (pin) await logSecurityEvent(env, { type: 'loyalty_pin_failed', restaurantId: restaurant_id, request });
             return createResponse({ success: false, message: 'PIN incorrecto', requires_pin: true }, 403);
         }
 

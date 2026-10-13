@@ -112,7 +112,6 @@ if (!existsSync(placeIdsPath)) {
     process.exit(1);
 }
 const placeOwner = new Map(JSON.parse(readFileSync(placeIdsPath, 'utf8')).map(r => [r.google_place_id, r.id]));
-const apartments = existsSync(join(CACHE, 'apartments.json')) ? JSON.parse(readFileSync(join(CACHE, 'apartments.json'), 'utf8')) : null;
 
 const zones = loadZones(join(HERE, 'data'), process.argv[2]);
 mkdirSync(join(HERE, 'out'), { recursive: true });
@@ -251,8 +250,8 @@ for (const { zone, pois, file } of zones) {
     const untouched = existing.filter(r => r.zone_id === zone.id && r.is_active && !mentioned.has(r.id));
     for (const r of untouched) warnings.push(`sin tocar (no está en la ficha): ${r.tr?.['es.name'] || r.id}`);
 
-    kvKeys.add(`ver:zone:${zone.slug}`);
-    for (const a of apartments?.filter(a => a.zone_id === zone.id) || []) kvKeys.add(`ver:apt:${a.slug}`);
+    // Una clave por zona basta: la guía de cada piso la comprueba al leerse (workerGuideCache.js).
+    kvKeys.add(`ver:zone:${zone.id}`);
 
     const summary = `${counts.nuevos} nuevos · ${counts.actualizados} actualizados · ${counts.desactivados} desactivados`;
     review.splice(1, 0, `${summary}\n`,
@@ -269,7 +268,6 @@ for (const { zone, pois, file } of zones) {
     }
 }
 
-if (!apartments) console.log('\n(Sin .cache/apartments.json: los comandos de caché no incluyen los apartamentos.)');
 console.log('\nTras aplicar el SQL, invalidar la caché del guide (una escritura de KV por clave):');
 for (const k of kvKeys) {
     console.log(`  npx wrangler kv key put --namespace-id=${KV_NAMESPACE_ID} "${k}" "$(date +%s%3N)" --remote`);

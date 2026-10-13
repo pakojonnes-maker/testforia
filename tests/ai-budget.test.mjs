@@ -168,7 +168,17 @@ function makeChatEnv({ db = makeDb(), aiRun, ipOk = true } = {}) {
         calls,
         get kvWrites() { return kvWrites; },
         DB: db,
-        GUIDE_CACHE: { async get(k) { return k.startsWith('guide:') ? JSON.stringify(GUIDE) : null; }, async put() { kvWrites++; } },
+        GUIDE_CACHE: {
+            async get(k) { return k.startsWith('guide:') ? JSON.stringify(GUIDE) : null; },
+            // La guía cacheada lleva en sus metadatos las versiones compartidas con las que se generó
+            // (workerGuideCache.js); aquí ninguna se ha tocado nunca, así que valen '0'.
+            async getWithMetadata(k) {
+                return k.startsWith('guide:')
+                    ? { value: JSON.stringify(GUIDE), metadata: { z: null, a: null, s: '0.0.0' } }
+                    : { value: null, metadata: null };
+            },
+            async put() { kvWrites++; },
+        },
         RATE_LIMIT_KV: { async get() { return null; }, async put() { kvWrites++; } },
         AI_CHAT_IP_LIMITER: { async limit() { return { success: ipOk }; } },
         AI_CHAT_VISITOR_LIMITER: { async limit() { return { success: true }; } },

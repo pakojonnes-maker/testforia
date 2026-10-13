@@ -1,6 +1,7 @@
 //workerReels.js - VERSIÓN OPTIMIZADA CON PREFIJO reel_ + MARKETING
 import { getMenuVersion } from './workerGuideCache.js';
 import { parseStoredJson } from './workerMarketing.js';
+import { publicMediaUrls } from './workerMediaUrl.js';
 
 export async function handleReelsRequests(request, env) {
     const url = new URL(request.url);
@@ -320,7 +321,10 @@ export async function handleReelsRequests(request, env) {
                 loyalty: { program: loyaltyProgram, card: loyaltyCard } // [NEW] Stamp card program
             };
             console.log(`[Reels] ✅ Response: ${response.sections.length} sections`);
-            return createResponse(response);
+            // Fotos y vídeos de los platos por el dominio de media, si está puesto
+            // (workerMediaUrl.js). Lo cacheado en KV no cambia: se reescribe al salir.
+            const ok = createResponse(response);
+            return new Response(publicMediaUrls(env, url.origin, await ok.text()), { status: ok.status, headers: ok.headers });
         } catch (error) {
             console.error("[Reels] ❌ Error:", error);
             return createResponse({
