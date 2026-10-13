@@ -10,7 +10,8 @@
 // que mande el cliente.
 // ============================================
 
-import { hitRateLimit } from './workerAuthentication.js';
+import { overMinuteGate } from './workerAuthentication.js';
+import { getClientIp } from './workerAudit.js';
 
 function jsonResponse(data, status = 200) {
     return new Response(JSON.stringify(data), {
@@ -33,7 +34,39 @@ function generateId(prefix = 'sord') {
 // e-commerce.
 const MAX_ORDER_LINES = 10;
 const MAX_ITEM_QUANTITY = 20;
-const ORDER_RATE_LIMIT = { limit: 8, windowSeconds: 3600 }; // 8 pedidos/hora por visitante
+
+// Límite por hora, contado sobre los pedidos que ya se guardan en D1 y no en KV:
+// la ruta es pública, y con un contador en KV cualquiera gastaba una de las 1.000
+// escrituras diarias que KV comparte con la caché de las guías con solo cambiar
+// de visitorId en cada petición.
+//   - por visitante: frena al huésped que reenvía el carrito. El id lo manda el
+//     cliente, así que a quien se lo inventa no le frena nada;
+//   - por apartamento: ese sí. No depende de nada que mande el cliente, y acota
+//     cuántas filas puede hacer escribir alguien por mucho que cambie de id (o
+//     no mande ninguno, que antes se quedaba sin límite). Holgado para un piso
+//     real, que hace unos pocos pedidos al día.
+const ORDER_WINDOW_SECONDS = 3600;
+const ORDERS_PER_VISITOR = 8;
+const ORDERS_PER_APARTMENT = 30;
+
+/**
+ * ¿Ha llegado este visitante o este apartamento a su tope de la última hora?
+ * Cuenta filas de guide_store_orders: un carrito mixto (anfitrión + plataforma)
+ * se guarda como dos pedidos y cuenta dos. created_at se escribe aquí con
+ * toISOString(), así que se compara en ese formato.
+ */
+async function overHourlyLimit(env, apartmentId, visitorId) {
+    const since = new Date(Date.now() - ORDER_WINDOW_SECONDS * 1000).toISOString();
+    const counts = await env.DB.prepare(`
+        SELECT
+            (SELECT COUNT(*) FROM guide_store_orders
+              WHERE apartment_id = ? AND created_at > ?) AS by_apartment,
+            (SELECT COUNT(*) FROM guide_store_orders
+              WHERE visitor_id = ? AND created_at > ?) AS by_visitor
+    `).bind(apartmentId, since, visitorId ?? null, since).first();
+    return (counts?.by_apartment ?? 0) >= ORDERS_PER_APARTMENT
+        || (counts?.by_visitor ?? 0) >= ORDERS_PER_VISITOR;
+}
 
 function buildWhatsAppUrl(phone, message) {
     if (!phone) return null;
@@ -45,6 +78,12 @@ function buildWhatsAppUrl(phone, message) {
 export async function handleGuideStoreRequests(request, env) {
     const url = new URL(request.url);
     if (url.pathname !== '/guide/store/orders' || request.method !== 'POST') return null;
+
+    // Primera barrera, por minuto e IP y sin almacenamiento: va antes de leer el
+    // cuerpo para que una petición frenada no cueste ni una lectura de D1.
+    if (await overMinuteGate(env, 'store-order', getClientIp(request))) {
+        return errorResponse('Too many orders, try again in a minute', 429);
+    }
 
     let body;
     try {
@@ -67,11 +106,8 @@ export async function handleGuideStoreRequests(request, env) {
         }
     }
 
-    if (env.RATE_LIMIT_KV && visitorId) {
-        const { allowed, retryAfter } = await hitRateLimit(env, `store_order:${visitorId}`, ORDER_RATE_LIMIT);
-        if (!allowed) {
-            return errorResponse(`Too many orders, try again in ${retryAfter}s`, 429);
-        }
+    if (await overHourlyLimit(env, apartmentId, visitorId)) {
+        return errorResponse('Too many orders, try again later', 429);
     }
 
     const apartment = await env.DB.prepare(
