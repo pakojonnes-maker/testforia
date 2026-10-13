@@ -194,7 +194,10 @@ cambios sin commitear de otra sesión en curso dando vueltas por el repo. Antes 
 - Envuelve las operaciones D1 en try/catch. Valida el JSON de entrada antes de procesar.
 - **Secrets vía `env`**, nunca hardcodeados. `JWT_SECRET` sale de `env.JWT_SECRET`
   (configúralo con `wrangler secret put JWT_SECRET`, no en el código).
-- Runtime edge: Web Standards, evita Node built-ins salvo que Workers los soporte.
+- Runtime edge: Web Standards, evita Node built-ins salvo que Workers los soporte. **Los tests corren en
+  Node y no ven los topes de workerd**: PBKDF2 admite 100.000 iteraciones como mucho (con 600.000 los tests
+  pasaban y en producción nadie pudo poner una contraseña de jul a oct-2026). Tras tocar auth, un login
+  fallido real contra producción y mirar `wrangler tail`.
 - **La cuenta está en Workers Free** (verificado sep-2026): KV admite **1.000 escrituras/día para toda
   la cuenta** y la caché de las guías vive ahí. Nada de contadores por petición en KV: límites por
   minuto con el binding `[[ratelimits]]`, gasto diario en D1. Un `GUIDE_CACHE.put` sin `.catch` tumba

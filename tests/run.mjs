@@ -52,7 +52,7 @@ function runSuite(file) {
     });
 }
 
-// Cola con tantos procesos a la vez como núcleos: varias suites derivan PBKDF2 con 600.000 iteraciones.
+// Cola con tantos procesos a la vez como núcleos: varias suites derivan PBKDF2 de verdad (100.000 iteraciones por login).
 const results = [];
 const queue = [...suites];
 const workers = Array.from({ length: Math.min(queue.length, Math.max(2, availableParallelism())) }, async () => {

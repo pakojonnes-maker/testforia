@@ -10,12 +10,16 @@ const ACCESS_TOKEN_TTL_SECONDS = 7 * 24 * 60 * 60;
 // ---------------------------------------------------------------------------
 // Configuración del hashing de contraseñas
 // ---------------------------------------------------------------------------
-// 600.000 iteraciones es la recomendación de OWASP para PBKDF2-HMAC-SHA256.
-// Cuesta ~330 ms de CPU por derivación, así que encarece también el login
-// legítimo: es aceptable porque el login es infrecuente y porque el rate
-// limiting de más abajo acota el uso del endpoint como amplificador de DoS.
-// Si alguna vez hay que bajarlo, este es el único sitio que tocar.
-const PBKDF2_ITERATIONS = 600000;
+// 100.000 es el TOPE del runtime de Workers, no una elección: crypto.subtle
+// rechaza cualquier cifra mayor («Pbkdf2 failed: iteration counts above 100000
+// are not supported»). OWASP recomienda 600.000 para PBKDF2-HMAC-SHA256, y con
+// esa cifra estuvo este fichero de julio a octubre de 2026: en Node (los tests)
+// funcionaba, y en producción cada hashPassword() lanzaba. Nadie pudo poner ni
+// cambiar una contraseña, el rehash del login fallaba en silencio y un login
+// con un email inexistente daba 500 en vez de 401 (dummyVerify), delatando qué
+// cuentas existen. Lo que compensa el coste más bajo es el límite de intentos
+// de más abajo y el segundo factor, no subir este número.
+const PBKDF2_ITERATIONS = 100000;
 const PBKDF2_SALT_SIZE = 16;
 const PBKDF2_HASH_ALGO = 'SHA-256';
 

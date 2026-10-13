@@ -7,7 +7,7 @@
 // perfecto salvo UNA cosa, y esa cosa es lo que se comprueba.
 //
 // Tarda unos segundos: genera claves RSA-2048 y el login por contraseña que se
-// comprueba al final deriva PBKDF2 con 600.000 iteraciones.
+// comprueba al final deriva PBKDF2 de verdad (100.000 iteraciones).
 
 import { loadWorkerModule } from './_load.mjs';
 import { makeAuditLog } from './_audit.mjs';

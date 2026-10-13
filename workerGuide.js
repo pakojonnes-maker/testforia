@@ -1147,7 +1147,11 @@ export async function handleGetGuidebook(env, slug, lang, origin, surface = 'gui
             .catch(err => console.warn('[Guide] No se pudo cachear en KV:', err.message));
     }
 
-    return new Response(publicMediaUrls(env, origin, body), { headers: { 'Content-Type': 'application/json' } });
+    // MISS explícito: scripts/smoke.mjs y la verificación tras un bump (CLAUDE.md §3)
+    // leen esta cabecera, y sin ella una guía recién generada parecía un fallo.
+    return new Response(publicMediaUrls(env, origin, body), {
+        headers: { 'Content-Type': 'application/json', 'X-Cache': 'MISS' }
+    });
 }
 
 /**
@@ -1318,5 +1322,7 @@ export async function handleGetExplore(env, apartmentSlug, zoneSlug, lang, origi
             .catch(err => console.warn('[Guide] No se pudo cachear en KV:', err.message));
     }
 
-    return new Response(publicMediaUrls(env, origin, body), { headers: { 'Content-Type': 'application/json' } });
+    return new Response(publicMediaUrls(env, origin, body), {
+        headers: { 'Content-Type': 'application/json', 'X-Cache': 'MISS' }
+    });
 }

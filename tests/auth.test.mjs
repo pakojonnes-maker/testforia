@@ -4,8 +4,8 @@
 // Es un test de integración: llama a handleAuthRequests con Requests reales y
 // un D1/KV simulados, en vez de tocar internos no exportados.
 //
-// Tarda unos segundos a propósito: cada login deriva PBKDF2 con 600.000
-// iteraciones, que es justo lo que se quiere comprobar.
+// Tarda unos segundos a propósito: cada login deriva PBKDF2 de verdad
+// (100.000 iteraciones, el tope de Workers), que es justo lo que se quiere comprobar.
 
 import { loadWorkerModule } from './_load.mjs';
 import { makeAuditLog } from './_audit.mjs';
@@ -260,7 +260,10 @@ console.log('\n--- Migración del hash antiguo ---');
     assert('Una contraseña con hash antiguo sigue entrando', r.status === 200);
 
     const nuevo = state.users[0].password_hash;
-    assert('El hash se regeneró al formato nuevo', nuevo.startsWith('pbkdf2$600000$'), nuevo.slice(0, 24) + '…');
+    assert('El hash se regeneró al formato nuevo', nuevo.startsWith('pbkdf2$100000$'), nuevo.slice(0, 24) + '…');
+    // Node deriva PBKDF2 con las iteraciones que le pidan; el runtime de Workers lanza por encima de
+    // 100.000. Con 600.000 esta suite pasaba y en producción nadie podía poner una contraseña (jul–oct 2026).
+    assert('Las iteraciones caben en lo que admite Workers (100.000 como mucho)', Number(nuevo.split('$')[1]) <= 100000, nuevo.split('$')[1]);
 
     const r2 = await handleAuthRequests(loginRequest('ana@test.com', GOOD_PASSWORD, '192.0.2.12'), env);
     assert('Y se sigue pudiendo entrar con el hash nuevo', r2.status === 200);

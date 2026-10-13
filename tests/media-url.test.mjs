@@ -92,7 +92,7 @@ if (!d1) {
 
     const getGuide = async () => {
         const res = await guide.handleGetGuidebook(env, 'piso-uno', 'es', ORIGIN);
-        return { status: res.status, hit: res.headers.get('X-Cache') === 'HIT', text: await res.text() };
+        return { status: res.status, hit: res.headers.get('X-Cache') === 'HIT', cache: res.headers.get('X-Cache'), text: await res.text() };
     };
     const count = (text, needle) => text.split(needle).length - 1;
 
@@ -103,6 +103,8 @@ if (!d1) {
         `${before.status}, ${count(before.text, `${ORIGIN}/media/guide/`)} URLs`);
     const beforeHit = await getGuide();
     assert('...y de caché sale idéntica', beforeHit.hit && beforeHit.text === before.text);
+    // scripts/smoke.mjs exige la cabecera en las dos: sin MISS, el humo fallaba tras cada invalidación.
+    assert('La cabecera X-Cache dice MISS y luego HIT', before.cache === 'MISS' && beforeHit.cache === 'HIT', `${before.cache} → ${beforeHit.cache}`);
 
     // 2. Con la variable: mismas claves, otro dominio; en HIT y en MISS.
     env.MEDIA_BASE_URL = MEDIA;
