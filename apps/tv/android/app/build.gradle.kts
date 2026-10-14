@@ -40,8 +40,8 @@ android {
         // ni siquiera ejecuta el JS que genera Vite.
         minSdk = 24
         targetSdk = 35
-        versionCode = 1
-        versionName = "0.1.0"
+        versionCode = 2
+        versionName = "0.2.0"
 
         // La misma API que usa apps/tv/src/lib/api.ts por defecto. El asistente de
         // configuración la usa para comprobar el código de emparejamiento.

@@ -30,6 +30,11 @@ adb logcat -d -s VisualTasteTV
 - [ ] **Mantener Atrás 3 s** → abre el asistente (no se pudo probar en el emulador).
 - [ ] Dejar la tele apagada **más de 1 hora** y encender → sale.
 - [ ] **Desenchufar** la tele y volver a enchufar → sale (arranque en frío, unos 8 s tras el inicio).
+- [ ] **Copia local (APK 0.2.0):** con la tele ya emparejada y la bienvenida vista **una vez con red**, esperar
+      unos segundos, **desenchufar la tele, enchufar con el router apagado, encender** → ¿sale la guía del
+      piso (su WiFi real, sin «Datos de ejemplo») y no «Sin conexión»? Después **encender el router**: ¿se
+      refresca sola en unos segundos? Y con una tele que **nunca** vio red: debe salir «Sin conexión.
+      Reintentando…», jamás otro alojamiento.
 - [ ] Apagado por inactividad (*Ajustes → Sistema → Energía*: el mínimo que permita) → al encender, sale.
 - [ ] Con la **TDT** delante al apagar → al encender, la bienvenida sale encima y Atrás devuelve a la TDT.
 - [ ] Con una **entrada HDMI** delante → lo mismo.

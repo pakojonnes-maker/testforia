@@ -21,6 +21,13 @@ Chromecast con Google TV, Google TV Streamer). La investigación que lleva a est
   `npm run build:apk`) bajo `https://tv.visualtastes.com`, que ya está en `ALLOWED_ORIGINS`.
   Arranca sin red y no hay que tocar el CORS del worker. Solo los datos van por la red
   (`/guide/tv/config/:code`).
+- **Guarda la última guía** (desde la 0.2.0): la web guarda en localStorage la última guía buena de
+  su código (`apps/tv/src/lib/guideCache.ts`, 90 días), y un arranque sin red enseña esa copia con
+  su WiFi real; sin copia, «Sin conexión. Reintentando…» (nunca datos de otro alojamiento).
+  `MainActivity.watchNetwork` llama a `window.vtTvOnline()` cuando Android da la red por
+  validada, para que la web reintente al instante (con una caja por HDMI el WiFi suele volver
+  después de que salga la bienvenida). No toques el `cacheMode` del WebView: serviría también la
+  API vieja. El instalador espera 8 s con la bienvenida delante para que la copia quede escrita.
 - **Asistente para el anfitrión** (`SetupActivity`): pide el código de emparejamiento (lo
   comprueba contra la API), lleva a «Mostrar sobre otras apps» y, en TCL, explica el candado
   Safety guard. Se vuelve a él manteniendo Atrás 3 s en la bienvenida.
@@ -159,6 +166,13 @@ cuenta de Google no se puede activar.
   `~/.android/avd/<nombre>.avd/config.ini`.
 - Aun así, con el emulador 37.2 y estas imágenes de tele, `adb emu event send` no llega ni al
   núcleo (`getevent` no ve nada): para probar teclas, `adb shell input keyevent`.
+- **Cortar la red:** las imágenes de Google TV traen Ethernet (`eth0`), no WiFi: `svc wifi disable`
+  no hace nada y sin root no se baja la interfaz. Lo que sirvió (oct-2026): arrancar el emulador con
+  `-dns-server 127.0.0.1` y un proxy DNS UDP propio en el ordenador que reenvía o descarta a voluntad
+  (descartar = el `fetch` se cuelga, como con un portal cautivo). Para que Android pase la red a
+  «sin validar» y vuelva a validarla (lo que dispara `watchNetwork`): `settings put global
+  private_dns_mode hostname` (con DNS cortado) y luego `off`. Al acabar,
+  `settings delete global private_dns_mode`.
 - **«Forzar detención»** (o `am force-stop`) deja la app detenida, y Android no le entrega el
   arranque hasta que alguien la abre a mano: la bienvenida deja de salir. Pasa igual en una tele
   real si alguien toca ese botón en los ajustes.

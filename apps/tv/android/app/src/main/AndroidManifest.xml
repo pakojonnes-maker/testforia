@@ -2,6 +2,8 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
     <uses-permission android:name="android.permission.INTERNET" />
+    <!-- Para saber cuándo vuelve la red (MainActivity.watchNetwork); permiso normal, sin diálogo. -->
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
     <!-- «Mostrar sobre otras apps»: sin él, Android no deja abrir la pantalla desde el servicio
          cuando la tele se enciende con otra app delante. Lo concede el anfitrión en el asistente. -->

@@ -34,6 +34,7 @@ import { fileURLToPath } from 'node:url'
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..')
 const PKG = 'com.visualtastes.tv'
+const COPY_WAIT_MS = 8000
 
 function arg(name) {
   const i = process.argv.indexOf(`--${name}`)
@@ -152,6 +153,18 @@ async function main() {
   const top = shell('dumpsys activity activities', { allowFail: true }).match(/topResumedActivity=.*?\{[^ ]+ [^ ]+ ([^ }]+)/)?.[1] ?? '?'
   const ok = top.endsWith('.MainActivity')
   console.log(`  Delante: ${top}`)
+
+  // La bienvenida guarda la última guía al recibirla (apps/tv/src/lib/guideCache.ts) y Chromium
+  // la baja a disco con unos segundos de retraso. Si la tele sale de casa sin copia, el primer
+  // encendido sin WiFi enseñaría «Sin conexión». Con la bienvenida delante y sin tocar nada,
+  // la copia queda escrita. Desde aquí no se puede LEER (el almacenamiento de la app es privado):
+  // se espera y se avisa, no se comprueba.
+  if (code && ok) {
+    step('Guardando la copia local de la guía')
+    await wait(COPY_WAIT_MS)
+    console.log(`  Esperados ${COPY_WAIT_MS / 1000} s con la bienvenida delante: la copia ya debería estar escrita.`)
+    console.log('  (No se puede comprobar desde el ordenador. Prueba real: apaga el router y enciende la tele: debe salir la guía, no «Sin conexión».)')
+  }
 
   console.log('\n' + '─'.repeat(60))
   if (code && ok) console.log('LISTO: la bienvenida está en pantalla y saldrá cada vez que se encienda la tele.')

@@ -4,6 +4,9 @@ import android.annotation.SuppressLint
 import android.app.Activity
 import android.content.Intent
 import android.graphics.Color
+import android.net.ConnectivityManager
+import android.net.Network
+import android.net.NetworkCapabilities
 import android.os.Bundle
 import android.util.Log
 import android.view.KeyEvent
@@ -33,6 +36,10 @@ class MainActivity : Activity() {
     private lateinit var assets: WebAssets
     /** La pulsación de Atrás en curso ya hizo algo (abrir el asistente): el UP no cuenta. */
     private var backConsumed = false
+    private var networkCallback: ConnectivityManager.NetworkCallback? = null
+    /** Última red por defecto: ¿validada? Solo la toca el hilo de los avisos de red. */
+    @Volatile
+    private var networkValidated = false
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -59,6 +66,41 @@ class MainActivity : Activity() {
         web = view
         view.loadUrl("https://${BuildConfig.WEB_HOST}/#$code")
         view.requestFocus()
+        watchNetwork()
+    }
+
+    /**
+     * Avisa a la web de que hay red. En una caja Google TV por HDMI el WiFi suele volver DESPUÉS
+     * de que salga la bienvenida, y el WebView no siempre dispara `online`: cuando Android da la
+     * red por validada (con salida real a internet, no solo conectada), la web reintenta ya en vez
+     * de esperar a que venza su espera (apps/tv/src/lib/useGuidebook.ts, `window.vtTvOnline`).
+     * Solo avisa al pasar de «sin red validada» a «validada»: las ráfagas de cambios de señal no
+     * cancelan una petición que iba bien.
+     */
+    private fun watchNetwork() {
+        val cm = getSystemService(ConnectivityManager::class.java) ?: return
+        val callback = object : ConnectivityManager.NetworkCallback() {
+            override fun onCapabilitiesChanged(network: Network, capabilities: NetworkCapabilities) {
+                val ok = capabilities.hasCapability(NetworkCapabilities.NET_CAPABILITY_VALIDATED)
+                if (ok && !networkValidated) {
+                    Log.i(Welcome.TAG, "Red validada: la web reintenta ya")
+                    // Este callback no corre en el hilo principal; el WebView, sí.
+                    runOnUiThread { web?.evaluateJavascript(ONLINE_JS, null) }
+                }
+                networkValidated = ok
+            }
+
+            override fun onLost(network: Network) {
+                networkValidated = false
+            }
+        }
+        try {
+            cm.registerDefaultNetworkCallback(callback)
+            networkCallback = callback
+        } catch (e: RuntimeException) {
+            // Sin el aviso la web sigue reintentando sola (2, 4, 8, 15 s y luego más espaciado).
+            Log.w(Welcome.TAG, "No se pudo vigilar la red", e)
+        }
     }
 
     @SuppressLint("SetJavaScriptEnabled")
@@ -171,6 +213,14 @@ class MainActivity : Activity() {
     }
 
     override fun onDestroy() {
+        networkCallback?.let { callback ->
+            try {
+                getSystemService(ConnectivityManager::class.java)?.unregisterNetworkCallback(callback)
+            } catch (e: RuntimeException) {
+                // Ya no estaba registrado: nada que soltar.
+            }
+        }
+        networkCallback = null
         web?.destroy()
         web = null
         super.onDestroy()
@@ -183,6 +233,9 @@ class MainActivity : Activity() {
             private set
 
         private const val SETUP_HOLD_MS = 3_000L
+
+        /** Si la web aún no ha cargado, `vtTvOnline` no existe y no pasa nada. */
+        private const val ONLINE_JS = "window.vtTvOnline&&window.vtTvOnline()"
 
         private val LEAVE_KEYS = setOf(
             KeyEvent.KEYCODE_CHANNEL_UP, KeyEvent.KEYCODE_CHANNEL_DOWN, KeyEvent.KEYCODE_LAST_CHANNEL,
