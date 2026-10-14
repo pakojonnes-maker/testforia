@@ -22,6 +22,9 @@ const VELOCITY_THRESHOLD = 0.35;
 const VELOCITY_WINDOW_MS = 100;
 // Por debajo de esto el gesto es un tap, no un arrastre.
 const DRAG_SLOP_PX = 6;
+// Cuánto dura, tras soltar un arrastre, el «no era un clic». El clic que el navegador sintetiza al
+// levantar el dedo llega en unos milisegundos; uno que llegue después ya es otro toque.
+const SUPPRESS_CLICK_MS = 350;
 // Cuánto cuesta pasarse de los topes. Sin esto la hoja se clavaba en seco
 // contra el límite mientras el dedo seguía moviéndose: se sentía rota, no
 // "hasta aquí".
@@ -98,7 +101,14 @@ export default function BottomSheet({ snap, onSnapChange, peekHeight, header, to
   // El header lleva dentro la PoiCard, que es un <button> a pantalla completa:
   // sin esto, un micro-arrastre sobre la tarjeta abría la ficha del POI en vez
   // de mover la hoja.
-  const suppressClickRef = useRef(false);
+  //
+  // Es una HORA, no un sí/no: hasta oct-2026 era un booleano que solo se
+  // limpiaba con el siguiente clic. En el móvil, levantar el dedo tras un
+  // arrastre de verdad no produce clic, así que la marca se quedaba puesta y se
+  // comía el toque siguiente: tras deslizar la lista, cada tarjeta había que
+  // tocarla dos veces.
+  const suppressClickUntilRef = useRef(0);
+  const clickIsFromDrag = () => performance.now() < suppressClickUntilRef.current;
 
   // Keep the DOM in sync with `snap`/measured height when they change from
   // OUTSIDE a gesture (tab switch, selecting a POI changes peekHeight, window
@@ -191,7 +201,7 @@ export default function BottomSheet({ snap, onSnapChange, peekHeight, header, to
     const d = dragRef.current;
     if (!d.active) return;
     d.active = false;
-    if (d.moved > DRAG_SLOP_PX) suppressClickRef.current = true;
+    if (d.moved > DRAG_SLOP_PX) suppressClickUntilRef.current = performance.now() + SUPPRESS_CLICK_MS;
 
     const velocity = computeVelocity();
     // Negative velocity = finger moved up = expand; positive = collapse.
@@ -221,7 +231,7 @@ export default function BottomSheet({ snap, onSnapChange, peekHeight, header, to
   // Tocar el tirador recorre los tamaños: mucha gente toca antes de arrastrar,
   // y hasta ahora un tap no hacía absolutamente nada.
   const cycleSnap = () => {
-    if (suppressClickRef.current) return;
+    if (clickIsFromDrag()) return;
     const idx = SNAP_ORDER.indexOf(snap);
     onSnapChange(SNAP_ORDER[(idx + 1) % SNAP_ORDER.length]);
   };
@@ -261,8 +271,8 @@ export default function BottomSheet({ snap, onSnapChange, peekHeight, header, to
   };
 
   const onClickCapture = (e: React.MouseEvent) => {
-    if (!suppressClickRef.current) return;
-    suppressClickRef.current = false;
+    if (!clickIsFromDrag()) return;
+    suppressClickUntilRef.current = 0;
     e.preventDefault();
     e.stopPropagation();
   };
