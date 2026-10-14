@@ -19,6 +19,8 @@ interface ExploreSectionProps {
   cities: CitySummary[];
   pois: GuidePoi[]; // home zone's POIs, from the main guidebook payload
   apartmentLatLng: [number, number] | null;
+  /** Clic en el botón de reserva de la ficha: se registra como el de la Tienda. */
+  onIntent?: (targetType: 'experience', targetId: string, action: string) => void;
 }
 
 // El tirador de BottomSheet (.g-xhandle) mide 44px de alto, el área táctil mínima, con independencia de
@@ -43,13 +45,22 @@ function toDetailItem(poi: GuidePoi, travelLabel: string | null): PoiDetailItem 
     price_display: poi.price_display,
     duration_text: poi.duration_text,
     is_bookable: poi.is_bookable,
+    cta: poi.action_type && poi.action_data
+      ? {
+          action_type: poi.action_type,
+          action_data: poi.action_data,
+          prefilled_message: poi.prefilled_message || '',
+          cta_label: poi.cta_label,
+          cta_source: poi.cta_source,
+        }
+      : undefined,
   };
 }
 
 // Lugares: el mapa a pantalla completa con la barra de búsqueda flotando encima y una hoja de tres alturas
 // debajo. Es la misma composición en cualquier ancho: la guía es una columna de móvil (ver .g-app), así que
 // ya no hay una versión de escritorio con panel lateral.
-export default function ExploreSection({ apartmentSlug, lang, onLanguageChange, zone, cities, pois, apartmentLatLng }: ExploreSectionProps) {
+export default function ExploreSection({ apartmentSlug, lang, onLanguageChange, zone, cities, pois, apartmentLatLng, onIntent }: ExploreSectionProps) {
   const explore = useExploreState({ apartmentSlug, lang, homeZone: zone, homePois: pois, homeCities: cities });
   const {
     activeZone, isHomeZone, zoneStatus, retry, setActiveZone,
@@ -261,7 +272,13 @@ export default function ExploreSection({ apartmentSlug, lang, onLanguageChange, 
       </BottomSheet>
 
       {detailPoi && (
-        <PoiDetailModal item={toDetailItem(detailPoi, travelLabelFor(detailPoi))} lang={lang} onClose={closeDetail} onOpenMap={closeDetail} />
+        <PoiDetailModal
+          item={toDetailItem(detailPoi, travelLabelFor(detailPoi))}
+          lang={lang}
+          onClose={closeDetail}
+          onOpenMap={closeDetail}
+          onIntent={action => onIntent?.('experience', detailPoi.id, action)}
+        />
       )}
     </div>
   );

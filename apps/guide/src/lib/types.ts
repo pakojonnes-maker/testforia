@@ -46,6 +46,13 @@ export interface GuidePoi {
   duration_text: string;
   is_bookable: boolean;
   media: PoiMedia[];
+  // Sólo en las reservables: el botón de reserva ya resuelto por el worker
+  // (ctaFields en workerGuide.js), el mismo que lleva la experiencia en la Tienda.
+  action_type?: CtaActionType;
+  action_data?: string;
+  prefilled_message?: string;
+  cta_label?: string;
+  cta_source?: 'affiliate' | 'direct';
 }
 
 // A sibling city in the same region as the guest's apartment, for the Explore

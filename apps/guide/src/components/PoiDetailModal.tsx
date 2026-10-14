@@ -1,5 +1,7 @@
 import { getTranslation, getCategoryLabel } from '../lib/i18n';
+import type { CtaActionType } from '../lib/types';
 import AccessBadge, { BookableBadge, RatingBadge } from './AccessBadge';
+import CTAButton from './CTAButton';
 import PhotoFigure from './PhotoFigure';
 import Layer from './Layer';
 import useDismissableLayer from '../hooks/useDismissableLayer';
@@ -19,6 +21,14 @@ export interface PoiDetailItem {
   price_display?: string;
   duration_text?: string;
   is_bookable?: boolean;
+  /** El botón de reserva de una reservable, ya resuelto por el worker (el mismo que en la Tienda). */
+  cta?: {
+    action_type: CtaActionType;
+    action_data: string;
+    prefilled_message: string;
+    cta_label?: string;
+    cta_source?: 'affiliate' | 'direct';
+  };
 }
 
 interface PoiDetailModalProps {
@@ -27,13 +37,20 @@ interface PoiDetailModalProps {
   onClose: () => void;
   /** Opcional: en Lugares el mapa ya está detrás de la hoja, así que ese sitio se salta este botón. */
   onOpenMap?: () => void;
+  /** Registra el clic en el botón de reserva, como en la Tienda. */
+  onIntent?: (action: string) => void;
 }
 
 // La ficha de un lugar: foto en arco, distintivos (acceso, reservable, nota), nombre, lo que cuesta llegar y
 // cuánto dura, la descripción y dos acciones fijas abajo («Ver mapa» y «Cómo llegar»). La foto se omite si no
 // hay: la ficha empieza directamente por el nombre.
-export default function PoiDetailModal({ item, lang, onClose, onOpenMap }: PoiDetailModalProps) {
+export default function PoiDetailModal({ item, lang, onClose, onOpenMap, onIntent }: PoiDetailModalProps) {
   useDismissableLayer(true, onClose);
+
+  // Una reservable con botón se reserva desde aquí: el botón pasa a ser la acción principal, «Cómo llegar» la
+  // secundaria y «Ver mapa» sale (cerrar la ficha ya devuelve el mapa) para que quepan dos en la barra.
+  const cta = item.cta?.action_type && item.cta.action_data?.trim() ? item.cta : null;
+  const mapButton = cta ? undefined : onOpenMap;
 
   // Nunca se inventa una cifra: cada bloque existe solo si el dato existe.
   const stats: Array<{ value: string; caption: string }> = [];
@@ -73,16 +90,20 @@ export default function PoiDetailModal({ item, lang, onClose, onOpenMap }: PoiDe
 
         {item.description && <p className="g-desc">{item.description}</p>}
 
-        {(onOpenMap || item.url) && (
+        {/* Sólo junto a un enlace que de verdad es retribuido (Directiva 2005/29/CE, anexo I.11), como en la Tienda. */}
+        {cta?.cta_source === 'affiliate' && <p className="g-disc">{getTranslation('affiliate_disclosure', lang)}</p>}
+
+        {(mapButton || item.url || cta) && (
           <div className="g-actions">
-            {onOpenMap && (
-              <button type="button" className="g-pill line" onClick={onOpenMap}>{getTranslation('view_map', lang)}</button>
+            {mapButton && (
+              <button type="button" className="g-pill line" onClick={mapButton}>{getTranslation('view_map', lang)}</button>
             )}
             {item.url && (
-              <button type="button" className="g-pill fill" onClick={() => window.open(item.url, '_blank', 'noopener,noreferrer')}>
+              <button type="button" className={`g-pill ${cta ? 'line' : 'fill'}`} onClick={() => window.open(item.url, '_blank', 'noopener,noreferrer')}>
                 {getTranslation('directions', lang)}
               </button>
             )}
+            {cta && <CTAButton experience={{ id: item.id, ...cta }} lang={lang} onIntent={action => onIntent?.(action)} />}
           </div>
         )}
       </div>

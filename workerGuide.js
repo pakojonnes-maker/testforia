@@ -183,6 +183,51 @@ function resolveExperienceCta(exp, ctx) {
     };
 }
 
+/**
+ * Los campos del botón de reserva de una fila reservable, ya resueltos. Los
+ * comparten la lista de experiencias y el mapa: una experiencia con
+ * coordenadas sale en los dos sitios y tiene que llevar el mismo botón (hasta
+ * oct-2026 el mapa la marcaba «Reservable» y no dejaba reservarla).
+ */
+function ctaFields(row, ctx) {
+    const cta = resolveExperienceCta(row, { ...ctx, affiliateCode: row.affiliate_code });
+    return {
+        action_type: cta.action_type,
+        action_data: cta.action_data,
+        prefilled_message: cta.prefilled_message,
+        cta_source: cta.cta_source,
+        // Una sola etiqueta por ítem: como sólo se muestra un CTA, describe
+        // siempre el que se muestre. El defecto se calcula sobre el tipo YA
+        // resuelto, no sobre el principal.
+        cta_label: row.cta_label || (cta.action_type === 'WHATSAPP' ? 'WhatsApp' : 'Reservar'),
+    };
+}
+
+// «Explorar» otra ciudad se cachea por zona e idioma, no por piso: una entrada
+// por piso gastaría escrituras de KV (1.000 al día para toda la cuenta) por algo
+// que solo cambia en el sub_id. Así que los botones se guardan con estos
+// marcadores dentro y fillApartmentTokens los cambia por el piso al servir.
+// En una URL applyUrlPlaceholders los codifica (`%7B%7B…`) y en un mensaje de
+// WhatsApp quedan tal cual: por eso cada contexto se sustituye por separado.
+const EXPLORE_CTA_CONTEXT = {
+    apartmentId: '{{apartment_id}}',
+    apartmentName: '{{apartment_name}}',
+    surface: 'guide',
+    subId: '{{sub_id}}',
+};
+
+/** Sustituye los marcadores de EXPLORE_CTA_CONTEXT en el JSON ya serializado. */
+export function fillApartmentTokens(json, apartment) {
+    const enc = encodeURIComponent;
+    const inUrl = (token) => enc(`{{${token}}}`);
+    return json
+        .split(inUrl('sub_id')).join(enc(`${apartment.slug}-guide`))
+        .split(inUrl('apartment_id')).join(enc(apartment.id))
+        .split(inUrl('apartment_name')).join(enc(apartment.name))
+        // Dentro de una cadena JSON: el nombre va escapado como JSON, sin las comillas.
+        .split('{{apartment_name}}').join(JSON.stringify(String(apartment.name)).slice(1, -1));
+}
+
 // ============================================
 // Reservar: canales de contacto de un restaurante
 // ============================================
@@ -899,7 +944,6 @@ export async function handleGetGuidebook(env, slug, lang, origin, surface = 'gui
         }));
 
     const processedExperiences = bookableRows.map(exp => {
-        const cta = resolveExperienceCta(exp, { ...baseCtaContext, affiliateCode: exp.affiliate_code });
         return {
             id: exp.id,
             name: exp.name || exp.id,
@@ -907,13 +951,10 @@ export async function handleGetGuidebook(env, slug, lang, origin, surface = 'gui
             category: exp.category,
             service_subcategory: exp.service_subcategory || null,
             // Ya resueltos: si hay CTA secundario, es este. Los clientes sólo
-            // pintan lo que llega — no vuelven a decidir.
-            action_type: cta.action_type,
-            action_data: cta.action_data,
-            prefilled_message: cta.prefilled_message,
-            // 'affiliate' | 'direct'. La guía y la TV avisan de publicidad sólo
-            // en las tarjetas cuyo enlace es retribuido.
-            cta_source: cta.cta_source,
+            // pintan lo que llega — no vuelven a decidir. cta_source
+            // ('affiliate' | 'direct') hace que la guía y la TV avisen de
+            // publicidad sólo en las tarjetas cuyo enlace es retribuido.
+            ...ctaFields(exp, baseCtaContext),
             is_promoted: exp.is_promoted === 1,
             price_display: exp.price_display,
             original_price_display: exp.original_price_display,
@@ -921,10 +962,6 @@ export async function handleGetGuidebook(env, slug, lang, origin, surface = 'gui
             badge_type: exp.badge_type,
             cover_image_url: exp.cover_image_url,
             is_featured: exp.is_featured === 1,
-            // Una sola etiqueta por ítem: como sólo se muestra un CTA, describe
-            // siempre el que se muestre. El defecto se calcula sobre el tipo YA
-            // resuelto, no sobre el principal.
-            cta_label: exp.cta_label || (cta.action_type === 'WHATSAPP' ? 'WhatsApp' : 'Reservar'),
             // Mismos campos de contacto/distancia que un POI normal: un bookable
             // sigue siendo un sitio real (guide_pois unificó ambos, migración 0059).
             address: exp.address || null,
@@ -1091,7 +1128,10 @@ export async function handleGetGuidebook(env, slug, lang, origin, surface = 'gui
             is_featured: poi.is_featured === 1,
             is_promoted: poi.is_promoted === 1,
             media: poiMedia[poi.id] || [],
-            cover_image_url: poi.cover_image_url || null
+            cover_image_url: poi.cover_image_url || null,
+            // El mismo botón que en la lista de experiencias, para reservar
+            // desde la ficha del mapa. Solo las reservables lo llevan.
+            ...(poi.is_bookable === 1 ? ctaFields(poi, baseCtaContext) : {})
         })),
         // Clientes de VisualTaste + restaurantes traídos de Google, en una sola lista ya
         // ordenada (ver mergeRestaurants).
@@ -1176,7 +1216,7 @@ export async function handleGetExplore(env, apartmentSlug, zoneSlug, lang, origi
     // 1. Resolve the apartment's own region + home zone slug. Also doubles as
     // the "does this apartment slug exist and is it active" check.
     const home = await env.DB.prepare(`
-        SELECT z.region AS region, z.slug AS home_zone_slug
+        SELECT a.id, a.name, a.slug, z.region AS region, z.slug AS home_zone_slug
         FROM guide_apartments a
         JOIN guide_zones z ON a.zone_id = z.id
         WHERE a.slug = ? AND a.is_active = TRUE
@@ -1214,7 +1254,7 @@ export async function handleGetExplore(env, apartmentSlug, zoneSlug, lang, origi
         cacheKey = `explore:${zone.slug}:${lang}:z${zoneVer}.${catalogVer}`;
         const cached = await env.GUIDE_CACHE.get(cacheKey);
         if (cached) {
-            return new Response(publicMediaUrls(env, origin, cached), {
+            return new Response(publicMediaUrls(env, origin, fillApartmentTokens(cached, home)), {
                 headers: { 'Content-Type': 'application/json', 'X-Cache': 'HIT' }
             });
         }
@@ -1243,8 +1283,13 @@ export async function handleGetExplore(env, apartmentSlug, zoneSlug, lang, origi
             SELECT
                 p.id, p.category, p.latitude, p.longitude, p.google_maps_url,
                 p.rating, p.poi_type, p.access_type, p.price_display, p.duration_text, p.is_bookable,
+                -- El botón de reserva de las reservables (ver ctaFields), el mismo que en GET /guide/:slug.
+                p.action_type, p.action_data, p.action_prefilled_message,
+                p.action_is_affiliate, p.affiliate_code,
+                p.secondary_action_type, p.secondary_action_data, p.secondary_action_prefilled_message,
                 COALESCE(t_name.value, t_name_es.value) AS name,
-                COALESCE(t_desc.value, t_desc_es.value) AS description
+                COALESCE(t_desc.value, t_desc_es.value) AS description,
+                COALESCE(t_cta.value, t_cta_es.value) AS cta_label
             FROM guide_pois p
             LEFT JOIN translations t_name ON p.id = t_name.entity_id
                 AND t_name.entity_type = 'poi' AND t_name.field = 'name' AND t_name.language_code = ?
@@ -1254,9 +1299,13 @@ export async function handleGetExplore(env, apartmentSlug, zoneSlug, lang, origi
                 AND t_desc.entity_type = 'poi' AND t_desc.field = 'description' AND t_desc.language_code = ?
             LEFT JOIN translations t_desc_es ON p.id = t_desc_es.entity_id
                 AND t_desc_es.entity_type = 'poi' AND t_desc_es.field = 'description' AND t_desc_es.language_code = ?
+            LEFT JOIN translations t_cta ON p.id = t_cta.entity_id
+                AND t_cta.entity_type = 'poi' AND t_cta.field = 'cta_label' AND t_cta.language_code = ?
+            LEFT JOIN translations t_cta_es ON p.id = t_cta_es.entity_id
+                AND t_cta_es.entity_type = 'poi' AND t_cta_es.field = 'cta_label' AND t_cta_es.language_code = ?
             WHERE p.zone_id = ? AND p.is_active = TRUE AND p.latitude IS NOT NULL
             ORDER BY ${orderClause('p', null)}
-        `).bind(lang, FALLBACK_LANG, lang, FALLBACK_LANG, zone.id).all(),
+        `).bind(lang, FALLBACK_LANG, lang, FALLBACK_LANG, lang, FALLBACK_LANG, zone.id).all(),
     ]);
 
     const mediaOrigin = origin || DEFAULT_MEDIA_ORIGIN;
@@ -1306,7 +1355,9 @@ export async function handleGetExplore(env, apartmentSlug, zoneSlug, lang, origi
             price_display: poi.price_display || '',
             duration_text: poi.duration_text || '',
             is_bookable: poi.is_bookable === 1,
-            media: poiMedia[poi.id] || []
+            media: poiMedia[poi.id] || [],
+            // Con los marcadores del piso dentro: los rellena fillApartmentTokens al servir.
+            ...(poi.is_bookable === 1 ? ctaFields(poi, EXPLORE_CTA_CONTEXT) : {})
         })),
         meta: {
             lang,
@@ -1322,7 +1373,7 @@ export async function handleGetExplore(env, apartmentSlug, zoneSlug, lang, origi
             .catch(err => console.warn('[Guide] No se pudo cachear en KV:', err.message));
     }
 
-    return new Response(publicMediaUrls(env, origin, body), {
+    return new Response(publicMediaUrls(env, origin, fillApartmentTokens(body, home)), {
         headers: { 'Content-Type': 'application/json', 'X-Cache': 'MISS' }
     });
 }

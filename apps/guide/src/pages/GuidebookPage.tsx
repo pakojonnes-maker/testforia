@@ -452,6 +452,7 @@ export default function GuidebookPage() {
               cities={data.cities ?? []}
               pois={pois}
               apartmentLatLng={apartment.latitude != null && apartment.longitude != null ? [apartment.latitude, apartment.longitude] : null}
+              onIntent={(type, id, action) => logIntent(type, id, action)}
             />
           </div>
         )}
