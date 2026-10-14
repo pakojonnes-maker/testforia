@@ -377,6 +377,13 @@ identifica la sesión en curso (`/track/session/identify`). Nunca un id persiste
   fade-in, sin `exit`.
 - Datos siempre por red (`/guide/tv/config/:pairingCode`); el shell va empaquetado en
   el APK. Nunca asumas red disponible en el arranque.
+- **Última guía en disco** (`lib/guideCache.ts`, solo dentro del APK o con `?copia=1`): `useGuidebook` guarda en
+  localStorage la última guía buena por código e idioma (90 días de vida; lleva la clave del WiFi, no se loguea). **Si
+  cambias la forma de `GuidebookData` de modo incompatible (un campo obligatorio nuevo), sube `CACHE_VERSION`**: una copia
+  vieja sin ese campo revienta el render en cada encendido (el `ErrorBoundary` la borra y recarga, pero es la red de seguridad).
+  **Con código de emparejamiento nunca se cae a `MOCK_GUIDE`** (enseñaba el WiFi `VillaSerena_5G` a un huésped real): sin
+  red ni copia sale «Sin conexión», y solo un 404 con JSON `success:false` borra la copia. El mock es solo para URL sin
+  identificador y modo slug. El APK avisa de que hay red con `window.vtTvOnline()` (`MainActivity.watchNetwork`).
 - **Texto visible → `src/lib/i18n.ts`** (`getTvString`), nunca literal en el JSX: el tipo
   exige los 13 idiomas. Hasta sep-2026 la TV salía medio en español con el huésped en coreano.
 - **DOS interfaces en el mismo paquete** (21-sep-2026). Lo que ve el huésped es `src/mir/`

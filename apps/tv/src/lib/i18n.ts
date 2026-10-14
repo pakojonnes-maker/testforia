@@ -458,6 +458,25 @@ const TV_STRINGS = {
     pt: 'A carregar…', ca: 'Carregant…', ar: 'جارٍ التحميل…', ru: 'Загрузка…', uk: 'Завантаження…',
     zh: '加载中…', ja: '読み込み中…', ko: '불러오는 중…',
   },
+  // Sin copia local y sin red (useGuidebook, `status: 'offline'`): nunca datos de otro alojamiento.
+  offline: {
+    es: 'Sin conexión. Reintentando…', en: 'No connection. Retrying…', fr: 'Pas de connexion. Nouvelle tentative…',
+    de: 'Keine Verbindung. Neuer Versuch…', it: 'Nessuna connessione. Nuovo tentativo…',
+    pt: 'Sem ligação. A tentar novamente…', ca: 'Sense connexió. Tornant-ho a provar…',
+    ar: 'لا يوجد اتصال. جارٍ إعادة المحاولة…', ru: 'Нет подключения. Повторная попытка…',
+    uk: 'Немає з’єднання. Повторна спроба…', zh: '无网络连接，正在重试…',
+    ja: '接続できません。再試行しています…', ko: '연결되지 않았습니다. 다시 시도하는 중…',
+  },
+  // El servidor dijo que esta pantalla ya no existe (TV desactivada o piso dado de baja).
+  screen_inactive: {
+    es: 'Esta pantalla no está activa. Pregunta a tu anfitrión.', en: 'This screen is not active. Ask your host.',
+    fr: "Cet écran n'est pas activé. Demandez à votre hôte.", de: 'Dieser Bildschirm ist nicht aktiv. Fragen Sie Ihren Gastgeber.',
+    it: 'Questo schermo non è attivo. Chiedi al tuo host.', pt: 'Este ecrã não está ativo. Pergunte ao seu anfitrião.',
+    ca: 'Aquesta pantalla no està activa. Pregunta al teu amfitrió.', ar: 'هذه الشاشة غير مفعّلة. اسأل مضيفك.',
+    ru: 'Этот экран не активен. Обратитесь к хозяину.', uk: 'Цей екран не активний. Запитайте господаря.',
+    zh: '此屏幕未启用。请咨询您的房东。', ja: 'この画面は有効ではありません。ホストにお尋ねください。',
+    ko: '이 화면은 활성화되어 있지 않습니다. 호스트에게 문의하세요.',
+  },
   section_unavailable: {
     es: 'Sección no disponible', en: 'Section not available', fr: 'Section indisponible',
     de: 'Bereich nicht verfügbar', it: 'Sezione non disponibile', pt: 'Secção indisponível',

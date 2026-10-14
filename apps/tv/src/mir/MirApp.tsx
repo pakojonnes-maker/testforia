@@ -89,7 +89,7 @@ type TvBridgeWindow = Window & { vtTvBack?: () => boolean }
 
 export function MirApp() {
   const [lang, setLang] = useState(DEFAULT_LANG)
-  const { data: guide, pairingCode, usingMock, identifierAttempted } = useGuidebook(lang)
+  const { data: guide, pairingCode, usingMock, identifierAttempted, status } = useGuidebook(lang)
 
   // Pila de navegación: «atrás» devuelve al sitio del que se vino, no al inicio.
   const [stack, setStack] = useState<MirRoute[]>([{ name: 'home' }])
@@ -161,7 +161,7 @@ export function MirApp() {
     screen = (
       <>
         <Backdrop image={wall} sun={[1590, -40, 330]} rtl={rtl} />
-        <Loading label={getTvString('loading', lang)} />
+        <Loading label={getTvString(status === 'offline' ? 'offline' : status === 'inactive' ? 'screen_inactive' : 'loading', lang)} />
       </>
     )
   } else if (route.name === 'home') {

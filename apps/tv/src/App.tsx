@@ -173,7 +173,7 @@ function Stage({ density, children }: { density: number; children: ReactNode }) 
 
 export function App() {
   const [lang, setLang] = useState(DEFAULT_LANG)
-  const { data: guide, pairingCode, usingMock, identifierAttempted } = useGuidebook(lang)
+  const { data: guide, pairingCode, usingMock, identifierAttempted, status } = useGuidebook(lang)
 
   // Pila de navegación en vez de una pantalla suelta: el botón "atrás" del
   // mando tiene que devolver al sitio del que se vino (detalle → sección →
@@ -285,7 +285,7 @@ export function App() {
                 sólo taparía la habitación sin resolver nada. */}
             <Paper on={PAPER_ROUTES.has(route.name) || !guide}>
             {!guide ? (
-              <Loading label={getTvString('loading', lang)} />
+              <Loading label={getTvString(status === 'offline' ? 'offline' : status === 'inactive' ? 'screen_inactive' : 'loading', lang)} />
             ) : route.name === 'home' ? (
               <HomeScreen data={guide} collections={collections} lang={lang} onNavigate={navigate} />
             ) : route.name === 'collection' ? (

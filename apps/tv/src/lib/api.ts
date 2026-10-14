@@ -95,15 +95,70 @@ export interface GuidebookData {
   }
 }
 
+/** Un fetch colgado (DNS lento, portal cautivo) no rechaza en minutos: pasado esto se aborta. */
+const FETCH_TIMEOUT_MS = 10_000
+
+/**
+ * Fallo al pedir la guía. `definitive` solo es true si el servidor dijo, con su
+ * JSON de error (`success:false`), que ESA pantalla no existe o está inactiva:
+ * entonces la copia local se borra. Un 404 de HTML (Pages, un corte de
+ * despliegue), un 5xx, un timeout o la falta de red son transitorios y no
+ * borran nada.
+ */
+export class GuideFetchError extends Error {
+  readonly status: number | null
+  readonly definitive: boolean
+
+  constructor(message: string, status: number | null, definitive: boolean) {
+    super(message)
+    this.name = 'GuideFetchError'
+    this.status = status
+    this.definitive = definitive
+  }
+}
+
+/**
+ * GET con timeout de 10 s (el cuerpo cuenta: el temporizador sigue vivo hasta
+ * leer el JSON). `AbortController` + `setTimeout` y no `AbortSignal.timeout()`,
+ * que llegó en Chrome 103 y el WebView de algunas teles es más viejo.
+ * `outer` deja que el llamante cancele (reintento inmediato, cambio de idioma).
+ */
+async function getGuideJson(url: string, outer?: AbortSignal): Promise<GuidebookData & { success: boolean }> {
+  const ctl = new AbortController()
+  const timer = window.setTimeout(() => ctl.abort(), FETCH_TIMEOUT_MS)
+  const onOuter = () => ctl.abort()
+  if (outer) {
+    if (outer.aborted) ctl.abort()
+    else outer.addEventListener('abort', onOuter)
+  }
+  try {
+    let res: Response
+    try {
+      res = await fetch(url, { signal: ctl.signal })
+    } catch {
+      throw new GuideFetchError(ctl.signal.aborted ? 'timeout' : 'network error', null, false)
+    }
+    if (!res.ok) {
+      const body = await res.json().catch(() => null)
+      const definitive = res.status === 404 && !!body && typeof body === 'object' && (body as any).success === false
+      throw new GuideFetchError((body as any)?.error || `HTTP ${res.status}`, res.status, definitive)
+    }
+    try {
+      return await res.json()
+    } catch {
+      // 200 con cuerpo que no es JSON (portal cautivo) o cortado a medias.
+      throw new GuideFetchError('invalid response', res.status, false)
+    }
+  } finally {
+    window.clearTimeout(timer)
+    outer?.removeEventListener('abort', onOuter)
+  }
+}
+
 // GET /guide/tv/config/:pairingCode — resuelve la TV emparejada, hace heartbeat
 // y registra una impresión en el backend.
-export async function fetchTvConfig(pairingCode: string, lang = 'es'): Promise<GuidebookData & { success: boolean }> {
-  const res = await fetch(`${API_URL}/guide/tv/config/${encodeURIComponent(pairingCode)}?lang=${lang}`)
-  if (!res.ok) {
-    const err = await res.json().catch(() => ({}))
-    throw new Error((err as any).error || `HTTP ${res.status}`)
-  }
-  return res.json()
+export function fetchTvConfig(pairingCode: string, lang = 'es', signal?: AbortSignal): Promise<GuidebookData & { success: boolean }> {
+  return getGuideJson(`${API_URL}/guide/tv/config/${encodeURIComponent(pairingCode)}?lang=${lang}`, signal)
 }
 
 // GET /guide/:slug — same endpoint apps/guide uses. Lets the TV shell preview a
@@ -111,13 +166,8 @@ export async function fetchTvConfig(pairingCode: string, lang = 'es'): Promise<G
 // without a paired device, for demos/QA. No pairingCode is involved, so the
 // caller must NOT wire this identifier into lib/tracking.ts (there's no real TV
 // session to attribute events to).
-export async function fetchGuideBySlug(slug: string, lang = 'es'): Promise<GuidebookData & { success: boolean }> {
-  const res = await fetch(`${API_URL}/guide/${encodeURIComponent(slug)}?lang=${lang}`)
-  if (!res.ok) {
-    const err = await res.json().catch(() => ({}))
-    throw new Error((err as any).error || `HTTP ${res.status}`)
-  }
-  return res.json()
+export function fetchGuideBySlug(slug: string, lang = 'es', signal?: AbortSignal): Promise<GuidebookData & { success: boolean }> {
+  return getGuideJson(`${API_URL}/guide/${encodeURIComponent(slug)}?lang=${lang}`, signal)
 }
 
 // POST /guide/store/orders (workerGuideStore.js) — misma llamada que hace

@@ -25,6 +25,7 @@ import '@fontsource-variable/playfair-display/wght-italic.css'
 import './index.css'
 import { App } from './App'
 import { MirApp } from './mir/MirApp'
+import { ErrorBoundary } from './components/ErrorBoundary'
 
 /**
  * Dos interfaces en el mismo bundle:
@@ -44,8 +45,7 @@ const Root = classic ? App : MirApp
  * §4). En el APK no aporta nada: los avisos que emite no los lee nadie.
  */
 const root = createRoot(document.getElementById('root')!)
-root.render(
-  import.meta.env.DEV
-    ? <StrictMode><Root /></StrictMode>
-    : <Root />
-)
+// El ErrorBoundary va fuera de todo: si el render con datos de la copia local
+// lanza, borra la copia y recarga una vez (ver components/ErrorBoundary.tsx).
+const app = <ErrorBoundary><Root /></ErrorBoundary>
+root.render(import.meta.env.DEV ? <StrictMode>{app}</StrictMode> : app)
