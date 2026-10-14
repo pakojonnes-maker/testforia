@@ -40,7 +40,8 @@
     "smoke": "node scripts/smoke.mjs",
     "test:restaurant-admin": "node tests/restaurant-admin.test.mjs",
     "test:guide-qr": "node tests/guide-qr.test.mjs",
-    "test:guide-info-scope": "node tests/guide-info-scope.test.mjs"
+    "test:guide-info-scope": "node tests/guide-info-scope.test.mjs",
+    "test:guide-info-share": "node tests/guide-info-share.test.mjs"
   },
   "dependencies": {
     "framer-motion": "^12.23.9"

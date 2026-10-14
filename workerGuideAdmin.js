@@ -178,7 +178,21 @@ export async function handleGuideAdminRequests(request, env) {
         if (path.match(/^apartments\/[^/]+\/info$/) && method === 'GET') {
             const aptId = path.split('/')[1];
             const lang = url.searchParams.get('lang') || 'es';
-            return await getApartmentInfo(env, aptId, lang);
+            return await getApartmentInfo(env, aptId, lang, isSuperAdmin, userAgencyIds);
+        }
+        // Bloques compartidos entre pisos de la agencia (migración 0112). La ruta
+        // lleva el piso de ORIGEN del bloque, como el resto de .../info/:infoId.
+        if (path.match(/^apartments\/[^/]+\/info\/[^/]+\/shares$/) && method === 'GET') {
+            const parts = path.split('/');
+            return await getInfoShares(env, parts[1], parts[3], isSuperAdmin, userAgencyIds);
+        }
+        if (path.match(/^apartments\/[^/]+\/info\/[^/]+\/shares$/) && method === 'PUT') {
+            const parts = path.split('/');
+            return await setInfoShares(env, parts[1], parts[3], await request.json(), isSuperAdmin, userAgencyIds);
+        }
+        if (path.match(/^apartments\/[^/]+\/info-library$/) && method === 'GET') {
+            const aptId = path.split('/')[1];
+            return await getInfoLibrary(env, aptId, isSuperAdmin, userAgencyIds);
         }
         if (path.match(/^apartments\/[^/]+\/info$/) && method === 'POST') {
             const aptId = path.split('/')[1];
@@ -814,6 +828,9 @@ async function updateApartment(env, id, data, isSuperAdmin, userAgencyIds) {
 //     KV: se bumpea ver:apt:{slug} para que la guía pública deje de servir caché
 //
 //   NO SE TOCA (compartido — borrarlo rompería otros apartamentos)
+//     los bloques de este piso que otros tienen compartidos (guide_info_shares,
+//       migración 0112): pasan a uno de ellos con sus fotos, que se quedan en R2.
+//       Del piso solo se van las filas de guide_info_shares que lo nombran.
 //     guide_pois y guide_poi_media ... el POI vive en la ZONA y lo comparten
 //       todos los pisos de esa zona. Sólo se borran sus overrides
 //       (guide_apartment_items).
@@ -863,6 +880,33 @@ async function deleteApartment(env, request, id, userData) {
             (SELECT COUNT(*) FROM guide_sessions          WHERE apartment_id = ?1) AS sessions
     `).bind(id).first();
 
+    // Bloques de este piso que otros pisos tienen compartidos (0112): no se borran,
+    // pasan a uno de esos pisos (el primero que lo recibió) con sus fotos. Sus
+    // ficheros siguen bajo guide/apartments/{id}/, así que se apartan del barrido de R2.
+    const { results: sharedOut } = await env.DB.prepare(`
+        SELECT ai.id, ai.info_key,
+               (SELECT s.apartment_id FROM guide_info_shares s WHERE s.info_id = ai.id
+                ORDER BY s.created_at, s.apartment_id LIMIT 1) AS heir
+        FROM guide_apartment_info ai
+        WHERE ai.apartment_id = ?1
+          AND EXISTS (SELECT 1 FROM guide_info_shares s WHERE s.info_id = ai.id)
+    `).bind(id).all();
+    const transfers = [];
+    for (const info of (sharedOut || [])) transfers.push(...await transferInfoStatements(env, info, info.heir));
+    const keptMedia = new Set();
+    if ((sharedOut || []).length > 0) {
+        const keptIds = sharedOut.map(i => i.id);
+        const marks = keptIds.map(() => '?').join(',');
+        const { results: kept } = await env.DB.prepare(`
+            SELECT r2_key FROM guide_apartment_media WHERE apartment_info_id IN (${marks})
+            UNION
+            SELECT sm.r2_key FROM guide_info_step_media sm
+            JOIN guide_info_steps s ON sm.step_id = s.id
+            WHERE s.apartment_info_id IN (${marks})
+        `).bind(...keptIds, ...keptIds).all();
+        for (const k of (kept || [])) keptMedia.add(k.r2_key);
+    }
+
     // r2_key de las fotos/vídeos que tienen fila en BD. Todas cuelgan de
     // guide/apartments/{id}/, igual que las portadas que sube
     // uploadApartmentMedia, así que el barrido por prefijo de más abajo ya las
@@ -885,6 +929,13 @@ async function deleteApartment(env, request, id, userData) {
     // el PRAGMA de foreign keys esté activo.
     const p = (sql) => env.DB.prepare(sql).bind(id);
     await env.DB.batch([
+        // 0. los bloques compartidos pasan a otro piso ANTES de borrar nada: a
+        // partir de aquí ya no son de este y los DELETE de abajo no los ven.
+        ...transfers,
+        // ...y este piso deja de llevar los bloques que le compartían otros.
+        p(`DELETE FROM guide_info_shares WHERE apartment_id = ?1
+              OR info_id IN (SELECT id FROM guide_apartment_info WHERE apartment_id = ?1)`),
+
         // 1. translations (tabla EAV sin FK: nadie la limpia por nosotros)
         p(`DELETE FROM translations WHERE entity_type = 'apartment_info'
              AND entity_id IN (SELECT id FROM guide_apartment_info WHERE apartment_id = ?1)`),
@@ -959,6 +1010,8 @@ async function deleteApartment(env, request, id, userData) {
                 for (const obj of listed.objects) keys.add(obj.key);
                 cursor = listed.truncated ? listed.cursor : undefined;
             } while (cursor);
+            // Las fotos de los bloques que ha heredado otro piso siguen en uso.
+            for (const key of keptMedia) keys.delete(key);
 
             const all = [...keys];
             for (let i = 0; i < all.length; i += 900) {   // R2 admite 1000 claves por delete()
@@ -975,6 +1028,9 @@ async function deleteApartment(env, request, id, userData) {
     // volvería a '0' y una entrada vieja guide:{slug}:{lang}:v0 podría volver a
     // servirse como HIT. Ver CLAUDE.md §3.
     if (apt.slug) await touchGuideVersion(env, apt.slug);
+    // Los pisos que heredan un bloque lo enseñan igual, pero su clave puede
+    // haber cambiado; y los que lo compartían con este, ya no lo llevan.
+    if ((sharedOut || []).length > 0) await touchAgencyGuideVersions(env, apt.agency_id);
 
     await logSecurityEvent(env, {
         type: 'guide_apartment_deleted',
@@ -1000,16 +1056,28 @@ async function deleteApartment(env, request, id, userData) {
 // ============================================
 // APARTMENT INFO (agency owners can edit)
 // ============================================
-async function getApartmentInfo(env, aptId, lang) {
+async function getApartmentInfo(env, aptId, lang, isSuperAdmin, userAgencyIds) {
+    // Hasta oct-2026 esta ruta no comprobaba el acceso: cualquier sesión de
+    // cualquier agencia leía los bloques de cualquier piso, código de la puerta incluido.
+    const access = await checkAptAccess(env, aptId, isSuperAdmin, userAgencyIds);
+    if (access.error) return access.error;
+
     // title/content deliberately do NOT fall back to 'es' here (unlike the public
     // workerGuide.js) — the admin needs to show "no translation yet" per language
     // tab. category_name is different: it's sourced from the global catalog, which
     // is seeded complete in all 13 languages, so it's safe (and useful) to always
     // resolve it — it's the preview of what the guest will actually see as the
     // title when the host hasn't written a custom one.
+    //
+    // Bloques del piso + los que otro piso de la agencia comparte con él (0112).
+    // owner_apartment_id es el piso de origen: las rutas .../info/:infoId van con
+    // ese id. share_count = en cuántos pisos más sale.
     const items = await env.DB.prepare(`
         SELECT
-            ai.id, ai.info_key, ai.icon_name, ai.order_index, ai.category_key, ai.use_custom_title,
+            ai.id, ai.info_key, ai.icon_name, ai.category_key, ai.use_custom_title,
+            COALESCE(sh.order_index, ai.order_index) AS order_index,
+            ai.apartment_id AS owner_apartment_id, owner.name AS owner_apartment_name,
+            (SELECT COUNT(*) FROM guide_info_shares x WHERE x.info_id = ai.id) AS share_count,
             ai.latitude, ai.longitude,
             t_title.value AS title,
             t_content.value AS content,
@@ -1018,19 +1086,21 @@ async function getApartmentInfo(env, aptId, lang) {
             COALESCE(cat_name.value, cat_name_es.value) AS category_name,
             CASE WHEN ai.use_custom_title THEN t_title.value ELSE COALESCE(cat_name.value, cat_name_es.value) END AS resolved_title
         FROM guide_apartment_info ai
+        JOIN guide_apartments owner ON owner.id = ai.apartment_id
+        LEFT JOIN guide_info_shares sh ON sh.info_id = ai.id AND sh.apartment_id = ?5
         LEFT JOIN translations t_title ON ai.id = t_title.entity_id
-            AND t_title.entity_type = 'apartment_info' AND t_title.field = 'title' AND t_title.language_code = ?
+            AND t_title.entity_type = 'apartment_info' AND t_title.field = 'title' AND t_title.language_code = ?1
         LEFT JOIN translations t_content ON ai.id = t_content.entity_id
-            AND t_content.entity_type = 'apartment_info' AND t_content.field = 'content' AND t_content.language_code = ?
+            AND t_content.entity_type = 'apartment_info' AND t_content.field = 'content' AND t_content.language_code = ?2
         LEFT JOIN translations t_pickup ON ai.id = t_pickup.entity_id
-            AND t_pickup.entity_type = 'apartment_info' AND t_pickup.field = 'pickup_instructions' AND t_pickup.language_code = ?
+            AND t_pickup.entity_type = 'apartment_info' AND t_pickup.field = 'pickup_instructions' AND t_pickup.language_code = ?3
         LEFT JOIN guide_info_categories c ON ai.category_key = c.key
         LEFT JOIN translations cat_name ON c.key = cat_name.entity_id
-            AND cat_name.entity_type = 'info_category' AND cat_name.field = 'name' AND cat_name.language_code = ?
+            AND cat_name.entity_type = 'info_category' AND cat_name.field = 'name' AND cat_name.language_code = ?4
         LEFT JOIN translations cat_name_es ON c.key = cat_name_es.entity_id
             AND cat_name_es.entity_type = 'info_category' AND cat_name_es.field = 'name' AND cat_name_es.language_code = 'es'
-        WHERE ai.apartment_id = ?
-        ORDER BY ai.order_index ASC
+        WHERE ${aptInfoScope('ai', '?5')}
+        ORDER BY COALESCE(sh.order_index, ai.order_index) ASC
     `).bind(lang, lang, lang, lang, aptId).all();
 
     const infoResults = items.results || [];
@@ -1067,14 +1137,14 @@ async function getApartmentInfoCoverage(env, aptId, isSuperAdmin, userAgencyIds)
     if (access.error) return access.error;
 
     const total = await env.DB.prepare(
-        'SELECT COUNT(*) as c FROM guide_apartment_info WHERE apartment_id = ?'
+        `SELECT COUNT(*) as c FROM guide_apartment_info ai WHERE ${aptInfoScope('ai', '?1')}`
     ).bind(aptId).first();
 
     const rows = await env.DB.prepare(`
         SELECT t.language_code, COUNT(DISTINCT t.entity_id) as c
         FROM translations t
         JOIN guide_apartment_info ai ON ai.id = t.entity_id
-        WHERE ai.apartment_id = ? AND t.entity_type = 'apartment_info' AND t.field = 'content'
+        WHERE ${aptInfoScope('ai', '?1')} AND t.entity_type = 'apartment_info' AND t.field = 'content'
         GROUP BY t.language_code
     `).bind(aptId).all();
 
@@ -1128,21 +1198,30 @@ async function upsertApartmentInfo(env, aptId, data, isSuperAdmin, userAgencyIds
     const { info_key, icon_name, order_index, category_key, use_custom_title, latitude, longitude, translations } = data;
     if (!info_key) return errorResponse('info_key is required');
 
-    const infoId = `info_${aptId}_${info_key}`;
+    // El id de un bloque NUEVO se deriva del piso y la clave, pero no se puede
+    // volver a derivar: un bloque compartido que pasa a otro piso (0112) conserva
+    // su id. Para editar, el que manda es el de la fila que ya existe.
+    const existing = await env.DB.prepare(
+        'SELECT id FROM guide_apartment_info WHERE apartment_id = ? AND info_key = ?'
+    ).bind(aptId, info_key).first();
+    const infoId = existing?.id || `info_${aptId}_${info_key}`;
 
-    // Upsert the info record
+    // Upsert the info record. Sin order_index en el body se conserva el que
+    // tenía: al editar un bloque compartido desde otro piso, el admin no conoce
+    // la posición que tiene en su piso de origen.
+    const orderGiven = Number.isFinite(order_index) ? order_index : null;
     await env.DB.prepare(`
         INSERT INTO guide_apartment_info (id, apartment_id, info_key, icon_name, order_index, category_key, use_custom_title, latitude, longitude)
         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
         ON CONFLICT(apartment_id, info_key) DO UPDATE SET
             icon_name = COALESCE(excluded.icon_name, icon_name),
-            order_index = excluded.order_index,
+            order_index = COALESCE(?, order_index),
             category_key = COALESCE(excluded.category_key, category_key),
             use_custom_title = excluded.use_custom_title,
             latitude = excluded.latitude,
             longitude = excluded.longitude,
             modified_at = CURRENT_TIMESTAMP
-    `).bind(infoId, aptId, info_key, icon_name || null, order_index || 0, category_key || null, use_custom_title ? 1 : 0, latitude ?? null, longitude ?? null).run();
+    `).bind(infoId, aptId, info_key, icon_name || null, orderGiven ?? 0, category_key || null, use_custom_title ? 1 : 0, latitude ?? null, longitude ?? null, orderGiven).run();
 
     // Upsert translations
     if (translations && typeof translations === 'object') {
@@ -1201,7 +1280,7 @@ async function upsertApartmentInfo(env, aptId, data, isSuperAdmin, userAgencyIds
         }
     }
 
-    if (access.apt.slug) await touchGuideVersion(env, access.apt.slug);
+    await touchInfoGuides(env, infoId, access.apt);
 
     return jsonResponse({ success: true, infoId });
 }
@@ -1211,10 +1290,14 @@ async function reorderApartmentInfo(env, aptId, data, isSuperAdmin, userAgencyId
     if (access.error) return access.error;
     if (!data.items || !Array.isArray(data.items)) return errorResponse('items array required');
 
-    const statements = data.items.map(i =>
+    // Un bloque propio guarda su posición en la fila; uno compartido por otro
+    // piso, en guide_info_shares (0112). De las dos sentencias, una no toca nada.
+    const statements = data.items.flatMap(i => [
         env.DB.prepare('UPDATE guide_apartment_info SET order_index = ? WHERE id = ? AND apartment_id = ?')
-        .bind(i.order_index, i.id, aptId)
-    );
+            .bind(i.order_index, i.id, aptId),
+        env.DB.prepare('UPDATE guide_info_shares SET order_index = ? WHERE info_id = ? AND apartment_id = ?')
+            .bind(i.order_index, i.id, aptId),
+    ]);
     if (statements.length > 0) await env.DB.batch(statements);
 
     if (access.apt.slug) await touchGuideVersion(env, access.apt.slug);
@@ -1231,9 +1314,14 @@ async function deleteApartmentInfo(env, aptId, infoId, isSuperAdmin, userAgencyI
         'SELECT r2_key FROM guide_apartment_media WHERE apartment_info_id = ?'
     ).bind(infoId).all();
 
+    // Borrar un bloque compartido lo quita de TODOS los pisos que lo tienen (el
+    // admin lo avisa). Quitarlo de un solo piso es PUT .../shares.
+    const shared = await isInfoShared(env, infoId);
+
     // guide_apartment_media and guide_info_steps cascade via FK ON DELETE CASCADE.
     // translations has no FK (it's a generic EAV table keyed by entity_id/entity_type)
     // so it needs an explicit delete — same pattern as deleteGuideInfoStep below.
+    await env.DB.prepare('DELETE FROM guide_info_shares WHERE info_id = ?').bind(infoId).run();
     await env.DB.prepare('DELETE FROM guide_apartment_info WHERE id = ? AND apartment_id = ?').bind(infoId, aptId).run();
     await env.DB.prepare('DELETE FROM translations WHERE entity_id = ? AND entity_type = ?').bind(infoId, 'apartment_info').run();
 
@@ -1241,7 +1329,8 @@ async function deleteApartmentInfo(env, aptId, infoId, isSuperAdmin, userAgencyI
         await env.R2_BUCKET.delete(m.r2_key).catch(() => {});
     }
 
-    if (access.apt.slug) await touchGuideVersion(env, access.apt.slug);
+    if (shared) await touchAgencyGuideVersions(env, access.apt.agency_id);
+    else if (access.apt.slug) await touchGuideVersion(env, access.apt.slug);
     return jsonResponse({ success: true });
 }
 
@@ -1368,7 +1457,7 @@ async function addApartmentInfoMedia(env, aptId, infoId, request, isSuperAdmin, 
             VALUES (?, ?, ?, ?, 0, ?, ?, ?)
         `).bind(id, infoId, r2Key, mediaType, afterBlock, width, height).run();
 
-        if (access.apt.slug) await touchGuideVersion(env, access.apt.slug);
+        await touchInfoGuides(env, infoId, access.apt);
 
         const origin = new URL(request.url).origin;
         return jsonResponse({
@@ -1421,7 +1510,7 @@ async function updateApartmentInfoMedia(env, aptId, infoId, mediaId, data, isSup
     await env.DB.prepare('UPDATE guide_apartment_media SET after_block = ? WHERE id = ?')
         .bind(afterBlock, mediaId).run();
 
-    if (access.apt.slug) await touchGuideVersion(env, access.apt.slug);
+    await touchInfoGuides(env, infoId, access.apt);
     return jsonResponse({ success: true, after_block: afterBlock });
 }
 
@@ -1437,7 +1526,7 @@ async function deleteApartmentInfoMedia(env, aptId, infoId, mediaId, isSuperAdmi
     await env.R2_BUCKET.delete(media.r2_key);
     await env.DB.prepare('DELETE FROM guide_apartment_media WHERE id = ?').bind(mediaId).run();
 
-    if (access.apt.slug) await touchGuideVersion(env, access.apt.slug);
+    await touchInfoGuides(env, infoId, access.apt);
     return jsonResponse({ success: true });
 }
 
@@ -1456,20 +1545,34 @@ async function bulkImportApartmentInfoTranslations(env, aptId, data, isSuperAdmi
         return errorResponse('Body must be an object keyed by info_key');
     }
 
+    // info_key -> id de los bloques que salen en este piso, también los que
+    // comparte otro piso (0112): la exportación los incluye. Si un compartido
+    // repite la clave de uno propio, gana el propio. El id se lee, no se deriva:
+    // un bloque traspasado conserva el de su piso anterior.
     const existing = await env.DB.prepare(
-        'SELECT info_key FROM guide_apartment_info WHERE apartment_id = ?'
+        `SELECT ai.id, ai.info_key, ai.apartment_id = ?1 AS own,
+                EXISTS (SELECT 1 FROM guide_info_shares x WHERE x.info_id = ai.id) AS shared
+         FROM guide_apartment_info ai WHERE ${aptInfoScope('ai', '?1')}
+         ORDER BY own DESC`
     ).bind(aptId).all();
-    const validKeys = new Set((existing.results || []).map(r => r.info_key));
+    const idByKey = new Map();
+    const sharedIds = new Set();
+    for (const r of (existing.results || [])) {
+        if (!idByKey.has(r.info_key)) idByKey.set(r.info_key, r.id);
+        if (r.shared) sharedIds.add(r.id);
+    }
     const validLangs = new Set(ACTIVE_LANGUAGES);
+    let touchesShared = false;
 
     const statements = [];
     const skipped = [];
     let importedFields = 0;
 
     for (const [infoKey, byLang] of Object.entries(data)) {
-        if (!validKeys.has(infoKey)) { skipped.push(`${infoKey}: no existe ese bloque en este apartamento`); continue; }
+        const infoId = idByKey.get(infoKey);
+        if (!infoId) { skipped.push(`${infoKey}: no existe ese bloque en este apartamento`); continue; }
         if (!byLang || typeof byLang !== 'object') continue;
-        const infoId = `info_${aptId}_${infoKey}`;
+        if (sharedIds.has(infoId)) touchesShared = true;
 
         for (const [lang, fields] of Object.entries(byLang)) {
             if (!validLangs.has(lang)) { skipped.push(`${infoKey}.${lang}: idioma desconocido`); continue; }
@@ -1495,7 +1598,8 @@ async function bulkImportApartmentInfoTranslations(env, aptId, data, isSuperAdmi
     }
 
     if (statements.length > 0) await env.DB.batch(statements);
-    if (access.apt.slug) await touchGuideVersion(env, access.apt.slug);
+    if (touchesShared) await touchAgencyGuideVersions(env, access.apt.agency_id);
+    else if (access.apt.slug) await touchGuideVersion(env, access.apt.slug);
 
     return jsonResponse({ success: true, imported_fields: importedFields, skipped });
 }
@@ -3256,6 +3360,178 @@ async function checkInfoAccess(env, aptId, infoId, isSuperAdmin, userAgencyIds) 
 }
 
 // ============================================
+// BLOQUES COMPARTIDOS ENTRE PISOS (migración 0112)
+// ============================================
+// Un bloque es de su piso de origen (guide_apartment_info.apartment_id) y
+// guide_info_shares lo añade a otros pisos de la MISMA agencia. Se edita por las
+// rutas de siempre con el piso de origen en la ruta (checkInfoAccess no cambia);
+// las de aquí solo deciden en qué pisos sale.
+
+/** Bloques de la guía de un piso: los suyos y los que comparte con él otro piso. `param`: el placeholder con el id del piso. */
+export function aptInfoScope(alias, param) {
+    return `(${alias}.apartment_id = ${param} OR ${alias}.id IN (SELECT info_id FROM guide_info_shares WHERE apartment_id = ${param}))`;
+}
+
+async function isInfoShared(env, infoId) {
+    const row = await env.DB.prepare('SELECT 1 AS x FROM guide_info_shares WHERE info_id = ? LIMIT 1').bind(infoId).first();
+    return !!row;
+}
+
+// Un bloque compartido sale en varios pisos: una escritura de agencia en vez de
+// una ver:apt:* por piso (CLAUDE.md §3: 1.000 escrituras de KV al día).
+async function touchInfoGuides(env, infoId, apt) {
+    if (await isInfoShared(env, infoId)) return touchAgencyGuideVersions(env, apt.agency_id);
+    if (apt.slug) return touchGuideVersion(env, apt.slug);
+}
+
+/**
+ * Sentencias que hacen de `newOwnerId` (uno de los pisos con los que ya se
+ * comparte) el piso de origen del bloque. Conserva id, traducciones, fotos y
+ * pasos, y la posición que tenía en ese piso. info_key es único por piso: si el
+ * nuevo ya usa esa clave, se le pone sufijo.
+ */
+async function transferInfoStatements(env, info, newOwnerId) {
+    const { results } = await env.DB.prepare(
+        'SELECT info_key FROM guide_apartment_info WHERE apartment_id = ?'
+    ).bind(newOwnerId).all();
+    const taken = new Set((results || []).map(r => r.info_key));
+    let key = info.info_key;
+    for (let n = 2; taken.has(key); n++) key = `${info.info_key}_${n}`;
+    return [
+        env.DB.prepare(`
+            UPDATE guide_apartment_info
+            SET apartment_id = ?1, info_key = ?2, modified_at = CURRENT_TIMESTAMP,
+                order_index = COALESCE((SELECT order_index FROM guide_info_shares
+                                        WHERE info_id = ?3 AND apartment_id = ?1), order_index)
+            WHERE id = ?3
+        `).bind(newOwnerId, key, info.id),
+        env.DB.prepare('DELETE FROM guide_info_shares WHERE info_id = ? AND apartment_id = ?').bind(info.id, newOwnerId),
+    ];
+}
+
+// Los pisos de la agencia, marcando en cuáles sale el bloque. aptId = su piso de origen.
+async function getInfoShares(env, aptId, infoId, isSuperAdmin, userAgencyIds) {
+    const access = await checkInfoAccess(env, aptId, infoId, isSuperAdmin, userAgencyIds);
+    if (access.error) return access.error;
+
+    const { results } = await env.DB.prepare(`
+        SELECT a.id, a.name, a.slug, a.is_active,
+               a.id = ?2 AS is_owner,
+               EXISTS (SELECT 1 FROM guide_info_shares s WHERE s.info_id = ?1 AND s.apartment_id = a.id) AS shared
+        FROM guide_apartments a
+        WHERE a.agency_id = ?3
+        ORDER BY a.name COLLATE NOCASE
+    `).bind(infoId, aptId, access.apt.agency_id).all();
+
+    const apartments = (results || []).map(r => ({
+        id: r.id, name: r.name, slug: r.slug, is_active: !!r.is_active,
+        is_owner: !!r.is_owner, included: !!r.is_owner || !!r.shared,
+    }));
+    return jsonResponse({ success: true, owner_apartment_id: aptId, apartments });
+}
+
+// Fija la lista COMPLETA de pisos en los que sale el bloque. Si el piso de
+// origen no está en ella, el bloque pasa a otro de la lista (así se «quita de
+// este piso» un bloque desde su propio origen). Vacía, no: eso es borrarlo.
+async function setInfoShares(env, aptId, infoId, data, isSuperAdmin, userAgencyIds) {
+    const access = await checkInfoAccess(env, aptId, infoId, isSuperAdmin, userAgencyIds);
+    if (access.error) return access.error;
+
+    const ids = data?.apartment_ids;
+    if (!Array.isArray(ids) || ids.some(x => typeof x !== 'string')) {
+        return errorResponse('apartment_ids must be an array of apartment ids');
+    }
+    const wanted = [...new Set(ids)];
+    if (wanted.length === 0) {
+        return errorResponse('El bloque tiene que salir al menos en un piso: para quitarlo de todos, bórralo');
+    }
+
+    try {
+        // Solo pisos de la agencia del bloque: compartir es entre los pisos de un
+        // mismo anfitrión, nunca con otra agencia.
+        const { results: agencyApts } = await env.DB.prepare(
+            'SELECT id FROM guide_apartments WHERE agency_id = ?'
+        ).bind(access.apt.agency_id).all();
+        const agencyIds = new Set((agencyApts || []).map(r => r.id));
+        if (wanted.some(id => !agencyIds.has(id))) {
+            return errorResponse('Solo se puede compartir con pisos de la misma agencia', 403);
+        }
+
+        const info = await env.DB.prepare(
+            'SELECT id, info_key FROM guide_apartment_info WHERE id = ?'
+        ).bind(infoId).first();
+        const { results: currentRows } = await env.DB.prepare(
+            'SELECT apartment_id FROM guide_info_shares WHERE info_id = ?'
+        ).bind(infoId).all();
+        const current = new Set((currentRows || []).map(r => r.apartment_id));
+
+        // Mejor un piso que ya lo tuviera: conserva la posición que le dieron allí.
+        const ownerId = wanted.includes(aptId) ? aptId : (wanted.find(id => current.has(id)) || wanted[0]);
+
+        const statements = [];
+        // 1. Pisos nuevos: el bloque entra al final de su guía.
+        for (const id of wanted) {
+            if (id === aptId || current.has(id)) continue;
+            statements.push(env.DB.prepare(`
+                INSERT OR IGNORE INTO guide_info_shares (info_id, apartment_id, order_index)
+                VALUES (?1, ?2, (SELECT COALESCE(MAX(o), -1) + 1 FROM (
+                    SELECT order_index AS o FROM guide_apartment_info WHERE apartment_id = ?2
+                    UNION ALL
+                    SELECT order_index FROM guide_info_shares WHERE apartment_id = ?2)))
+            `).bind(infoId, id));
+        }
+        // 2. El origen deja de tenerlo: el bloque pasa a otro de la lista.
+        if (ownerId !== aptId) statements.push(...await transferInfoStatements(env, info, ownerId));
+        // 3. Pisos que ya no lo llevan.
+        for (const id of current) {
+            if (!wanted.includes(id)) {
+                statements.push(env.DB.prepare(
+                    'DELETE FROM guide_info_shares WHERE info_id = ? AND apartment_id = ?'
+                ).bind(infoId, id));
+            }
+        }
+
+        if (statements.length > 0) {
+            await env.DB.batch(statements);
+            await touchAgencyGuideVersions(env, access.apt.agency_id);
+        }
+        return jsonResponse({ success: true, owner_apartment_id: ownerId });
+    } catch (err) {
+        console.error('[setInfoShares]', err.message);
+        return errorResponse('No se pudo guardar con qué pisos se comparte el bloque', 500);
+    }
+}
+
+// Bloques de otros pisos de la agencia que este aún no tiene: lo que se puede
+// añadir desde «Añadir bloque de otro piso». Título y extracto en español.
+async function getInfoLibrary(env, aptId, isSuperAdmin, userAgencyIds) {
+    const access = await checkAptAccess(env, aptId, isSuperAdmin, userAgencyIds);
+    if (access.error) return access.error;
+
+    const { results } = await env.DB.prepare(`
+        SELECT ai.id, ai.info_key, ai.category_key,
+               ai.apartment_id AS owner_apartment_id, owner.name AS owner_apartment_name,
+               (SELECT COUNT(*) FROM guide_info_shares x WHERE x.info_id = ai.id) AS share_count,
+               CASE WHEN ai.use_custom_title THEN t_title.value ELSE cat_name.value END AS resolved_title,
+               COALESCE(ai.icon_name, c.icon_name) AS category_icon_name, c.color AS category_color,
+               substr(t_content.value, 1, 160) AS excerpt
+        FROM guide_apartment_info ai
+        JOIN guide_apartments owner ON owner.id = ai.apartment_id
+        LEFT JOIN guide_info_categories c ON c.key = ai.category_key
+        LEFT JOIN translations t_title ON t_title.entity_id = ai.id
+            AND t_title.entity_type = 'apartment_info' AND t_title.field = 'title' AND t_title.language_code = 'es'
+        LEFT JOIN translations t_content ON t_content.entity_id = ai.id
+            AND t_content.entity_type = 'apartment_info' AND t_content.field = 'content' AND t_content.language_code = 'es'
+        LEFT JOIN translations cat_name ON cat_name.entity_id = c.key
+            AND cat_name.entity_type = 'info_category' AND cat_name.field = 'name' AND cat_name.language_code = 'es'
+        WHERE owner.agency_id = ?2 AND NOT ${aptInfoScope('ai', '?1')}
+        ORDER BY owner.name COLLATE NOCASE, ai.order_index
+    `).bind(aptId, access.apt.agency_id).all();
+
+    return jsonResponse({ success: true, blocks: results || [] });
+}
+
+// ============================================
 // GUIDE INFO STEPS
 // ============================================
 async function listGuideInfoSteps(env, aptId, infoId, isSuperAdmin, userAgencyIds) {
@@ -3284,7 +3560,7 @@ async function createGuideInfoStep(env, aptId, infoId, data, isSuperAdmin, userA
         });
     }
 
-    await touchGuideVersion(env, access.apt.slug);
+    await touchInfoGuides(env, infoId, access.apt);
     return jsonResponse({ success: true, id });
 }
 
@@ -3299,7 +3575,7 @@ async function reorderGuideInfoSteps(env, aptId, infoId, data, isSuperAdmin, use
     );
     if (statements.length > 0) await env.DB.batch(statements);
 
-    await touchGuideVersion(env, access.apt.slug);
+    await touchInfoGuides(env, infoId, access.apt);
     return jsonResponse({ success: true });
 }
 
@@ -3334,7 +3610,7 @@ async function updateGuideInfoStep(env, aptId, infoId, stepId, data, isSuperAdmi
         });
     }
 
-    await touchGuideVersion(env, access.apt.slug);
+    await touchInfoGuides(env, infoId, access.apt);
     return jsonResponse({ success: true });
 }
 
@@ -3346,7 +3622,7 @@ async function deleteGuideInfoStep(env, aptId, infoId, stepId, isSuperAdmin, use
     await env.DB.prepare('DELETE FROM guide_info_steps WHERE id = ? AND apartment_info_id = ?').bind(stepId, infoId).run();
     await env.DB.prepare('DELETE FROM translations WHERE entity_id = ? AND entity_type = ?').bind(stepId, 'guide_step').run();
 
-    await touchGuideVersion(env, access.apt.slug);
+    await touchInfoGuides(env, infoId, access.apt);
     return jsonResponse({ success: true });
 }
 

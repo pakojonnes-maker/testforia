@@ -4,7 +4,7 @@
 // Returns complete guidebook data for a single apartment
 // ============================================
 
-import { ACTIVE_LANGUAGES } from './workerGuideAdmin.js';
+import { ACTIVE_LANGUAGES, aptInfoScope } from './workerGuideAdmin.js';
 import { getGuideVersion, getZoneExploreVersion, getZoneCatalogVersion, readGuideScope, readGuidePayload, writeGuidePayload } from './workerGuideCache.js';
 import { publicMediaUrls } from './workerMediaUrl.js';
 
@@ -545,9 +545,13 @@ export async function handleGetGuidebook(env, slug, lang, origin, surface = 'gui
         // The category's own name/icon/color are seeded in all 13 languages for
         // every category (migration 0083), so cat_name_es is only a safety net,
         // never expected to actually fire for a real category_key.
+        //
+        // Bloques propios del piso + los que otro piso de la agencia comparte con
+        // él (migración 0112), cada uno en la posición que tiene en ESTE piso.
         env.DB.prepare(`
             SELECT
-                ai.id, ai.info_key, ai.order_index, ai.category_key, ai.use_custom_title,
+                ai.id, ai.info_key, COALESCE(sh.order_index, ai.order_index) AS order_index,
+                ai.category_key, ai.use_custom_title,
                 ai.latitude, ai.longitude,
                 COALESCE(ai.icon_name, c.icon_name) AS icon,
                 c.color AS category_color,
@@ -593,9 +597,10 @@ export async function handleGetGuidebook(env, slug, lang, origin, surface = 'gui
                 AND t_pickup_es.entity_type = 'apartment_info'
                 AND t_pickup_es.field = 'pickup_instructions'
                 AND t_pickup_es.language_code = ?
-            WHERE ai.apartment_id = ?
-            ORDER BY ai.order_index ASC
-        `).bind(lang, FALLBACK_LANG, lang, FALLBACK_LANG, lang, FALLBACK_LANG, lang, FALLBACK_LANG, apartment.id).all(),
+            LEFT JOIN guide_info_shares sh ON sh.info_id = ai.id AND sh.apartment_id = ?
+            WHERE ${aptInfoScope('ai', '?')}
+            ORDER BY COALESCE(sh.order_index, ai.order_index) ASC
+        `).bind(lang, FALLBACK_LANG, lang, FALLBACK_LANG, lang, FALLBACK_LANG, lang, FALLBACK_LANG, apartment.id, apartment.id, apartment.id).all(),
 
         // Catálogo de la zona: lugares Y experiencias reservables, en UNA sola
         // consulta. La migración 0059 unificó ambos en guide_pois (is_bookable

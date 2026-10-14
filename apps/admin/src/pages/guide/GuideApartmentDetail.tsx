@@ -42,9 +42,15 @@ import {
   Search as SearchIcon,
   DeleteForever as DeleteForeverIcon,
   SwapVert as SortIcon,
+  Share as ShareIcon,
+  LinkOff as LinkOffIcon,
+  LibraryAdd as LibraryAddIcon,
 } from '@mui/icons-material';
 import QRCodeGenerator, { type QRCodeHandle } from '../../components/QRCodeGenerator';
 import ApartmentItemOrder from '../../components/guide/ApartmentItemOrder';
+import { InfoShareDialog } from '../../components/guide/InfoShareDialog';
+import { InfoLibraryDialog } from '../../components/guide/InfoLibraryDialog';
+import { toggleInfoInApartment } from '../../lib/guideInfoShares';
 
 interface ApartmentInfo {
   id: string;
@@ -65,6 +71,11 @@ interface ApartmentInfo {
   latitude?: number | null;
   longitude?: number | null;
   pickup_instructions?: string | null;
+  // Bloques compartidos (migración 0112): el piso de origen va en las rutas del
+  // bloque, y share_count dice en cuántos pisos más sale.
+  owner_apartment_id: string;
+  owner_apartment_name?: string | null;
+  share_count: number;
 }
 
 interface InfoCategory {
@@ -189,6 +200,8 @@ export default function GuideApartmentDetail() {
   // Dialog State (info blocks)
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingItem, setEditingItem] = useState<ApartmentInfo | null>(null);
+  const [shareItem, setShareItem] = useState<ApartmentInfo | null>(null);
+  const [libraryOpen, setLibraryOpen] = useState(false);
   const [saving, setSaving] = useState(false);
   const [loadingTranslations, setLoadingTranslations] = useState(false);
   const [form, setForm] = useState({
@@ -316,6 +329,25 @@ export default function GuideApartmentDetail() {
       console.error('Error loading data:', err);
     } finally {
       setLoading(false);
+    }
+  };
+
+  // Las rutas de un bloque llevan su piso de origen, que no es este cuando el
+  // bloque lo comparte otro piso de la agencia (migración 0112).
+  const blockApt = (item: ApartmentInfo): string => item.owner_apartment_id || id || '';
+  const blockPath = (item: ApartmentInfo) => `/guide/admin/apartments/${blockApt(item)}/info/${item.id}`;
+  const pisosOf = (item: ApartmentInfo) => (item.share_count || 0) + 1;
+
+  const handleRemoveFromThisApartment = async (item: ApartmentInfo) => {
+    if (!id) return;
+    const title = item.resolved_title || item.title || item.info_key;
+    if (!window.confirm(`¿Quitar "${title}" de este piso? Seguirá en los otros ${pisosOf(item) - 1}.`)) return;
+    try {
+      await toggleInfoInApartment(blockApt(item), item.id, id, false);
+      await Promise.all([loadInfo(), loadCoverage()]);
+      handleRefreshPreview();
+    } catch (err) {
+      console.error('Error removing shared block:', err);
     }
   };
 
@@ -481,7 +513,7 @@ export default function GuideApartmentDetail() {
     });
     setDialogOpen(true);
     try {
-      const res = await apiClient.request(`/guide/admin/apartments/${id}/info/${item.id}/translations`);
+      const res = await apiClient.request(`${blockPath(item)}/translations`);
       setForm(prev => ({ ...prev, translations: res.translations || {} }));
     } catch (err) {
       console.error('Error loading translations:', err);
@@ -517,14 +549,17 @@ export default function GuideApartmentDetail() {
     if (!id) return;
     setSaving(true);
     try {
-      await apiClient.request(`/guide/admin/apartments/${id}/info`, {
+      // Un bloque que comparte otro piso se guarda en su piso de origen, y sin
+      // order_index: el que se ve aquí es su posición en ESTE piso, no en aquel.
+      const ownerApt = editingItem ? blockApt(editingItem) : id;
+      await apiClient.request(`/guide/admin/apartments/${ownerApt}/info`, {
         method: 'POST',
         body: JSON.stringify({
           info_key: form.info_key,
           icon_name: form.icon_name || null,
           category_key: form.category_key || null,
           use_custom_title: form.use_custom_title,
-          order_index: editingItem?.order_index,
+          order_index: editingItem && ownerApt === id ? editingItem.order_index : undefined,
           latitude: form.latitude,
           longitude: form.longitude,
           translations: form.translations,
@@ -542,10 +577,14 @@ export default function GuideApartmentDetail() {
 
   const handleDeleteInfo = async (item: ApartmentInfo) => {
     if (!id) return;
-    if (!window.confirm(`¿Eliminar el bloque "${item.resolved_title || item.title || item.info_key}"? Esta acción no se puede deshacer.`)) return;
+    const title = item.resolved_title || item.title || item.info_key;
+    const question = pisosOf(item) > 1
+      ? `"${title}" sale en ${pisosOf(item)} pisos: eliminarlo lo quita de TODOS. Para quitarlo solo de este, usa «Quitar de este piso». ¿Eliminarlo de todos? No se puede deshacer.`
+      : `¿Eliminar el bloque "${title}"? Esta acción no se puede deshacer.`;
+    if (!window.confirm(question)) return;
     setDeletingInfo(true);
     try {
-      await apiClient.request(`/guide/admin/apartments/${id}/info/${item.id}`, { method: 'DELETE' });
+      await apiClient.request(blockPath(item), { method: 'DELETE' });
       await Promise.all([loadInfo(), loadCoverage()]);
       handleRefreshPreview();
     } catch (err) {
@@ -656,7 +695,7 @@ export default function GuideApartmentDetail() {
         formData.append('width', String(prepared.width));
         formData.append('height', String(prepared.height));
       }
-      const response = await fetch(`${MEDIA_BASE}/guide/admin/apartments/${id}/info/${editingItem.id}/media`, {
+      const response = await fetch(`${MEDIA_BASE}${blockPath(editingItem)}/media`, {
         method: 'POST',
         headers: { 'Authorization': `Bearer ${localStorage.getItem('auth_token')}` },
         body: formData,
@@ -682,7 +721,7 @@ export default function GuideApartmentDetail() {
   const handleRemoveMedia = async (mediaId: string | undefined, index: number) => {
     if (!id || !editingItem || !mediaId) return;
     try {
-      await apiClient.request(`/guide/admin/apartments/${id}/info/${editingItem.id}/media/${mediaId}`, { method: 'DELETE' });
+      await apiClient.request(`${blockPath(editingItem)}/media/${mediaId}`, { method: 'DELETE' });
       setForm(prev => {
         const newMedia = [...prev.media];
         newMedia.splice(index, 1);
@@ -704,7 +743,7 @@ export default function GuideApartmentDetail() {
       media: prev.media.map(m => (m.id === mediaId ? { ...m, after_block: afterBlock } : m)),
     }));
     try {
-      await apiClient.request(`/guide/admin/apartments/${id}/info/${editingItem.id}/media/${mediaId}`, {
+      await apiClient.request(`${blockPath(editingItem)}/media/${mediaId}`, {
         method: 'PUT',
         body: JSON.stringify({ after_block: afterBlock }),
       });
@@ -1279,9 +1318,14 @@ export default function GuideApartmentDetail() {
           <Typography variant="body2" color="text.secondary" sx={{ mb: 3, px: 2 }}>
             Añade bloques de información como la clave del WiFi, normas de la casa o check-out.
           </Typography>
-          <Button variant="contained" startIcon={<AddIcon />} onClick={handleOpenCreate}>
-            Crear Primer Bloque
-          </Button>
+          <Box sx={{ display: 'flex', gap: 1, justifyContent: 'center', flexWrap: 'wrap' }}>
+            <Button variant="contained" startIcon={<AddIcon />} onClick={handleOpenCreate}>
+              Crear Primer Bloque
+            </Button>
+            <Button variant="outlined" startIcon={<LibraryAddIcon />} onClick={() => setLibraryOpen(true)}>
+              Añadir bloque de otro piso
+            </Button>
+          </Box>
         </Box>
       ) : (
         <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
@@ -1310,13 +1354,26 @@ export default function GuideApartmentDetail() {
                   <CategoryIcon name={item.icon_name || item.category_icon_name} color="white" />
                 </Box>
                 <Box sx={{ flexGrow: 1, minWidth: 0 }}>
-                  <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 0.5 }}>
-                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                  <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', columnGap: 1, mb: 0.5 }}>
+                    <Box sx={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: 1, minWidth: 0 }}>
                       <Typography variant="subtitle1" fontWeight={600}>
                         {item.resolved_title || item.title || item.category_name || item.info_key}
                       </Typography>
                       {!item.use_custom_title && (
                         <Chip label="del catálogo" size="small" variant="outlined" sx={{ height: 20, fontSize: 11 }} />
+                      )}
+                      {pisosOf(item) > 1 && (
+                        <Tooltip title={blockApt(item) === id
+                          ? 'Es el mismo bloque en todos esos pisos: editarlo aquí lo cambia en todos.'
+                          : `Viene de «${item.owner_apartment_name || 'otro piso'}». Es el mismo bloque: editarlo aquí lo cambia en todos.`}>
+                          <Chip
+                            label={`Compartido · ${pisosOf(item)} pisos`}
+                            size="small"
+                            color="primary"
+                            variant="outlined"
+                            sx={{ height: 20, fontSize: 11 }}
+                          />
+                        </Tooltip>
                       )}
                     </Box>
                     <Box sx={{ display: 'flex', gap: 0.5 }}>
@@ -1325,7 +1382,19 @@ export default function GuideApartmentDetail() {
                           <EditIcon fontSize="small" />
                         </IconButton>
                       </Tooltip>
-                      <Tooltip title="Eliminar">
+                      <Tooltip title="Compartir con otros pisos">
+                        <IconButton size="small" onClick={() => setShareItem(item)}>
+                          <ShareIcon fontSize="small" />
+                        </IconButton>
+                      </Tooltip>
+                      {pisosOf(item) > 1 && (
+                        <Tooltip title="Quitar de este piso">
+                          <IconButton size="small" onClick={() => handleRemoveFromThisApartment(item)}>
+                            <LinkOffIcon fontSize="small" />
+                          </IconButton>
+                        </Tooltip>
+                      )}
+                      <Tooltip title={pisosOf(item) > 1 ? 'Eliminar de todos los pisos' : 'Eliminar'}>
                         <IconButton size="small" disabled={deletingInfo} onClick={() => handleDeleteInfo(item)}>
                           <DeleteIcon fontSize="small" />
                         </IconButton>
@@ -1358,15 +1427,44 @@ export default function GuideApartmentDetail() {
               </CardContent>
             </Card>
           ))}
-          <Button
-            variant="outlined"
-            startIcon={<AddIcon />}
-            onClick={handleOpenCreate}
-            sx={{ mt: 1, borderStyle: 'dashed', py: 1.5, borderRadius: 3 }}
-          >
-            Añadir Nuevo Bloque
-          </Button>
+          <Box sx={{ display: 'flex', gap: 1, mt: 1, flexWrap: 'wrap' }}>
+            <Button
+              variant="outlined"
+              startIcon={<AddIcon />}
+              onClick={handleOpenCreate}
+              sx={{ flex: '1 1 220px', borderStyle: 'dashed', py: 1.5, borderRadius: 3 }}
+            >
+              Añadir Nuevo Bloque
+            </Button>
+            <Button
+              variant="outlined"
+              startIcon={<LibraryAddIcon />}
+              onClick={() => setLibraryOpen(true)}
+              sx={{ flex: '1 1 220px', borderStyle: 'dashed', py: 1.5, borderRadius: 3 }}
+            >
+              Añadir bloque de otro piso
+            </Button>
+          </Box>
         </Box>
+      )}
+
+      {shareItem && (
+        <InfoShareDialog
+          open
+          ownerApartmentId={blockApt(shareItem)}
+          infoId={shareItem.id}
+          blockTitle={shareItem.resolved_title || shareItem.title || shareItem.info_key}
+          onClose={() => setShareItem(null)}
+          onSaved={() => { loadInfo(); loadCoverage(); handleRefreshPreview(); }}
+        />
+      )}
+      {id && (
+        <InfoLibraryDialog
+          open={libraryOpen}
+          apartmentId={id}
+          onClose={() => setLibraryOpen(false)}
+          onAdded={() => { loadInfo(); loadCoverage(); handleRefreshPreview(); }}
+        />
       )}
 
       {/* Teléfonos (migración 0084) — checklist aparte de los bloques de info:
@@ -1981,6 +2079,12 @@ export default function GuideApartmentDetail() {
         </DialogTitle>
         <DialogContent dividers>
           <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2.5 }}>
+            {editingItem && pisosOf(editingItem) > 1 && (
+              <Alert severity="info">
+                Bloque compartido: lo que cambies aquí (textos, traducciones y fotos) cambiará en
+                los {pisosOf(editingItem)} pisos que lo tienen.
+              </Alert>
+            )}
             {/* ---- Category picker ---- */}
             <Box>
               <Typography variant="subtitle2" fontWeight={600} color="text.secondary" sx={{ mb: 1 }}>Categoría</Typography>

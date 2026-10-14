@@ -266,6 +266,11 @@ const PROTEGIDAS = [
     'GET /guide/admin/apartments',
     'DELETE /guide/admin/apartments/apt_1',
     'PUT /guide/admin/apartments/apt_1/info/info_1/media/med_1',
+    // Bloques compartidos entre pisos (0112); entre agencias, tests/guide-info-share.test.mjs
+    'GET /guide/admin/apartments/apt_1/info',
+    'GET /guide/admin/apartments/apt_1/info/info_1/shares',
+    'PUT /guide/admin/apartments/apt_1/info/info_1/shares',
+    'GET /guide/admin/apartments/apt_1/info-library',
     'POST /guide/admin/translate',
     'POST /guide/admin/import/places/preview',
     'POST /guide/admin/import/apartments/preview',

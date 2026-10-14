@@ -307,7 +307,10 @@ DELETE FROM translations WHERE entity_type = 'welcome_modal'
 DELETE FROM translations WHERE entity_type = 'store_item'
   AND entity_id IN (SELECT id FROM guide_store_items WHERE apartment_id = ${A});
 
--- 2. media y pasos de las guías
+-- 2. media y pasos de las guías (y dónde se comparten, migración 0112: la demo es
+--    el único piso de su agencia, así que no hay bloque que heredar)
+DELETE FROM guide_info_shares WHERE apartment_id = ${A}
+  OR info_id IN (SELECT id FROM guide_apartment_info WHERE apartment_id = ${A});
 DELETE FROM guide_info_step_media WHERE step_id IN (
   SELECT s.id FROM guide_info_steps s
   JOIN guide_apartment_info i ON s.apartment_info_id = i.id WHERE i.apartment_id = ${A});
