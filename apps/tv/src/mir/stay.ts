@@ -34,6 +34,14 @@ export function doorItem(data: GuidebookData): InfoItem | undefined {
 }
 
 /**
+ * Un saludo de más de 13 letras no cabe en una línea de la columna del inicio (800 px)
+ * a su cuerpo normal: hoy son el ruso y el ucraniano. Va con `.hi.l` en mir.css.
+ */
+export function longGreeting(greeting: string): boolean {
+  return greeting.length > 13
+}
+
+/**
  * Tamaño del valor de una ficha según su LONGITUD. Un código son 4–6 cifras y va
  * grande; pero el campo es texto libre y hay anfitriones que escriben una frase
  * («1234 en el teclado de la puerta»): a 60 px salía cortada.

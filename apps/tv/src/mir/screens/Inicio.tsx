@@ -8,7 +8,7 @@ import { track } from '../../lib/tracking'
 import type { GuidebookData } from '../../lib/api'
 import type { Collection, CollectionKind } from '../../lib/collections'
 import { Backdrop, Brand, Clock, QrBox, useUsableImage } from '../parts'
-import { credSize, doorItem, stayTime, valueSize } from '../stay'
+import { credSize, doorItem, longGreeting, stayTime, valueSize } from '../stay'
 import type { MirRoute } from '../route'
 
 /**
@@ -144,7 +144,7 @@ export function Inicio({ data, collections, lang, rtl, demoMode, initialFocus, o
         </div>
 
         <div className="hero">
-          <div className="hi">{hi}</div>
+          <div className={`hi${longGreeting(hi) ? ' l' : ''}`}>{hi}</div>
           <div className={`nm${data.apartment.name.length > 22 ? ' l' : ''}`}>{data.apartment.name}</div>
           {zone && <div className="zn">{zone}</div>}
         </div>
