@@ -172,7 +172,7 @@ cambios sin commitear de otra sesión en curso dando vueltas por el repo. Antes 
 | `workerDelivery.js` | Delivery/takeout. |
 | `workerLanding.js` / `workerLandingAdmin.js` | Landing builder (público / admin). |
 | `workerGuide.js` | Guidebook público (`GET /guide/:slug`). |
-| `workerGuideAdmin.js` | Admin del guidebook (`/guide/admin/*`). El más grande (~76KB). **Ruta con un segundo id** (`/apartments/:aptId/info/:infoId/...`) → `checkInfoAccess`, no `checkAptAccess`: este solo mira el piso, y con el piso propio en la ruta se tocaban bloques ajenos (`npm run test:guide-info-scope`). |
+| `workerGuideAdmin.js` | Admin del guidebook (`/guide/admin/*`). El más grande (~76KB). **Ruta con un segundo id** (`/apartments/:aptId/info/:infoId/...`) → `checkInfoAccess`, no `checkAptAccess`: este solo mira el piso, y con el piso propio en la ruta se tocaban bloques ajenos (`npm run test:guide-info-scope`). **Un bloque puede salir en varios pisos de la agencia** (`guide_info_shares`, 0112): lista los de un piso con `aptInfoScope`, no con `apartment_id = ?`; y su id no se deriva de `info_${piso}_${clave}` (al traspasarse conserva el suyo). |
 | `workerGuideTracking.js` | Tracking del guidebook (`/guide/track/*`). |
 | `workerGuideAI.js` | Asistente IA del guidebook (`/guide/ai/*`, usa binding `AI`). |
 | `workerGuideTranslate.js` | Traducción automática a los 13 idiomas (`POST /guide/admin/translate`, Workers AI). Rellena `translations` sin pisar lo ya escrito. Tiene presupuesto diario propio para no dejar sin neuronas al chatbot de `workerGuideAI.js` — los dos comparten el tier gratuito de la cuenta. |
