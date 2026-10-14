@@ -2,8 +2,10 @@
 -- BDschemaFinal.sql — ESQUEMA REAL DE PRODUCCION
 -- =====================================================
 -- Base de datos D1: restaurant-menu-saas (7e8d1efe-2a54-4849-9a06-4c47152392bd)
--- Exportado el 2026-10-13 desde la BD en produccion, tras aplicar la
--- migracion 0109 (indice idx_guide_store_orders_visitor en
+-- Exportado el 2026-10-14 desde la BD en produccion, tras aplicar la
+-- migracion 0112 (guide_info_shares: un bloque de la guia en varios pisos de la
+-- misma agencia, con su posicion en cada uno; tabla e indice al final). Antes,
+-- 0109 (indice idx_guide_store_orders_visitor en
 -- guide_store_orders(visitor_id, created_at)): el limite por hora de los pedidos
 -- de la Tienda cuenta ahi los pedidos ya guardados (overHourlyLimit en
 -- workerGuideStore.js) en vez de gastar una escritura de KV por pedido. Sale al
@@ -26,7 +28,7 @@
 -- sessions.visitor_day_hash (medicion anonima de la carta, el mismo hash diario
 -- que guide_sessions); 0096: ai_usage_daily (presupuesto diario de Workers AI,
 -- en D1 y no en KV: en Workers Free KV admite 1.000 escrituras/dia por cuenta).
--- 88 tablas.
+-- 89 tablas.
 --
 -- NO editar a mano. Para regenerar:
 --   npx wrangler d1 export restaurant-menu-saas --remote --no-data --output BDschemaFinal.sql
@@ -1293,6 +1295,17 @@ CREATE TABLE IF NOT EXISTS "guide_section_views" (
   FOREIGN KEY (session_id) REFERENCES guide_sessions(id),
   FOREIGN KEY (apartment_id) REFERENCES guide_apartments(id)
 );
+CREATE TABLE guide_info_shares (
+    info_id      TEXT NOT NULL,
+    apartment_id TEXT NOT NULL,
+    -- Posición del bloque en la guía de ESTE piso (la del piso de origen va en
+    -- guide_apartment_info.order_index).
+    order_index  INTEGER NOT NULL DEFAULT 0,
+    created_at   TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (info_id, apartment_id),
+    FOREIGN KEY (info_id) REFERENCES guide_apartment_info(id) ON DELETE CASCADE,
+    FOREIGN KEY (apartment_id) REFERENCES guide_apartments(id) ON DELETE CASCADE
+);
 CREATE INDEX idx_dishes_restaurant ON dishes(restaurant_id);
 CREATE INDEX idx_sections_restaurant ON sections(restaurant_id);
 CREATE INDEX idx_translations_language ON translations(language_code);
@@ -1413,3 +1426,4 @@ CREATE INDEX idx_guide_section_views_session ON guide_section_views(session_id);
 CREATE INDEX idx_guide_section_views_created ON guide_section_views(created_at);
 CREATE INDEX idx_audit_ip_created ON security_audit_log(ip, created_at);
 CREATE INDEX idx_guide_store_orders_visitor ON guide_store_orders(visitor_id, created_at);
+CREATE INDEX idx_guide_info_shares_apartment ON guide_info_shares(apartment_id);
