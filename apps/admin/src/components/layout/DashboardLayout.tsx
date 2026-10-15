@@ -67,12 +67,14 @@ export default function DashboardLayout() {
   });
 
   // Cierre de sesión por inactividad: aviso 60 s antes, fuera a los 15 min.
+  // Solo de este navegador: revocar en el servidor sacaría también de las demás
+  // sesiones del usuario, aunque las esté usando.
   const { timeUntilLogout } = useIdleDetection({
     idleTimeout: 5 * 60 * 1000,
     logoutTimeout: 15 * 60 * 1000,
     onActive: () => setShowIdleWarning(false),
     onLogout: () => {
-      logout();
+      logout({ everywhere: false });
       navigate('/login');
     },
   });

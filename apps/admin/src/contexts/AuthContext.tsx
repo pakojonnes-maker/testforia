@@ -14,7 +14,8 @@ interface AuthContextType {
   login: (email: string, password: string) => Promise<any>;
   loginWithMfa: (ticket: string, code: string) => Promise<any>;
   loginWithGoogle: (credential: string) => Promise<GoogleLoginResult>;
-  logout: () => Promise<void>;
+  /** Por defecto cierra todas las sesiones del usuario; `everywhere: false`, solo la de este navegador. */
+  logout: (options?: { everywhere?: boolean }) => Promise<void>;
   // Restaurant context (existing)
   currentRestaurant?: any;
   setCurrentRestaurant: (restaurant: any) => void;
@@ -237,8 +238,13 @@ export function AuthProvider({ children }: AuthProviderProps) {
   // Función de cierre de sesión. Revoca la sesión en el servidor (invalida
   // el token vía token_version) antes de limpiar el estado local — antes
   // logout solo borraba localStorage y el token de 7 días seguía sirviendo.
-  const logout = async () => {
-    await apiClient.logoutOnServer();
+  //
+  // `everywhere: false` solo cierra ESTE navegador: es lo que usa el cierre por
+  // inactividad. La revocación del servidor tumba TODAS las sesiones del usuario
+  // (token_version es por usuario), así que una pestaña olvidada sacaba del
+  // panel también al móvil o al otro navegador en uso.
+  const logout = async ({ everywhere = true }: { everywhere?: boolean } = {}) => {
+    if (everywhere) await apiClient.logoutOnServer();
     localStorage.removeItem('auth_token');
     localStorage.removeItem('current_restaurant');
     localStorage.removeItem('current_agency');
