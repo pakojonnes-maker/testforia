@@ -2282,6 +2282,10 @@ export default function GuideApartmentDetail() {
                         {m.media_type === 'image' && (
                           <TextField
                             select size="small" label="Dónde sale" sx={{ flex: 1, minWidth: 0 }}
+                            // Sin displayEmpty, MUI no pinta la opción de valor '' y una portada
+                            // salía como un campo vacío.
+                            SelectProps={{ displayEmpty: true }}
+                            InputLabelProps={{ shrink: true }}
                             value={m.after_block ?? ''}
                             onChange={(e) => handleMediaPosition(m.id, e.target.value === '' ? null : Number(e.target.value))}
                             helperText={
